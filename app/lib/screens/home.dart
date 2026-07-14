@@ -24,7 +24,7 @@ class HomeScreen extends StatelessWidget {
               Text('Ishonchli hisob-kitob', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: p.t4, letterSpacing: 0.4)),
               const SizedBox(width: 14),
               GestureDetector(
-                onTap: nav.openNotifs,
+                onTap: () => nav.open('notifs'),
                 child: Container(
                   width: 34, height: 34,
                   decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 22),
           MicroLabel('SOF BALANS', p),
           const SizedBox(height: 6),
-          Text(sumTxt(net, sign: true),
+          Text(signed(net),
               style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.8,
                   color: net >= 0 ? p.green : p.red)),
           const SizedBox(height: 10),
@@ -51,16 +51,26 @@ class HomeScreen extends StatelessWidget {
             decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(10)),
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Qidirish', style: TextStyle(fontSize: 14, color: p.t5)),
+            child: Row(children: [
+              Icon(Icons.search, size: 17, color: p.t5),
+              const SizedBox(width: 8),
+              Text('Qidirish', style: TextStyle(fontSize: 14, color: p.t5)),
+            ]),
           ),
         ]),
       ),
       const SizedBox(height: 10),
       Expanded(
-        child: ListView.builder(
+        child: ListView(
           padding: const EdgeInsets.only(bottom: 90),
-          itemCount: partners.length,
-          itemBuilder: (c, i) => _row(partners[i], p),
+          children: [
+            for (final r in partners) _swipeRow(r, p, false),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 6),
+              child: MicroLabel('ARXIV', p),
+            ),
+            for (final r in archived) _swipeRow(r, p, true),
+          ],
         ),
       ),
     ]);
@@ -71,41 +81,58 @@ class HomeScreen extends StatelessWidget {
         Text(v, style: TextStyle(fontSize: 12, color: p.ink, fontWeight: FontWeight.w600)),
       ]);
 
+  Widget _swipeRow(Partner r, P p, bool arch) {
+    return Dismissible(
+      key: ValueKey(r.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async => false, // demo: qaytadan joyiga qaytadi
+      background: Container(
+        color: p.ink,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 30),
+        child: Text(arch ? 'Qaytarish' : 'Arxivlash',
+            style: TextStyle(color: p.bg, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+      child: arch ? _archRow(r, p) : _row(r, p),
+    );
+  }
+
   Widget _row(Partner r, P p) => GestureDetector(
         onTap: () => nav.openClient(r),
         child: Container(
-          decoration: BoxDecoration(
-            color: p.bg,
-            border: Border(bottom: BorderSide(color: p.hair2)),
-          ),
+          decoration: BoxDecoration(color: p.bg, border: Border(bottom: BorderSide(color: p.hair2))),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           child: Row(children: [
-            SizedBox(
-              width: 44, height: 44,
-              child: Stack(clipBehavior: Clip.none, children: [
-                InitialsAvatar(r.initials, p),
-                Positioned(right: -2, bottom: -2, child: TrustBadge(r.onTrust, p)),
-              ]),
-            ),
+            SizedBox(width: 44, height: 44, child: Stack(clipBehavior: Clip.none, children: [
+              InitialsAvatar(r.initials, p),
+              Positioned(right: -2, bottom: -2, child: TrustBadge(r.onTrust, p)),
+            ])),
             const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink)),
-                const SizedBox(height: 2),
-                Text(r.sub, style: TextStyle(fontSize: 12, color: p.t3)),
-              ]),
-            ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink)),
+              const SizedBox(height: 2),
+              Text(r.sub, style: TextStyle(fontSize: 12, color: p.t3)),
+            ])),
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(sumTxt(r.balance, sign: true),
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                      color: r.balance >= 0 ? p.green : p.red)),
+              Text(signed(r.balance),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: r.balance >= 0 ? p.green : p.red)),
               const SizedBox(height: 2),
-              Text(r.balance >= 0 ? 'sizga qarzdor' : 'qarzingiz',
-                  style: TextStyle(fontSize: 11, color: p.t5)),
+              Text(r.balSub, style: TextStyle(fontSize: 11, color: p.t5)),
             ]),
           ]),
         ),
+      );
+
+  Widget _archRow(Partner r, P p) => Container(
+        decoration: BoxDecoration(color: p.bg, border: Border(bottom: BorderSide(color: p.hair2))),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
+        child: Opacity(opacity: 0.75, child: Row(children: [
+          InitialsAvatar(r.initials, p, size: 34),
+          const SizedBox(width: 12),
+          Expanded(child: Text(r.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: p.t1))),
+          Text('Arxivda', style: TextStyle(fontSize: 11, color: p.t4)),
+        ])),
       );
 }

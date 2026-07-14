@@ -72,3 +72,78 @@ class InitialsAvatar extends StatelessWidget {
             style: TextStyle(fontSize: size * 0.32, fontWeight: FontWeight.w600, color: p.ink)),
       );
 }
+
+/// Pastdan chiquvchi sheet (scrim + panel)
+class BottomSheetShell extends StatelessWidget {
+  final P p;
+  final VoidCallback onClose;
+  final Widget child;
+  final double? heightFactor;
+  const BottomSheetShell({required this.p, required this.onClose, required this.child, this.heightFactor});
+  @override
+  Widget build(BuildContext c) => Stack(children: [
+        Positioned.fill(child: GestureDetector(onTap: onClose, child: Container(color: p.dim))),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: FractionallySizedBox(
+            heightFactor: heightFactor,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(color: p.bg, borderRadius: const BorderRadius.vertical(top: Radius.circular(22))),
+              child: SafeArea(top: false, child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 26),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Center(child: Container(width: 38, height: 4, margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(color: p.bd, borderRadius: BorderRadius.circular(2)))),
+                  child,
+                ]),
+              )),
+            ),
+          ),
+        ),
+      ]);
+}
+
+/// Raqamli klaviatura (0-9, bo'sh, delete)
+class Keypad extends StatelessWidget {
+  final P p;
+  final void Function(String) onKey;
+  const Keypad({required this.p, required this.onKey});
+  @override
+  Widget build(BuildContext c) {
+    final keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+    return GridView.count(
+      crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 6, crossAxisSpacing: 6, childAspectRatio: 1.9,
+      children: [ for (final k in keys)
+        GestureDetector(
+          onTap: k.isEmpty ? null : () => onKey(k),
+          child: Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+            alignment: Alignment.center,
+            child: Text(k, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: p.ink)),
+          ),
+        ) ],
+    );
+  }
+}
+
+/// Orqaga tugmali sarlavha (overlay ekranlar uchun)
+class OverlayHeader extends StatelessWidget {
+  final P p;
+  final String title;
+  final VoidCallback onBack;
+  final String? trailing;
+  const OverlayHeader({required this.p, required this.title, required this.onBack, this.trailing});
+  @override
+  Widget build(BuildContext c) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 20, 12),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+        child: Row(children: [
+          GestureDetector(onTap: onBack, child: SizedBox(width: 34, height: 34,
+              child: Icon(Icons.arrow_back_ios_new, size: 18, color: p.ink))),
+          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+          if (trailing != null) ...[const Spacer(), Text(trailing!, style: TextStyle(fontSize: 12, color: p.t3))],
+        ]),
+      );
+}
