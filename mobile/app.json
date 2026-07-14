@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Trust — Oldi-Berdi",
+    "slug": "trust-oldi-berdi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "trust",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0F766E",
+      "resizeMode": "contain"
+    },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "uz.trust.oldiberdi" },
+    "android": {
+      "package": "uz.trust.oldiberdi",
+      "adaptiveIcon": { "backgroundColor": "#0F766E" }
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "extra": {
+      "apiUrl": "http://192.168.1.100:3000"
+    }
+  }
+}
