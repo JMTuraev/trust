@@ -36,17 +36,3 @@ class P {
     green: Color(0xFF3E9B6C), red: Color(0xFFC15A4C),
   );
 }
-
-/// Inheritedwidget orqali joriy palitrani olish.
-class Palette extends InheritedWidget {
-  final P p;
-  final bool isDark;
-  final VoidCallback toggle;
-  const Palette({required this.p, required this.isDark, required this.toggle, required super.child});
-
-  static Palette of(BuildContext c) =>
-      c.dependOnInheritedWidgetOfType<Palette>()!;
-
-  @override
-  bool updateShouldNotify(Palette old) => old.p != p || old.isDark != isDark;
-}

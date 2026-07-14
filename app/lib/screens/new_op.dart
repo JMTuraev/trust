@@ -18,7 +18,7 @@ class _NewOpSheetState extends State<NewOpSheet> {
   Widget build(BuildContext c) {
     final p = widget.nav.p;
     return Stack(children: [
-      GestureDetector(onTap: widget.nav.closeSheet, child: Container(color: p.dim)),
+      Positioned.fill(child: GestureDetector(onTap: widget.nav.closeSheet, child: Container(color: p.dim))),
       Align(
         alignment: Alignment.bottomCenter,
         child: Container(
