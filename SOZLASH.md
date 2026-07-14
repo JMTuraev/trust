@@ -10,9 +10,6 @@ U yerdan 2 ta qiymatni "Copy" tugmasi orqali nusxalang:
 - **anon / public** → `SUPABASE_ANON_KEY`
 - **service_role / secret** ("Reveal" bosib) → `SUPABASE_SERVICE_ROLE_KEY`
 
-JWT secret uchun: **https://supabase.com/dashboard/project/cgqudcbvezwxjxgaqdiw/settings/jwt**
-- **JWT Secret** → `SUPABASE_JWT_SECRET`
-
 DevSMS token: **https://devsms.uz** → Dashboard → API token → `DEVSMS_TOKEN`
 
 ## 2. .env faylini yaratish
@@ -20,7 +17,7 @@ DevSMS token: **https://devsms.uz** → Dashboard → API token → `DEVSMS_TOKE
 ```bash
 cp .env.example .env
 ```
-So'ng `.env` ichidagi qiymatlarni to'ldiring. `SUPABASE_URL` allaqachon qo'yilgan.
+`.env` fayl allaqachon tayyor holda beriladi — faqat `DEVSMS_TOKEN` ni to'ldirish qoladi. `APP_JWT_SECRET` avtomatik generatsiya qilingan.
 
 ## 3. Ishga tushirish
 

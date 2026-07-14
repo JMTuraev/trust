@@ -88,7 +88,7 @@ export async function verifyOtp(phone, code) {
     return issueSession(user);
   }
 
-  // Xalqaro: Supabase o'zi tekshiradi va session qaytaradi
+  // Xalqaro: Supabase OTP ni tekshiradi, biz o'z session tokenimizni beramiz
   const { data, error } = await supabaseAnon.auth.verifyOtp({
     phone: `+${phone}`,
     token: String(code),
@@ -99,11 +99,8 @@ export async function verifyOtp(phone, code) {
     err.status = 400;
     throw err;
   }
-  return {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    user: { id: data.user.id, phone: data.user.phone },
-  };
+  const user = await findOrCreateUser(phone);
+  return issueSession(user);
 }
 
 // ---------- Yordamchilar ----------
@@ -144,7 +141,7 @@ function issueSession(user) {
       iat: now,
       exp: now + 60 * 60 * 24 * 7, // 7 kun
     },
-    config.supabase.jwtSecret
+    config.app.jwtSecret
   );
   return { access_token, refresh_token: null, user };
 }
