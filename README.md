@@ -1,48 +1,70 @@
 # trust
 
-**Oldi-berdi** — qarz hisobini elektronlashtirish, hujjatlashtirish va eslatish uchun mobil ilova backendi.
+**Oldi-Berdi** — ikki tomonlama tasdiqli hisob-kitob. Har bir yozuv kod bilan tasdiqlanib, o'chirilmas dalilga aylanadi.
+
+## Tarkib
+- `src/` — Node.js + Express backend (API)
+- `app/` — Flutter mobil ilova (web deploy: https://jmturaev.github.io/trust/)
+- `supabase/migrations/` — PostgreSQL sxema (001 init, 002 trust modeli)
 
 ## Stack
+Node.js + Express · Supabase (PostgreSQL, Auth) · devsms.uz (O'zbekiston OTP) · Flutter
 
-- Node.js + Express
-- Supabase (PostgreSQL, Auth)
-- devsms.uz — O'zbekiston raqamlari uchun OTP SMS (AllClubs shabloni)
-- Supabase Auth OTP — boshqa davlatlar uchun
-
-## O'rnatish
-
+## Ishga tushirish (backend)
 ```bash
 npm install
-cp .env.example .env   # kalitlarni to'ldiring
+cp .env.example .env   # kalitlarni to'ldiring (SOZLASH.md)
 npm run dev
 ```
+Supabase'da `supabase/migrations/*.sql` ni SQL Editor orqali ishga tushiring.
 
-Supabase'da `supabase/migrations/001_init.sql` ni SQL Editor orqali ishga tushiring.
+## Ma'lumot modeli (v2)
+- **profiles** — foydalanuvchilar
+- **partners** — hamkorlar (owner ↔ counterparty), on_trust, archived
+- **operations** — ikki tomonlama tasdiqli yozuvlar. type: qarz_berdim / qarz_oldim / qaytardim / menga_qaytarildi. Kod bilan tasdiqlanadi → dalil
+- **op_history** — o'zgarishlar tarixi (o'chirilmaydi)
+- **edit_requests** — o'zgartirish so'rovlari (ikki tomon roziligi)
+- **expenses** — shaxsiy xarajat/daromad (Xarajat chat)
+- **limits** — oylik limit
+- **notifications** — bildirishnomalar
 
 ## API
 
 ### Auth
 | Metod | Yo'l | Tavsif |
 |---|---|---|
-| POST | `/api/auth/send-otp` | `{ phone }` — OTP yuborish. +998 → devsms.uz, boshqalar → Supabase |
-| POST | `/api/auth/verify-otp` | `{ phone, code }` — tekshirish, `access_token` qaytaradi |
+| POST | `/api/auth/send-otp` | `{ phone }` — +998 → devsms, boshqalar → Supabase |
+| POST | `/api/auth/verify-otp` | `{ phone, code }` → `access_token` |
 
-### Profil (Bearer token kerak)
+### Profil / Hamkorlar
 | Metod | Yo'l | Tavsif |
 |---|---|---|
-| GET | `/api/profile/me` | Profilni olish |
-| PUT | `/api/profile/me` | `{ full_name, avatar_url }` |
+| GET/PUT | `/api/profile/me` | Profil |
+| GET | `/api/partners` | Hamkorlar (balans + pending bilan) |
+| POST | `/api/partners` | `{ name, counterparty_phone, on_trust }` |
+| GET | `/api/partners/:id` | Hamkor + operatsiyalar |
+| PATCH | `/api/partners/:id` | `{ name?, archived? }` — nom/arxiv |
 
-### Qarzlar (Bearer token kerak)
+### Operatsiyalar
 | Metod | Yo'l | Tavsif |
 |---|---|---|
-| GET | `/api/debts` | Mening qarzlarim (`?role=lender\|borrower&status=...`) |
-| POST | `/api/debts` | `{ direction: "lent"\|"borrowed", counterparty_phone, amount, currency?, note?, due_date? }` |
-| GET | `/api/debts/:id` | Bitta qarz (to'lovlari bilan) |
-| POST | `/api/debts/:id/confirm` | Ikkinchi taraf tasdiqlaydi → `active` |
-| POST | `/api/debts/:id/cancel` | Bekor qilish |
-| POST | `/api/debts/:id/payments` | `{ amount, note? }` — to'lov; to'liq to'lansa qarz `paid` bo'ladi |
+| POST | `/api/operations` | `{ partner_id, type, amount, note? }` → pending + confirm_code |
+| POST | `/api/operations/:id/confirm` | `{ code }` — 2-tomon tasdiqlaydi → dalil |
+| POST | `/api/operations/:id/cancel` | Bekor qilish |
+| GET | `/api/operations/:id` | Dalil (tarix + so'rovlar bilan) |
+| POST | `/api/operations/:id/edit-request` | `{ new_amount, new_note? }` |
+| POST | `/api/operations/:id/edit-request/:reqId/resolve` | `{ approve }` |
 
-## Qarz holati oqimi
+### Xarajat / Limit / Bildirishnoma
+| Metod | Yo'l | Tavsif |
+|---|---|---|
+| GET/POST | `/api/expenses` | Shaxsiy yozuvlar |
+| GET | `/api/expenses/summary/month` | Bu oy: daromad/xarajat/sof/toifalar/limit |
+| GET/PUT | `/api/limits` | Oylik limit |
+| GET | `/api/notifications` | Bildirishnomalar |
+| POST | `/api/notifications/:id/read` · `/read-all` | O'qildi |
 
-`pending` (bir taraf kiritdi) → `active` (ikkinchi taraf tasdiqladi) → `paid` / `cancelled` / `disputed`
+## Tasdiq oqimi
+1. Owner operatsiya yozadi → `pending`, 5 xonali `confirm_code` yaratiladi, 2-tomonga bildirishnoma.
+2. 2-tomon kodni kiritadi → `confirmed`, o'chirilmas dalil.
+3. O'zgartirish faqat `edit-request` + qarshi tomon tasdig'i bilan; eski qiymat tarixda qoladi.
