@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme.dart';
 import 'api.dart';
+import 'stt.dart';
 
 const Map<String, dynamic> _uz = {
   'slogan': "«Hisobli do'st — ayrilmas»",
@@ -90,7 +91,7 @@ const List<Map<String, dynamic>> ccList = [
 class TrustStore extends ChangeNotifier {
   final Map<String, dynamic> S = {
     'stage': 'welcome', 'lang': 'uz', 'dark': false, 'phone': '', 'otpVal': '', 'pinVal': '',
-    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '', 'xarText': '',
+    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '', 'xarText': '', 'vReal': false,
     'xarLimit': 3000000, 'limEdit': null,
     'xarEntries': <Map<String, dynamic>>[
       {'id': 'x1', 'kind': 'x', 'cat': 'Oziq-ovqat', 'note': 'Bozorlik', 'a': 85000, 'days': 0, 't': '09:40'},
@@ -608,7 +609,29 @@ class TrustStore extends ChangeNotifier {
     return {'kind': inc ? 'd' : 'x', 'amount': ai != 0 ? ai.toString() : '', 'cat': cat, 'note': note};
   }
 
+  // Real ovoz yozish (STT) — XOTIRA spec: mikrofon -> backend (Groq, zaxira OpenAI) -> matn
+  void voiceStart_() {
+    set({'voiceStage': 'listen', 'vText': '', 'vReal': false});
+    Stt.start(
+      onStarted: () {
+        if (S['voiceStage'] == 'listen') set({'vReal': true});
+      },
+      onDone: _voiceDone,
+    );
+  }
+
+  void _voiceDone(String? text) {
+    if (S['voiceStage'] != 'listen') return; // yopilgan yoki demo tanlangan
+    if (text != null && text.trim().isNotEmpty) {
+      xarPick_(text.trim());
+    } else {
+      set({'voiceStage': null, 'vText': '', 'vReal': false});
+      toast_("Ovoz matnga aylanmadi — yozib yuboring yoki qayta urining");
+    }
+  }
+
   void xarPick_(String txt) {
+    Stt.cancel();
     set({'voiceStage': 'parsing', 'vText': txt, 'xarText': ''});
     _xt?.cancel();
     _xt = Timer(const Duration(milliseconds: 1400), () {
@@ -783,7 +806,11 @@ class TrustStore extends ChangeNotifier {
               })
           .toList(),
       'xarCatsEmpty': perCat.isEmpty,
-      'xarMicTap': () => set({'voiceStage': 'listen', 'vText': ''}),
+      'xarMicTap': () => voiceStart_(),
+      'vStop': () => Stt.finish(),
+      'vHint': S['vReal'] == true
+          ? "Gapiring… bo'lgach to'lqinni bosing (maks 10 s)"
+          : "Demo: aytmoqchi bo'lgan jumlani tanlang",
       'xarTextVal': S['xarText'],
       'xarTextSet': (String t) => set({'xarText': t}),
       'xarTextGo': () {
@@ -800,7 +827,8 @@ class TrustStore extends ChangeNotifier {
       'vText': S['vText'],
       'vClose': () {
         _xt?.cancel();
-        set({'voiceStage': null, 'vText': ''});
+        Stt.cancel();
+        set({'voiceStage': null, 'vText': '', 'vReal': false});
       },
       'vSamples': ['Taksiga 25 ming', 'Oyligim 5 million tushdi', '50 ming oziq-ovqatga']
           .map((text) => {'text': text, 'pick': () => xarPick_(text)})

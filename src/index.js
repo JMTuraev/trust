@@ -9,6 +9,7 @@ import operationRoutes from './routes/operations.js';
 import expenseRoutes from './routes/expenses.js';
 import limitRoutes from './routes/limits.js';
 import notifRoutes from './routes/notifications.js';
+import sttRoutes from './routes/stt.js';
 
 assertConfig();
 
@@ -18,7 +19,7 @@ app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '2.1' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '2.2' }));
 
 // Auth — qattiqroq limit (SMS xarajati va brute-force'dan himoya)
 app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 10 }), authRoutes);
@@ -29,6 +30,7 @@ app.use('/api/operations', operationRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/limits', limitRoutes);
 app.use('/api/notifications', notifRoutes);
+app.use('/api/stt', sttRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {
@@ -37,7 +39,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(config.port, () =>
-  console.log(`trust-backend ${config.port}-portda ishga tushdi (v2.1)`)
+  console.log(`trust-backend ${config.port}-portda ishga tushdi (v2.2)`)
 );
 
 // Render/Docker SIGTERM yuboradi — ochiq so'rovlarni yakunlab chiqamiz

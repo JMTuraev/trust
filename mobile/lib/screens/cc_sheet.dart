@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
-import '../theme.dart';
 
 class CcSheet extends StatelessWidget {
   const CcSheet({super.key});

@@ -1,5 +1,4 @@
 // Trust — umumiy UI primitivlari (prototip elementlari bilan 1:1)
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'store.dart';

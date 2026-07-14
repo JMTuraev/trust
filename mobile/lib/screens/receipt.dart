@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
-import '../theme.dart';
 
 class ReceiptScreen extends StatelessWidget {
   const ReceiptScreen({super.key});

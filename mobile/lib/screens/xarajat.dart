@@ -745,23 +745,26 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    SizedBox(
-                      height: 60,
-                      child: AnimatedBuilder(
-                        animation: _tick,
-                        builder: (_, __) {
-                          final ms = _ms();
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              for (var i = 0; i < wave.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 3),
-                                _waveBar(wave[i], ms, p),
+                    Tap(
+                      onTap: () => v['vStop'](),
+                      child: SizedBox(
+                        height: 60,
+                        child: AnimatedBuilder(
+                          animation: _tick,
+                          builder: (_, __) {
+                            final ms = _ms();
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                for (var i = 0; i < wave.length; i++) ...[
+                                  if (i > 0) const SizedBox(width: 3),
+                                  _waveBar(wave[i], ms, p),
+                                ],
                               ],
-                            ],
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -771,7 +774,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                         Tx('Tinglayapman…', size: 20, w: FontWeight.w700, color: p.ink),
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: Tx("Demo: aytmoqchi bo'lgan jumlani tanlang", size: 12.5, color: p.t3),
+                          child: Tx((v['vHint'] ?? '') as String, size: 12.5, color: p.t3),
                         ),
                       ],
                     ),
@@ -859,7 +862,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       child: Container(
         width: 3.5,
         height: (w['h'] as num).toDouble(),
-            decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(2)),
+        decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(2)),
       ),
     );
   }

@@ -21,6 +21,11 @@ export const config = {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS || '300', 10),
     maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
   },
+  stt: {
+    // XOTIRA-ovoz-va-kategoriya.md: asosiy Groq whisper-large-v3, zaxira OpenAI gpt-4o-transcribe
+    groqKey: process.env.GROQ_API_KEY,
+    openaiKey: process.env.OPENAI_API_KEY,
+  },
 };
 
 export function assertConfig() {

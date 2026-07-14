@@ -1,5 +1,4 @@
 // O'zgartirish so'rovi (forma) — prototip 1482–1499 qatorlar bilan 1:1
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';

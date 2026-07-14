@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
-import '../theme.dart';
 
 class MoliyaScreen extends StatelessWidget {
   const MoliyaScreen({super.key});
