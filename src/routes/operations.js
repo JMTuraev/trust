@@ -24,7 +24,8 @@ router.post('/', async (req, res, next) => {
     if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });
 
     const code = p.on_trust ? genCode() : null;
-    const status = p.on_trust ? 'pending' : 'confirmed'; // Trust'da bo'lmasa bir tomonlama (tasdiqsiz), lekin darhol yoziladi
+    // Trust'da bo'lmasa — bir tomonlama daftar yozuvi: 'unconfirmed' (dalil EMAS)
+    const status = p.on_trust ? 'pending' : 'unconfirmed';
     const { data, error } = await supabaseAdmin.from('operations').insert({
       owner_id: req.user.id,
       partner_id,
@@ -36,7 +37,7 @@ router.post('/', async (req, res, next) => {
       note: note || null,
       status,
       confirm_code: code,
-      confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+      confirmed_at: null,
       created_by: req.user.id,
     }).select().single();
     if (error) throw new Error(error.message);
@@ -58,9 +59,11 @@ router.post('/:id/confirm', async (req, res, next) => {
     if (op.status !== 'pending') return res.status(400).json({ success: false, error: `Holat 'pending' emas: ${op.status}` });
     if (String(req.body?.code || '') !== String(op.confirm_code || ''))
       return res.status(400).json({ success: false, error: "Kod noto'g'ri" });
-    // Tasdiqlovchi 2-tomon bo'lishi kerak (yaratuvchi emas)
+    // Tasdiqlovchi aynan qarshi tomon bo'lishi kerak (yaratuvchi emas, begona ham emas)
     if (op.created_by === req.user.id)
       return res.status(403).json({ success: false, error: "O'zingiz yaratgan yozuvni o'zingiz tasdiqlay olmaysiz" });
+    if (op.counterparty_id !== req.user.id && op.owner_id !== req.user.id)
+      return res.status(403).json({ success: false, error: 'Bu yozuv sizga tegishli emas' });
 
     const { data, error } = await supabaseAdmin.from('operations')
       .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -77,10 +80,26 @@ router.post('/:id/cancel', async (req, res, next) => {
     const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
     if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
       return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (!['pending', 'confirmed'].includes(op.status))
-      return res.status(400).json({ success: false, error: 'Bu holatda bekor qilib bo\'lmaydi' });
+    // MUHIM: tasdiqlangan dalil o'chirilmas — faqat pending/unconfirmed bekor qilinadi
+    if (!['pending', 'unconfirmed'].includes(op.status))
+      return res.status(400).json({ success: false, error: "Tasdiqlangan dalilni bekor qilib bo'lmaydi — o'zgartirish so'rovi yuboring" });
     const { data, error } = await supabaseAdmin.from('operations')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', op.id).select().single();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+// POST /api/operations/:id/archive  — dalil ro'yxatdan yashiriladi, balansda qoladi
+router.post('/:id/archive', async (req, res, next) => {
+  try {
+    const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
+    if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
+      return res.status(404).json({ success: false, error: 'Topilmadi' });
+    if (!['confirmed', 'unconfirmed'].includes(op.status))
+      return res.status(400).json({ success: false, error: 'Faqat yakunlangan yozuv arxivlanadi' });
+    const { data, error } = await supabaseAdmin.from('operations')
+      .update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', op.id).select().single();
     if (error) throw new Error(error.message);
     res.json({ success: true, data });
   } catch (e) { next(e); }
@@ -104,7 +123,10 @@ router.post('/:id/edit-request', async (req, res, next) => {
     const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
     if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
       return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (op.status !== 'confirmed') return res.status(400).json({ success: false, error: "Faqat tasdiqlangan yozuvni o'zgartirish mumkin" });
+    if (!['confirmed', 'archived'].includes(op.status)) return res.status(400).json({ success: false, error: "Faqat tasdiqlangan yozuvni o'zgartirish mumkin" });
+    const { data: existing } = await supabaseAdmin.from('edit_requests')
+      .select('id').eq('operation_id', op.id).eq('status', 'pending').limit(1);
+    if (existing?.length) return res.status(409).json({ success: false, error: "So'rov allaqachon yuborilgan" });
 
     const { data, error } = await supabaseAdmin.from('edit_requests').insert({
       operation_id: op.id, new_amount: Number(new_amount), new_note: new_note || null, requested_by: req.user.id,

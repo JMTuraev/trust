@@ -6,13 +6,14 @@ import { normalizePhone } from '../lib/phone.js';
 const router = Router();
 router.use(requireAuth);
 
-// Hamkorning balansini hisoblash (tasdiqlangan operatsiyalar yig'indisi)
+// Hamkorning balansini hisoblash — mobil ilova bilan bir xil qoida:
+// pending va cancelled hisobga kirmaydi; confirmed/unconfirmed/archived kiradi
 async function balanceOf(partnerId) {
   const { data } = await supabaseAdmin
     .from('operations')
     .select('delta, status')
     .eq('partner_id', partnerId)
-    .eq('status', 'confirmed');
+    .in('status', ['confirmed', 'unconfirmed', 'archived']);
   return (data || []).reduce((s, o) => s + Number(o.delta), 0);
 }
 
@@ -71,6 +72,33 @@ router.get('/:id', async (req, res, next) => {
     const { data: ops } = await supabaseAdmin
       .from('operations').select('*').eq('partner_id', p.id).order('created_at', { ascending: false });
     res.json({ success: true, data: { ...p, balance: await balanceOf(p.id), pending: await pendingCount(p.id), operations: ops || [] } });
+  } catch (e) { next(e); }
+});
+
+// POST /api/partners/:id/remind — qarshi tomonga eslatma (3 soatlik cooldown)
+router.post('/:id/remind', async (req, res, next) => {
+  try {
+    const { data: p } = await supabaseAdmin.from('partners').select('*').eq('id', req.params.id).maybeSingle();
+    if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    if (!p.counterparty_id) return res.status(400).json({ success: false, error: "Hamkor hali Trust'da emas" });
+
+    const { data: last } = await supabaseAdmin.from('notifications')
+      .select('id, created_at')
+      .eq('user_id', p.counterparty_id).eq('type', 'rem').eq('sender_id', req.user.id)
+      .gte('created_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+      .limit(1);
+    if (last?.length) return res.status(429).json({ success: false, error: 'Eslatma yaqinda yuborilgan — 3 soatdan keyin qayta yuboriladi' });
+
+    const balance = await balanceOf(p.id);
+    const { error } = await supabaseAdmin.from('notifications').insert({
+      user_id: p.counterparty_id,
+      sender_id: req.user.id,
+      type: 'rem',
+      title: 'Eslatma',
+      detail: `${Math.abs(balance).toLocaleString('ru-RU')} UZS — hisobni ko'rib chiqing`,
+    });
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
   } catch (e) { next(e); }
 });
 

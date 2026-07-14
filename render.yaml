@@ -1,0 +1,33 @@
+# Render.com blueprint — https://render.com/docs/blueprint-spec
+# Deploy: Render Dashboard -> New -> Blueprint -> shu repo'ni tanlang.
+services:
+  - type: web
+    name: trust-backend
+    runtime: node
+    region: frankfurt # O'zbekistonga eng yaqin region
+    plan: free # keyin kerak bo'lsa starter'ga ko'taring (uxlamaydi)
+    buildCommand: npm ci --omit=dev
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false # qiymatlar Dashboard'da qo'lda kiritiladi (maxfiy)
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APP_JWT_SECRET
+        generateValue: true # Render o'zi kuchli qiymat yaratadi
+      - key: DEVSMS_TOKEN
+        sync: false
+      - key: SMS_SERVICE_NAME
+        value: AllClubs
+      - key: SMS_TEMPLATE_TYPE
+        value: "4"
+      - key: OTP_TTL_SECONDS
+        value: "300"
+      - key: OTP_MAX_ATTEMPTS
+        value: "5"

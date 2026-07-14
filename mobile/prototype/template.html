@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="5fbc3c4c-5f7c-401b-9800-238cf1c120a5"></script>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fd21d294-296d-4214-8342-b00d7204fc01") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("519e4086-e24c-4a10-afe6-3a770c47273f") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("50b7f2bd-2213-4a2c-9677-b839122cf13f") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("f8b792c5-a2c0-40cf-bdcb-5c8a6f0e264b") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("25edfbb4-69a5-4fce-ada9-4b11d5539334") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("a925afb5-be0c-4094-8c99-fea74c792943") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("7e893ca2-2249-4502-91b1-567d9e6186d1") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fd21d294-296d-4214-8342-b00d7204fc01") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("519e4086-e24c-4a10-afe6-3a770c47273f") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("50b7f2bd-2213-4a2c-9677-b839122cf13f") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("f8b792c5-a2c0-40cf-bdcb-5c8a6f0e264b") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("25edfbb4-69a5-4fce-ada9-4b11d5539334") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("a925afb5-be0c-4094-8c99-fea74c792943") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("7e893ca2-2249-4502-91b1-567d9e6186d1") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fd21d294-296d-4214-8342-b00d7204fc01") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("519e4086-e24c-4a10-afe6-3a770c47273f") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("50b7f2bd-2213-4a2c-9677-b839122cf13f") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("f8b792c5-a2c0-40cf-bdcb-5c8a6f0e264b") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("25edfbb4-69a5-4fce-ada9-4b11d5539334") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("a925afb5-be0c-4094-8c99-fea74c792943") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("7e893ca2-2249-4502-91b1-567d9e6186d1") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fd21d294-296d-4214-8342-b00d7204fc01") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("519e4086-e24c-4a10-afe6-3a770c47273f") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("50b7f2bd-2213-4a2c-9677-b839122cf13f") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("f8b792c5-a2c0-40cf-bdcb-5c8a6f0e264b") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("25edfbb4-69a5-4fce-ada9-4b11d5539334") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("a925afb5-be0c-4094-8c99-fea74c792943") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("7e893ca2-2249-4502-91b1-567d9e6186d1") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+:root{--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--hair2:#F2F2F0;--card2:#F3F3F1;--field:#F4F4F2;--hov:#F7F7F5;--hov2:#FBFBFA;--bd:#E0E0DC;--bd2:#E4E4E0;--barbg:#E6E6E2;--t1:#7A7A76;--t2:#9C9C98;--t3:#A2A29E;--t4:#B0B0AC;--t5:#B8B8B4;--t6:#C4C4C0;--dim:rgba(17,17,17,0.34)}
+body.dark{--bg:#0F0F10;--ink:#F5F5F5;--hair:#262626;--hair2:#202021;--card2:#232324;--field:#1C1C1E;--hov:#1E1E1F;--hov2:#161617;--bd:#2E2E2F;--bd2:#2A2A2B;--barbg:#2E2E2F;--t1:#A0A0A5;--t2:#8A8A8E;--t3:#86868A;--t4:#6E6E73;--t5:#66666B;--t6:#55555A;--dim:rgba(0,0,0,0.55)}
+html,body{margin:0;padding:0;background:#E9E9E7}
+*{box-sizing:border-box}
+a{color:var(--ink);text-decoration:none}
+a:hover{color:#555555}
+input{font-family:inherit}
+input::placeholder{color:var(--t5)}
+input:focus{outline:none}
+::-webkit-scrollbar{width:0;height:0}
+@keyframes trPulse{0%,100%{opacity:1}50%{opacity:0.2}}
+@keyframes trReveal{from{opacity:0;transform:scale(0.7)}to{opacity:1;transform:scale(1)}}
+@keyframes trFade{from{opacity:0}to{opacity:1}}
+@keyframes trSlideIn{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes trSlideUp{from{opacity:0;transform:translateY(48px)}to{opacity:1;transform:none}}
+@keyframes trShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes trWave{from{transform:scaleY(0.15)}to{transform:scaleY(1)}}
+@keyframes trRing{0%{transform:scale(1);opacity:0.45}100%{transform:scale(1.6);opacity:0}}
+div[style*="cursor: pointer"]:active{opacity:0.7}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#E9E9E7;padding:30px 0;font-family:'Inter',-apple-system,'SF Pro Text','Helvetica Neue',sans-serif">
+<div style="width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;position:relative;display:flex;flex-direction:column;flex:none">
+
+  <!-- Status bar -->
+  <div style="height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px;flex:none">
+    <div style="font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0.2px">9:41</div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="display:flex;align-items:flex-end;gap:2px">
+        <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:10px;background:var(--t6);border-radius:1px"></div>
+      </div>
+      <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex">
+        <div style="width:70%;background:var(--ink);border-radius:1px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen area -->
+  <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
+
+    <!-- Main area -->
+    <div style="flex:1;min-height:0;position:relative">
+
+      <!-- 1 · MIJOZLAR HOME -->
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Hamkorlar" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
+        <div style="flex:none;padding:16px 24px 0">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Trust</div>
+            <div style="display:flex;align-items:center;gap:14px">
+              <div style="font-size:11px;font-weight:500;color:var(--t4);letter-spacing:0.4px">Ishonchli hisob-kitob</div>
+              <div sc-camel-on-click="{{ openNotifs }}" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:13px;height:10px;border:1.6px solid var(--ink);border-bottom:none;border-radius:7px 7px 0 0"></div>
+                  <div style="width:17px;height:1.6px;background:var(--ink);border-radius:1px"></div>
+                  <div style="width:4px;height:3px;background:var(--ink);border-radius:0 0 3px 3px;margin-top:1px"></div>
+                </div>
+                <sc-if value="{{ bellDot }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--ink);border:1.5px solid var(--bg)"></div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:22px;font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">SOF BALANS</div>
+          <div style="margin-top:6px;font-size:34px;font-weight:700;letter-spacing:-0.8px;color:{{ netColor }}">{{ netText }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12px;color:var(--t2)">
+            <div style="white-space:nowrap">Sizga qarz&nbsp; <span style="color:var(--ink);font-weight:600">{{ owedToMe }}</span></div>
+            <div style="white-space:nowrap">Qarzingiz&nbsp; <span style="color:var(--ink);font-weight:600">{{ owedByMe }}</span></div>
+          </div>
+          <input value="{{ search }}" sc-camel-on-change="{{ onSearch }}" placeholder="Qidirish" style="width:100%;height:40px;margin-top:20px;background:var(--field);border:none;border-radius:10px;padding:0 16px;font-size:14px;color:var(--ink)">
+        </div>
+        <div sc-camel-on-scroll="{{ homeScroll }}" style="flex:1;min-height:0;overflow-y:auto;margin-top:10px;padding-bottom:76px">
+          <sc-if value="{{ skelHome }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--hair2)">
+                <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                  <div style="height:12px;border-radius:6px;width:{{ s.w1 }};background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                  <div style="height:9px;border-radius:5px;width:{{ s.w2 }};background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                </div>
+                <div style="height:12px;border-radius:6px;width:64px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-for list="{{ clientRows }}" as="r" hint-placeholder-count="5">
+            <div style="position:relative;overflow:hidden;border-bottom:1px solid var(--hair2)">
+              <div sc-camel-on-click="{{ r.archTap }}" style="position:absolute;top:0;bottom:0;right:0;width:96px;background:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer">
+                <div style="color:var(--bg);font-size:12px;font-weight:600">{{ r.actLabel }}</div>
+              </div>
+              <div sc-camel-on-click="{{ r.open }}" sc-camel-on-pointer-down="{{ r.pd }}" sc-camel-on-pointer-move="{{ r.pm }}" sc-camel-on-pointer-up="{{ r.pu }}" sc-camel-on-pointer-cancel="{{ r.pu }}" style="position:relative;display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--bg);cursor:pointer;touch-action:pan-y;transform:translateX({{ r.tx }}px);transition:{{ r.trans }}" style-hover="background:var(--hov2)">
+              <div style="position:relative;flex:none">
+                <div style="width:44px;height:44px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--ink)">{{ r.initials }}</div>
+                <sc-if value="{{ r.onTrust }}" hint-placeholder-val="{{ true }}">
+                  <div title="Trust'da — ikki tomonlama tasdiq" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center">
+                    <div style="width:6px;height:3px;border-left:1.4px solid var(--bg);border-bottom:1.4px solid var(--bg);transform:rotate(-45deg);margin-top:-1.5px"></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ r.oneSided }}" hint-placeholder-val="{{ false }}">
+                  <div title="Trust'da yo'q — yozuvlar tasdiqsiz" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--bg);border:1.4px solid var(--t4);display:flex;flex-direction:column;align-items:center;justify-content:center">
+                    <div style="width:4px;height:4px;border-radius:50%;border:1.2px solid var(--t2)"></div>
+                    <div style="width:8px;height:3.5px;border:1.2px solid var(--t2);border-bottom:none;border-radius:4px 4px 0 0;margin-top:0.5px"></div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
+                <div style="font-size:12px;color:var(--t3);margin-top:2px">{{ r.sub }}</div>
+              </div>
+              <div style="text-align:right;flex:none">
+                <div style="font-size:15px;font-weight:600;color:{{ r.color }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ r.bal }}</div>
+                <div style="font-size:11px;color:var(--t5);margin-top:2px;white-space:nowrap">{{ r.balSub }}</div>
+              </div>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ homeLoadingMore }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 24px">
+              <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="height:12px;border-radius:6px;width:48%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="height:9px;border-radius:5px;width:30%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hasArch }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px 24px 6px;font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">ARXIV</div>
+            <sc-for list="{{ archRows }}" as="ar" hint-placeholder-count="1">
+              <div style="position:relative;overflow:hidden;border-bottom:1px solid var(--hair2)">
+                <div sc-camel-on-click="{{ ar.restore }}" style="position:absolute;top:0;bottom:0;right:0;width:96px;background:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer">
+                  <div style="color:var(--bg);font-size:12px;font-weight:600">Qaytarish</div>
+                </div>
+                <div sc-camel-on-click="{{ ar.rowTap }}" sc-camel-on-pointer-down="{{ ar.pd }}" sc-camel-on-pointer-move="{{ ar.pm }}" sc-camel-on-pointer-up="{{ ar.pu }}" sc-camel-on-pointer-cancel="{{ ar.pu }}" style="position:relative;display:flex;align-items:center;gap:12px;padding:11px 24px;background:var(--bg);opacity:0.75;cursor:pointer;touch-action:pan-y;transform:translateX({{ ar.tx }}px);transition:{{ ar.trans }}">
+                  <div style="width:34px;height:34px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:var(--ink);flex:none">{{ ar.initials }}</div>
+                  <div style="flex:1;min-width:0;font-size:14px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ar.name }}</div>
+                  <div style="flex:none;font-size:11px;color:var(--t4)">Arxivda</div>
+                </div>
+              </div>
+            </sc-for>
+          </sc-if>
+        </div>
+        <div sc-camel-on-click="{{ openSheetHome }}" style="position:absolute;right:20px;bottom:16px;width:52px;height:52px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.16)">
+          <div style="position:relative;width:18px;height:18px">
+            <div style="position:absolute;left:8px;top:0;width:2px;height:18px;background:var(--bg)"></div>
+            <div style="position:absolute;top:8px;left:0;width:18px;height:2px;background:var(--bg)"></div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- 6 · MOLIYA -->
+      <sc-if value="{{ isMoliya }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Moliya" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
+        <div style="flex:none;padding:16px 24px 0">
+          <div style="font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Moliya</div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:8px 0 24px">
+          <sc-for list="{{ molTotals }}" as="t" hint-placeholder-count="4">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:13px 24px;border-bottom:1px solid var(--hair2)">
+              <div style="font-size:13.5px;color:var(--t1);white-space:nowrap">{{ t.label }}</div>
+              <div style="font-size:15px;font-weight:600;color:{{ t.color }};font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;margin-left:12px">{{ t.value }}</div>
+            </div>
+          </sc-for>
+          <div style="padding:24px 24px 0">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">OYLIK AYLANMA</div>
+            <div style="display:flex;align-items:flex-end;gap:14px;height:120px;margin-top:16px;padding-bottom:0">
+              <sc-for list="{{ bars }}" as="b" hint-placeholder-count="6">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">
+                  <div style="font-size:10px;color:var(--t3);font-variant-numeric:tabular-nums">{{ b.val }}</div>
+                  <div style="width:100%;max-width:30px;height:{{ b.h }}px;background:{{ b.bg }};border-radius:4px 4px 0 0"></div>
+                  <div style="font-size:11px;color:var(--t3)">{{ b.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px;color:var(--t5);margin-top:8px">mln so'm hisobida</div>
+          </div>
+          <div style="padding:28px 24px 0">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">ESLATMALAR</div>
+          </div>
+          <sc-for list="{{ reminders }}" as="rm" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 24px;border-bottom:1px solid var(--hair2)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14.5px;font-weight:600;color:var(--ink)">{{ rm.name }}</div>
+                <div style="font-size:12px;color:var(--t3);margin-top:2px">{{ rm.sub }}</div>
+              </div>
+              <sc-if value="{{ rm.canRemind }}" hint-placeholder-val="{{ true }}">
+                <div sc-camel-on-click="{{ rm.remind }}" style="flex:none;height:32px;padding:0 14px;border:1px solid var(--bd);border-radius:16px;font-size:12px;font-weight:600;color:var(--ink);display:flex;align-items:center;cursor:pointer" style-hover="background:var(--hov)">Eslatish</div>
+              </sc-if>
+              <sc-if value="{{ rm.cooling }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:none;height:32px;padding:0 12px;border:1px solid var(--hair2);border-radius:16px;font-size:11px;font-weight:500;color:var(--t4);display:flex;align-items:center;white-space:nowrap">{{ rm.coolText }}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- 6b · XARAJAT -->
+      <sc-if value="{{ isXarajat }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Xarajat" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
+        <div style="flex:none;padding:16px 24px 0">
+          <div style="font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Xarajat</div>
+          <div style="display:flex;border:1px solid var(--bd);border-radius:12px;padding:3px;margin-top:14px">
+            <sc-for list="{{ xarTabs }}" as="ms" hint-placeholder-count="2">
+              <div sc-camel-on-click="{{ ms.pick }}" style="flex:1;height:32px;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:13px;font-weight:600;color:{{ ms.fg }};background:{{ ms.bg }};cursor:pointer;transition:background 0.15s">{{ ms.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ xtHisobot }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:0 0 24px">
+          <div style="display:flex;gap:6px;padding:14px 24px 0">
+            <sc-for list="{{ xarPeriods }}" as="xp" hint-placeholder-count="3">
+              <div sc-camel-on-click="{{ xp.pick }}" style="flex:1;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid {{ xp.bd }};border-radius:16px;font-size:12.5px;font-weight:600;color:{{ xp.fg }};background:{{ xp.bg }};cursor:pointer">{{ xp.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;padding:26px 24px 22px;border-bottom:1px solid var(--hair2)">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">{{ xarNetCap }}</div>
+            <div style="font-size:30px;font-weight:700;color:var(--ink);margin-top:8px;font-variant-numeric:tabular-nums;letter-spacing:-0.5px">{{ xarNet }}</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:14px">
+              <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:11.5px;color:var(--t3);white-space:nowrap">Xarajat</span><span style="font-size:13.5px;font-weight:600;color:{{ redC }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ xarOutTxt }}</span></div>
+              <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:11.5px;color:var(--t3);white-space:nowrap">Daromad</span><span style="font-size:13.5px;font-weight:600;color:{{ greenC }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ xarInTxt }}</span></div>
+            </div>
+          </div>
+          <div style="padding:22px 24px 0">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">OYLIK LIMIT</div>
+              <div sc-camel-on-click="{{ limEditToggle }}" style="font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;border:1px solid var(--bd);border-radius:14px;height:28px;padding:0 12px;display:flex;align-items:center" style-hover="background:var(--hov)">{{ limBtnTxt }}</div>
+            </div>
+            <sc-if value="{{ limEditOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <input value="{{ limEditVal }}" sc-camel-on-change="{{ limEditSet }}" sc-camel-on-key-down="{{ limEditKey }}" sc-camel-input-mode="numeric" placeholder="Masalan: 3000000" style="flex:1;min-width:0;height:40px;border:1px solid var(--bd);border-radius:10px;background:transparent;padding:0 12px;font-size:14px;color:var(--ink)">
+                <div sc-camel-on-click="{{ limSave }}" style="height:40px;padding:0 16px;border-radius:10px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;display:flex;align-items:center;cursor:pointer">Saqlash</div>
+              </div>
+            </sc-if>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:12px">
+              <div style="font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums">{{ limSpentTxt }} <span style="font-weight:400;color:var(--t3)">/ {{ limTotTxt }}</span></div>
+              <div style="font-size:12px;font-weight:600;color:{{ limRemainC }};font-variant-numeric:tabular-nums">{{ limPctTxt }}</div>
+            </div>
+            <div style="height:6px;border-radius:3px;background:var(--hair2);margin-top:8px;overflow:hidden">
+              <div style="width:{{ limPct }}%;height:100%;border-radius:3px;background:{{ limBar }};transition:width 0.4s ease"></div>
+            </div>
+            <div style="font-size:12px;color:{{ limRemainC }};margin-top:7px;font-variant-numeric:tabular-nums">{{ limNoteTxt }}</div>
+          </div>
+          <div style="padding:22px 24px 0">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">TOIFALAR</div>
+            <sc-if value="{{ xarCatsEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px;color:var(--t4);padding:14px 0">Bu davrda xarajat yo'q</div>
+            </sc-if>
+            <div style="padding-top:6px">
+            <sc-for list="{{ xarCats }}" as="xc" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0">
+                <div style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:var(--ink);flex:none">{{ xc.abbr }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline">
+                    <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ xc.name }}</div>
+                    <div style="font-size:12.5px;color:var(--t2);font-variant-numeric:tabular-nums">{{ xc.amt }}</div>
+                  </div>
+                  <div style="height:4px;border-radius:2px;background:var(--hair2);margin-top:6px;overflow:hidden">
+                    <div style="width:{{ xc.w }}%;height:100%;border-radius:2px;background:var(--ink);transition:width 0.4s ease"></div>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+            </div>
+          </div>
+          <div style="padding:26px 24px 0">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">XARAJAT TRENDI · 6 OY</div>
+            <div style="display:flex;align-items:flex-end;gap:12px;height:110px;margin-top:16px">
+              <sc-for list="{{ xTrend }}" as="tb" hint-placeholder-count="6">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">
+                  <div style="font-size:10px;color:var(--t3);font-variant-numeric:tabular-nums">{{ tb.val }}</div>
+                  <div style="width:100%;max-width:30px;height:{{ tb.h }}px;background:{{ tb.bg }};border-radius:4px 4px 0 0"></div>
+                  <div style="font-size:11px;color:var(--t3)">{{ tb.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px;color:var(--t5);margin-top:8px">ming so'm hisobida</div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- CHAT -->
+        <sc-if value="{{ xtChat }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;padding:12px 24px 0">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:var(--t2);white-space:nowrap">OYLIK LIMIT</div>
+            <div style="font-size:11.5px;font-weight:600;color:{{ limRemainC }};font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ limRemainTxt }}</div>
+          </div>
+          <div style="height:4px;border-radius:2px;background:var(--hair2);margin-top:7px;overflow:hidden">
+            <div style="width:{{ limPct }}%;height:100%;border-radius:2px;background:{{ limBar }};transition:width 0.4s ease"></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column-reverse;padding:12px 16px 10px">
+          <sc-for list="{{ xChat }}" as="cb" hint-placeholder-count="6">
+            <sc-if value="{{ cb.sep }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;justify-content:center;padding:10px 0 6px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--card2);border-radius:12px;padding:5px 14px">
+                  <div style="font-size:11px;font-weight:600;color:var(--t3)">{{ cb.label }}</div>
+                  <div style="display:flex;align-items:baseline;gap:4px;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap">
+                    <span style="color:var(--t4)">Daromad</span><span style="font-weight:600;color:{{ cb.dColor }}">{{ cb.dTxt }}</span>
+                    <span style="color:var(--t5)">·</span>
+                    <span style="color:var(--t4)">Xarajat</span><span style="font-weight:600;color:{{ cb.xColor }}">{{ cb.xTxt }}</span>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ cb.bub }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;justify-content:{{ cb.just }};padding:3px 0">
+                <div style="max-width:76%;background:var(--card2);border-radius:{{ cb.rad }};padding:10px 13px 7px">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <div style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:var(--ink);flex:none">{{ cb.abbr }}</div>
+                    <div style="font-size:10.5px;font-weight:600;color:var(--t2);letter-spacing:0.5px">{{ cb.cat }}</div>
+                  </div>
+                  <div style="font-size:16px;font-weight:700;color:{{ cb.color }};font-variant-numeric:tabular-nums;margin-top:7px;white-space:nowrap">{{ cb.amt }}</div>
+                  <sc-if value="{{ cb.hasNote }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:13px;color:var(--t1);margin-top:3px">{{ cb.note }}</div>
+                  </sc-if>
+                  <div style="font-size:10px;color:var(--t4);text-align:right;margin-top:4px">{{ cb.time }}</div>
+                </div>
+              </div>
+            </sc-if>
+          </sc-for>
+          <div style="display:flex;justify-content:center;padding:4px 0 16px">
+            <div style="font-size:11.5px;color:var(--t4);text-align:center;line-height:1.5;max-width:250px">O'zingiz bilan chat — xarajat yoki daromadni yozing yoki ayting, AI avtomatik toifalaydi</div>
+          </div>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--hair)">
+          <div style="flex:1;display:flex;align-items:center;border:1px solid var(--bd);border-radius:21px;padding:0 6px 0 15px;height:42px">
+            <input value="{{ xarTextVal }}" sc-camel-on-change="{{ xarTextSet }}" sc-camel-on-key-down="{{ xarKey }}" placeholder="Masalan: «taksiga 25 ming»" style="flex:1;min-width:0;border:none;background:transparent;font-size:13.5px;color:var(--ink)">
+            <sc-if value="{{ xHasText }}" hint-placeholder-val="{{ false }}">
+              <div sc-camel-on-click="{{ xarTextGo }}" style="width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex:none">↑</div>
+            </sc-if>
+          </div>
+          <div sc-camel-on-click="{{ xarMicTap }}" style="position:relative;width:46px;height:46px;flex:none;cursor:pointer">
+            <div style="position:absolute;inset:0;border-radius:50%;border:1px solid var(--ink);animation:trRing 2.2s ease-out infinite"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="width:9px;height:13px;border-radius:5px;background:var(--bg)"></div>
+              <div style="width:15px;height:7px;border:2px solid var(--bg);border-top:none;border-radius:0 0 8px 8px;margin-top:-4px"></div>
+              <div style="width:2px;height:2px;background:var(--bg)"></div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- Voice overlay -->
+        <sc-if value="{{ vOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;animation:trFade 0.16s ease">
+          <div style="flex:none;display:flex;justify-content:flex-end;padding:12px 16px 0">
+            <div sc-camel-on-click="{{ vClose }}" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:var(--t2)">✕</div>
+          </div>
+          <sc-if value="{{ vListen }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:0 26px 40px">
+            <div style="display:flex;align-items:center;gap:3px;height:60px">
+              <sc-for list="{{ vWave }}" as="w" hint-placeholder-count="12">
+                <div style="width:3.5px;height:{{ w.h }}px;border-radius:2px;background:var(--ink);animation:trWave {{ w.dur }} ease-in-out {{ w.delay }} infinite alternate"></div>
+              </sc-for>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:20px;font-weight:700;color:var(--ink)">Tinglayapman…</div>
+              <div style="font-size:12.5px;color:var(--t3);margin-top:8px">Demo: aytmoqchi bo'lgan jumlani tanlang</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;width:100%">
+              <sc-for list="{{ vSamples }}" as="sp" hint-placeholder-count="3">
+                <div sc-camel-on-click="{{ sp.pick }}" style="padding:13px 18px;border:1px solid var(--bd);border-radius:14px;font-size:14px;color:var(--ink);cursor:pointer;text-align:center" style-hover="background:var(--hov)">«{{ sp.text }}»</div>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+          <sc-if value="{{ vParsing }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:0 30px 40px">
+            <div style="font-size:19px;font-weight:600;color:var(--ink);text-align:center;line-height:1.4">«{{ vText }}»</div>
+            <div style="display:flex;align-items:center;gap:9px">
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);animation:trPulse 1s ease-in-out infinite"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);animation:trPulse 1s ease-in-out 0.2s infinite"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);animation:trPulse 1s ease-in-out 0.4s infinite"></div>
+              <div style="font-size:12.5px;color:var(--t3);margin-left:4px">AI tahlil qilmoqda…</div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- 7 · PROFIL -->
+      <sc-if value="{{ isProfil }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Profil" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
+        <div style="flex:1;min-height:0;overflow-y:auto">
+          <div style="display:flex;flex-direction:column;align-items:center;padding:36px 24px 28px;border-bottom:1px solid var(--hair2)">
+            <div style="width:72px;height:72px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;color:var(--ink)">JT</div>
+            <div style="font-size:18px;font-weight:700;color:var(--ink);margin-top:14px">Jasur Toshmatov</div>
+            <div style="font-size:13px;color:var(--t2);margin-top:4px">+998 90 123 45 67</div>
+          </div>
+          <sc-for list="{{ profRows }}" as="p" hint-placeholder-count="5">
+            <div sc-camel-on-click="{{ p.tap }}" style="display:flex;align-items:center;gap:12px;padding:13px 24px;border-bottom:1px solid var(--hair2);cursor:pointer;min-height:56px" style-hover="background:var(--hov2)">
+              <div style="flex:1;font-size:14.5px;color:var(--ink)">{{ p.label }}</div>
+              <sc-if value="{{ p.isSwitch }}" hint-placeholder-val="{{ false }}">
+                <div style="width:44px;height:26px;border-radius:13px;background:{{ p.trk }};position:relative;transition:background 0.2s;flex:none">
+                  <div style="position:absolute;top:3px;left:{{ p.knobLeft }};width:20px;height:20px;border-radius:50%;background:{{ p.knob }};transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.25)"></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ p.isPlain }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:13px;color:var(--t3)">{{ p.value }}</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t6);border-right:1.5px solid var(--t6);transform:rotate(45deg);flex:none"></div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div sc-camel-on-click="{{ logout }}" style="padding:15px 24px;font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="opacity:0.6">Chiqish</div>
+          <div style="padding:24px;font-size:11px;color:var(--t6);text-align:center">Trust · v1.1 · Toshkent</div>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+
+    <!-- Bottom nav -->
+    <div style="flex:none;border-top:1px solid var(--hair);background:var(--bg)">
+      <div style="display:flex;padding:9px 6px 2px">
+        <div sc-camel-on-click="{{ goHome }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:2px 0">
+          <div style="display:flex;flex-direction:column;align-items:center;height:20px;justify-content:flex-end">
+            <div style="width:9px;height:9px;border-radius:50%;border:1.6px solid {{ cMij }}"></div>
+            <div style="width:16px;height:7px;border-radius:8px 8px 2px 2px;border:1.6px solid {{ cMij }};border-bottom:none;margin-top:1px"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:{{ cMij }}">Hamkorlar</div>
+        </div>
+        <div sc-camel-on-click="{{ goXarajat }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:2px 0">
+          <div style="height:20px;display:flex;align-items:center">
+            <div style="width:18px;height:14px;border:1.6px solid {{ cXar }};border-radius:6px;position:relative">
+              <div style="position:absolute;left:2px;bottom:-4px;width:0;height:0;border-left:4px solid {{ cXar }};border-bottom:4px solid transparent"></div>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:{{ cXar }}">Xarajat</div>
+        </div>
+        <div sc-camel-on-click="{{ goMoliya }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:2px 0">
+          <div style="display:flex;align-items:flex-end;gap:2.5px;height:20px;padding-bottom:1px">
+            <div style="width:4px;height:9px;background:{{ cMol }};border-radius:1.5px"></div>
+            <div style="width:4px;height:15px;background:{{ cMol }};border-radius:1.5px"></div>
+            <div style="width:4px;height:12px;background:{{ cMol }};border-radius:1.5px"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:{{ cMol }}">Moliya</div>
+        </div>
+        <div sc-camel-on-click="{{ goProfil }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:2px 0">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.6px solid {{ cProf }};display:flex;align-items:center;justify-content:center;margin-top:2px">
+            <div style="width:6px;height:6px;border-radius:50%;background:{{ cProf }}"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:{{ cProf }}">Profil</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;padding:6px 0 8px">
+        <div style="width:120px;height:4px;border-radius:2px;background:var(--ink)"></div>
+      </div>
+    </div>
+
+    <!-- 2 · CLIENT DETAIL overlay -->
+    <sc-if value="{{ clientOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Hamkor sahifasi" style="position:absolute;inset:0;background:var(--bg);z-index:10;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:12px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+        <div sc-camel-on-click="{{ back }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="position:relative;flex:none">
+          <div style="width:38px;height:38px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--ink)">{{ cInitials }}</div>
+          <sc-if value="{{ cOnTrust }}" hint-placeholder-val="{{ true }}">
+            <div style="position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center">
+              <div style="width:5px;height:2.6px;border-left:1.3px solid var(--bg);border-bottom:1.3px solid var(--bg);transform:rotate(-45deg);margin-top:-1.3px"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ oneSided }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:50%;background:var(--bg);border:1.4px solid var(--t4);display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="width:3.6px;height:3.6px;border-radius:50%;border:1.1px solid var(--t2)"></div>
+              <div style="width:7px;height:3px;border:1.1px solid var(--t2);border-bottom:none;border-radius:4px 4px 0 0;margin-top:0.5px"></div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="flex:1;min-width:0">
+          <sc-if value="{{ renaming }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:6px">
+              <input value="{{ renVal }}" sc-camel-on-change="{{ onRen }}" sc-camel-on-key-down="{{ renKey }}" style="flex:1;min-width:0;width:100%;height:30px;border:1px solid var(--bd);border-radius:8px;padding:0 10px;font-size:13.5px;font-weight:600;color:var(--ink);background:var(--bg)">
+              <div sc-camel-on-click="{{ renSave }}" style="flex:none;height:30px;padding:0 12px;border-radius:15px;background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:600;display:flex;align-items:center;cursor:pointer">OK</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ notRenaming }}" hint-placeholder-val="{{ true }}">
+            <div sc-camel-on-click="{{ menuTap }}" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;max-width:100%">
+              <div style="font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ cName }}</div>
+              <sc-if value="{{ showChev }}" hint-placeholder-val="{{ true }}">
+                <div style="width:6.5px;height:6.5px;border-right:1.7px solid var(--t3);border-bottom:1.7px solid var(--t3);transform:rotate(45deg);margin-top:-4px;flex:none"></div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <div style="font-size:12px;margin-top:1px;color:{{ cBalColor }};font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap">{{ cBal }}</div>
+          <sc-if value="{{ hasPend }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:10.5px;margin-top:1px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap">{{ pendText }}</div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ canFlip }}" hint-placeholder-val="{{ true }}">
+        <div sc-camel-on-click="{{ flipTap }}" title="Ikkinchi tomon ko'rinishi" style="width:34px;height:34px;border:1px solid {{ flipBd }};border-radius:50%;background:{{ flipBg }};display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;transition:background 0.2s,border-color 0.2s" style-hover="opacity:0.85">
+          <div style="position:relative;width:14px;height:13px">
+            <div style="position:absolute;top:2.6px;left:0;width:9px;height:1.6px;background:{{ flipFg }};border-radius:1px"></div>
+            <div style="position:absolute;top:0;right:0;width:0;height:0;border-top:3.4px solid transparent;border-bottom:3.4px solid transparent;border-left:5px solid {{ flipFg }}"></div>
+            <div style="position:absolute;bottom:2.6px;right:0;width:9px;height:1.6px;background:{{ flipFg }};border-radius:1px"></div>
+            <div style="position:absolute;bottom:0;left:0;width:0;height:0;border-top:3.4px solid transparent;border-bottom:3.4px solid transparent;border-right:5px solid {{ flipFg }}"></div>
+          </div>
+        </div>
+        </sc-if>
+        <div sc-camel-on-click="{{ openSheetClient }}" style="width:34px;height:34px;border:1px solid var(--bd2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-hover="background:var(--hov)">
+          <div style="position:relative;width:12px;height:12px">
+            <div style="position:absolute;left:5px;top:0;width:2px;height:12px;background:var(--ink)"></div>
+            <div style="position:absolute;top:5px;left:0;width:12px;height:2px;background:var(--ink)"></div>
+          </div>
+        </div>
+      </div>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div sc-camel-on-click="{{ menuClose }}" style="position:absolute;inset:0;z-index:39"></div>
+        <div style="position:absolute;top:56px;left:62px;z-index:40;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden;min-width:186px;animation:trFade 0.15s ease">
+          <div sc-camel-on-click="{{ menuRename }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">Nomni tahrirlash</div>
+          <div sc-camel-on-click="{{ menuArchive }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;border-top:1px solid var(--hair2)" style-hover="background:var(--hov)">Arxivlash</div>
+          <div sc-camel-on-click="{{ menuProfile }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;border-top:1px solid var(--hair2)" style-hover="background:var(--hov)">Profil</div>
+        </div>
+      </sc-if>
+      <div style="flex:none;display:flex;border-bottom:1px solid var(--hair)">
+        <div sc-camel-on-click="{{ toChat }}" style="flex:1;text-align:center;padding:12px 0 11px;font-size:13.5px;font-weight:600;color:{{ chatTabColor }};border-bottom:2px solid {{ chatTabLine }};cursor:pointer">Chat</div>
+        <div sc-camel-on-click="{{ toOps }}" style="flex:1;text-align:center;padding:12px 0 11px;font-size:13.5px;font-weight:600;color:{{ opsTabColor }};border-bottom:2px solid {{ opsTabLine }};cursor:pointer">Operatsiyalar</div>
+      </div>
+      <sc-if value="{{ flipped }}" hint-placeholder-val="{{ false }}">
+        <div sc-camel-on-click="{{ flipTap }}" style="flex:none;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 16px;background:var(--card2);border-bottom:1px solid var(--hair2);cursor:pointer">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);animation:trPulse 1.8s infinite;flex:none"></div>
+          <div style="font-size:11.5px;color:var(--t1)">Ikkinchi tomon ko'rinishi — <span style="font-weight:600;color:var(--ink)">{{ flipWho }}</span> ekrani · yopish uchun bosing</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ oneSided }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:none;display:flex;align-items:center;gap:10px;padding:9px 16px 9px 20px;background:var(--card2);border-bottom:1px solid var(--hair2)">
+          <div style="flex:1;font-size:11.5px;color:var(--t1);line-height:1.4;min-width:0">Trust'da yo'q — yozuvlar tasdiqsiz, dalil kuchiga ega emas</div>
+          <div sc-camel-on-click="{{ inviteTap }}" style="flex:none;height:30px;padding:0 13px;border-radius:15px;background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:600;display:flex;align-items:center;cursor:pointer" style-hover="opacity:0.85">Trust'ga taklif qilish</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ pProfOpen }}" hint-placeholder-val="{{ false }}">
+        <div sc-camel-on-click="{{ pProfClose }}" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);z-index:45;display:flex;align-items:center;justify-content:center;padding:34px;animation:trFade 0.18s ease">
+          <div sc-camel-on-click="{{ stopProp }}" style="width:100%;background:var(--bg);border-radius:18px;padding:24px;display:flex;flex-direction:column;align-items:center;text-align:center">
+            <div style="position:relative">
+              <div style="width:60px;height:60px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--ink)">{{ cInitials }}</div>
+              <sc-if value="{{ cOnTrust }}" hint-placeholder-val="{{ true }}">
+                <div style="position:absolute;right:0;bottom:0;width:18px;height:18px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center">
+                  <div style="width:6px;height:3px;border-left:1.4px solid var(--bg);border-bottom:1.4px solid var(--bg);transform:rotate(-45deg);margin-top:-1.5px"></div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="font-size:17px;font-weight:700;color:var(--ink);margin-top:12px">{{ cName }}</div>
+            <div style="font-size:13px;color:var(--t2);margin-top:3px;font-variant-numeric:tabular-nums">{{ pPhone }}</div>
+            <div style="font-size:11.5px;color:var(--t3);margin-top:5px">{{ pStatus }}</div>
+            <div style="width:100%;border-top:1px solid var(--hair2);margin-top:16px">
+              <div style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair2)">
+                <div style="font-size:13px;color:var(--t2)">Operatsiyalar</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums">{{ pOps }}</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:11px 0">
+                <div style="font-size:13px;color:var(--t2)">Balans</div><div style="font-size:13.5px;font-weight:600;color:{{ cBalColor }};font-variant-numeric:tabular-nums">{{ pBal }}</div>
+              </div>
+            </div>
+            <div sc-camel-on-click="{{ pProfClose }}" style="width:100%;height:44px;margin-top:8px;border-radius:12px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">Yopish</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isChatTab }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 0;display:flex;flex-direction:column;gap:2px;animation:trFade 0.18s ease">
+        <sc-for list="{{ chatItems }}" as="m" hint-placeholder-count="4">
+          <div>
+            <sc-if value="{{ m.isText }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;justify-content:{{ m.align }};padding:3px 16px">
+                <div style="max-width:76%;padding:9px 14px;border-radius:16px;font-size:14px;line-height:1.45;background:{{ m.bg }};color:{{ m.fg }}">{{ m.text }} <span style="font-size:10px;color:{{ m.tc }};margin-left:6px;white-space:nowrap">{{ m.time }}{{ m.checks }}</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isVoice }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;justify-content:{{ m.align }};padding:3px 16px">
+                <div sc-camel-on-click="{{ m.toggle }}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:16px;background:{{ m.bg }};cursor:pointer">
+                  <div style="width:34px;height:34px;border-radius:50%;background:{{ m.pbg }};display:flex;align-items:center;justify-content:center;flex:none">
+                    <sc-if value="{{ m.notPlaying }}" hint-placeholder-val="{{ true }}">
+                      <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid {{ m.pfg }};margin-left:2px"></div>
+                    </sc-if>
+                    <sc-if value="{{ m.isPlaying }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:2.5px">
+                        <div style="width:2.5px;height:10px;background:{{ m.pfg }}"></div>
+                        <div style="width:2.5px;height:10px;background:{{ m.pfg }}"></div>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:flex-end;gap:1.5px;height:18px">
+                      <sc-for list="{{ m.bars }}" as="w" hint-placeholder-count="20">
+                        <div style="width:2.5px;height:{{ w.h }}px;border-radius:1px;background:{{ w.c }}"></div>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;gap:6px;margin-top:3px;font-size:10px;color:{{ m.tc }};white-space:nowrap">
+                      <span style="font-variant-numeric:tabular-nums">{{ m.durText }}</span>
+                      <span>{{ m.time }}{{ m.checks }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isVnote }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;justify-content:{{ m.align }};padding:6px 16px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+                  <div sc-camel-on-click="{{ m.toggle }}" style="width:140px;height:140px;border-radius:50%;padding:3px;background:{{ m.ring }};cursor:pointer">
+                    <div style="width:100%;height:100%;border-radius:50%;background:{{ m.vbg }};display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+                      <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,{{ m.stripe }} 8px,{{ m.stripe }} 9px)"></div>
+                      <div style="position:relative;width:44px;height:44px;border-radius:50%;background:{{ m.pbg2 }};display:flex;align-items:center;justify-content:center">
+                        <sc-if value="{{ m.notPlaying }}" hint-placeholder-val="{{ true }}">
+                          <div style="width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:11px solid {{ m.pfg2 }};margin-left:3px"></div>
+                        </sc-if>
+                        <sc-if value="{{ m.isPlaying }}" hint-placeholder-val="{{ false }}">
+                          <div style="display:flex;gap:3px">
+                            <div style="width:3px;height:13px;background:{{ m.pfg2 }}"></div>
+                            <div style="width:3px;height:13px;background:{{ m.pfg2 }}"></div>
+                          </div>
+                        </sc-if>
+                      </div>
+                      <div style="position:absolute;bottom:14px;font-size:8.5px;letter-spacing:1.5px;color:{{ m.tcv }};font-family:ui-monospace,Menlo,monospace">VIDEO</div>
+                    </div>
+                  </div>
+                  <div style="font-size:10px;color:var(--t3);white-space:nowrap"><span style="font-variant-numeric:tabular-nums">{{ m.durText }}</span> · {{ m.time }}{{ m.checks }}</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isCode }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;justify-content:{{ m.align }};padding:3px 16px">
+                <div sc-camel-on-click="{{ m.revealTap }}" style="padding:10px 14px;border-radius:16px;background:{{ m.bg }};cursor:pointer;max-width:76%">
+                  <div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:{{ m.cap }}">TASDIQ KODI</div>
+                  <sc-if value="{{ m.hidden }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:22px;font-weight:700;letter-spacing:6px;color:{{ m.fg }};margin-top:4px">•••••</div>
+                    <div style="font-size:11px;color:{{ m.cap }};margin-top:4px">Kodni ko'rish uchun bosing</div>
+                  </sc-if>
+                  <sc-if value="{{ m.revealed }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:22px;font-weight:700;letter-spacing:6px;color:{{ m.fg }};margin-top:4px;animation:trReveal 0.35s ease;font-variant-numeric:tabular-nums">{{ m.codeText }}</div>
+                    <div style="font-size:11px;color:{{ m.cap }};margin-top:4px">{{ m.capText }}</div>
+                  </sc-if>
+                  <div style="font-size:10px;color:{{ m.cap }};margin-top:5px">{{ m.time }}</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isSys }}" hint-placeholder-val="{{ false }}">
+              <div style="text-align:center;padding:8px 16px">
+                <span style="font-size:11px;color:var(--t2);border:1px solid var(--hair);border-radius:20px;padding:4px 12px">{{ m.text }}</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isTx }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:6px 16px">
+                <div style="border:1px solid var(--bd2);border-radius:14px;padding:16px 16px 14px;background:var(--bg)">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <div style="width:6px;height:6px;border-radius:50%;background:{{ m.dot }}"></div>
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:var(--t2);text-transform:uppercase">Operatsiya · {{ m.stLabel }}</div>
+                  </div>
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:10px">
+                    <div style="font-size:14px;color:var(--ink);font-weight:500;white-space:nowrap;flex:none">{{ m.type }}</div>
+                    <div style="font-size:17px;font-weight:700;color:{{ m.acolor }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ m.amount }}</div>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--t4);margin-top:3px">{{ m.date }}</div>
+                  <sc-if value="{{ m.unconf }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top:1px solid var(--hair2);margin-top:13px;padding-top:11px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                      <div style="font-size:12px;color:var(--t3);min-width:0">Bir tomonlama yozuv — dalil emas</div>
+                      <div style="flex:none;font-size:10px;font-weight:600;letter-spacing:0.6px;color:var(--t2);border:1px solid var(--bd2);border-radius:20px;padding:2px 8px">tasdiqsiz</div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.showInput }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top:1px solid var(--hair2);margin-top:13px;padding-top:13px">
+                      <div sc-camel-on-click="{{ m.fillCode }}" style="font-size:12px;color:var(--t1);line-height:1.5;cursor:pointer">{{ m.fillText }}</div>
+                      <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+                        <sc-for list="{{ codeBoxes }}" as="b" hint-placeholder-count="5">
+                          <div style="width:31px;height:40px;border:1px solid {{ b.bd }};border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;flex:none;transition:border-color 0.2s">{{ b.d }}</div>
+                        </sc-for>
+                        <div sc-camel-on-click="{{ m.confirm }}" style="flex:1;height:42px;border-radius:10px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:4px">Tasdiqlash</div>
+                      </div>
+                      <sc-if value="{{ codeError }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:12px;color:var(--t1);margin-top:8px">Kod noto'g'ri. Qayta urinib ko'ring.</div>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.showMyCode }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top:1px solid var(--hair2);margin-top:13px;padding-top:13px">
+                      <div style="font-size:12px;color:var(--t1)">Tasdiqlash kodi — ikkinchi tomon kiritadi</div>
+                      <div style="font-size:24px;font-weight:700;letter-spacing:8px;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums">{{ m.code }}</div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.done }}" hint-placeholder-val="{{ false }}">
+                    <div sc-camel-on-click="{{ m.openReceipt }}" style="border-top:1px solid var(--hair2);margin-top:13px;padding-top:12px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:space-between;white-space:nowrap" style-hover="opacity:0.6">
+                      <span>Dalilni ochish</span>
+                      <div style="width:7px;height:7px;border-top:1.5px solid var(--ink);border-right:1.5px solid var(--ink);transform:rotate(45deg)"></div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="flex:none;border-top:1px solid var(--hair);padding:8px 10px;display:flex;gap:6px;align-items:center;background:var(--bg)">
+        <sc-if value="{{ recOn }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;align-items:center;gap:10px;height:40px;padding:0 10px">
+            <div style="width:10px;height:10px;border-radius:50%;background:var(--ink);animation:trPulse 1s infinite"></div>
+            <div style="font-size:14px;color:var(--t1)">yozilmoqda…</div>
+            <div style="margin-left:auto;font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums">0:02</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ recOff }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;min-width:0;display:flex;gap:6px;align-items:center">
+            <div sc-camel-on-click="{{ attachTap }}" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-hover="background:var(--hov)">
+              <div style="position:relative;width:16px;height:16px">
+                <div style="position:absolute;left:7px;top:0;width:2px;height:16px;background:var(--t1)"></div>
+                <div style="position:absolute;top:7px;left:0;width:16px;height:2px;background:var(--t1)"></div>
+              </div>
+            </div>
+            <input value="{{ chatInput }}" sc-camel-on-change="{{ onChatInput }}" placeholder="Xabar..." style="flex:1;min-width:0;height:40px;border:1px solid var(--bd2);border-radius:20px;padding:0 16px;font-size:14px;color:var(--ink);background:var(--bg)">
+            <div sc-camel-on-click="{{ camTap }}" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-hover="background:var(--hov)">
+              <div style="width:17px;height:13px;border:1.6px solid var(--t1);border-radius:3px;position:relative">
+                <div style="position:absolute;right:-6px;top:2.5px;width:0;height:0;border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;border-left:4.5px solid var(--t1)"></div>
+              </div>
+            </div>
+            <sc-if value="{{ hasText }}" hint-placeholder-val="{{ false }}">
+              <div sc-camel-on-click="{{ sendChat }}" style="width:40px;height:40px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <div style="width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:11px solid var(--bg);margin-left:3px"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noText }}" hint-placeholder-val="{{ true }}">
+              <div sc-camel-on-click="{{ micTap }}" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-hover="background:var(--hov)">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:9px;height:14px;border:1.6px solid var(--ink);border-radius:5px"></div>
+                  <div style="width:15px;height:7px;border:1.6px solid var(--ink);border-top:none;border-radius:0 0 8px 8px;margin-top:-5px"></div>
+                  <div style="width:1.6px;height:3px;background:var(--ink)"></div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isOpsTab }}" hint-placeholder-val="{{ false }}">
+      <div sc-camel-on-scroll="{{ opsScroll }}" style="flex:1;min-height:0;overflow-y:auto">
+        <sc-if value="{{ skelOps }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--hair2)">
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="height:12px;border-radius:6px;width:{{ s.w1 }};background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="height:9px;border-radius:5px;width:{{ s.w2 }};background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+              <div style="height:12px;border-radius:6px;width:76px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{ notSkelOps }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ opsRows }}" as="o" hint-placeholder-count="4">
+          <div sc-camel-on-click="{{ o.open }}" style="display:flex;align-items:center;gap:12px;padding:15px 24px;border-bottom:1px solid var(--hair2);cursor:{{ o.cursor }}" style-hover="background:var(--hov2)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14.5px;font-weight:600;color:var(--ink);white-space:nowrap">{{ o.type }}</div>
+              <div style="font-size:12px;color:var(--t3);margin-top:2px">{{ o.date }}</div>
+            </div>
+            <div style="text-align:right;flex:none">
+              <div style="font-size:14.5px;font-weight:600;color:{{ o.color }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ o.amount }}</div>
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:4px">
+                <div style="width:5px;height:5px;border-radius:50%;background:{{ o.dot }}"></div>
+                <div style="font-size:11px;color:var(--t2);white-space:nowrap">{{ o.st }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ opsLoadingMore }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px 24px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <div style="height:12px;border-radius:6px;width:44%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:9px;border-radius:5px;width:28%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+            </div>
+            <div style="height:12px;border-radius:6px;width:76px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+          </div>
+        </sc-if>
+        </sc-if>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- 8 · BILDIRISHNOMALAR -->
+    <sc-if value="{{ notifOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Bildirishnomalar" style="position:absolute;inset:0;background:var(--bg);z-index:12;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+        <div sc-camel-on-click="{{ closeNotifs }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">Bildirishnomalar</div>
+      </div>
+      <div style="flex:1;min-height:0;overflow-y:auto">
+        <sc-for list="{{ notifRows }}" as="n" hint-placeholder-count="3">
+          <div sc-camel-on-click="{{ n.tap }}" style="display:flex;align-items:flex-start;gap:14px;padding:15px 20px 15px 24px;border-bottom:1px solid var(--hair2);cursor:pointer" style-hover="background:var(--hov2)">
+            <div style="width:36px;height:36px;border-radius:50%;border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px">
+              <sc-if value="{{ n.isReq }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:14px;font-weight:700;color:var(--ink)">?</div>
+              </sc-if>
+              <sc-if value="{{ n.isOk }}" hint-placeholder-val="{{ false }}">
+                <div style="width:10px;height:5px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(-45deg);margin-top:-3px"></div>
+              </sc-if>
+              <sc-if value="{{ n.isRem }}" hint-placeholder-val="{{ false }}">
+                <div style="width:14px;height:14px;border-radius:50%;border:1.6px solid var(--ink);position:relative">
+                  <div style="position:absolute;left:5.5px;top:2.5px;width:1.6px;height:4px;background:var(--ink)"></div>
+                  <div style="position:absolute;left:5.5px;top:5.5px;width:4px;height:1.6px;background:var(--ink)"></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ n.isEdit }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:13px;font-weight:700;color:var(--ink)">±</div>
+              </sc-if>
+              <sc-if value="{{ n.isRej }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:15px;font-weight:600;color:var(--ink);margin-top:-1px">×</div>
+              </sc-if>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="font-size:14px;font-weight:600;color:var(--ink)">{{ n.title }}</div>
+                <sc-if value="{{ n.unread }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none"></div>
+                </sc-if>
+              </div>
+              <div style="font-size:12.5px;color:var(--t3);margin-top:3px;line-height:1.45">{{ n.detail }}</div>
+            </div>
+            <div style="font-size:11px;color:var(--t5);flex:none;margin-top:3px;white-space:nowrap">{{ n.time }}</div>
+          </div>
+        </sc-for>
+        <div style="padding:20px 24px">
+          <div sc-camel-on-click="{{ openPush }}" style="height:40px;border:1px solid var(--bd);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">Android push ko'rinishi (demo)</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 9 · IKKINCHI TOMON TASDIQLASHI -->
+    <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Tasdiq so'rovi (ikkinchi tomon)" style="position:absolute;inset:0;background:var(--bg);z-index:14;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+        <div sc-camel-on-click="{{ closeConfirm }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">Tasdiq so'rovi</div>
+      </div>
+      <div style="flex:none;padding:22px 28px 0;display:flex;flex-direction:column;align-items:center;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:var(--ink)">{{ cfInitials }}</div>
+        <div style="font-size:16px;font-weight:600;color:var(--ink);margin-top:14px;line-height:1.5">{{ cfTitle }}</div>
+        <div style="font-size:12.5px;color:var(--t3);margin-top:6px">{{ cfSub }}</div>
+        <div style="display:flex;gap:9px;margin-top:24px;justify-content:center">
+          <sc-for list="{{ cfBoxes }}" as="b" hint-placeholder-count="5">
+            <div style="width:48px;height:54px;border:1px solid {{ b.bd }};border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">{{ b.d }}</div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ cfError }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12px;color:var(--t2);margin-top:12px">Kod noto'g'ri. Qayta urinib ko'ring.</div>
+        </sc-if>
+        <div sc-camel-on-click="{{ cfConfirm }}" style="height:50px;width:100%;margin-top:20px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Tasdiqlash</div>
+      </div>
+      <div style="margin-top:auto;padding:0 30px 26px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <sc-for list="{{ cfKeys }}" as="k" hint-placeholder-count="12">
+            <div sc-camel-on-click="{{ k.tap }}" style="height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">{{ k.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 4 · DALIL receipt overlay -->
+    <sc-if value="{{ receiptOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Dalil" style="position:absolute;inset:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+        <div sc-camel-on-click="{{ receipt.close }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">Dalil</div>
+        <div style="flex:1"></div>
+        <div style="font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums">{{ receipt.id }}</div>
+      </div>
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:28px 28px 24px">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:12px;height:9px;border:1.6px solid var(--ink);border-bottom:none;border-radius:6px 6px 0 0"></div>
+            <div style="width:18px;height:13px;background:var(--ink);border-radius:3px;margin-top:-1px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:1.8px;color:var(--t2)">QULFLANGAN YOZUV</div>
+            <sc-if value="{{ receipt.corrected }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:var(--ink);border:1px solid var(--bd);border-radius:20px;padding:2px 8px">TUZATILDI</div>
+            </sc-if>
+          </div>
+          <div style="font-size:32px;font-weight:700;letter-spacing:-0.6px;color:var(--ink);margin-top:14px;font-variant-numeric:tabular-nums;white-space:nowrap">{{ receipt.amount }}</div>
+          <div style="font-size:14px;color:var(--t1);margin-top:6px">{{ receipt.type }}</div>
+          <sc-if value="{{ receipt.editPending }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px;border:1px dashed var(--bd);border-radius:10px;padding:8px 14px;font-size:12px;color:var(--t1);white-space:nowrap">O'zgartirish kutilmoqda · {{ receipt.editLine }}</div>
+          </sc-if>
+        </div>
+        <div style="border-top:1px dashed var(--bd);margin:24px 0 6px"></div>
+        <div style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair2)">
+          <div style="font-size:13px;color:var(--t2)">Kimdan</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;text-align:right;margin-left:12px">{{ receipt.from }}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair2)">
+          <div style="font-size:13px;color:var(--t2)">Kimga</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;text-align:right;margin-left:12px">{{ receipt.to }}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair2)">
+          <div style="font-size:13px;color:var(--t2)">Sana</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;text-align:right;margin-left:12px">{{ receipt.date }}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--hair2)">
+          <div style="font-size:13px;color:var(--t2)">Tasdiqlash kodi</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);letter-spacing:3px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:12px">{{ receipt.code }}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:11px 0">
+          <div style="font-size:13px;color:var(--t2)">Holat</div><div style="font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;margin-left:12px">Ikki tomonlama tasdiqlangan</div>
+        </div>
+        <sc-if value="{{ receipt.corrected }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top:1px dashed var(--bd);margin-top:6px;padding-top:14px">
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">O'ZGARISHLAR TARIXI</div>
+            <sc-for list="{{ receipt.histRows }}" as="h" hint-placeholder-count="1">
+              <div style="font-size:12.5px;color:var(--t1);margin-top:8px;white-space:nowrap">{{ h.txt }}</div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="font-size:11.5px;color:var(--t4);line-height:1.6;margin-top:16px;text-align:center">Ushbu yozuv o'chirib bo'lmaydi. O'zgartirish faqat ikki tomon roziligi bilan amalga oshiriladi.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:22px">
+          <div sc-camel-on-click="{{ receipt.share }}" style="height:48px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:14.5px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Ulashish (PDF)</div>
+          <div sc-camel-on-click="{{ receipt.change }}" style="height:48px;border-radius:12px;border:1px solid var(--bd);color:var(--ink);font-size:14.5px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">O'zgartirish so'rovi</div>
+          <div sc-camel-on-click="{{ receipt.archive }}" style="height:44px;color:var(--t2);font-size:13.5px;font-weight:500;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="color:var(--ink)">Arxivlash</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 3 · NEW TRANSACTION bottom sheet -->
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Yangi operatsiya" style="position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;justify-content:flex-end">
+      <div sc-camel-on-click="{{ closeSheet }}" style="position:absolute;inset:0;background:var(--dim);animation:trFade 0.2s ease"></div>
+      <div style="position:relative;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 24px 26px;max-height:88%;overflow-y:auto;animation:trSlideUp 0.25s ease">
+        <div style="display:flex;justify-content:center;padding-bottom:14px"><div style="width:38px;height:4px;border-radius:2px;background:var(--bd)"></div></div>
+        <div style="font-size:18px;font-weight:700;color:var(--ink)">{{ sheetTitle }}</div>
+
+        <sc-if value="{{ sheetFixed }}" hint-placeholder-val="{{ false }}">
+          <div style="display:inline-flex;align-items:center;gap:7px;margin-top:14px;border:1px solid var(--bd2);border-radius:20px;padding:5px 12px 5px 7px">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;flex:none">{{ sheetFixedInitials }}</div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink)">{{ sheetFixedName }} uchun</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sheetClientMode }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">HAMKOR</div>
+          <div style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px">
+            <sc-for list="{{ sheetClients }}" as="sc" hint-placeholder-count="5">
+              <div sc-camel-on-click="{{ sc.pick }}" style="flex:none;height:34px;padding:0 14px;border-radius:17px;font-size:13px;font-weight:600;display:flex;align-items:center;cursor:pointer;background:{{ sc.bg }};color:{{ sc.fg }};border:1px solid {{ sc.bd }}">{{ sc.name }}</div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">TURI</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <sc-for list="{{ types }}" as="tp" hint-placeholder-count="4">
+            <div sc-camel-on-click="{{ tp.pick }}" style="height:42px;border-radius:10px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;background:{{ tp.bg }};color:{{ tp.fg }};border:1px solid {{ tp.bd }}">{{ tp.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">SUMMA</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <input value="{{ formAmountText }}" sc-camel-on-change="{{ onAmount }}" placeholder="0" sc-camel-input-mode="numeric" style="flex:1;min-width:0;height:52px;border:1px solid var(--bd);border-radius:12px;padding:0 16px;font-size:22px;font-weight:700;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums">
+          <div style="display:flex;border:1px solid var(--bd);border-radius:12px;overflow:hidden;flex:none">
+            <sc-for list="{{ curs }}" as="cu" hint-placeholder-count="2">
+              <div sc-camel-on-click="{{ cu.pick }}" style="width:56px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;background:{{ cu.bg }};color:{{ cu.fg }}">{{ cu.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">IZOH</div>
+        <input value="{{ formNote }}" sc-camel-on-change="{{ onNote }}" placeholder="Masalan: mol savdosi uchun" style="width:100%;height:44px;margin-top:10px;border:1px solid var(--bd);border-radius:10px;padding:0 14px;font-size:14px;color:var(--ink);background:var(--bg)">
+
+        <sc-if value="{{ shTwoSided }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:7px;margin-top:12px">
+            <div style="width:10px;height:7px;border:1.4px solid var(--t3);border-radius:2px;flex:none;margin-top:1px"></div>
+            <div style="font-size:11px;color:var(--t3);line-height:1.4">Tanlangan valyuta yozuvning ikkala tomonida ham bir xil ko'rinadi</div>
+          </div>
+        </sc-if>
+
+        <div sc-camel-on-click="{{ createTx }}" style="height:50px;margin-top:24px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">{{ sheetBtnLabel }}</div>
+        <div style="font-size:11.5px;color:var(--t4);text-align:center;margin-top:12px;line-height:1.5">{{ sheetHint }}</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 3b · NEW PARTNER bottom sheet -->
+    <sc-if value="{{ npOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Yangi hamkor" style="position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;justify-content:flex-end">
+      <div sc-camel-on-click="{{ npClose }}" style="position:absolute;inset:0;background:var(--dim);animation:trFade 0.2s ease"></div>
+      <div style="position:relative;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 24px 26px;max-height:88%;overflow-y:auto;animation:trSlideUp 0.25s ease">
+        <div style="display:flex;justify-content:center;padding-bottom:14px"><div style="width:38px;height:4px;border-radius:2px;background:var(--bd)"></div></div>
+        <div style="font-size:18px;font-weight:700;color:var(--ink)">Yangi hamkor</div>
+
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">ISM</div>
+        <input value="{{ npName }}" sc-camel-on-change="{{ onNpName }}" placeholder="Ism yozing" style="width:100%;height:46px;margin-top:10px;border:1px solid var(--bd);border-radius:10px;padding:0 14px;font-size:14.5px;color:var(--ink);background:var(--bg)">
+
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">TELEFON</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;border:1px solid var(--bd);border-radius:10px;padding:0 14px;height:46px">
+          <div sc-camel-on-click="{{ ccOpenNp }}" style="display:flex;align-items:center;gap:6px;font-size:14.5px;font-weight:600;color:var(--ink);flex:none;cursor:pointer">
+            <span style="font-size:17px;line-height:1">{{ npCcFlag }}</span>
+            <span style="font-variant-numeric:tabular-nums">{{ npCcDial }}</span>
+            <div style="width:5.5px;height:5.5px;border-right:1.6px solid var(--t3);border-bottom:1.6px solid var(--t3);transform:rotate(45deg);margin-top:-3px"></div>
+          </div>
+          <div style="width:1px;height:20px;background:var(--bd);flex:none"></div>
+          <input value="{{ npPhoneText }}" sc-camel-on-change="{{ onNpPhone }}" placeholder="{{ npPh }}" sc-camel-input-mode="numeric" style="flex:1;min-width:0;height:100%;border:none;background:transparent;font-size:14.5px;color:var(--ink);font-variant-numeric:tabular-nums">
+        </div>
+
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">HOLAT</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <div sc-camel-on-click="{{ npPickOn }}" style="height:42px;border-radius:10px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;background:{{ npOnBg }};color:{{ npOnFg }};border:1px solid {{ npOnBd }}">Trust'da bor</div>
+          <div sc-camel-on-click="{{ npPickInv }}" style="height:42px;border-radius:10px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;background:{{ npInvBg }};color:{{ npInvFg }};border:1px solid {{ npInvBd }}">Taklif qilish</div>
+        </div>
+        <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.5">{{ npHint }}</div>
+
+        <div sc-camel-on-click="{{ npCreate }}" style="height:50px;margin-top:24px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Qo'shish</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 3c · COUNTRY CODE picker -->
+    <sc-if value="{{ ccOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Davlat kodi" style="position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;justify-content:flex-end">
+      <div sc-camel-on-click="{{ ccClose }}" style="position:absolute;inset:0;background:var(--dim);animation:trFade 0.2s ease"></div>
+      <div style="position:relative;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 0 8px;height:62%;display:flex;flex-direction:column;animation:trSlideUp 0.25s ease">
+        <div style="display:flex;justify-content:center;padding-bottom:12px"><div style="width:38px;height:4px;border-radius:2px;background:var(--bd)"></div></div>
+        <div style="padding:0 24px;font-size:18px;font-weight:700;color:var(--ink)">Davlat kodi</div>
+        <div style="padding:0 24px;margin-top:14px">
+          <input value="{{ ccSearch }}" sc-camel-on-change="{{ onCcSearch }}" placeholder="Qidirish" style="width:100%;height:40px;background:var(--field);border:none;border-radius:10px;padding:0 14px;font-size:14px;color:var(--ink)">
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;margin-top:8px">
+          <sc-for list="{{ ccRows }}" as="cc" hint-placeholder-count="8">
+            <div sc-camel-on-click="{{ cc.pick }}" style="display:flex;align-items:center;gap:12px;padding:13px 24px;border-bottom:1px solid var(--hair2);cursor:pointer" style-hover="background:var(--hov2)">
+              <div style="font-size:20px;line-height:1;flex:none">{{ cc.flag }}</div>
+              <div style="flex:1;min-width:0;font-size:14.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ cc.name }}</div>
+              <div style="font-size:13.5px;font-weight:600;color:var(--t1);font-variant-numeric:tabular-nums;flex:none">{{ cc.dial }}</div>
+              <sc-if value="{{ cc.sel }}" hint-placeholder-val="{{ false }}">
+                <div style="width:7px;height:4px;border-left:1.8px solid var(--ink);border-bottom:1.8px solid var(--ink);transform:rotate(-45deg);flex:none;margin-left:2px;margin-top:-2px"></div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 0 · ONBOARDING -->
+    <sc-if value="{{ isOnbWelcome }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Onboarding · Xush kelibsiz" style="position:absolute;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;animation:trFade 0.25s ease">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 40px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--bg);font-size:24px;font-weight:700">T</div>
+        <div style="font-size:32px;font-weight:700;color:var(--ink);letter-spacing:-0.5px;margin-top:20px">Trust</div>
+        <div style="font-size:14px;color:var(--t1);line-height:1.6;margin-top:14px">Qarz va hisob-kitoblaringizni ikki tomonlama tasdiq bilan yuriting. Har bir yozuv — o'chirilmas halol dalil.</div>
+      </div>
+      <div style="flex:none;padding:0 24px 30px">
+        <div sc-camel-on-click="{{ startOnb }}" style="height:52px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Boshlash</div>
+        <div style="font-size:11px;color:var(--t5);text-align:center;margin-top:14px">Davom etish orqali foydalanish shartlariga rozilik bildirasiz</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isOnbPhone }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Onboarding · Telefon raqami" style="position:absolute;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;padding:12px 16px">
+        <div sc-camel-on-click="{{ backToWelcome }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+      </div>
+      <div style="padding:6px 28px 0">
+        <div style="font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-0.4px">Telefon raqami</div>
+        <div style="font-size:13.5px;color:var(--t2);margin-top:8px;line-height:1.5">Hisobingiz shu raqamga bog'lanadi</div>
+        <div style="display:flex;gap:10px;margin-top:28px">
+          <div sc-camel-on-click="{{ ccOpenOnb }}" style="height:52px;padding:0 12px;border:1px solid var(--bd);border-radius:12px;display:flex;align-items:center;gap:7px;font-size:17px;font-weight:600;color:var(--ink);flex:none;cursor:pointer" style-hover="background:var(--hov)">
+            <span style="font-size:19px;line-height:1">{{ onbFlag }}</span>
+            <span style="font-variant-numeric:tabular-nums">{{ onbDial }}</span>
+            <div style="width:6px;height:6px;border-right:1.6px solid var(--t3);border-bottom:1.6px solid var(--t3);transform:rotate(45deg);margin-top:-3px"></div>
+          </div>
+          <input value="{{ phoneText }}" sc-camel-on-change="{{ onPhone }}" placeholder="{{ onbPh }}" sc-camel-input-mode="numeric" style="flex:1;min-width:0;height:52px;border:1px solid var(--bd);border-radius:12px;padding:0 16px;font-size:17px;font-weight:600;color:var(--ink);background:var(--bg);letter-spacing:0.5px">
+        </div>
+        <div sc-camel-on-click="{{ phoneNext }}" style="height:52px;margin-top:24px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Davom etish</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isOnbOtp }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Onboarding · Tasdiqlash kodi" style="position:absolute;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;padding:12px 16px">
+        <div sc-camel-on-click="{{ backToPhone }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+      </div>
+      <div style="padding:6px 28px 0">
+        <div style="font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-0.4px">Tasdiqlash kodi</div>
+        <div style="font-size:13.5px;color:var(--t2);margin-top:8px;white-space:nowrap">{{ otpPhone }} raqamiga yuborildi</div>
+        <div style="display:flex;gap:9px;margin-top:28px;justify-content:center">
+          <sc-for list="{{ otpBoxes }}" as="b" hint-placeholder-count="5">
+            <div style="width:50px;height:58px;border:1px solid {{ b.bd }};border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">{{ b.d }}</div>
+          </sc-for>
+        </div>
+        <div style="font-size:12px;color:var(--t4);margin-top:14px">Demo: istalgan 5 raqam qabul qilinadi</div>
+        <div sc-camel-on-click="{{ otpConfirm }}" style="height:52px;margin-top:24px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Tasdiqlash</div>
+      </div>
+      <div style="margin-top:auto;padding:0 30px 26px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <sc-for list="{{ otpKeys }}" as="k" hint-placeholder-count="12">
+            <div sc-camel-on-click="{{ k.tap }}" style="height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">{{ k.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isOnbPin }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Onboarding · PIN" style="position:absolute;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;padding:12px 16px">
+        <div sc-camel-on-click="{{ backToOtp }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+      </div>
+      <div style="padding:6px 28px 0;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-0.4px">PIN o'rnating</div>
+        <div style="font-size:13.5px;color:var(--t2);margin-top:8px">Ilovaga kirish uchun 4 xonali kod</div>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:40px">
+          <sc-for list="{{ pinDots }}" as="p" hint-placeholder-count="4">
+            <div style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink);background:{{ p.bg }}"></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="margin-top:auto;padding:0 30px 26px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <sc-for list="{{ pinKeys }}" as="k" hint-placeholder-count="12">
+            <div sc-camel-on-click="{{ k.tap }}" style="height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">{{ k.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 13 · PDF DALIL preview -->
+    <sc-if value="{{ pdfOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="PDF dalil (hujjat)" style="position:absolute;inset:0;background:var(--field);z-index:22;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2);background:var(--bg)">
+        <div sc-camel-on-click="{{ closePdf }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">PDF dalil</div>
+        <div style="flex:1"></div>
+        <div style="font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap">{{ pdf.docId }}</div>
+      </div>
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:18px 18px 14px">
+        <div style="background:#FFFFFF;border:1px solid #E2E2DE;border-radius:6px;padding:26px 24px 22px;position:relative;box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+          <div style="position:absolute;top:22px;right:20px;width:58px;height:58px;border:1.5px solid #C9C9C5;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(8deg)">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="width:9px;height:7px;border:1.5px solid #8A8A86;border-bottom:none;border-radius:5px 5px 0 0"></div>
+              <div style="width:13px;height:9px;background:#8A8A86;border-radius:2px;margin-top:-1px"></div>
+            </div>
+            <div style="font-size:6.5px;font-weight:700;letter-spacing:1.4px;color:#8A8A86;margin-top:4px">DALIL</div>
+          </div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:2.2px;color:#9C9C98">TRUST</div>
+          <div style="font-size:17px;font-weight:700;color:#111111;margin-top:6px;letter-spacing:-0.2px">Hisob-kitob dalili</div>
+          <div style="font-size:11px;color:#9C9C98;margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap">Hujjat ID: {{ pdf.docId }}</div>
+          <div style="border-top:1px solid #ECECEC;margin-top:16px"></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #F2F2F0">
+            <div style="font-size:11.5px;color:#9C9C98;flex:none">Kimdan</div>
+            <div style="text-align:right;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:#111111;white-space:nowrap">{{ pdf.fromName }}</div>
+              <div style="font-size:11px;color:#9C9C98;margin-top:2px;white-space:nowrap;font-variant-numeric:tabular-nums">{{ pdf.fromPhone }}</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #F2F2F0">
+            <div style="font-size:11.5px;color:#9C9C98;flex:none">Kimga</div>
+            <div style="text-align:right;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:#111111;white-space:nowrap">{{ pdf.toName }}</div>
+              <div style="font-size:11px;color:#9C9C98;margin-top:2px;white-space:nowrap;font-variant-numeric:tabular-nums">{{ pdf.toPhone }}</div>
+            </div>
+          </div>
+          <div style="text-align:center;padding:18px 0 14px;border-bottom:1px solid #F2F2F0">
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:1.8px;color:#9C9C98">SUMMA</div>
+            <div style="font-size:28px;font-weight:700;color:#111111;margin-top:6px;white-space:nowrap;font-variant-numeric:tabular-nums">{{ pdf.amount }}</div>
+            <div style="font-size:12px;color:#7A7A76;margin-top:4px">{{ pdf.type }}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:12px 0">
+            <div style="font-size:11.5px;color:#9C9C98">Sana va vaqt</div>
+            <div style="font-size:12.5px;font-weight:600;color:#111111;white-space:nowrap">{{ pdf.dateTime }}</div>
+          </div>
+          <div style="border:1px solid #ECECEC;border-radius:10px;padding:12px 14px;margin-top:6px">
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:1.6px;color:#9C9C98">TASDIQ · IKKI TOMON TASDIQLADI</div>
+            <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px">
+              <span style="color:#9C9C98">1-tomon (yaratdi)</span>
+              <span style="font-weight:600;color:#111111;white-space:nowrap">{{ pdf.madeAt }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:12px">
+              <span style="color:#9C9C98">2-tomon (kod bilan tasdiqladi)</span>
+              <span style="font-weight:600;color:#111111;white-space:nowrap">{{ pdf.okAt }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:12px">
+              <span style="color:#9C9C98">Tasdiqlash kodi</span>
+              <span style="font-weight:600;color:#111111;letter-spacing:2px;white-space:nowrap;font-variant-numeric:tabular-nums">{{ pdf.code }}</span>
+            </div>
+          </div>
+          <sc-if value="{{ pdf.corrected }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px dashed #E0E0DC;border-radius:10px;padding:12px 14px;margin-top:10px">
+              <div style="font-size:10.5px;font-weight:600;letter-spacing:1.6px;color:#9C9C98">O'ZGARISHLAR TARIXI</div>
+              <sc-for list="{{ pdf.histRows }}" as="h" hint-placeholder-count="1">
+                <div style="font-size:11.5px;color:#7A7A76;margin-top:8px;white-space:nowrap">{{ h.txt }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="font-size:10.5px;color:#B0B0AC;line-height:1.6;margin-top:16px">Ushbu hujjat ikki tomonning kod orqali tasdig'i asosida yaratildi. O'chirib bo'lmaydi.</div>
+        </div>
+      </div>
+      <div style="flex:none;padding:12px 20px 18px;background:var(--bg);border-top:1px solid var(--hair2);display:flex;flex-direction:column;gap:10px">
+        <div sc-camel-on-click="{{ pdfDownload }}" style="height:50px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">PDF yuklab olish</div>
+        <div sc-camel-on-click="{{ pdfShare }}" style="height:46px;border-radius:12px;border:1px solid var(--bd);color:var(--ink);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">Ulashish</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 11 · O'ZGARTIRISH SO'ROVI (forma) -->
+    <sc-if value="{{ editFormOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="O'zgartirish so'rovi (forma)" style="position:absolute;inset:0;z-index:34;display:flex;flex-direction:column;justify-content:flex-end">
+      <div sc-camel-on-click="{{ closeEditForm }}" style="position:absolute;inset:0;background:var(--dim);animation:trFade 0.2s ease"></div>
+      <div style="position:relative;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 24px 26px;animation:trSlideUp 0.25s ease">
+        <div style="display:flex;justify-content:center;padding-bottom:14px"><div style="width:38px;height:4px;border-radius:2px;background:var(--bd)"></div></div>
+        <div style="font-size:18px;font-weight:700;color:var(--ink)">O'zgartirish so'rovi</div>
+        <div style="font-size:12.5px;color:var(--t3);margin-top:6px;line-height:1.5">O'zgarish faqat ikkinchi tomon tasdiqlagandan keyin kuchga kiradi. Asl yozuv o'chirilmaydi.</div>
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">ESKI SUMMA</div>
+        <div style="font-size:16px;font-weight:600;color:var(--t3);margin-top:8px;text-decoration:line-through;font-variant-numeric:tabular-nums;white-space:nowrap">{{ editOld }}</div>
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:18px">YANGI SUMMA</div>
+        <input value="{{ editAText }}" sc-camel-on-change="{{ onEditA }}" placeholder="{{ editOldRaw }}" sc-camel-input-mode="numeric" style="width:100%;height:52px;margin-top:10px;border:1px solid var(--bd);border-radius:12px;padding:0 16px;font-size:22px;font-weight:700;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums">
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:18px">YANGI IZOH</div>
+        <input value="{{ editNote }}" sc-camel-on-change="{{ onEditNote }}" placeholder="Izoh (ixtiyoriy)" style="width:100%;height:44px;margin-top:10px;border:1px solid var(--bd);border-radius:10px;padding:0 14px;font-size:14px;color:var(--ink);background:var(--bg)">
+        <div sc-camel-on-click="{{ submitEdit }}" style="height:50px;margin-top:22px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">So'rov yuborish</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 12 · O'ZGARTIRISHNI KO'RIB CHIQISH (ikkinchi tomon) -->
+    <sc-if value="{{ reviewOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="O'zgartirishni tasdiqlash" style="position:absolute;inset:0;background:var(--bg);z-index:16;display:flex;flex-direction:column;animation:trSlideIn 0.22s ease">
+      <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+        <div sc-camel-on-click="{{ closeReview }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">O'zgartirish so'rovi</div>
+      </div>
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:22px 28px 26px;display:flex;flex-direction:column;align-items:center;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:var(--ink)">{{ rv.initials }}</div>
+        <div style="font-size:16px;font-weight:600;color:var(--ink);margin-top:14px;line-height:1.5">{{ rv.title }}</div>
+        <div style="font-size:12.5px;color:var(--t3);margin-top:6px">{{ rv.sub }}</div>
+        <div style="margin-top:24px;border:1px solid var(--bd2);border-radius:14px;overflow:hidden;text-align:left;width:100%">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px;border-bottom:1px solid var(--hair2)">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2)">ESKI</div>
+            <div style="font-size:15px;font-weight:600;color:var(--t3);text-decoration:line-through;white-space:nowrap;font-variant-numeric:tabular-nums">{{ rv.oldAmt }}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2)">YANGI</div>
+            <div style="font-size:17px;font-weight:700;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums">{{ rv.newAmt }}</div>
+          </div>
+          <sc-if value="{{ rv.hasNote }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 16px 13px;font-size:12.5px;color:var(--t3)">Izoh: {{ rv.newNote }}</div>
+          </sc-if>
+        </div>
+        <div style="font-size:11.5px;color:var(--t4);line-height:1.6;margin-top:14px">Tasdiqlasangiz yozuv yangilanadi, eski qiymat tarixda saqlanadi. Rad etsangiz asl yozuv o'zgarishsiz qoladi.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:22px;width:100%">
+          <div sc-camel-on-click="{{ approveEdit }}" style="height:50px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="opacity:0.88">Tasdiqlash</div>
+          <div sc-camel-on-click="{{ rejectEdit }}" style="height:50px;border-radius:12px;border:1px solid var(--bd);color:var(--ink);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">Rad etish</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- 10 · ANDROID PUSH (lock screen demo) -->
+    <sc-if value="{{ pushOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Android push (lock screen)" style="position:absolute;inset:0;z-index:48;background:#0A0A0C;display:flex;flex-direction:column;animation:trFade 0.25s ease">
+      <div sc-camel-on-click="{{ closePush }}" style="position:absolute;inset:0"></div>
+      <div style="flex:none;text-align:center;margin-top:60px;position:relative;pointer-events:none">
+        <div style="font-size:56px;font-weight:300;color:#F5F5F5;letter-spacing:-1px">9:41</div>
+        <div style="font-size:13px;color:rgba(245,245,245,0.6);margin-top:4px">Yakshanba, 12-iyul</div>
+      </div>
+      <div style="position:relative;margin:36px 14px 0;background:#1C1C1E;border-radius:18px;padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:16px;height:16px;border-radius:4px;background:#F5F5F5;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#0A0A0C">T</div>
+          <div style="font-size:11.5px;color:rgba(245,245,245,0.6)">Trust · hozir</div>
+        </div>
+        <div style="font-size:14px;font-weight:600;color:#F5F5F5;margin-top:8px">Akmal Karimov sizdan tasdiq so'rayapti</div>
+        <div style="font-size:13px;color:rgba(245,245,245,0.75);margin-top:3px">500 000 so'm · Kod: 48215</div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <div sc-camel-on-click="{{ pushView }}" style="flex:1;height:36px;border-radius:18px;border:1px solid rgba(245,245,245,0.25);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:#F5F5F5;cursor:pointer" style-hover="background:rgba(245,245,245,0.08)">Ko'rish</div>
+          <div sc-camel-on-click="{{ pushConfirmBtn }}" style="flex:1;height:36px;border-radius:18px;background:#F5F5F5;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:#0A0A0C;cursor:pointer" style-hover="opacity:0.85">Tasdiqlash</div>
+        </div>
+      </div>
+      <div style="margin-top:auto;padding-bottom:22px;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none">
+        <div style="font-size:11px;color:rgba(245,245,245,0.45)">Yopish uchun istalgan joyga bosing</div>
+        <div style="width:120px;height:4px;border-radius:2px;background:rgba(245,245,245,0.5)"></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- Toast -->
+    <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;bottom:104px;display:flex;justify-content:center;z-index:70;pointer-events:none">
+      <div style="background:var(--ink);color:var(--bg);font-size:12.5px;font-weight:500;border-radius:20px;padding:9px 18px">{{ toast }}</div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</div>
+</x-dc>
+
+
+
+</body></html>

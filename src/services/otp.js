@@ -8,7 +8,8 @@ import { isUzbekPhone } from '../lib/phone.js';
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 function generateCode() {
-  return String(crypto.randomInt(100000, 1000000)); // 6 xonali
+  // 5 xonali — mobil ilovadagi OTP kataklari (5 ta) bilan mos
+  return String(crypto.randomInt(10000, 100000));
 }
 
 // ---------- OTP yuborish ----------
@@ -104,6 +105,26 @@ export async function verifyOtp(phone, code) {
 }
 
 // ---------- Yordamchilar ----------
+
+// Yangi ro'yxatdan o'tgan foydalanuvchini uni oldindan hamkor qilib qo'shganlarga bog'lash.
+// (003 migratsiyadagi trigger ham shu ishni qiladi — bu kod eski profillar uchun zaxira.)
+async function linkPartners(user) {
+  const { data: linked } = await supabaseAdmin
+    .from('partners')
+    .update({ counterparty_id: user.id, on_trust: true, updated_at: new Date().toISOString() })
+    .eq('counterparty_phone', user.phone)
+    .is('counterparty_id', null)
+    .select('id, owner_id, name');
+  for (const p of linked || []) {
+    await supabaseAdmin.from('notifications').insert({
+      user_id: p.owner_id,
+      type: 'ok',
+      title: "Hamkor Trust'ga qo'shildi",
+      detail: `${p.name} endi Trust'da — yozuvlar ikki tomonlama tasdiqlanadi`,
+    });
+  }
+}
+
 async function findOrCreateUser(phone) {
   // Profiles jadvalidan qidirish
   const { data: prof } = await supabaseAdmin
@@ -111,7 +132,10 @@ async function findOrCreateUser(phone) {
     .select('id, phone')
     .eq('phone', phone)
     .maybeSingle();
-  if (prof) return { id: prof.id, phone };
+  if (prof) {
+    await linkPartners({ id: prof.id, phone });
+    return { id: prof.id, phone };
+  }
 
   // Auth'da yaratish (profil trigger orqali yaratiladi)
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
@@ -123,11 +147,16 @@ async function findOrCreateUser(phone) {
     if (String(error.message).toLowerCase().includes('already')) {
       const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
       const u = list?.users?.find((x) => (x.phone || '').replace(/\D/g, '') === phone);
-      if (u) return { id: u.id, phone };
+      if (u) {
+        await linkPartners({ id: u.id, phone });
+        return { id: u.id, phone };
+      }
     }
     throw new Error(`Foydalanuvchi yaratishda xato: ${error.message}`);
   }
-  return { id: data.user.id, phone };
+  const user = { id: data.user.id, phone };
+  await linkPartners(user);
+  return user;
 }
 
 function issueSession(user) {
