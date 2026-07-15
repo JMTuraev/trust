@@ -1489,7 +1489,8 @@ class _AnimSparkState extends State<_AnimSpark> with SingleTickerProviderStateMi
   }
 }
 
-/// Sparkline chizuvchi (dizayn: polyline, stroke 2, round)
+/// Sparkline chizuvchi — silliq egri chiziq, gradient stroke + osti gradient bilan
+/// to'ldirilgan maydon (modern "area chart" ko'rinishi).
 class _Spark extends CustomPainter {
   final List<double> pts;
   final Color color;
@@ -1498,23 +1499,54 @@ class _Spark extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (pts.isEmpty) return;
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path();
-    for (var i = 0; i < pts.length; i++) {
-      final x = pts.length == 1 ? 0.0 : i / (pts.length - 1) * size.width;
-      final y = size.height - (pts[i].clamp(0.0, 1.0) * size.height * 0.8) - size.height * 0.1;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    final w = size.width, h = size.height;
+    Offset pt(int i) {
+      final x = pts.length == 1 ? 0.0 : i / (pts.length - 1) * w;
+      final y = h - (pts[i].clamp(0.0, 1.0) * h * 0.78) - h * 0.08;
+      return Offset(x, y);
     }
-    canvas.drawPath(path, paint);
+
+    // Silliq egri: nuqtalar orasида o'rta nuqta orqali kvadratik bezier
+    final line = Path()..moveTo(pt(0).dx, pt(0).dy);
+    for (var i = 1; i < pts.length; i++) {
+      final a = pt(i - 1), b = pt(i);
+      final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+      line.quadraticBezierTo(a.dx, a.dy, mid.dx, mid.dy);
+      if (i == pts.length - 1) line.quadraticBezierTo(b.dx, b.dy, b.dx, b.dy);
+    }
+
+    // Chiziq ostidagi maydon — pastga shaffoflashib ketadigan gradient
+    final area = Path.from(line)
+      ..lineTo(w, h)
+      ..lineTo(0, h)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: .20), color.withValues(alpha: .0)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+
+    // Chiziqning o'zi — chapdan o'ngga quyuqlashadigan gradient stroke
+    canvas.drawPath(
+      line,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [color.withValues(alpha: .25), color.withValues(alpha: .85)],
+        ).createShader(Rect.fromLTWH(0, 0, w, h))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Oxirgi nuqta — kichik yorqin doira (jonli his)
+    final endPt = pt(pts.length - 1);
+    canvas.drawCircle(endPt, 2.2, Paint()..color = color.withValues(alpha: .9));
+    canvas.drawCircle(endPt, 4.2, Paint()..color = color.withValues(alpha: .18));
   }
 
   @override
@@ -1648,4 +1680,41 @@ class _PulseDotsState extends State<_PulseDots> with SingleTickerProviderStateMi
       },
     );
   }
+}
+
+/// Toifa -> vektor ikonka (emoji o'rniga; karta chipi va suv-belgi glifda ishlatiladi)
+class CatIcon extends StatelessWidget {
+  final String cat;
+  final double size;
+  final Color color;
+  const CatIcon({super.key, required this.cat, required this.size, required this.color});
+
+  static IconData _iconFor(String cat) {
+    final k = cat.toLowerCase()
+        .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
+    if (k.contains('oylik') || k.contains('maosh')) return Icons.work_rounded;
+    if (k.contains('biznes') || k.contains('sotuv')) return Icons.trending_up_rounded;
+    if (k.contains('daromad') || k.contains('kirim')) return Icons.account_balance_wallet_rounded;
+    if (k.contains('taksi')) return Icons.local_taxi_rounded;
+    if (k.contains('transport') || k.contains('avtobus') || k.contains('metro') || k.contains('benzin')) {
+      return Icons.directions_bus_rounded;
+    }
+    if (k.contains('kofe') || k.contains('qahva')) return Icons.local_cafe_rounded;
+    if (k.contains('oziq') || k.contains('ovqat') || k.contains('bozor') || k.contains('market')) {
+      return Icons.restaurant_rounded;
+    }
+    if (k.contains('kommunal') || k.contains('svet') || k.contains('gaz')) return Icons.bolt_rounded;
+    if (k.contains('internet') || k.contains('aloqa') || k.contains('telefon')) return Icons.wifi_rounded;
+    if (k.contains('xarid') || k.contains('kiyim') || k.contains("do'kon")) return Icons.shopping_bag_rounded;
+    if (k.contains('salomatlik') || k.contains('dori') || k.contains('apteka')) return Icons.medication_rounded;
+    if (k.contains("ko'ngilochar") || k.contains('kino')) return Icons.movie_rounded;
+    if (k.contains('sport') || k.contains('fitnes') || k.contains('zal')) return Icons.fitness_center_rounded;
+    if (k.contains('kitob') || k.contains("ta'lim")) return Icons.menu_book_rounded;
+    if (k.contains('uy') || k.contains('ijara')) return Icons.home_rounded;
+    if (k.contains('boshqa')) return Icons.category_rounded;
+    return Icons.folder_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) => Icon(_iconFor(cat), size: size, color: color);
 }
