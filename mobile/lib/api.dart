@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Backend manzili — lokal test: adb reverse tcp:3000 tcp:3000 (USB) yoki kompyuter IP.
-// Boshqa server uchun: flutter run --dart-define=API_URL=https://...
-const String apiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
+// Backend manzili. Default — PRODUCTION Render serveri (release APK to'g'ri ishlashi uchun).
+// Lokal test: flutter run --dart-define=API_URL=http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000).
+const String apiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://trust-backend-ft1s.onrender.com');
 
 class ApiRes {
   final bool ok;
@@ -18,6 +18,8 @@ class ApiRes {
 
 class Api {
   static String? token;
+  // Sessiya davomida token muddati o'tsa (401) — store shu callback orqali logout qiladi.
+  static void Function()? onUnauthorized;
 
   static Future<void> loadToken() async {
     final sp = await SharedPreferences.getInstance();
@@ -34,7 +36,7 @@ class Api {
     }
   }
 
-  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 10}) async {
+  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 15}) async {
     try {
       final uri = Uri.parse('$apiUrl$path');
       final headers = {
@@ -57,6 +59,10 @@ class Api {
       }
       final map = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       if (res.statusCode >= 400 || map['success'] == false) {
+        // Token muddati o'tgan/yaroqsiz — markazlashgan logout (har ekran alohida ishlamasin)
+        if (res.statusCode == 401 && token != null) {
+          onUnauthorized?.call();
+        }
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
       }
       return ApiRes(true, map['data'], '', res.statusCode);

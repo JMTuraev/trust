@@ -24,7 +24,10 @@ app.use(express.json({ limit: '256kb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.0' }));
 
-// Auth — qattiqroq limit (SMS xarajati va brute-force'dan himoya)
+// Auth — qattiqroq limit: IP bo'yicha 10/min + BUTUN servis bo'yicha SMS toll-fraud capi.
+// send-otp global cap (soatlik) botnet/raqam-aylantirish hujumidan devsms balansini himoya qiladi.
+const smsGlobalCap = parseInt(process.env.SMS_GLOBAL_HOURLY_CAP || '200', 10);
+app.use('/api/auth/send-otp', rateLimit({ windowMs: 3600_000, max: smsGlobalCap, global: true }));
 app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 10 }), authRoutes);
 app.use('/api', rateLimit({ windowMs: 60_000, max: 120 }));
 app.use('/api/profile', profileRoutes);
@@ -40,7 +43,11 @@ app.use('/api/links', linkRoutes);
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(err.status || 500).json({ success: false, error: err.message || 'Server xatosi' });
+  const status = err.status || 500;
+  // 4xx — bizning validatsiya xabarlarimiz (foydalanuvchiga tushunarli, o'zbekcha).
+  // 5xx — ichki xato: DB/sxema tafsilotlari mijozga oshkor bo'lmasin (info disclosure).
+  const clientMsg = status < 500 ? (err.message || 'So\'rov xato') : 'Server xatosi — birozdan keyin urinib ko\'ring';
+  res.status(status).json({ success: false, error: clientMsg });
 });
 
 const server = app.listen(config.port, () =>

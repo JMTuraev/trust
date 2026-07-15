@@ -1,10 +1,15 @@
 // Oddiy xotira-ichi rate limit (bitta instans uchun yetarli — Render/VPS).
-// Har IP uchun oynada eng ko'p `max` ta so'rov.
-const buckets = new Map();
+// Har rateLimit() O'Z bucket'iga ega — endpoint chegaralari bir-birini yemaydi
+// (aks holda global /api limiter va /parse limiter bitta bucketni ikki marta sanardi).
+const allBuckets = [];
 
-export function rateLimit({ windowMs = 60_000, max = 10 } = {}) {
+// global:true — IP bo'yicha emas, BUTUN servis bo'yicha yagona hisoblagich.
+// SMS toll-fraud himoyasi: botnet turli IP/raqam bilan ham umumiy capdan osha olmaydi.
+export function rateLimit({ windowMs = 60_000, max = 10, global = false } = {}) {
+  const buckets = new Map();
+  allBuckets.push(buckets);
   return (req, res, next) => {
-    const key = req.ip || 'unknown';
+    const key = global ? '__all__' : (req.ip || 'unknown');
     const now = Date.now();
     let b = buckets.get(key);
     if (!b || now - b.start > windowMs) {
@@ -19,10 +24,12 @@ export function rateLimit({ windowMs = 60_000, max = 10 } = {}) {
   };
 }
 
-// Xotira o'smasligi uchun eski yozuvlarni vaqti-vaqti bilan tozalash
+// Xotira o'smasligi uchun barcha bucket'lardagi eski yozuvlarni tozalash
 setInterval(() => {
   const now = Date.now();
-  for (const [k, b] of buckets) {
-    if (now - b.start > 10 * 60_000) buckets.delete(k);
+  for (const buckets of allBuckets) {
+    for (const [k, b] of buckets) {
+      if (now - b.start > 10 * 60_000) buckets.delete(k);
+    }
   }
 }, 5 * 60_000).unref();

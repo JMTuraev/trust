@@ -47,7 +47,12 @@ export function assertConfig() {
   if (!config.supabase.url) missing.push('SUPABASE_URL');
   if (!config.supabase.serviceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
   if (!config.app.jwtSecret) missing.push('APP_JWT_SECRET');
-  if (missing.length) {
-    console.warn(`OGOHLANTIRISH: .env da quyidagilar yo'q: ${missing.join(', ')}`);
+  if (!missing.length) return;
+  // Production'da fail-fast: buzuq konfiguratsiya bilan server ko'tarilmasin (aks holda
+  // /health yashil bo'lib, auth butunlay buzuq holatda sezilmay production'ga chiqadi).
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`FATAL: majburiy env yo'q: ${missing.join(', ')} — server to'xtatilmoqda`);
+    process.exit(1);
   }
+  console.warn(`OGOHLANTIRISH: .env da quyidagilar yo'q: ${missing.join(', ')}`);
 }

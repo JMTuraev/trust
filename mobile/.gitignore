@@ -4,9 +4,22 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 pubspec.lock
-android/
 ios/
 linux/
 macos/
 windows/
 web/
+
+# Android — manba fayllar (AndroidManifest, build.gradle, signing config) KUZATILADI.
+# Faqat build artefaktlari va MAXFIY narsalar ignore qilinadi:
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/**/GeneratedPluginRegistrant.*
+android/.idea/
+# Signing secretlari — HECH QACHON commit qilinmaydi
+android/key.properties
+android/**/*.keystore
+android/**/*.jks

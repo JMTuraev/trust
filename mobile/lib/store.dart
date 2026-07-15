@@ -149,11 +149,15 @@ class TrustStore extends ChangeNotifier {
       S['lang'] = l;
       notifyListeners();
     } catch (_) {}
+    // Token muddati o'tsa (401) — istalgan ekrandan markazlashgan logout
+    Api.onUnauthorized = _forceLogout;
     await Api.loadToken();
     if (Api.token != null) _tryResume(); // kutmaymiz — welcome darhol chiziladi
   }
 
-  // Saqlangan token bilan sessiyani tiklash
+  // Saqlangan token bilan sessiyani tiklash.
+  // MUHIM: 401 (token yaroqsiz) va tarmoq/server xatosi (status 0/5xx) ni AJRATAMIZ —
+  // aks holda vaqtinchalik uzilishда yaroqli sessiya "chiqib ketgan" ko'rinardi.
   Future<void> _tryResume() async {
     final prof = await Api.me();
     if (prof.ok && prof.data != null) {
@@ -167,8 +171,22 @@ class TrustStore extends ChangeNotifier {
       set({'skelHome': false});
       _startPolling();
     } else if (prof.status == 401) {
-      await Api.saveToken(null); // muddati o'tgan token
+      await Api.saveToken(null); // muddati o'tgan token — welcome'da qoladi
+    } else {
+      // Tarmoq/server xatosi (status 0 yoki 5xx): token yaroqli — ilovaga kiritamiz,
+      // hydrate keyin qayta urinadi. Foydalanuvchi onboarding'ga tushmaydi.
+      set({'stage': 'app', 'skelHome': true});
+      await hydrate();
+      set({'skelHome': false});
+      _startPolling();
     }
+  }
+
+  // Markazlashgan logout — 401 (sessiya tugagan) yoki qo'lda chiqishда
+  void _forceLogout() {
+    if (S['stage'] != 'app') return;
+    logout_();
+    toast_('Sessiya tugadi — qaytadan kiring');
   }
 
   // ---------------- SERVER <-> UI mapping ----------------
