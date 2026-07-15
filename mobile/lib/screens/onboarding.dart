@@ -230,9 +230,9 @@ class OnboardingScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Tx("PIN o'rnating", size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4, align: TextAlign.center),
+                Tx(v['pinTitle'] as String, size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4, align: TextAlign.center),
                 const SizedBox(height: 8),
-                Tx('Ilovaga kirish uchun 4 xonali kod', size: 13.5, color: p.t2, align: TextAlign.center),
+                Tx(v['pinSub'] as String, size: 13.5, color: p.t2, align: TextAlign.center),
                 const SizedBox(height: 40),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -244,8 +244,14 @@ class OnboardingScreen extends StatelessWidget {
                         height: 14,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: p.ink, width: 1.5),
-                          color: (v['pinDots'] as List)[i]['bg'] as Color,
+                          // Noto'g'ri PIN — nuqtalar qizil (xato signali)
+                          border: Border.all(
+                            color: v['pinErr'] == true ? const Color(0xFFE5484D) : p.ink,
+                            width: 1.5,
+                          ),
+                          color: v['pinErr'] == true
+                              ? const Color(0xFFE5484D)
+                              : (v['pinDots'] as List)[i]['bg'] as Color,
                         ),
                       ),
                     ],

@@ -30,6 +30,24 @@ async function opsSummary(partnerId) {
   return { ops_count: rows.length, total };
 }
 
+// Ko'p link uchun ops xulosasi BITTA so'rovda — ro'yxatdagi N+1 o'rniga.
+async function opsSummaryFor(partnerIds) {
+  const map = new Map(partnerIds.map((id) => [id, { ops_count: 0, total: 0 }]));
+  if (!partnerIds.length) return map;
+  const { data } = await supabaseAdmin
+    .from('operations')
+    .select('partner_id, delta, status')
+    .in('partner_id', partnerIds)
+    .in('status', ['active', 'archived']);
+  for (const o of data || []) {
+    const e = map.get(o.partner_id) || { ops_count: 0, total: 0 };
+    e.ops_count += 1;
+    e.total -= Number(o.delta); // mijoz nuqtai nazari (teskari)
+    map.set(o.partner_id, e);
+  }
+  return map;
+}
+
 // GET /api/links — menga kelgan barcha bog'lanishlar
 // pending uchun ham shu minimal ma'lumot ko'rinadi: kim, nechta yozuv, umumiy summa
 router.get('/', async (req, res, next) => {
@@ -40,9 +58,11 @@ router.get('/', async (req, res, next) => {
       .eq('counterparty_id', req.user.id)
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
-    const rows = await Promise.all((data || []).map(async (p) => {
+    const ids = (data || []).map((p) => p.id);
+    const summaries = await opsSummaryFor(ids);
+    const rows = (data || []).map((p) => {
       const seller = p.profiles;
-      const sum = await opsSummary(p.id);
+      const sum = summaries.get(p.id) || { ops_count: 0, total: 0 };
       return {
         id: p.id,
         status: p.link_status,
@@ -55,7 +75,7 @@ router.get('/', async (req, res, next) => {
         created_at: p.created_at,
         status_changed_at: p.status_changed_at,
       };
-    }));
+    });
     res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });

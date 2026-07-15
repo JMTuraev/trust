@@ -1,8 +1,10 @@
 // Trust backend API klienti (src/routes/*). Har bir javob ApiRes: ok/data/error.
 // Backend xato xabarlari o'zbekcha — UI ularni to'g'ridan-to'g'ri toast qiladi.
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'secure.dart';
 
 // Backend manzili. Default — PRODUCTION Render serveri (release APK to'g'ri ishlashi uchun).
 // Lokal test: flutter run --dart-define=API_URL=http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000).
@@ -22,21 +24,25 @@ class Api {
   static void Function()? onUnauthorized;
 
   static Future<void> loadToken() async {
-    final sp = await SharedPreferences.getInstance();
-    token = sp.getString('trust_token');
+    token = await SecureStore.readToken();
+    // Bir martalik migratsiya: eski (plaintext SharedPreferences) token'ni secure storage'ga ko'chiramiz.
+    if (token == null) {
+      final sp = await SharedPreferences.getInstance();
+      final legacy = sp.getString('trust_token');
+      if (legacy != null) {
+        token = legacy;
+        await SecureStore.writeToken(legacy);
+        await sp.remove('trust_token'); // plaintext nusxani o'chiramiz
+      }
+    }
   }
 
   static Future<void> saveToken(String? t) async {
     token = t;
-    final sp = await SharedPreferences.getInstance();
-    if (t == null) {
-      await sp.remove('trust_token');
-    } else {
-      await sp.setString('trust_token', t);
-    }
+    await SecureStore.writeToken(t);
   }
 
-  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 15}) async {
+  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 20}) async {
     try {
       final uri = Uri.parse('$apiUrl$path');
       final headers = {
@@ -66,18 +72,23 @@ class Api {
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
       }
       return ApiRes(true, map['data'], '', res.statusCode);
+    } on TimeoutException {
+      // Render bepul plan cold-start ~30-50s uxlaydi — buni tarmoq uzilishidan ajratamiz.
+      return ApiRes(false, null, 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
     } catch (_) {
       return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
     }
   }
 
   // ---- Auth ----
-  static Future<ApiRes> sendOtp(String phone) => _req('POST', '/api/auth/send-otp', body: {'phone': phone});
+  // Auth va birinchi (resume) so'rovlar uchun uzunroq timeout — Render cold-start'ni ushlaydi.
+  static Future<ApiRes> sendOtp(String phone) =>
+      _req('POST', '/api/auth/send-otp', body: {'phone': phone}, timeoutSec: 45);
   static Future<ApiRes> verifyOtp(String phone, String code) =>
-      _req('POST', '/api/auth/verify-otp', body: {'phone': phone, 'code': code});
+      _req('POST', '/api/auth/verify-otp', body: {'phone': phone, 'code': code}, timeoutSec: 45);
 
   // ---- Profile ----
-  static Future<ApiRes> me() => _req('GET', '/api/profile/me');
+  static Future<ApiRes> me() => _req('GET', '/api/profile/me', timeoutSec: 45);
   static Future<ApiRes> updateProfile({String? fullName, bool? notifEnabled}) =>
       _req('PUT', '/api/profile/me', body: {
         if (fullName != null) 'full_name': fullName,
@@ -182,6 +193,8 @@ class Api {
           .timeout(const Duration(seconds: 25));
       final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       if (res.statusCode >= 400 || data['success'] == false) {
+        // Token muddati o'tgan bo'lsa — boshqa so'rovlar kabi markazlashgan logout.
+        if (res.statusCode == 401 && token != null) onUnauthorized?.call();
         lastSttError = (data['error'] as String?) ?? 'Server xatosi (${res.statusCode})';
         return null;
       }

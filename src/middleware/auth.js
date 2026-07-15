@@ -6,7 +6,11 @@ export function requireAuth(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ success: false, error: 'Token kerak' });
   try {
-    const payload = jwt.verify(token, config.app.jwtSecret, { audience: 'authenticated' });
+    // algorithms pinlangan — HS256 majburiy (alg:none / RS256-confusion hujumlarini yopadi).
+    const payload = jwt.verify(token, config.app.jwtSecret, {
+      algorithms: ['HS256'],
+      audience: 'authenticated',
+    });
     req.user = { id: payload.sub, phone: payload.phone };
     next();
   } catch {

@@ -33,6 +33,14 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Faqat arm64-v8a: bu Windows'da uch-ABI parallel AOT (gen_snapshot) crashini
+        // chetlab o'tadi VA "yarim" armeabi-v7a/x86_64 split'lari (Flutter engine'siz)
+        // qurilmada crash berishining oldini oladi. Play Store faqat 64-bit qurilmaga
+        // yuboradi; 32-bit (armeabi-v7a) qurilmalar "nomos" ko'radi, crash EMAS.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
     }
 
     signingConfigs {
@@ -51,6 +59,16 @@ android {
             // key.properties bor bo'lsa — release kalit bilan imzolanadi (Play Store'ga tayyor).
             // Bo'lmasa (lokal dev) debug kalitiga tushadi.
             signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // MUHIM: defaultConfig.ndk.abiFilters plugin AAR'laridagi prebuilt jniLibs'ni (libdartjni,
+    // libdatastore_shared_counter) cheklamaydi — natijada armeabi-v7a/x86_64 "yarim" split'lar
+    // (Flutter engine'siz) qoladi va o'sha qurilmalarda crash beradi. Bu yerda paketlash
+    // bosqichida arm64-dan boshqa BARCHA ABI native kutubxonalarini chiqarib tashlaymiz.
+    packagingOptions {
+        jniLibs {
+            excludes += ['**/armeabi-v7a/**', '**/armeabi/**', '**/x86/**', '**/x86_64/**', '**/mips/**', '**/mips64/**']
         }
     }
 }

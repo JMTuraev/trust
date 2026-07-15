@@ -19,6 +19,22 @@ async function balanceOf(partnerId) {
   return (data || []).reduce((s, o) => s + Number(o.delta), 0);
 }
 
+// Ko'p hamkor balansini BITTA so'rovda — ro'yxat uchun N+1 o'rniga.
+// Barcha operatsiyalar bir marta olinadi, kodda partner_id bo'yicha yig'iladi.
+async function balancesFor(partnerIds) {
+  const map = new Map(partnerIds.map((id) => [id, 0]));
+  if (!partnerIds.length) return map;
+  const { data } = await supabaseAdmin
+    .from('operations')
+    .select('partner_id, delta, status')
+    .in('partner_id', partnerIds)
+    .in('status', ['active', 'archived']);
+  for (const o of data || []) {
+    map.set(o.partner_id, (map.get(o.partner_id) || 0) + Number(o.delta));
+  }
+  return map;
+}
+
 // Sotuvchiga rad DARHOL ko'rinmasligi kerak — signal yuborilgunicha 'pending' deb ko'rsatamiz.
 // (Embed o'rniga alohida so'rov: PostgREST sxema keshiga bog'lanmaymiz.)
 async function sentSignalIds(partnerIds) {
@@ -45,11 +61,12 @@ router.get('/', async (req, res, next) => {
       .eq('owner_id', req.user.id)
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
-    const sentIds = await sentSignalIds((data || []).map((p) => p.id));
-    const rows = await Promise.all((data || []).map(async (p) => ({
+    const ids = (data || []).map((p) => p.id);
+    const [sentIds, balances] = await Promise.all([sentSignalIds(ids), balancesFor(ids)]);
+    const rows = (data || []).map((p) => ({
       ...maskStatus(p, sentIds),
-      balance: await balanceOf(p.id),
-    })));
+      balance: balances.get(p.id) || 0,
+    }));
     res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });

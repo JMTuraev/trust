@@ -12,6 +12,23 @@ function generateCode() {
   return String(crypto.randomInt(10000, 100000));
 }
 
+// ---------- Global SMS toll-fraud capi ----------
+// MUHIM: faqat HAQIQATAN yuboriladigan SMS'lar sanaladi (validatsiya + per-telefon dedupdan KEYIN).
+// Shu bois axlat/takroriy so'rovlar butun tizim byudjetini yeb, haqiqiy foydalanuvchilarni
+// OTP'siz qoldirolmaydi (bu — capni middleware sifatida qo'yishdagi login-DoS xatosini yopadi).
+const SMS_GLOBAL_CAP = parseInt(process.env.SMS_GLOBAL_HOURLY_CAP || '200', 10);
+let smsWindow = { start: 0, count: 0 };
+function reserveGlobalSmsSlot() {
+  const now = Date.now();
+  if (now - smsWindow.start > 3600_000) smsWindow = { start: now, count: 0 };
+  if (smsWindow.count >= SMS_GLOBAL_CAP) {
+    const e = new Error("Tizim vaqtincha band — birozdan keyin qayta urinib ko'ring");
+    e.status = 503;
+    throw e;
+  }
+  smsWindow.count++;
+}
+
 // ---------- OTP yuborish ----------
 export async function sendOtp(phone) {
   if (isUzbekPhone(phone)) {
@@ -41,6 +58,8 @@ export async function sendOtp(phone) {
     });
     if (error) throw new Error(`DB xatosi: ${error.message}`);
 
+    // Global cap — endi, haqiqiy SMS yuborishdan bevosita oldin (validatsiya+dedupdan keyin).
+    reserveGlobalSmsSlot();
     await sendOtpSms(phone, code);
     return { provider: 'devsms', expires_in: config.otp.ttlSeconds };
   }

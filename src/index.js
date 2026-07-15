@@ -24,10 +24,12 @@ app.use(express.json({ limit: '256kb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.0' }));
 
-// Auth — qattiqroq limit: IP bo'yicha 10/min + BUTUN servis bo'yicha SMS toll-fraud capi.
-// send-otp global cap (soatlik) botnet/raqam-aylantirish hujumidan devsms balansini himoya qiladi.
-const smsGlobalCap = parseInt(process.env.SMS_GLOBAL_HOURLY_CAP || '200', 10);
-app.use('/api/auth/send-otp', rateLimit({ windowMs: 3600_000, max: smsGlobalCap, global: true }));
+// Auth limitlar (ko'p qatlamli, toll-fraud + brute-force himoyasi):
+//  - send-otp: IP bo'yicha 3/min — botni sekinlashtiradi, axlat so'rovlarni to'sadi.
+//    BUTUN-servis SMS capi endi otp.js ichida, HAQIQIY yuborishdan oldin sanaladi
+//    (middleware'da bo'lgani login-DoS ochardi: axlat so'rovlar global byudjetni yeyardi).
+//  - qolgan auth: IP bo'yicha 10/min.
+app.use('/api/auth/send-otp', rateLimit({ windowMs: 60_000, max: 3 }));
 app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 10 }), authRoutes);
 app.use('/api', rateLimit({ windowMs: 60_000, max: 120 }));
 app.use('/api/profile', profileRoutes);

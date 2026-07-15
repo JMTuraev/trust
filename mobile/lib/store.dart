@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'theme.dart';
 import 'api.dart';
 import 'stt.dart';
+import 'secure.dart';
 
 const Map<String, dynamic> _uz = {
   'slogan': "«Hisobli do'st — ayrilmas»",
@@ -91,6 +92,8 @@ const List<Map<String, dynamic>> ccList = [
 class TrustStore extends ChangeNotifier {
   final Map<String, dynamic> S = {
     'stage': 'welcome', 'lang': 'uz', 'dark': false, 'phone': '', 'otpVal': '', 'pinVal': '',
+    'pinMode': 'set', // 'set' = onboardingda o'rnatish, 'check' = qayta kirishda tekshirish
+    'pinErr': false, // noto'g'ri PIN — nuqtalar qizil chaqnaydi
     'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '',
     'xcCats': <String>[], 'qarzDraft': null,
     // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
@@ -152,6 +155,7 @@ class TrustStore extends ChangeNotifier {
     // Token muddati o'tsa (401) — istalgan ekrandan markazlashgan logout
     Api.onUnauthorized = _forceLogout;
     await Api.loadToken();
+    S['pinOn'] = await SecureStore.hasPin(); // toggle holatini secure storage'dan tiklaymiz
     if (Api.token != null) _tryResume(); // kutmaymiz — welcome darhol chiziladi
   }
 
@@ -159,13 +163,15 @@ class TrustStore extends ChangeNotifier {
   // MUHIM: 401 (token yaroqsiz) va tarmoq/server xatosi (status 0/5xx) ni AJRATAMIZ —
   // aks holda vaqtinchalik uzilishда yaroqli sessiya "chiqib ketgan" ko'rinardi.
   Future<void> _tryResume() async {
+    // PIN o'rnatilgan bo'lsa — ma'lumot fonda yuklanaturib, oldin PIN so'raladi (himoya darvozasi).
+    final needPin = await SecureStore.hasPin();
     final prof = await Api.me();
     if (prof.ok && prof.data != null) {
       final p = prof.data as Map<String, dynamic>;
       set({
         'meId': p['id'], 'mePhone': p['phone'], 'meName': p['full_name'],
         'notifOn': p['notif_enabled'] != false,
-        'stage': 'app', 'skelHome': true,
+        'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true,
       });
       await hydrate();
       set({'skelHome': false});
@@ -175,7 +181,7 @@ class TrustStore extends ChangeNotifier {
     } else {
       // Tarmoq/server xatosi (status 0 yoki 5xx): token yaroqli — ilovaga kiritamiz,
       // hydrate keyin qayta urinadi. Foydalanuvchi onboarding'ga tushmaydi.
-      set({'stage': 'app', 'skelHome': true});
+      set({'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true});
       await hydrate();
       set({'skelHome': false});
       _startPolling();
@@ -452,13 +458,47 @@ class TrustStore extends ChangeNotifier {
     } else if (v.length < (field == 'pinVal' ? 4 : 5)) {
       v += label;
     }
-    set({field: v});
+    set({field: v, if (field == 'pinVal') 'pinErr': false});
     if (field == 'pinVal' && v.length == 4) {
-      Timer(const Duration(milliseconds: 280), () {
-        set({'stage': 'app', 'pinVal': '', 'skelHome': true, 'homeVis': 6});
-        Timer(const Duration(milliseconds: 950), () => set({'skelHome': false}));
-        toast_(L()['tWelcome']);
-      });
+      if ((S['pinMode'] as String? ?? 'set') == 'check') {
+        _pinCheck(v);
+      } else {
+        _pinSet(v);
+      }
+    }
+  }
+
+  // PIN o'rnatish (onboarding) — hashni secure storage'ga saqlab, ilovaga kiramiz.
+  Future<void> _pinSet(String pin) async {
+    await SecureStore.setPin(pin);
+    Timer(const Duration(milliseconds: 280), () {
+      set({'stage': 'app', 'pinVal': '', 'skelHome': true, 'homeVis': 6});
+      Timer(const Duration(milliseconds: 950), () => set({'skelHome': false}));
+      toast_(L()['tWelcome']);
+    });
+  }
+
+  // Qayta kirishda PIN tekshirish — to'g'ri bo'lsa app, xato bo'lsa nuqtalar qizarib tozalanadi.
+  Future<void> _pinCheck(String pin) async {
+    final ok = await SecureStore.checkPin(pin);
+    if (ok) {
+      set({'stage': 'app', 'pinVal': '', 'pinErr': false, 'skelHome': true, 'homeVis': 6});
+      Timer(const Duration(milliseconds: 950), () => set({'skelHome': false}));
+    } else {
+      set({'pinErr': true});
+      Timer(const Duration(milliseconds: 400), () => set({'pinVal': '', 'pinErr': false}));
+    }
+  }
+
+  // Profil sozlamasidagi PIN kaliti — o'chirsa PIN olib tashlanadi, yoqsa o'rnatish ekraniga.
+  Future<void> _togglePin() async {
+    final on = S['pinOn'] != true; // yangi holat
+    set({'pinOn': on});
+    if (!on) {
+      await SecureStore.clearPin();
+      toast_('PIN o\'chirildi');
+    } else if (!await SecureStore.hasPin()) {
+      set({'stage': 'pin', 'pinMode': 'set', 'pinVal': ''});
     }
   }
 
@@ -1042,12 +1082,13 @@ class TrustStore extends ChangeNotifier {
     }
     await _loginSuccess(r.data as Map<String, dynamic>);
     _busy = false;
-    set({'stage': 'pin', 'pinVal': ''});
+    set({'stage': 'pin', 'pinVal': '', 'pinMode': 'set'}); // yangi kirish — PIN o'rnatiladi
   }
 
   void logout_() {
     _poll?.cancel();
     Api.saveToken(null);
+    SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
     set({
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
       'screen': 'home', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
@@ -1728,7 +1769,7 @@ class TrustStore extends ChangeNotifier {
       {'label': L0['profTil'], 'value': L0['profTilVal'], 'isPlain': true, 'isSwitch': false, 'tap': () => setLang(S['lang'] == 'uz' ? 'ru' : 'uz')},
       {'label': L0['profCur'], 'value': 'UZS', 'isPlain': true, 'isSwitch': false, 'tap': () {}},
       mkSwitch('Tungi rejim', dk, () => setDark(!dk)),
-      mkSwitch(L0['profPin'], S['pinOn'] == true, () => set({'pinOn': S['pinOn'] != true})),
+      mkSwitch(L0['profPin'], S['pinOn'] == true, () => _togglePin()),
       // Bildirishnomalar — serverda saqlanadi (op_new/rem shu bilan boshqariladi)
       mkSwitch(L0['profNotif'], S['notifOn'] == true, () async {
         final v = S['notifOn'] != true;
@@ -2087,8 +2128,8 @@ class TrustStore extends ChangeNotifier {
       'recOn': S['recOn'],
       'recOff': S['recOn'] != true,
       'micTap': () => startRec(),
-      'camTap': () => toast_('Kamera (demo)'),
-      'attachTap': () => toast_('Fayl biriktirish (demo)'),
+      'camTap': () => toast_('Rasm biriktirish — tez orada'),
+      'attachTap': () => toast_('Fayl biriktirish — tez orada'),
 
       'receiptOpen': rt != null, 'receipt': receipt,
       'molTotals': molTotals, 'bars': bars, 'reminders': reminders, 'profRows': profRows,
@@ -2141,10 +2182,18 @@ class TrustStore extends ChangeNotifier {
       'isOnbOtp': stage == 'otp',
       'isOnbPin': stage == 'pin',
       'isApp': stage == 'app',
+      // PIN ekrani ikki holatda: onboardingda o'rnatish / qayta kirishda tekshirish
+      'pinCheck': S['pinMode'] == 'check',
+      'pinTitle': S['pinMode'] == 'check' ? 'PIN kiriting' : "PIN o'rnating",
+      'pinSub': S['pinMode'] == 'check'
+          ? 'Davom etish uchun 4 xonali kodni kiriting'
+          : 'Ilovaga kirish uchun 4 xonali kod',
+      'pinErr': S['pinErr'] == true,
       'startOnb': () => set({'stage': 'phone'}),
       'backToWelcome': () => set({'stage': 'welcome'}),
       'backToPhone': () => set({'stage': 'phone', 'otpVal': ''}),
-      'backToOtp': () => set({'stage': 'otp', 'pinVal': ''}),
+      // Onboardingda orqaga OTP'ga; qayta kirish (check) holatida orqa = chiqish (welcome)
+      'backToOtp': () => S['pinMode'] == 'check' ? logout_() : set({'stage': 'otp', 'pinVal': ''}),
       'phoneText': fmtIntl(S['phone'], S['onbCc']),
       'onPhone': (String t) {
         var d = t.replaceAll(RegExp(r'\D'), '');
@@ -2220,8 +2269,8 @@ class TrustStore extends ChangeNotifier {
       'pdfOpen': S['pdfOpen'] == true && rt != null,
       'pdf': pdf,
       'closePdf': () => set({'pdfOpen': false}),
-      'pdfDownload': () => toast_('PDF yuklab olinmoqda…'),
-      'pdfShare': () => toast_('Ulashish oynasi ochildi (demo)'),
+      'pdfDownload': () => toast_('PDF hisobot — tez orada'),
+      'pdfShare': () => toast_('Ulashish — tez orada'),
 
       'toastOpen': (S['toast'] as String).isNotEmpty,
       'toast': S['toast'],
