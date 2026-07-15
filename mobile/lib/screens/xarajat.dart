@@ -246,8 +246,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Tx('${v['xfBalTxt']}', size: 30, w: FontWeight.w700,
-                  color: v['xfBalPos'] == true ? p.green : p.red, ls: -0.6),
+              _AnimNum(
+                value: v['xfBalVal'] as int? ?? 0,
+                prefix: v['xfBalPos'] == true ? '+' : '−',
+                size: 30, weight: FontWeight.w700,
+                color: v['xfBalPos'] == true ? p.green : p.red, ls: -0.6,
+              ),
               const SizedBox(width: 7),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
@@ -259,10 +263,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           Row(
             children: [
               Tx('Kirim ', size: 12, color: p.t2),
-              Tx('${v['xfInTxt']}', size: 12, w: FontWeight.w600, color: p.green),
+              _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
+                  size: 12, weight: FontWeight.w600, color: p.green),
               const SizedBox(width: 18),
               Tx('Chiqim ', size: 12, color: p.t2),
-              Tx('${v['xfOutTxt']}', size: 12, w: FontWeight.w600, color: p.red),
+              _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
+                  size: 12, weight: FontWeight.w600, color: p.red),
             ],
           ),
         ],
@@ -347,8 +353,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   Row(
                     children: [
                       Flexible(
-                        child: Tx('${f['totalTxt']}', size: 15, w: FontWeight.w600,
-                            color: inc ? p.green : p.red, maxLines: 1),
+                        child: _AnimNum(
+                          value: f['totalVal'] as int? ?? 0,
+                          prefix: inc ? '+' : '−',
+                          size: 15, weight: FontWeight.w600,
+                          color: inc ? p.green : p.red,
+                        ),
                       ),
                       if (inc) ...[
                         const SizedBox(width: 5),
@@ -562,8 +572,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Tx('${v['xfDTotalTxt']}', size: 28, w: FontWeight.w700,
-                        color: v['xfDInc'] == true ? p.green : p.ink, ls: -0.5),
+                    _AnimNum(
+                      value: v['xfDTotalVal'] as int? ?? 0,
+                      prefix: v['xfDInc'] == true ? '+' : '−',
+                      size: 28, weight: FontWeight.w700,
+                      color: v['xfDInc'] == true ? p.green : p.ink, ls: -0.5,
+                    ),
                     const SizedBox(width: 7),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
@@ -1050,14 +1064,98 @@ class _HlController extends TextEditingController {
   static final _cmdRe = RegExp(r"birlashtir\w*|o['’ʻ`]?chir\w*|keldi|tushdi|qaytdi",
       caseSensitive: false);
   static final _dateRe = RegExp(r"bugun|kechqurun|kecha|ertalab|ertaga", caseSensitive: false);
-  static final _incRe = RegExp(
-      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi|\boldim\b",
+  // Kirim/chiqim kalit so'zlari IKKI sinfda: OT (odatda summadan OLDIN keladi —
+  // "oylik 4 mln", "kreditga 200 ming" -> KEYINGI summaga bog'lanadi) va FE'L
+  // (summadan KEYIN keladi — "4 mln oldim", "200 ming berdim" -> OLDINGI summaga).
+  // Har summa uchun eng yaqin da'vogar kalit so'z g'olib — shu bilan
+  // "oylik oldim 4 mln kreditga 200 ming berdim" da 1-summa yashil, 2-si qizil.
+  static final _incNounRe = RegExp(
+      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*",
       caseSensitive: false);
-  // Chiqim fe'llari — summa yaqinida bo'lsa QIZIL (kirim so'zidan ustun turadi):
-  // "oylik oldim 400000 kreditga 200000 berdim" — 2-summa konteksti "berdim" -> qizil
-  static final _expRe = RegExp(
-      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim|xarid|kredit\w*|qarz\s+berdim",
+  static final _incVerbRe = RegExp(
+      r"\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi",
       caseSensitive: false);
+  static final _expNounRe = RegExp(r"kredit\w*|xarid\w*|\bqarzga\b",
+      caseSensitive: false);
+  static final _expVerbRe = RegExp(
+      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim",
+      caseSensitive: false);
+
+  /// Har bir summa (amts — [s, e, 'amt'] ro'yxati) kirimmi? Kalit so'zlar o'z
+  /// yo'nalishidagi eng yaqin summaga da'vo qiladi; masofada teng bo'lsa chiqim ustun.
+  static List<bool> _amtKinds(String t, List<List<dynamic>> amts) {
+    final n = amts.length;
+    final kind = List<bool>.filled(n, false); // sukut: chiqim (qizil)
+    final best = List<double>.filled(n, double.infinity);
+    if (n == 0) return kind;
+
+    final ms = <List<dynamic>>[]; // [start, end, inc, forward]
+    void collect(RegExp re, bool inc, bool forward) {
+      for (final m in re.allMatches(t)) {
+        // Chiqim avval yig'iladi — uning ichiga tushgan kirim matchi tashlanadi
+        // ("sotib oldim" ichidagi "oldim" kabi)
+        final overlapped =
+            ms.any((x) => !(m.end <= (x[0] as int) || m.start >= (x[1] as int)));
+        if (inc && overlapped) continue;
+        ms.add([m.start, m.end, inc, forward]);
+      }
+    }
+
+    collect(_expVerbRe, false, false);
+    collect(_expNounRe, false, true);
+    collect(_incVerbRe, true, false);
+    collect(_incNounRe, true, true);
+
+    for (final m in ms) {
+      final s = m[0] as int, e = m[1] as int;
+      final inc = m[2] as bool, fwd = m[3] as bool;
+      int? target;
+      var dist = double.infinity;
+      if (fwd) {
+        // Keyingi summa; topilmasa — oldingisi (kuchsizroq, +0.5)
+        for (var i = 0; i < n; i++) {
+          if ((amts[i][0] as int) >= e) {
+            target = i;
+            dist = ((amts[i][0] as int) - e).toDouble();
+            break;
+          }
+        }
+        if (target == null) {
+          for (var i = n - 1; i >= 0; i--) {
+            if ((amts[i][1] as int) <= s) {
+              target = i;
+              dist = (s - (amts[i][1] as int)) + 0.5;
+              break;
+            }
+          }
+        }
+      } else {
+        // Oldingi summa; topilmasa — keyingisi (kuchsizroq, +0.5)
+        for (var i = n - 1; i >= 0; i--) {
+          if ((amts[i][1] as int) <= s) {
+            target = i;
+            dist = (s - (amts[i][1] as int)).toDouble();
+            break;
+          }
+        }
+        if (target == null) {
+          for (var i = 0; i < n; i++) {
+            if ((amts[i][0] as int) >= e) {
+              target = i;
+              dist = ((amts[i][0] as int) - e) + 0.5;
+              break;
+            }
+          }
+        }
+      }
+      if (target == null) continue;
+      if (dist < best[target] || (dist == best[target] && !inc)) {
+        best[target] = dist;
+        kind[target] = inc;
+      }
+    }
+    return kind;
+  }
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
@@ -1088,16 +1186,9 @@ class _HlController extends TextEditingController {
       }
     }
 
-    // HAR SUMMA O'Z KONTEKSTIGA qarab bo'yaladi: oldingi summa oxiridan keyingi
-    // summa boshigacha bo'lgan so'zlar shu summaga tegishli. Chiqim fe'li ustun.
+    // Har summa rangi: kalit so'zlar yo'nalish bo'yicha eng yaqin summaga bog'lanadi
     final amts = kept.where((r) => r[2] == 'amt').toList();
-    bool amtIn(int idx) {
-      final s = idx == 0 ? 0 : amts[idx - 1][1] as int;
-      final e = idx == amts.length - 1 ? t.length : amts[idx + 1][0] as int;
-      final ctx = t.substring(s, e);
-      if (_expRe.hasMatch(ctx)) return false; // chiqim fe'li — qizil
-      return _incRe.hasMatch(ctx); // kirim so'zi — yashil, aks holda qizil
-    }
+    final amtKinds = _amtKinds(t, amts);
 
     final spans = <TextSpan>[];
     var pos = 0;
@@ -1108,7 +1199,7 @@ class _HlController extends TextEditingController {
       Color c;
       Color bg;
       if (type == 'amt') {
-        final cc = amtIn(amtIdx++) ? p.green : p.red;
+        final cc = amtKinds[amtIdx++] ? p.green : p.red;
         c = cc;
         bg = cc.withValues(alpha: .13);
       } else if (type == 'cat') {
@@ -1255,6 +1346,87 @@ class _NumGroupFmt extends TextInputFormatter {
 }
 
 // ================= YORDAMCHI ANIMATSIYALAR =================
+
+/// Sanab boruvchi raqam (count-up): qiymat o'zgarganda eski sondan yangisiga
+/// SANAB o'tadi — sekin boshlanib tezlashadi (151, 152, 155, 163, ... 200).
+/// Tabular raqamlar bilan kenglik sakramaydi.
+class _AnimNum extends StatefulWidget {
+  final int value; // maqsad (absolyut qiymat)
+  final String prefix; // '+' yoki '−'
+  final double size;
+  final FontWeight weight;
+  final Color color;
+  final double ls;
+  const _AnimNum({
+    required this.value,
+    required this.prefix,
+    required this.size,
+    required this.weight,
+    required this.color,
+    this.ls = 0,
+  });
+
+  @override
+  State<_AnimNum> createState() => _AnimNumState();
+}
+
+class _AnimNumState extends State<_AnimNum> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900), value: 1);
+  late int _from = widget.value;
+  late int _to = widget.value;
+
+  // Sekin boshlanib TEZLASHADI (foydalanuvchi so'ragan his) — easeIn
+  int _now() {
+    final t = Curves.easeInCubic.transform(_c.value);
+    return (_from + (_to - _from) * t).round();
+  }
+
+  String _fmt(int v) {
+    final s = v.abs().toString();
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimNum old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) {
+      _from = _now(); // yarim yo'lda o'zgarsa — joriy sondan davom etadi
+      _to = widget.value;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => Text(
+        '${widget.prefix}${_fmt(_now())}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.inter(
+          fontSize: widget.size,
+          fontWeight: widget.weight,
+          color: widget.color,
+          letterSpacing: widget.ls,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
 
 /// Jonli sparkline — nuqtalar o'zgarганда eski holatdan yangисига silliq o'tadi
 class _AnimSpark extends StatefulWidget {

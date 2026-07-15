@@ -1625,6 +1625,7 @@ class TrustStore extends ChangeNotifier {
               'name': f['name'], 'emoji': xfEmoji(f['name'] as String),
               'inc': f['income'] == true,
               'totalTxt': (f['income'] == true ? '+' : '−') + _fx(f['total'] as int),
+              'totalVal': f['total'] as int, // count-up animatsiya uchun xom qiymat
               'spark': _xfSpark(f['entries'] as List),
               'isNew': xfNew.contains(f['name']),
               'open': () => set({'xfDetail': f['name']}),
@@ -1666,6 +1667,10 @@ class TrustStore extends ChangeNotifier {
           'xfMonth': '${_monFull[xfNow.month - 1]} ${xfNow.year}',
           'xfBalCap': '${_monFull[xfNow.month - 1].toUpperCase()} BALANSI',
           'xfBalTxt': (xfBal >= 0 ? '+' : '−') + _fx(xfBal.abs()),
+          // Count-up animatsiya uchun xom qiymatlar
+          'xfBalVal': xfBal.abs(),
+          'xfInVal': xfTin,
+          'xfOutVal': xfTout,
           'xfBalPos': xfBal >= 0,
           'xfInTxt': '+${_fx(xfTin)}',
           'xfOutTxt': '−${_fx(xfTout)}',
@@ -1678,6 +1683,7 @@ class TrustStore extends ChangeNotifier {
           'xfDName': xfDF == null ? '' : xfDF['name'],
           'xfDCount': xfDF == null ? '' : '${_monFull[xfNow.month - 1]} ${xfNow.year} · ${(xfDF['entries'] as List).length} ta yozuv',
           'xfDTotalTxt': xfDF == null ? '' : ((xfDF['income'] == true ? '+' : '−') + _fx(xfDF['total'] as int)),
+          'xfDTotalVal': xfDF == null ? 0 : xfDF['total'] as int,
           'xfDInc': xfDF?['income'] == true,
           'xfDSpark': xfDF == null ? List<double>.filled(8, 0.06) : _xfSpark(xfDF['entries'] as List),
           'xfDGroups': xfGroups,
