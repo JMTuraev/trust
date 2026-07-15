@@ -374,15 +374,19 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                           children: [
                             Tx(trend[i]['val'], size: 10, color: p.t3, tab: true),
                             const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              constraints: const BoxConstraints(maxWidth: 30),
-                              height: trend[i]['h'],
-                              decoration: BoxDecoration(
-                                color: trend[i]['bg'],
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(4),
-                                  topRight: Radius.circular(4),
+                            // Flexible: shrift metrikasi balandroq qurilmalarda ustun
+                            // 110px konteynerdan oshib ketmasligi uchun siqila oladi.
+                            Flexible(
+                              child: Container(
+                                width: double.infinity,
+                                constraints: const BoxConstraints(maxWidth: 30),
+                                height: trend[i]['h'],
+                                decoration: BoxDecoration(
+                                  color: trend[i]['bg'],
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(4),
+                                    topRight: Radius.circular(4),
+                                  ),
                                 ),
                               ),
                             ),

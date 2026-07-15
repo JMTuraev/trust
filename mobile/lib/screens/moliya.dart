@@ -65,15 +65,19 @@ class MoliyaScreen extends StatelessWidget {
                                 children: [
                                   Tx(bars[i]['val'], size: 10, color: p.t3, tab: true),
                                   const SizedBox(height: 6),
-                                  Container(
-                                    width: double.infinity,
-                                    constraints: const BoxConstraints(maxWidth: 30),
-                                    height: bars[i]['h'],
-                                    decoration: BoxDecoration(
-                                      color: bars[i]['bg'],
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(4),
-                                        topRight: Radius.circular(4),
+                                  // Flexible: shrift metrikasi balandroq qurilmalarda ustun
+                                  // 120px konteynerdan oshib ketmasligi uchun siqila oladi.
+                                  Flexible(
+                                    child: Container(
+                                      width: double.infinity,
+                                      constraints: const BoxConstraints(maxWidth: 30),
+                                      height: bars[i]['h'],
+                                      decoration: BoxDecoration(
+                                        color: bars[i]['bg'],
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(4),
+                                          topRight: Radius.circular(4),
+                                        ),
                                       ),
                                     ),
                                   ),

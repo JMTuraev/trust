@@ -66,7 +66,13 @@ class Root extends StatelessWidget {
           backgroundColor: p.bg,
           resizeToAvoidBottomInset: true,
           body: SafeArea(
-            child: Stack(
+            // Scaffold body'ga bo'sh (min-0) balandlik beradi; Stack faqat Positioned
+            // bolalardan iborat bo'lgani uchun 0 balandlikka yig'ilib qolardi — to'liq ekranga majburlaymiz.
+            child: SizedBox.expand(
+              child: Stack(
+              // DIQQAT: bu bolalar `const` bo'lmasligi kerak — const instance kanonik bo'lgani
+              // uchun Root qayta qurilganda Element rebuild'ni o'tkazib yuboradi va store'dan
+              // o'qiydigan ekranlar muzlab qoladi.
               children: [
                 if (v['isApp'] == true) ...[
                   // Asosiy tab ekranlari + tab bar
@@ -76,48 +82,49 @@ class Root extends StatelessWidget {
                         Expanded(
                           child: Stack(
                             children: [
-                              if (v['isHome'] == true) const Positioned.fill(child: HomeScreen()),
-                              if (v['isMoliya'] == true) const Positioned.fill(child: MoliyaScreen()),
-                              if (v['isXarajat'] == true) const Positioned.fill(child: XarajatScreen()),
-                              if (v['isProfil'] == true) const Positioned.fill(child: ProfilScreen()),
+                              if (v['isHome'] == true) Positioned.fill(child: HomeScreen()),
+                              if (v['isMoliya'] == true) Positioned.fill(child: MoliyaScreen()),
+                              if (v['isXarajat'] == true) Positioned.fill(child: XarajatScreen()),
+                              if (v['isProfil'] == true) Positioned.fill(child: ProfilScreen()),
                             ],
                           ),
                         ),
-                        if (v['clientOpen'] != true) const TrustTabBar(),
+                        if (v['clientOpen'] != true) TrustTabBar(),
                       ],
                     ),
                   ),
                   // Hamkor sahifasi (z:10)
                   if (v['clientOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: const ClientScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: ClientScreen())),
                   // Bildirishnomalar (z:12)
                   if (v['notifOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: const NotifsScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: NotifsScreen())),
                   // Ikkinchi tomon tasdig'i (z:14)
                   if (v['confirmOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: const ConfirmScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: ConfirmScreen())),
                   // O'zgartirishni tasdiqlash (z:16)
                   if (v['reviewOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: const ReviewScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: ReviewScreen())),
                   // Dalil (z:20)
                   if (v['receiptOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: const ReceiptScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: ReceiptScreen())),
                   // PDF dalil (z:22)
                   if (v['pdfOpen'] == true)
-                    Positioned.fill(child: Container(color: p.field, child: const PdfPreviewScreen())),
+                    Positioned.fill(child: Container(color: p.field, child: PdfPreviewScreen())),
                   // Bottom sheetlar (z:30/34)
-                  if (v['sheetOpen'] == true) const NewTxSheet(),
-                  if (v['npOpen'] == true) const NewPartnerSheet(),
-                  if (v['editFormOpen'] == true) const EditFormSheet(),
+                  if (v['sheetOpen'] == true) NewTxSheet(),
+                  if (v['npOpen'] == true) NewPartnerSheet(),
+                  if (v['editFormOpen'] == true) EditFormSheet(),
                   // Android push demo (z:48)
-                  if (v['pushOpen'] == true) const Positioned.fill(child: PushDemo()),
+                  if (v['pushOpen'] == true) Positioned.fill(child: PushDemo()),
                 ] else
-                  const Positioned.fill(child: OnboardingScreen()),
+                  Positioned.fill(child: OnboardingScreen()),
                 // Davlat kodi sheet (z:60)
-                if (v['ccOpen'] == true) const CcSheet(),
+                if (v['ccOpen'] == true) CcSheet(),
                 // Toast (z:70)
                 ToastView(open: v['toastOpen'] == true, text: v['toast'] as String),
               ],
+              ),
             ),
           ),
         );

@@ -324,24 +324,31 @@ class SheetShell extends StatelessWidget {
           )
         : child;
     return Positioned.fill(
-      child: Column(
-        children: [
-          Expanded(child: GestureDetector(onTap: onClose, child: Container(color: p.dim))),
-          Container(
-            width: double.infinity,
-            height: heightPct != null ? MediaQuery.of(context).size.height * heightPct! : null,
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
-            decoration: BoxDecoration(
-              color: p.bg,
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(22), topRight: Radius.circular(22)),
+      // LayoutBuilder: klaviatura ochilganda body qisqaradi — sheet balandligi
+      // 0.88*ekran emas, mavjud joydan ham oshmasligi kerak (aks holda overflow).
+      child: LayoutBuilder(builder: (context, cons) {
+        final maxH = (MediaQuery.of(context).size.height * 0.88).clamp(0.0, cons.maxHeight);
+        return Column(
+          children: [
+            Expanded(child: GestureDetector(onTap: onClose, child: Container(color: p.dim))),
+            Container(
+              width: double.infinity,
+              height: heightPct != null
+                  ? (MediaQuery.of(context).size.height * heightPct!).clamp(0.0, cons.maxHeight)
+                  : null,
+              constraints: BoxConstraints(maxHeight: maxH),
+              decoration: BoxDecoration(
+                color: p.bg,
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(22), topRight: Radius.circular(22)),
+              ),
+              padding: const EdgeInsets.only(top: 10),
+              child: heightPct != null
+                  ? Column(children: [handle, Expanded(child: panelChild)])
+                  : Column(mainAxisSize: MainAxisSize.min, children: [handle, Flexible(child: panelChild)]),
             ),
-            padding: const EdgeInsets.only(top: 10),
-            child: heightPct != null
-                ? Column(children: [handle, Expanded(child: panelChild)])
-                : Column(mainAxisSize: MainAxisSize.min, children: [handle, Flexible(child: panelChild)]),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
     );
   }
 }

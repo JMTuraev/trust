@@ -26,15 +26,15 @@ class ProfilScreen extends StatelessWidget {
                 height: 72,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-                child: Tx('JT', size: 22, w: FontWeight.w600, color: p.ink),
+                child: Tx(v['meInitials'], size: 22, w: FontWeight.w600, color: p.ink),
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 14),
-                child: Tx('Jasur Toshmatov', size: 18, w: FontWeight.w700, color: p.ink),
+                child: Tx(v['meName'], size: 18, w: FontWeight.w700, color: p.ink),
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Tx('+998 90 123 45 67', size: 13, color: p.t2),
+                child: Tx(v['mePhoneFmt'], size: 13, color: p.t2),
               ),
             ],
           ),

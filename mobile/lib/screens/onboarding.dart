@@ -178,33 +178,35 @@ class OnboardingScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           child: BackBtn(onTap: () => v['backToPhone']()),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Tx('Tasdiqlash kodi', size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
-              const SizedBox(height: 8),
-              Tx('${v['otpPhone']} raqamiga yuborildi', size: 13.5, color: p.t2, maxLines: 1),
-              const SizedBox(height: 28),
-              Center(
-                child: CodeBoxes(
-                  boxes: (v['otpBoxes'] as List).cast<Map<String, dynamic>>(),
-                  w: 50,
-                  h: 58,
-                  fs: 24,
-                  gap: 9,
-                  r: 12,
+        // Expanded+scroll: klaviatura/kichik ekranda kontent siqilib overflow bermasligi uchun
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Tx('Tasdiqlash kodi', size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
+                const SizedBox(height: 8),
+                Tx('${v['otpPhone']} raqamiga yuborildi', size: 13.5, color: p.t2, maxLines: 1),
+                const SizedBox(height: 28),
+                Center(
+                  child: CodeBoxes(
+                    boxes: (v['otpBoxes'] as List).cast<Map<String, dynamic>>(),
+                    w: 50,
+                    h: 58,
+                    fs: 24,
+                    gap: 9,
+                    r: 12,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Tx('Demo: istalgan 5 raqam qabul qilinadi', size: 12, color: p.t4),
-              const SizedBox(height: 24),
-              InkBtn(label: 'Tasdiqlash', h: 52, onTap: () => v['otpConfirm']()),
-            ],
+                const SizedBox(height: 14),
+                Tx(v['L']['otpDemo'] as String, size: 12, color: p.t4),
+                const SizedBox(height: 24),
+                InkBtn(label: 'Tasdiqlash', h: 52, onTap: () => v['otpConfirm']()),
+              ],
+            ),
           ),
         ),
-        const Spacer(),
         KeyPad(keys: (v['otpKeys'] as List).cast<Map<String, dynamic>>()),
       ],
     );
@@ -221,36 +223,38 @@ class OnboardingScreen extends StatelessWidget {
             child: BackBtn(onTap: () => v['backToOtp']()),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Tx("PIN o'rnating", size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4, align: TextAlign.center),
-              const SizedBox(height: 8),
-              Tx('Ilovaga kirish uchun 4 xonali kod', size: 13.5, color: p.t2, align: TextAlign.center),
-              const SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < (v['pinDots'] as List).length; i++) ...[
-                    if (i > 0) const SizedBox(width: 16),
-                    Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: p.ink, width: 1.5),
-                        color: (v['pinDots'] as List)[i]['bg'] as Color,
+        // Expanded+scroll: kichik joyda overflow bermasligi uchun
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Tx("PIN o'rnating", size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4, align: TextAlign.center),
+                const SizedBox(height: 8),
+                Tx('Ilovaga kirish uchun 4 xonali kod', size: 13.5, color: p.t2, align: TextAlign.center),
+                const SizedBox(height: 40),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var i = 0; i < (v['pinDots'] as List).length; i++) ...[
+                      if (i > 0) const SizedBox(width: 16),
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: p.ink, width: 1.5),
+                          color: (v['pinDots'] as List)[i]['bg'] as Color,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
-        const Spacer(),
         KeyPad(keys: (v['pinKeys'] as List).cast<Map<String, dynamic>>()),
       ],
     );
