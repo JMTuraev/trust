@@ -468,6 +468,7 @@ class StoreField extends StatefulWidget {
   final TextInputType? keyboardType;
   final VoidCallback? onSubmit;
   final TextAlign textAlign;
+  final bool autofocus;
   const StoreField({
     super.key,
     required this.value,
@@ -478,6 +479,7 @@ class StoreField extends StatefulWidget {
     this.keyboardType,
     this.onSubmit,
     this.textAlign = TextAlign.start,
+    this.autofocus = false,
   });
 
   @override
@@ -514,6 +516,7 @@ class _StoreFieldState extends State<StoreField> {
       onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
       keyboardType: widget.keyboardType,
       textAlign: widget.textAlign,
+      autofocus: widget.autofocus,
       style: st,
       cursorColor: p.ink,
       decoration: InputDecoration(

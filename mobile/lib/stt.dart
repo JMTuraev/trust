@@ -1,7 +1,7 @@
 // Ovoz yozish + backend STT — XOTIRA-ovoz-va-kategoriya.md bo'yicha.
 // Oqim: mikrofon (16kHz mono wav, maks 10 s) -> POST /api/stt/transcribe
 // (backend: Groq whisper-large-v3, zaxira OpenAI). Xato bo'lsa null —
-// ilova matn kiritish/demolarga qaytadi (spec: doim fallback bor).
+// sabab [lastError] da turadi, UI aniq toast ko'rsatadi (jim yiqilish yo'q).
 import 'dart:async';
 import 'dart:io';
 import 'package:record/record.dart';
@@ -13,15 +13,20 @@ class Stt {
   static Timer? _timer;
   static void Function(String?)? _onDone;
 
-  /// Yozishni boshlash. Ruxsat berilmasa jim qoladi (demo rejim davom etadi).
+  /// Oxirgi xato sababi (diagnostika uchun; muvaffaqiyatda null)
+  static String? lastError;
+
+  /// Yozishni boshlash. Ruxsat berilmasa demo rejim qoladi, lekin sabab lastError'da.
   static Future<void> start({
     void Function()? onStarted,
     required void Function(String?) onDone,
   }) async {
     await cancel();
+    lastError = null;
     _onDone = onDone;
     try {
       if (!await _rec.hasPermission()) {
+        lastError = "Mikrofon ruxsati berilmagan — Sozlamalar > Ilovalar > Trust > Ruxsatlar";
         _onDone = null; // demo rejimda qolamiz
         return;
       }
@@ -32,7 +37,8 @@ class Stt {
       );
       onStarted?.call();
       _timer = Timer(const Duration(seconds: 10), finish); // spec: 3–10 s klip
-    } catch (_) {
+    } catch (e) {
+      lastError = 'Yozib olishni boshlab bo\'lmadi: $e';
       _onDone = null;
     }
   }
@@ -46,16 +52,23 @@ class Stt {
     try {
       final path = await _rec.stop();
       if (path == null) {
+        lastError ??= 'Yozuv olinmadi — qayta urinib ko\'ring';
         cb(null);
         return;
       }
       final bytes = await File(path).readAsBytes();
       if (bytes.length < 4000) {
-        cb(null); // juda qisqa yozuv
+        lastError = 'Juda qisqa yozuv — kamida 2-3 soniya gapiring';
+        cb(null);
         return;
       }
-      cb(await Api.transcribe(bytes));
-    } catch (_) {
+      final text = await Api.transcribe(bytes);
+      if (text == null || text.trim().isEmpty) {
+        lastError = Api.lastSttError ?? 'Ovoz tushunarsiz chiqdi — qayta ayting';
+      }
+      cb(text);
+    } catch (e) {
+      lastError = 'STT xatosi: $e';
       cb(null);
     }
   }

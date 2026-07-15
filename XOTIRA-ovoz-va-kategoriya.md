@@ -86,4 +86,9 @@ Mobil:
 
 Tasdiqlash kartasi qachon chiqadi: ishonch < 0.8 YOKI summa mos kelmasa YOKI yangi toifa taklifi YOKI qarz. Aks holda bubble to'g'ridan-to'g'ri.
 
+UX qarori (2026-07-15): Xarajat chatida MATN INPUT YO'Q — pastda markazda faqat mikrofon
+(inputsiz, ovoz-birinchi). Klaviatura faqat bitta joyda chiqadi: tasdiqlash kartasida
+STT matni xato eshitilgan bo'lsa, «matn»ni bosib tahrirlash → qayta tahlil (xcEdit oqimi).
+Eski matn-fallback endpointlari o'zgarmagan — faqat UI'dan olib tashlandi.
+
 Keyingi navbat (4-bosqich qoldiqlari): offline navbat, monitoring metrikalar, pgvector k-NN, kontekst signallari, haftalik "Boshqa" klasterlash, toifa boshiga limit.
