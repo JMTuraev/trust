@@ -9,17 +9,21 @@ router.use(requireAuth);
 
 const fmt = (n) => Number(n).toLocaleString('ru-RU');
 
-// Qabul qilingan bog'lanishdagi mijozga xabar (profil sozlamasiga bo'ysunadi)
+// Mijozga yangi yozuv xabari (profil sozlamasiga bo'ysunadi).
+// accepted — to'liq tafsilot (tur · summa); pending — UMUMIY xabar (summa OSHKOR QILINMAYDI,
+// chunki mijoz tafsilotni faqat bog'lanishni qabul qilgach ko'radi — link modeli).
 async function notifyCounterparty(partner, sellerId, title, detail, operationId) {
-  if (!partner?.counterparty_id || partner.link_status !== 'accepted') return;
+  if (!partner?.counterparty_id) return;
+  if (partner.link_status === 'rejected') return; // rad etgan mijozga xabar yubormaymiz
   if (!(await notifEnabled(partner.counterparty_id))) return;
+  const accepted = partner.link_status === 'accepted';
   await supabaseAdmin.from('notifications').insert({
     user_id: partner.counterparty_id,
     sender_id: sellerId,
     type: 'op_new',
     title,
-    detail,
-    operation_id: operationId ?? null,
+    detail: accepted ? detail : "Yangi yozuv kiritildi — ko'rish uchun bog'lanishni qabul qiling",
+    operation_id: accepted ? (operationId ?? null) : null,
     link_id: partner.id,
   });
 }

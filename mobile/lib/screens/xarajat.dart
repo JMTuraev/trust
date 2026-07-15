@@ -848,6 +848,11 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             const SizedBox(height: 10),
           ],
 
+          // Yo'riqnoma — inputdan yuqorida
+          Center(
+            child: Tx('Yozing — AI o\'zi papkalarga saralaydi', size: 11, color: p.t4),
+          ),
+          const SizedBox(height: 8),
           // Matn input (rangli highlight bilan) + yuborish
           Container(
             key: _inputKey,
@@ -889,10 +894,6 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Tx('Yozing — AI o\'zi papkalarga saralaydi', size: 11, color: p.t4),
           ),
         ],
       ),

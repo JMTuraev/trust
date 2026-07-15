@@ -656,18 +656,36 @@ class TrustStore extends ChangeNotifier {
     });
   }
 
-  void startRec() {
-    if (S['recOn'] == true) return;
+  // Chat ovozi — REAL hold-to-talk (Telegram uslubi): bosib turib gapiriladi,
+  // qo'yib yuborilganda STT matnga aylantirib chat maydoniga qo'yadi.
+  // Input bar almashtirilmaydi — klaviatura holatiga tegilmaydi.
+  Future<void> chatMicStart() async {
+    if (_recActive) return;
+    _recActive = true;
     set({'recOn': true});
-    Timer(const Duration(milliseconds: 1600), () {
-      if (S['clientId'] == null) {
+    await Stt.start(
+      onStarted: () {},
+      onDone: (text) {
+        _recActive = false;
         set({'recOn': false});
-        return;
-      }
-      addLocalMsg(S['clientId'] as String,
-          {'k': 'voice', 'mine': true, 'dur': 7, 'time': 'Hozir', 'read': false});
+        if (text != null && text.trim().isNotEmpty) {
+          // Matn chat maydoniga tushadi — foydalanuvchi ko'rib, tahrirlashi va yuborishi mumkin
+          set({'chatInput': '${(S['chatInput'] as String).trim().isEmpty ? '' : '${S['chatInput']} '}${text.trim()}'});
+        } else {
+          toast_(Stt.lastError ?? "Ovoz matnga aylanmadi — qayta urinib ko'ring");
+        }
+      },
+    );
+    if (Stt.lastError != null && S['recOn'] == true) {
+      _recActive = false;
       set({'recOn': false});
-    });
+      toast_(Stt.lastError!);
+    }
+  }
+
+  void chatMicEnd() {
+    if (!_recActive) return;
+    Stt.finish(); // natija onDone orqali chatInput'ga tushadi
   }
 
   String _fmt(int n) =>
@@ -2538,9 +2556,9 @@ class TrustStore extends ChangeNotifier {
       'noText': (S['chatInput'] as String).trim().isEmpty,
       'recOn': S['recOn'],
       'recOff': S['recOn'] != true,
-      'micTap': () => startRec(),
-      'camTap': () => toast_('Rasm biriktirish — tez orada'),
-      'attachTap': () => toast_('Fayl biriktirish — tez orada'),
+      // Chat ovozi: bosib turib gapirish (hold-to-talk) — matn chat maydoniga tushadi
+      'chatMicStart': () => chatMicStart(),
+      'chatMicEnd': () => chatMicEnd(),
 
       'receiptOpen': rt != null, 'receipt': receipt,
       'molTotals': molTotals, 'bars': bars, 'reminders': reminders, 'profRows': profRows,
@@ -2652,6 +2670,17 @@ class TrustStore extends ChangeNotifier {
       'notifOpen': S['notifOpen'],
       'notifRows': notifRows,
       'bellDot': _notifs().any((n) => n['unread'] == true),
+      'notifEmpty': notifRows.isEmpty,
+      'notifUnread': _notifs().where((n) => n['unread'] == true).length,
+      // Hammasini o'qilgan qilish — serverda + lokal
+      'notifReadAll': () async {
+        final r = await Api.readAllNotifs();
+        if (!r.ok) {
+          toast_(r.error);
+          return;
+        }
+        set({'notifs': _notifs().map((n) => {...n, 'unread': false}).toList()});
+      },
 
       // Arxiv — headerdagi tugma orqali alohida ekran
       'archOpen': S['archOpen'] == true,

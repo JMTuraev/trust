@@ -22,10 +22,51 @@ class NotifsScreen extends StatelessWidget {
             children: [
               BackBtn(onTap: v['closeNotifs']),
               const SizedBox(width: 10),
-              Tx((v['L'] as Map)['profNotif'] as String, size: 16, w: FontWeight.w700, color: p.ink),
+              Expanded(
+                child: Tx((v['L'] as Map)['profNotif'] as String, size: 16, w: FontWeight.w700, color: p.ink),
+              ),
+              // Barchasini o'qilgan qilish — faqat o'qilmagan bo'lsa
+              if ((v['notifUnread'] as int? ?? 0) > 0)
+                Tap(
+                  onTap: v['notifReadAll'],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: p.bd),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Tx("Barchasini o'qish", size: 11.5, w: FontWeight.w600, color: p.t1),
+                  ),
+                ),
             ],
           ),
         ),
+        // Bo'sh holat
+        if (v['notifEmpty'] == true)
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 56, height: 56, alignment: Alignment.center,
+                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
+                      child: Tx('🔔', size: 22, color: p.ink),
+                    ),
+                    const SizedBox(height: 14),
+                    Tx("Hozircha bildirishnoma yo'q", size: 14, w: FontWeight.w600, color: p.t1,
+                        align: TextAlign.center),
+                    const SizedBox(height: 6),
+                    Tx("Yangi yozuvlar, bog'lanishlar va eslatmalar shu yerda ko'rinadi",
+                        size: 12, color: p.t4, align: TextAlign.center),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,

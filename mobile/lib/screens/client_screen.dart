@@ -134,7 +134,7 @@ class _ClientScreenState extends State<ClientScreen> {
                       child: m['notPlaying'] == true
                           ? Padding(
                               padding: const EdgeInsets.only(left: 2),
-                              child: _tri(t: 5, b: 5, l: 8, c: m['pfg'] as Color, side: 'left'),
+                              child: _tri(t: 5, b: 5, r: 8, c: m['pfg'] as Color, side: 'right'),
                             )
                           : Row(mainAxisSize: MainAxisSize.min, children: [
                               Container(width: 2.5, height: 10, color: m['pfg'] as Color),
@@ -193,7 +193,7 @@ class _ClientScreenState extends State<ClientScreen> {
                             child: m['notPlaying'] == true
                                 ? Padding(
                                     padding: const EdgeInsets.only(left: 3),
-                                    child: _tri(t: 7, b: 7, l: 11, c: m['pfg2'] as Color, side: 'left'),
+                                    child: _tri(t: 7, b: 7, r: 11, c: m['pfg2'] as Color, side: 'right'),
                                   )
                                 : Row(mainAxisSize: MainAxisSize.min, children: [
                                     Container(width: 3, height: 13, color: m['pfg2'] as Color),
@@ -447,23 +447,9 @@ class _ClientScreenState extends State<ClientScreen> {
           child: Center(child: Tx(L0['readOnly'] as String, size: 12, color: p.t3, align: TextAlign.center)),
         );
       }
-      // Ovoz yozilmoqda — pulsli indikator
-      if (v['recOn'] == true) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
-          child: Row(children: [
-            _Pulse(
-              duration: const Duration(milliseconds: 1000),
-              child: Container(width: 10, height: 10, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
-            ),
-            const SizedBox(width: 10),
-            Tx('yozilmoqda…', size: 14, color: p.t1),
-            const Spacer(),
-            Tx('0:02', size: 12, color: p.t3, tab: true),
-          ]),
-        );
-      }
+      // Input bar HECH QACHON almashtirilmaydi — klaviatura holati buzilmaydi.
+      // Yozish paytida mic tugmasi pulslaydi va maydonda "Tinglayapman…" ko'rinadi.
+      final rec = v['recOn'] == true;
       return Container(
         padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
         decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
@@ -484,43 +470,24 @@ class _ClientScreenState extends State<ClientScreen> {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 11),
-                        child: StoreField(
-                          value: v['chatInput'] as String,
-                          onChanged: (t) => v['onChatInput'](t),
-                          hint: L0['msgPh'] as String,
-                          maxLines: 5,
-                          style: GoogleFonts.inter(fontSize: 14.5, color: p.ink, height: 1.35),
-                        ),
-                      ),
-                    ),
-                    // Biriktirish (+) — pill ichida, o'ng tomonda
-                    Tap(
-                      onTap: () => v['attachTap'](),
-                      child: SizedBox(width: 36, height: 44, child: Center(child: _plus(16, p.t2))),
-                    ),
-                    // Kamera — pill ichida
-                    Tap(
-                      onTap: () => v['camTap'](),
-                      child: SizedBox(
-                        width: 36,
-                        height: 44,
-                        child: Center(
-                          child: SizedBox(
-                            width: 17,
-                            height: 13,
-                            child: Stack(clipBehavior: Clip.none, children: [
-                              Container(
-                                width: 17,
-                                height: 13,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: p.t2, width: 1.6),
-                                  borderRadius: BorderRadius.circular(3),
+                        child: rec
+                            ? Row(children: [
+                                _Pulse(
+                                  duration: const Duration(milliseconds: 900),
+                                  child: Container(
+                                      width: 9, height: 9,
+                                      decoration: BoxDecoration(color: p.red, shape: BoxShape.circle)),
                                 ),
+                                const SizedBox(width: 8),
+                                Tx('Tinglayapman… qo\'yib yuboring', size: 14, color: p.t1),
+                              ])
+                            : StoreField(
+                                value: v['chatInput'] as String,
+                                onChanged: (t) => v['onChatInput'](t),
+                                hint: L0['msgPh'] as String,
+                                maxLines: 5,
+                                style: GoogleFonts.inter(fontSize: 14.5, color: p.ink, height: 1.35),
                               ),
-                              Positioned(right: -6, top: 2.5, child: _tri(t: 3.5, b: 3.5, l: 4.5, c: p.t2, side: 'left')),
-                            ]),
-                          ),
-                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -540,18 +507,25 @@ class _ClientScreenState extends State<ClientScreen> {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.only(left: 3),
-                      child: _tri(t: 6, b: 6, l: 11, c: p.bg, side: 'left'),
+                      child: _tri(t: 6, b: 6, r: 11, c: p.bg, side: 'right'),
                     ),
                   ),
                 ),
               )
             else
-              Tap(
-                onTap: () => v['micTap'](),
+              // Bosib turib gapirish (Telegram uslubi) — qo'yib yuborilganda matn maydonga tushadi
+              GestureDetector(
+                onTapDown: (_) => v['chatMicStart'](),
+                onTapUp: (_) => v['chatMicEnd'](),
+                onTapCancel: () => v['chatMicEnd'](),
+                onLongPressEnd: (_) => v['chatMicEnd'](),
                 child: Container(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(color: p.field, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: v['recOn'] == true ? p.red.withValues(alpha: .15) : p.field,
+                    shape: BoxShape.circle,
+                  ),
                   child: Center(
                     child: Transform.translate(
                       offset: const Offset(0, 2.5),
@@ -560,7 +534,7 @@ class _ClientScreenState extends State<ClientScreen> {
                           width: 9,
                           height: 14,
                           decoration: BoxDecoration(
-                            border: Border.all(color: p.ink, width: 1.6),
+                            border: Border.all(color: v['recOn'] == true ? p.red : p.ink, width: 1.6),
                             borderRadius: BorderRadius.circular(5),
                           ),
                         ),

@@ -23,9 +23,9 @@ export const config = {
   },
   stt: {
     // XOTIRA-ovoz-va-kategoriya.md: asosiy Groq whisper-large-v3, zaxira OpenAI gpt-4o-transcribe
-    // VAQTINCHA O'CHIQ (matn-birinchi rejim, 2026-07-15). Qayta yoqish: env STT_ENABLED=true.
+    // Default YONIQ (chat ovozi hold-to-talk uchun, 2026-07-15). O'chirish: env STT_ENABLED=false.
     // Kalitlar parse.js (LLM) uchun ham ishlatiladi — ular o'chirilmaydi.
-    enabled: process.env.STT_ENABLED === 'true',
+    enabled: process.env.STT_ENABLED !== 'false',
     groqKey: process.env.GROQ_API_KEY,
     openaiKey: process.env.OPENAI_API_KEY,
   },
