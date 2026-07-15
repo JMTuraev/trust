@@ -1137,7 +1137,9 @@ class TrustStore extends ChangeNotifier {
 
   // Yuborish: tahrir rejimi / birlashtirish / papka o'chirish / oddiy parse
   Future<void> xfSend_() async {
-    final t = ((S['xarText'] as String?) ?? '').trim();
+    // Ko'rinishdagi "400 000" formati parser uchun "400000" ga tozalanadi
+    final raw = ((S['xarText'] as String?) ?? '').trim();
+    final t = raw.replaceAllMapped(RegExp(r'(\d) (?=\d)'), (m) => m[1]!);
     if (t.isEmpty) {
       toast_('Jumla yozing');
       return;

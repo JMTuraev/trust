@@ -3,9 +3,11 @@
 // Dinamika (dizayn kabi): input ichida rangli belgilash (summa yashil/qizil, toifa/buyruq/sana
 // fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
 // yangisida siljiydi), yangi papka "pop", tray "shake", toastlar "Bekor qilish" bilan.
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue;
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
@@ -86,11 +88,25 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   }
 
   // ================= FLY ANIMATSIYASI (dizayn: flyToFolder) =================
-  void _launchFly(List<Map<String, dynamic>> events) {
+  // Harakat aniq KO'RINISHI uchun: 1) klaviatura yopiladi (papkalar ochiladi),
+  // 2) nishon papka avval ekranga scroll qilinadi, 3) chip yoy (arc) bo'ylab uchadi.
+  Future<void> _launchFly(List<Map<String, dynamic>> events) async {
+    FocusManager.instance.primaryFocus?.unfocus(); // klaviatura yopiladi
+    await Future.delayed(const Duration(milliseconds: 240));
+    if (!mounted) return;
     for (var i = 0; i < events.length; i++) {
-      Future.delayed(Duration(milliseconds: i * 120), () {
-        if (mounted) _flyOne(events[i], i);
-      });
+      final cat = events[i]['cat'] as String;
+      final ctx = _fk[cat]?.currentContext;
+      if (ctx != null) {
+        // Nishon papkani ko'rinadigan joyga silliq keltiramiz
+        await Scrollable.ensureVisible(ctx,
+            alignment: 0.35, duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+        await Future.delayed(const Duration(milliseconds: 60));
+      }
+      if (!mounted) return;
+      _flyOne(events[i], i);
+      // Keyingi chip oldingisi qo'nay deganda uchadi — harakat ketma-ket o'qiladi
+      await Future.delayed(const Duration(milliseconds: 420));
     }
   }
 
@@ -100,15 +116,16 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     final inputBox = _inputKey.currentContext?.findRenderObject() as RenderBox?;
     final folderBox = _fk[e['cat']]?.currentContext?.findRenderObject() as RenderBox?;
     if (inputBox == null) return;
-    final start = inputBox.localToGlobal(Offset(14 + i * 8.0, -58));
+    final start = inputBox.localToGlobal(const Offset(20, -46));
     // Nishon: papka kartasi markazi; karta hali ko'rinmasa — biroz yuqoriga uchib so'nadi
     final end = folderBox != null
         ? folderBox.localToGlobal(Offset.zero) +
-            Offset(folderBox.size.width / 2 - 62, folderBox.size.height / 2 - 18)
+            Offset(folderBox.size.width / 2 - 56, folderBox.size.height / 2 - 16)
         : start - const Offset(0, 220);
 
-    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 720));
-    final curve = CurvedAnimation(parent: ctrl, curve: const Cubic(.22, .9, .26, 1));
+    // Sekinroq (900ms) — kichik ekranda ham harakat ko'rinadi
+    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    final curve = CurvedAnimation(parent: ctrl, curve: const Cubic(.3, .7, .3, 1));
     final inc = e['inc'] == true;
     final glow = inc ? p.green : p.red;
     late OverlayEntry entry;
@@ -117,9 +134,11 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         animation: curve,
         builder: (_, __) {
           final t = curve.value;
-          final pos = Offset.lerp(start, end, t)!;
-          final op = t < .08 ? t / .08 : (t > .82 ? (1 - t) / .18 : 1.0);
-          final sc = 1.0 - t * .16;
+          // Yoy (arc) traektoriya — to'g'ri chiziq emas, ko'tarilib tushadi (ko'zga tashlanadi)
+          final lift = math.sin(t * math.pi) * 56;
+          final pos = Offset.lerp(start, end, t)! - Offset(0, lift);
+          final op = t < .08 ? t / .08 : (t > .85 ? (1 - t) / .15 : 1.0);
+          final sc = 1.0 - t * .22;
           return Positioned(
             left: pos.dx,
             top: pos.dy,
@@ -1032,28 +1051,19 @@ class _HlController extends TextEditingController {
       caseSensitive: false);
   static final _dateRe = RegExp(r"bugun|kechqurun|kecha|ertalab|ertaga", caseSensitive: false);
   static final _incRe = RegExp(
-      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi",
+      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi|\boldim\b",
       caseSensitive: false);
-  static final _cutRe = RegExp(r",|\bva\b", caseSensitive: false);
+  // Chiqim fe'llari — summa yaqinida bo'lsa QIZIL (kirim so'zidan ustun turadi):
+  // "oylik oldim 400000 kreditga 200000 berdim" — 2-summa konteksti "berdim" -> qizil
+  static final _expRe = RegExp(
+      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim|xarid|kredit\w*|qarz\s+berdim",
+      caseSensitive: false);
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final p = curPal();
     final t = text;
     if (t.isEmpty) return TextSpan(style: style);
-
-    // Segment yo'nalishi: vergul/"va" bo'laklari ichida INC so'zi bormi
-    final cuts = <int>[0];
-    for (final m in _cutRe.allMatches(t)) {
-      cuts.add(m.start);
-    }
-    cuts.add(t.length);
-    bool segIn(int pos) {
-      for (var i = 0; i < cuts.length - 1; i++) {
-        if (pos >= cuts[i] && pos < cuts[i + 1]) return _incRe.hasMatch(t.substring(cuts[i], cuts[i + 1]));
-      }
-      return false;
-    }
 
     final ranges = <List<dynamic>>[]; // [s, e, type]
     void push(RegExp re, String type) {
@@ -1078,15 +1088,27 @@ class _HlController extends TextEditingController {
       }
     }
 
+    // HAR SUMMA O'Z KONTEKSTIGA qarab bo'yaladi: oldingi summa oxiridan keyingi
+    // summa boshigacha bo'lgan so'zlar shu summaga tegishli. Chiqim fe'li ustun.
+    final amts = kept.where((r) => r[2] == 'amt').toList();
+    bool amtIn(int idx) {
+      final s = idx == 0 ? 0 : amts[idx - 1][1] as int;
+      final e = idx == amts.length - 1 ? t.length : amts[idx + 1][0] as int;
+      final ctx = t.substring(s, e);
+      if (_expRe.hasMatch(ctx)) return false; // chiqim fe'li — qizil
+      return _incRe.hasMatch(ctx); // kirim so'zi — yashil, aks holda qizil
+    }
+
     final spans = <TextSpan>[];
     var pos = 0;
+    var amtIdx = 0;
     for (final r in kept) {
       final s = r[0] as int, e = r[1] as int, type = r[2] as String;
       if (s > pos) spans.add(TextSpan(text: t.substring(pos, s)));
       Color c;
       Color bg;
       if (type == 'amt') {
-        final cc = segIn(s) ? p.green : p.red;
+        final cc = amtIn(amtIdx++) ? p.green : p.red;
         c = cc;
         bg = cc.withValues(alpha: .13);
       } else if (type == 'cat') {
@@ -1150,6 +1172,7 @@ class _HlFieldState extends State<_HlField> {
       controller: _c,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
+      inputFormatters: [_NumGroupFmt()], // raqamlar jonli 0 000 000 ko'rinishida
       style: st,
       cursorColor: p.ink,
       decoration: InputDecoration(
@@ -1160,6 +1183,69 @@ class _HlFieldState extends State<_HlField> {
         hintStyle: st.copyWith(color: p.t5),
       ),
     );
+  }
+}
+
+/// Yozish paytida raqamlarni 3 talik guruhlab ko'rsatadi: 400000 -> "400 000".
+/// Kursor pozitsiyasi raqamlar soni bo'yicha saqlanadi.
+class _NumGroupFmt extends TextInputFormatter {
+  static final _d = RegExp(r'\d');
+
+  String _group(String digits) {
+    final b = StringBuffer();
+    for (var k = 0; k < digits.length; k++) {
+      if (k > 0 && (digits.length - k) % 3 == 0) b.write(' ');
+      b.write(digits[k]);
+    }
+    return b.toString();
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
+    final t = newV.text;
+    if (t.isEmpty || !_d.hasMatch(t)) return newV;
+
+    // Kursordan oldingi raqamlar soni (format o'zgarsa ham joyini topamiz)
+    var digitsBefore = 0;
+    final selEnd = newV.selection.end.clamp(0, t.length);
+    for (var i = 0; i < selEnd; i++) {
+      if (_d.hasMatch(t[i])) digitsBefore++;
+    }
+
+    // Raqam oqimlarini yig'ish: raqamlar orasidagi YOLG'IZ bo'shliq format qoldig'i
+    // sifatida yutiladi ("400 000" -> 400000), keyin qaytadan 3 talik guruhlanadi.
+    final out = StringBuffer();
+    var i = 0;
+    while (i < t.length) {
+      if (_d.hasMatch(t[i])) {
+        final run = StringBuffer();
+        var j = i;
+        while (j < t.length) {
+          if (_d.hasMatch(t[j])) {
+            run.write(t[j]);
+            j++;
+          } else if (t[j] == ' ' && j + 1 < t.length && _d.hasMatch(t[j + 1])) {
+            j++; // raqamlar orasidagi bo'shliq — guruh belgisi
+          } else {
+            break;
+          }
+        }
+        out.write(_group(run.toString()));
+        i = j;
+      } else {
+        out.write(t[i]);
+        i++;
+      }
+    }
+    final res = out.toString();
+
+    // Kursorni raqamlar soni bo'yicha qayta joylash
+    var pos = 0, seen = 0;
+    while (pos < res.length && seen < digitsBefore) {
+      if (_d.hasMatch(res[pos])) seen++;
+      pos++;
+    }
+    return TextEditingValue(text: res, selection: TextSelection.collapsed(offset: pos));
   }
 }
 
