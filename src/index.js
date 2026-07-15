@@ -17,12 +17,13 @@ import { startRejectSignalSweeper } from './services/rejectSignal.js';
 assertConfig();
 
 const app = express();
-app.set('trust proxy', 1); // Render/NGINX ortida to'g'ri req.ip uchun
+app.set('trust proxy', true); // Render bir necha proxy hop ortida — leftmost X-Forwarded-For (haqiqiy client) uchun
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.2' }));
+app.get('/health', (req, res) =>
+  res.json({ ok: true, service: 'trust-backend', version: '3.2', ip: req.ip, xff: req.headers['x-forwarded-for'] || null }));
 
 // Auth limitlar (ko'p qatlamli, toll-fraud + brute-force himoyasi):
 //  - send-otp: IP bo'yicha 3/min — botni sekinlashtiradi, axlat so'rovlarni to'sadi.
