@@ -57,6 +57,62 @@ class _ClientScreenState extends State<ClientScreen> {
         bottomRight: Radius.circular(end ? 5 : 16),
       );
 
+  /// Bo'sh chat — ekran o'rtasida vektor illyustratsiya (foydalanuvchi so'rovi)
+  Widget _chatEmpty(Pal p) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Ikki gaplashuv pufagi — chatning bo'shligini ifodalaydi
+          SizedBox(
+            width: 96, height: 76,
+            child: Stack(children: [
+              Positioned(
+                left: 0, top: 0,
+                child: Container(
+                  width: 62, height: 44,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: p.t5, width: 2),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16), topRight: Radius.circular(16),
+                      bottomRight: Radius.circular(16), bottomLeft: Radius.circular(4)),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 0, bottom: 0,
+                child: Container(
+                  width: 52, height: 38,
+                  decoration: BoxDecoration(
+                    color: p.field,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14), topRight: Radius.circular(14),
+                      bottomLeft: Radius.circular(14), bottomRight: Radius.circular(4)),
+                  ),
+                  child: Center(
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (var i = 0; i < 3; i++) ...[
+                        if (i > 0) const SizedBox(width: 4),
+                        Container(width: 5, height: 5,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: p.t4)),
+                      ],
+                    ]),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          Tx('Hozircha xabarlar yo\'q', size: 14, w: FontWeight.w600, color: p.t1,
+              align: TextAlign.center),
+          const SizedBox(height: 6),
+          Tx('Birinchi xabarni yozing yoki mikrofonni bosib turib gapiring',
+              size: 12, color: p.t4, align: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
   Widget _chatItem(BuildContext context, Map<String, dynamic> m, Map<String, dynamic> v, Pal p) {
     final end = m['align'] == 'end';
     final maxW = MediaQuery.of(context).size.width * 0.76;
@@ -354,30 +410,10 @@ class _ClientScreenState extends State<ClientScreen> {
                 ),
               ]),
             if (v['notRenaming'] == true)
+              // Pastga qaragan strelka (caret) olib tashlandi — foydalanuvchi so'rovi
               Tap(
                 onTap: () => v['menuTap'](),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Flexible(child: Tx(v['cName'] as String, size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true)),
-                  if (v['showChev'] == true) ...[
-                    const SizedBox(width: 6),
-                    Transform.translate(
-                      offset: const Offset(0, -4),
-                      child: Transform.rotate(
-                        angle: 0.785398,
-                        child: Container(
-                          width: 6.5,
-                          height: 6.5,
-                          decoration: BoxDecoration(
-                            border: Border(
-                              right: BorderSide(color: p.t3, width: 1.7),
-                              bottom: BorderSide(color: p.t3, width: 1.7),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ]),
+                child: Tx(v['cName'] as String, size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
               ),
             const SizedBox(height: 1),
             Tx(v['cBal'] as String, size: 12, w: FontWeight.w500, color: v['cBalColor'] as Color, tab: true, maxLines: 1),
@@ -498,6 +534,7 @@ class _ClientScreenState extends State<ClientScreen> {
             const SizedBox(width: 8),
             // Yuborish (matn bor) yoki mikrofon (bo'sh) — dumaloq tugma
             if (v['hasText'] == true)
+              // Yuborish — toza vektor "send" ikonka (qo'lda chizilgan uchburchak o'rniga)
               Tap(
                 onTap: () => v['sendChat'](),
                 child: Container(
@@ -506,8 +543,8 @@ class _ClientScreenState extends State<ClientScreen> {
                   decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.only(left: 3),
-                      child: _tri(t: 6, b: 6, r: 11, c: p.bg, side: 'right'),
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Icon(Icons.send_rounded, size: 20, color: p.bg),
                     ),
                   ),
                 ),
@@ -646,19 +683,37 @@ class _ClientScreenState extends State<ClientScreen> {
         oneSidedBanner,
         if (v['isChatTab'] == true) ...[
           Expanded(
-            child: Container(
-              color: chatBg,
-              child: ListView.builder(
-                controller: _chat,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                itemCount: chatItems.length,
-                itemBuilder: (ctx, i) => _chatItem(ctx, chatItems[i], v, p),
+            // Chap-o'ng swipe: chat <-> operatsiyalar tablari almashadi
+            child: GestureDetector(
+              onHorizontalDragEnd: (d) {
+                final vx = d.primaryVelocity ?? 0;
+                if (vx < -240) v['toOps']();
+              },
+              child: Container(
+                color: chatBg,
+                child: chatItems.isEmpty
+                    ? _chatEmpty(p)
+                    : ListView.builder(
+                        controller: _chat,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        itemCount: chatItems.length,
+                        itemBuilder: (ctx, i) => _chatItem(ctx, chatItems[i], v, p),
+                      ),
               ),
             ),
           ),
           inputBar(),
         ],
-        if (v['isOpsTab'] == true) Expanded(child: opsList()),
+        if (v['isOpsTab'] == true)
+          Expanded(
+            child: GestureDetector(
+              onHorizontalDragEnd: (d) {
+                final vx = d.primaryVelocity ?? 0;
+                if (vx > 240) v['toChat']();
+              },
+              child: opsList(),
+            ),
+          ),
       ]),
       if (v['menuOpen'] == true) ...[
         Positioned.fill(

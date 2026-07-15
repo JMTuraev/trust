@@ -92,3 +92,19 @@ STT matni xato eshitilgan bo'lsa, «matn»ni bosib tahrirlash → qayta tahlil (
 Eski matn-fallback endpointlari o'zgarmagan — faqat UI'dan olib tashlandi.
 
 Keyingi navbat (4-bosqich qoldiqlari): offline navbat, monitoring metrikalar, pgvector k-NN, kontekst signallari, haftalik "Boshqa" klasterlash, toifa boshiga limit.
+
+## 7. YO'NALISH O'ZGARISHI (2026-07-15 kech) — MATN-BIRINCHI, STT VAQTINCHA O'CHIQ
+
+§6 dagi "faqat mikrofon" UX qarori BEKOR qilindi. Yangi qaror: Xarajat bo'limi matn-birinchi
+("Xarajatlar Trust" dizayni: AI matn input, papkalar, kirim/chiqim ajratilgan, papka ichi xronologiya,
+uchish animatsiyalari). Ovoz keyinroq qaytishi mumkin — kod O'CHIRILMADI, faqat flag bilan o'chirildi:
+
+- Backend: env `STT_ENABLED` (default false) — config.js `stt.enabled`, routes/stt.js 503 qaytaradi.
+  LLM parsing (parse.js) bunga BOG'LIQ EMAS — GROQ_API_KEY ishlayveradi.
+- Flutter: `lib/store.dart` boshida `const kSttEnabled = false` — xarajat.dart'da mic o'rniga matn
+  input (xarText → xarPick_ o'sha oqim, source:'text').
+- Dizayn prototip: Tweaks > `sttEnabled` toggle (Trust.dc.html / Trust.html yangilangan).
+
+Texnologiya baholash va keyingi qadamlar: `TAVSIYA-texnologiya.md` (model zanjiri Groq 8b-instant →
+70b/gpt-oss-120b → Gemini Flash bepul zaxira; kirim toifalari uchun categories.kind migratsiyasi;
+GET /expenses?category= filtri; optimistik UI).

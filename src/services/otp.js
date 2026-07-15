@@ -105,6 +105,7 @@ export async function verifyOtp(phone, code) {
 
     await supabaseAdmin.from('otp_codes').delete().eq('id', rec.id);
     const user = await findOrCreateUser(phone);
+    await reactivateIfDeleted(user.id); // qayta kirish = qayta faollashish
     return issueSession(user);
   }
 
@@ -120,10 +121,22 @@ export async function verifyOtp(phone, code) {
     throw err;
   }
   const user = await findOrCreateUser(phone);
+  await reactivateIfDeleted(user.id); // qayta kirish = qayta faollashish
   return issueSession(user);
 }
 
 // ---------- Yordamchilar ----------
+
+// Soft-delete'ni tiklash: foydalanuvchi akkauntini o'chirgan bo'lsa (profiles.deleted_at,
+// 008 migratsiya), muvaffaqiyatli OTP bilan qayta kirish = akkauntni qayta faollashtirish.
+// Soft-delete'da ma'lumotlar o'chirilmagani uchun daftar/bog'lanishlar joyida qoladi (link modeli).
+async function reactivateIfDeleted(userId) {
+  await supabaseAdmin
+    .from('profiles')
+    .update({ deleted_at: null, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+    .not('deleted_at', 'is', null); // faqat o'chirilgan profilga tegamiz
+}
 
 // Yangi ro'yxatdan o'tgan foydalanuvchini uni oldindan kontragent qilib qo'shganlarga bog'lash.
 // (004 migratsiyadagi trigger ham shu ishni qiladi — bu kod eski profillar uchun zaxira.)

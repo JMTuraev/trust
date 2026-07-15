@@ -36,6 +36,11 @@ router.post('/', async (req, res, next) => {
     const types = ['qarz_berdim', 'qarz_oldim', 'qaytardim', 'menga_qaytarildi'];
     if (!partner_id || !types.includes(type)) return res.status(400).json({ success: false, error: "partner_id va to'g'ri type kerak" });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ success: false, error: 'amount musbat bo\'lishi kerak' });
+    // Valyuta faqat qo'llab-quvvatlanadigan ro'yxatdan (bo'sh bo'lsa UZS)
+    const currencies = ['UZS', 'USD', 'EUR', 'RUB'];
+    const cur = currency || 'UZS';
+    if (!currencies.includes(cur))
+      return res.status(400).json({ success: false, error: "currency faqat UZS, USD, EUR yoki RUB bo'lishi mumkin" });
 
     const { data: p } = await supabaseAdmin.from('partners').select('*').eq('id', partner_id).maybeSingle();
     if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });
@@ -47,7 +52,7 @@ router.post('/', async (req, res, next) => {
       type,
       amount: Number(amount),
       delta: deltaFor(type, amount),
-      currency: currency || 'UZS',
+      currency: cur,
       note: note || null,
       status: 'active',
       created_by: req.user.id,
@@ -56,7 +61,7 @@ router.post('/', async (req, res, next) => {
 
     const { data: me } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', req.user.id).maybeSingle();
     await notifyCounterparty(p, req.user.id, `${displayName(me)} yozuv kiritdi`,
-      `${typeLabel(type)} · ${fmt(amount)} ${currency || 'UZS'}`, data.id);
+      `${typeLabel(type)} · ${fmt(amount)} ${cur}`, data.id);
 
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }

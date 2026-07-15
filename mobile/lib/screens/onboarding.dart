@@ -14,7 +14,10 @@ class OnboardingScreen extends StatelessWidget {
     final p = curPal();
     final L0 = v['L'] as Map<String, dynamic>;
     Widget body;
-    if (v['isOnbWelcome'] == true) {
+    if (v['isBoot'] == true) {
+      // Sessiya tekshirilmoqda — animatsiyali splash (welcome "miltillab" o'tmasin)
+      body = const Center(child: TrustMarkAnim(size: 96, boxed: true));
+    } else if (v['isOnbWelcome'] == true) {
       body = _welcome(v, p, L0);
     } else if (v['isOnbPhone'] == true) {
       body = _phone(v, p, L0);
@@ -39,7 +42,7 @@ class OnboardingScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const TrustMark(size: 84, boxed: true),
+                const TrustMarkAnim(size: 84, boxed: true), // kirishda animatsiyali logo
                 const SizedBox(height: 22),
                 Tx('Trust', size: 32, w: FontWeight.w700, color: p.ink, ls: -0.5),
                 const SizedBox(height: 14),

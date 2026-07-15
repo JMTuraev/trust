@@ -12,6 +12,7 @@ import notifRoutes from './routes/notifications.js';
 import sttRoutes from './routes/stt.js';
 import categoryRoutes from './routes/categories.js';
 import linkRoutes from './routes/links.js';
+import messageRoutes from './routes/messages.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
 
 assertConfig();
@@ -44,6 +45,7 @@ app.use('/api/notifications', notifRoutes);
 app.use('/api/stt', sttRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/links', linkRoutes);
+app.use('/api/messages', messageRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {

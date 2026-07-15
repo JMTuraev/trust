@@ -10,29 +10,45 @@ router.use(requireAuth);
 
 // Hamkor balansi — sotuvchining O'Z daftari: active + archived hisobga kiradi
 // (link statusi sotuvchi daftariga ta'sir qilmaydi; u faqat mijoz ko'rinishini boshqaradi)
+// Valyutalar ARALASHMAYDI — har biri alohida yig'iladi.
+// Natija: { balance: UZS yig'indisi (orqaga moslik), balances: {UZS: 150000, USD: -20, ...} }
 async function balanceOf(partnerId) {
-  const { data } = await supabaseAdmin
-    .from('operations')
-    .select('delta, status')
-    .eq('partner_id', partnerId)
-    .in('status', ['active', 'archived']);
-  return (data || []).reduce((s, o) => s + Number(o.delta), 0);
+  const map = await balancesFor([partnerId]);
+  const balances = map.get(partnerId) || {};
+  return { balance: balances.UZS || 0, balances };
 }
 
 // Ko'p hamkor balansini BITTA so'rovda — ro'yxat uchun N+1 o'rniga.
-// Barcha operatsiyalar bir marta olinadi, kodda partner_id bo'yicha yig'iladi.
+// Barcha operatsiyalar bir marta olinadi, kodda partner_id + VALYUTA bo'yicha yig'iladi.
+// Natija: Map<partnerId, {UZS: sum, USD: sum, ...}> — faqat nolga teng bo'lmagan valyutalar.
 async function balancesFor(partnerIds) {
-  const map = new Map(partnerIds.map((id) => [id, 0]));
+  const map = new Map(partnerIds.map((id) => [id, {}]));
   if (!partnerIds.length) return map;
   const { data } = await supabaseAdmin
     .from('operations')
-    .select('partner_id, delta, status')
+    .select('partner_id, delta, currency, status')
     .in('partner_id', partnerIds)
     .in('status', ['active', 'archived']);
   for (const o of data || []) {
-    map.set(o.partner_id, (map.get(o.partner_id) || 0) + Number(o.delta));
+    const cur = o.currency || 'UZS';
+    const b = map.get(o.partner_id) || {};
+    b[cur] = (b[cur] || 0) + Number(o.delta);
+    map.set(o.partner_id, b);
+  }
+  // Yopilgan (nolga teng) valyutalarni olib tashlaymiz — javob toza bo'lsin
+  for (const b of map.values()) {
+    for (const cur of Object.keys(b)) if (b[cur] === 0) delete b[cur];
   }
   return map;
+}
+
+// Eslatma matni uchun asosiy valyuta — absolyut qiymati eng kattasi (bo'sh bo'lsa UZS/0)
+function mainBalance(balances) {
+  let cur = 'UZS', val = balances.UZS || 0;
+  for (const [c, v] of Object.entries(balances)) {
+    if (Math.abs(v) > Math.abs(val)) { cur = c; val = v; }
+  }
+  return { cur, val };
 }
 
 // Sotuvchiga rad DARHOL ko'rinmasligi kerak — signal yuborilgunicha 'pending' deb ko'rsatamiz.
@@ -63,10 +79,14 @@ router.get('/', async (req, res, next) => {
     if (error) throw new Error(error.message);
     const ids = (data || []).map((p) => p.id);
     const [sentIds, balances] = await Promise.all([sentSignalIds(ids), balancesFor(ids)]);
-    const rows = (data || []).map((p) => ({
-      ...maskStatus(p, sentIds),
-      balance: balances.get(p.id) || 0,
-    }));
+    const rows = (data || []).map((p) => {
+      const b = balances.get(p.id) || {};
+      return {
+        ...maskStatus(p, sentIds),
+        balance: b.UZS || 0, // orqaga moslik: faqat UZS yig'indisi
+        balances: b, // valyuta bo'yicha, masalan {"UZS": 150000, "USD": -20}
+      };
+    });
     res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });
@@ -188,10 +208,10 @@ router.get('/:id', async (req, res, next) => {
       .from('operations').select('*').eq('partner_id', p.id)
       .in('status', ['active', 'archived', 'cancelled'])
       .order('created_at', { ascending: false });
-    const sentIds = await sentSignalIds([p.id]);
+    const [sentIds, { balance, balances }] = await Promise.all([sentSignalIds([p.id]), balanceOf(p.id)]);
     res.json({
       success: true,
-      data: { ...maskStatus(p, sentIds), balance: await balanceOf(p.id), operations: ops || [] },
+      data: { ...maskStatus(p, sentIds), balance, balances, operations: ops || [] },
     });
   } catch (e) { next(e); }
 });
@@ -266,13 +286,14 @@ router.post('/:id/remind', async (req, res, next) => {
       .limit(1);
     if (last?.length) return res.status(429).json({ success: false, error: 'Eslatma yaqinda yuborilgan — 3 soatdan keyin qayta yuboriladi' });
 
-    const balance = await balanceOf(p.id);
+    const { balances } = await balanceOf(p.id);
+    const main = mainBalance(balances); // asosiy (eng katta absolyut) valyuta
     const { error } = await supabaseAdmin.from('notifications').insert({
       user_id: p.counterparty_id,
       sender_id: req.user.id,
       type: 'rem',
       title: 'Eslatma',
-      detail: `${Math.abs(balance).toLocaleString('ru-RU')} UZS — hisobni ko'rib chiqing`,
+      detail: `${Math.abs(main.val).toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
       link_id: p.id,
     });
     if (error) throw new Error(error.message);

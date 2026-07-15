@@ -1,4 +1,5 @@
 // Pastki navigatsiya paneli — prototype/template.html 684–720 bilan 1:1
+// Ikonkalar mazmunga moslandi: Hamkorlar — 2 kishilik, Xarajat — hamyon.
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
@@ -28,38 +29,11 @@ class TrustTabBar extends StatelessWidget {
                   onTap: () => v['goHome'](),
                   color: v['cMij'],
                   label: L0['navClients'] as String,
+                  // Hamkorlar: 2 KISHILIK odamcha ikonka (foydalanuvchi so'rovi)
                   icon: SizedBox(
                     height: 20,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          width: 9,
-                          height: 9,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: v['cMij'], width: 1.6),
-                          ),
-                        ),
-                        Container(
-                          width: 16,
-                          height: 7,
-                          margin: const EdgeInsets.only(top: 1),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(color: v['cMij'], width: 1.6),
-                              top: BorderSide(color: v['cMij'], width: 1.6),
-                              right: BorderSide(color: v['cMij'], width: 1.6),
-                            ),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(8),
-                              topRight: Radius.circular(8),
-                              bottomLeft: Radius.circular(2),
-                              bottomRight: Radius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Center(
+                      child: Icon(Icons.people_alt_outlined, size: 20, color: v['cMij']),
                     ),
                   ),
                 ),
@@ -67,30 +41,11 @@ class TrustTabBar extends StatelessWidget {
                   onTap: () => v['goXarajat'](),
                   color: v['cXar'],
                   label: L0['navXar'] as String,
+                  // Xarajat: hamyon (chat pufagi mos emas edi)
                   icon: SizedBox(
                     height: 20,
                     child: Center(
-                      child: Container(
-                        width: 18,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: v['cXar'], width: 1.6),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned(
-                              left: 2,
-                              bottom: -4,
-                              child: CustomPaint(
-                                size: const Size(4, 4),
-                                painter: _TailPainter(v['cXar']),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: Icon(Icons.account_balance_wallet_outlined, size: 19, color: v['cXar']),
                     ),
                   ),
                 ),
@@ -184,23 +139,4 @@ class TrustTabBar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Xarajat ikonchasidagi kichik "dum" uchburchagi (CSS border-triangle o'rnida).
-class _TailPainter extends CustomPainter {
-  final Color color;
-  const _TailPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TailPainter old) => old.color != color;
 }

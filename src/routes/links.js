@@ -17,33 +17,35 @@ async function myLink(req) {
   return p;
 }
 
-// Operatsiyalar xulosasi (minimal preview uchun): soni + umumiy summa (mijoz nuqtai nazarida)
+// Operatsiyalar xulosasi (minimal preview uchun): soni + summa (mijoz nuqtai nazarida).
+// Valyutalar ARALASHMAYDI: totals — valyuta bo'yicha obyekt, total — UZS (orqaga moslik).
 async function opsSummary(partnerId) {
-  const { data } = await supabaseAdmin
-    .from('operations')
-    .select('delta, currency, status')
-    .eq('partner_id', partnerId)
-    .in('status', ['active', 'archived']);
-  const rows = data || [];
-  // Mijoz nuqtai nazari: sotuvchi deltasining teskarisi (+ = sotuvchi mijozga qarzdor)
-  const total = rows.reduce((s, o) => s - Number(o.delta), 0);
-  return { ops_count: rows.length, total };
+  const map = await opsSummaryFor([partnerId]);
+  return map.get(partnerId) || { ops_count: 0, total: 0, totals: {} };
 }
 
 // Ko'p link uchun ops xulosasi BITTA so'rovda — ro'yxatdagi N+1 o'rniga.
+// Natija: Map<partnerId, {ops_count, total (UZS), totals: {UZS: -x, USD: y, ...}}>
 async function opsSummaryFor(partnerIds) {
-  const map = new Map(partnerIds.map((id) => [id, { ops_count: 0, total: 0 }]));
+  const map = new Map(partnerIds.map((id) => [id, { ops_count: 0, total: 0, totals: {} }]));
   if (!partnerIds.length) return map;
   const { data } = await supabaseAdmin
     .from('operations')
-    .select('partner_id, delta, status')
+    .select('partner_id, delta, currency, status')
     .in('partner_id', partnerIds)
     .in('status', ['active', 'archived']);
   for (const o of data || []) {
-    const e = map.get(o.partner_id) || { ops_count: 0, total: 0 };
+    const e = map.get(o.partner_id) || { ops_count: 0, total: 0, totals: {} };
+    const cur = o.currency || 'UZS';
     e.ops_count += 1;
-    e.total -= Number(o.delta); // mijoz nuqtai nazari (teskari)
+    // Mijoz nuqtai nazari: sotuvchi deltasining teskarisi (+ = sotuvchi mijozga qarzdor)
+    e.totals[cur] = (e.totals[cur] || 0) - Number(o.delta);
     map.set(o.partner_id, e);
+  }
+  // total (UZS) — orqaga moslik; yopilgan (nolga teng) valyutalar olib tashlanadi
+  for (const e of map.values()) {
+    e.total = e.totals.UZS || 0;
+    for (const cur of Object.keys(e.totals)) if (e.totals[cur] === 0) delete e.totals[cur];
   }
   return map;
 }
@@ -62,7 +64,7 @@ router.get('/', async (req, res, next) => {
     const summaries = await opsSummaryFor(ids);
     const rows = (data || []).map((p) => {
       const seller = p.profiles;
-      const sum = summaries.get(p.id) || { ops_count: 0, total: 0 };
+      const sum = summaries.get(p.id) || { ops_count: 0, total: 0, totals: {} };
       return {
         id: p.id,
         status: p.link_status,
@@ -71,7 +73,8 @@ router.get('/', async (req, res, next) => {
         seller_label: displayName(seller),
         my_alias: p.client_alias,
         ops_count: sum.ops_count,
-        total: sum.total,
+        total: sum.total, // orqaga moslik: faqat UZS
+        totals: sum.totals, // valyuta bo'yicha, masalan {"UZS": -150000}
         created_at: p.created_at,
         status_changed_at: p.status_changed_at,
       };

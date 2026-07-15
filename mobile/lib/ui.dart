@@ -564,3 +564,79 @@ class _StoreFieldState extends State<StoreField> {
     );
   }
 }
+
+/// Animatsiyali brend logotipi — qatlamlar birma-bir kirib keladi (splash/kirish).
+/// Har bar chapdan siljib + xiralikdan paydo bo'ladi (dizayn: Trust Logo Animatsiya).
+class TrustMarkAnim extends StatefulWidget {
+  final double size;
+  final bool boxed;
+  const TrustMarkAnim({super.key, this.size = 84, this.boxed = true});
+
+  @override
+  State<TrustMarkAnim> createState() => _TrustMarkAnimState();
+}
+
+class _TrustMarkAnimState extends State<TrustMarkAnim> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  // Har bar uchun kechikkan interval: 0., .18, .36 dan boshlanadi
+  double _t(int i) {
+    final start = i * 0.18;
+    return Curves.easeOutCubic.transform(((_c.value - start) / 0.5).clamp(0.0, 1.0));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final s = widget.boxed ? widget.size * 0.66 : widget.size;
+    final c = widget.boxed ? p.bg : p.ink;
+
+    Widget bar(int i, double wf) {
+      return AnimatedBuilder(
+        animation: _c,
+        builder: (_, __) {
+          final t = _t(i);
+          return Opacity(
+            opacity: t,
+            child: Transform.translate(
+              offset: Offset((1 - t) * -s * 0.35, 0),
+              child: Container(
+                width: s * wf,
+                height: s * 9 / 48,
+                decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(s * 4.5 / 48)),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    final bars = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        bar(0, 36 / 48),
+        SizedBox(height: s * 4 / 48),
+        bar(1, 24 / 48),
+        SizedBox(height: s * 4 / 48),
+        bar(2, 12 / 48),
+      ],
+    );
+
+    if (widget.boxed) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(widget.size * 0.23)),
+        child: Center(child: bars),
+      );
+    }
+    return SizedBox(width: widget.size, height: widget.size, child: Center(child: bars));
+  }
+}

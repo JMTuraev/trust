@@ -1,0 +1,6 @@
+--------- beginning of main
+07-15 00:16:41.434  2115  2162 I flutter : [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+07-15 00:16:41.502  2115  2189 I flutter : The Dart VM service is listening on http://127.0.0.1:35399/2v5MDpIj3RY=/
+07-15 00:19:05.369  2115  4437 I flutter : [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+07-15 00:25:26.755  2115  2115 I flutter : TRUST Root: stage=welcome isApp=false onbW=true bg=Color(alpha: 1.0000, red: 1.0000, green: 1.0000, blue: 1.0000, colorSpace: ColorSpace.sRGB)
+07-15 00:25:26.777  2115  2115 I flutter : TRUST Onb: welcome=true phone=false

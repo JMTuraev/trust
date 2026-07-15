@@ -35,20 +35,78 @@ export function meaningfulWords(text) {
 }
 
 // ---------- 2-signal: QOIDA-PARSER (validator roli) ----------
-// Matndagi barcha summalarni topadi: "25 ming"->25000, "5 mln"->5000000
-export function amountsFromText(text) {
+// Matndagi barcha summalarni POZITSIYASI bilan topadi: "25 ming"->25000, "5 mln"->5000000,
+// "120 000"->120000 (bo'shliq/nuqta bilan guruhlangan minglar ham).
+export function amountSpans(text) {
   const t = norm(text);
   const out = [];
-  const re = /(\d+(?:[.,]\d+)?)\s*(mln|million|milion|ming)?/g;
-  let m;
-  while ((m = re.exec(t)) !== null) {
-    let a = parseFloat(m[1].replace(',', '.'));
+  const re = /(\d{1,3}(?:[  ]\d{3})+|\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?)\s*(mln|million|milion|ming)?/g;
+  for (const m of t.matchAll(re)) {
+    const raw = m[1];
+    let a;
+    if (/^\d{1,3}(?:[  ]\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/[  ]/g, ""));
+    else if (/^\d{1,3}(?:\.\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/\./g, ''));
+    else a = parseFloat(raw.replace(',', '.'));
     if (!a) continue;
     if (m[2] && m[2] !== 'ming') a *= 1_000_000;
     else if (m[2] === 'ming') a *= 1_000;
-    out.push(Math.round(a));
+    out.push({ amount: Math.round(a), start: m.index, end: m.index + m[0].length });
   }
   return out;
+}
+
+export function amountsFromText(text) {
+  return amountSpans(text).map((s) => s.amount);
+}
+
+// Har bir summaning kirim/chiqim turi — kalit so'z O'Z YO'NALISHIDAGI eng yaqin summaga
+// bog'lanadi: OT (oylik, kredit...) odatda summadan OLDIN keladi -> KEYINGI summaga,
+// FE'L (oldim, berdim...) summadan KEYIN keladi -> OLDINGI summaga. Masofada teng
+// bo'lsa chiqim ustun. Mobil inputdagi rang mantiqi bilan bir xil (xarajat.dart _amtKinds).
+const INC_NOUN = /\b(oylik|maosh|avans|daromad|bonus|kirim|foyda)\b|mijoz\w*|sotuv\w*/g;
+const INC_VERB = /\boldim\b|\bsotdim\b|keldi|tushdi/g;
+const EXP_NOUN = /kredit\w*|xarid\w*/g;
+const EXP_VERB = /berdim|sarfladim|ishlatdim|to'ladim|toladim|ketdi|sotib\s+oldim/g;
+
+export function amountKinds(text) {
+  const t = norm(text);
+  const spans = amountSpans(text);
+  const n = spans.length;
+  const kind = new Array(n).fill(false); // sukut: chiqim
+  const best = new Array(n).fill(Infinity);
+  if (!n) return kind;
+
+  const ms = [];
+  const collect = (re, inc, forward) => {
+    for (const m of t.matchAll(re)) {
+      const s = m.index, e = m.index + m[0].length;
+      // Chiqim avval yig'iladi — uning ichiga tushgan kirim matchi tashlanadi
+      // ("sotib oldim" ichidagi "oldim" kabi)
+      if (inc && ms.some((x) => !(e <= x.s || s >= x.e))) continue;
+      ms.push({ s, e, inc, forward });
+    }
+  };
+  collect(EXP_VERB, false, false);
+  collect(EXP_NOUN, false, true);
+  collect(INC_VERB, true, false);
+  collect(INC_NOUN, true, true);
+
+  for (const m of ms) {
+    let target = null, dist = Infinity;
+    if (m.forward) {
+      for (let i = 0; i < n; i++) if (spans[i].start >= m.e) { target = i; dist = spans[i].start - m.e; break; }
+      if (target === null) for (let i = n - 1; i >= 0; i--) if (spans[i].end <= m.s) { target = i; dist = m.s - spans[i].end + 0.5; break; }
+    } else {
+      for (let i = n - 1; i >= 0; i--) if (spans[i].end <= m.s) { target = i; dist = m.s - spans[i].end; break; }
+      if (target === null) for (let i = 0; i < n; i++) if (spans[i].start >= m.e) { target = i; dist = spans[i].start - m.e + 0.5; break; }
+    }
+    if (target === null) continue;
+    if (dist < best[target] || (dist === best[target] && !m.inc)) {
+      best[target] = dist;
+      kind[target] = m.inc;
+    }
+  }
+  return kind;
 }
 
 const CAT_RULES = [
@@ -84,7 +142,12 @@ export function ruleParse(text) {
   let direction = qarz;
   let category = null;
   if (!direction) {
-    const income = /(oylik|maosh|daromad|tushdi|keldi|sotdim|foyda|bonus)/.test(t);
+    // Yo'nalish BIRINCHI SUMMANING o'z kontekstidan (butun gapdan emas) — aralash
+    // gapda ("taksiga 50 ming berdim va mijozdan 300 ming keldi") "keldi" so'zi
+    // birinchi (chiqim) summani daromadga aylantirib yubormasin
+    const income = amounts.length
+      ? amountKinds(text)[0]
+      : /(oylik|maosh|daromad|tushdi|keldi|sotdim|foyda|bonus)/.test(t);
     direction = income ? 'daromad' : 'xarajat';
     category = income ? 'Daromad' : 'Boshqa';
     if (!income) for (const [name, re] of CAT_RULES) if (re.test(t)) { category = name; break; }
@@ -131,7 +194,8 @@ QOIDALAR:
 3. Qarz iboralari ("qarz berdim/oldim", "qaytardi/qaytardim") — direction qarz_*, person maydoniga ismni yoz, category=null.
 4. Xarajat uchun category FAQAT shu ro'yxatdan: ${categories.join(', ')}. Daromad uchun category="Daromad".
 5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, yangisini taklif QILMA — mavjudini tanla.
-6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
+6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.
+7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
 }
 
 async function callLlm({ url, key, model, text, categories, fewshots, timeoutMs }) {

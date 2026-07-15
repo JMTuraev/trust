@@ -55,16 +55,16 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (v['xfEmptyAll'] == true) _emptyAll(p),
-                    if ((v['xfInFolders'] as List).isNotEmpty) ...[
-                      _cap('KIRIM', p),
+                    // BITTA uzluksiz grid: kirim papkalari BOSHIDA, keyin chiqim
+                    // (foydalanuvchi so'rovi: alohida bo'limlarga ajratilmaydi)
+                    if ((v['xfInFolders'] as List).isNotEmpty ||
+                        (v['xfOutFolders'] as List).isNotEmpty) ...[
+                      _cap('PAPKALAR', p),
                       const SizedBox(height: 10),
-                      _grid((v['xfInFolders'] as List).cast<Map<String, dynamic>>(), p),
-                      const SizedBox(height: 18),
-                    ],
-                    if ((v['xfOutFolders'] as List).isNotEmpty) ...[
-                      _cap('CHIQIM', p),
-                      const SizedBox(height: 10),
-                      _grid((v['xfOutFolders'] as List).cast<Map<String, dynamic>>(), p),
+                      _grid([
+                        ...(v['xfInFolders'] as List).cast<Map<String, dynamic>>(),
+                        ...(v['xfOutFolders'] as List).cast<Map<String, dynamic>>(),
+                      ], p),
                       const SizedBox(height: 18),
                     ],
                     if (v['xfShowTray'] == true) _tray(v, p),
@@ -552,8 +552,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ),
                 Container(
                   width: 36, height: 36, alignment: Alignment.center,
-                  decoration: BoxDecoration(color: p.card2, borderRadius: BorderRadius.circular(12)),
-                  child: Tx('${v['xfDEmoji']}', size: 18, color: p.ink),
+                  decoration: BoxDecoration(
+                    color: (v['xfDInc'] == true ? p.green : p.red).withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: CatIcon(cat: '${v['xfDName']}', size: 20,
+                      color: v['xfDInc'] == true ? p.green : p.red),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -570,7 +574,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   width: 60, height: 20,
                   child: _AnimSpark(
                     pts: (v['xfDSpark'] as List).cast<double>(),
-                    color: v['xfDInc'] == true ? p.green.withValues(alpha: .65) : p.t5,
+                    color: v['xfDInc'] == true ? p.green : p.red,
                   ),
                 ),
               ],
@@ -1682,39 +1686,171 @@ class _PulseDotsState extends State<_PulseDots> with SingleTickerProviderStateMi
   }
 }
 
-/// Toifa -> vektor ikonka (emoji o'rniga; karta chipi va suv-belgi glifda ishlatiladi)
+// ================= TOIFA VEKTOR IKONKALARI (emoji o'rniga, SVG-uslub) =================
+/// Toifaga mazmunan mos zamonaviy chiziqli ikonka. Kichik chip va katta fon-glif
+/// (watermark) uchun bir xil ishlatiladi — o'lcham va rang tashqaridan beriladi.
 class CatIcon extends StatelessWidget {
   final String cat;
   final double size;
   final Color color;
   const CatIcon({super.key, required this.cat, required this.size, required this.color});
 
-  static IconData _iconFor(String cat) {
-    final k = cat.toLowerCase()
-        .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
-    if (k.contains('oylik') || k.contains('maosh')) return Icons.work_rounded;
-    if (k.contains('biznes') || k.contains('sotuv')) return Icons.trending_up_rounded;
-    if (k.contains('daromad') || k.contains('kirim')) return Icons.account_balance_wallet_rounded;
-    if (k.contains('taksi')) return Icons.local_taxi_rounded;
-    if (k.contains('transport') || k.contains('avtobus') || k.contains('metro') || k.contains('benzin')) {
-      return Icons.directions_bus_rounded;
-    }
-    if (k.contains('kofe') || k.contains('qahva')) return Icons.local_cafe_rounded;
-    if (k.contains('oziq') || k.contains('ovqat') || k.contains('bozor') || k.contains('market')) {
-      return Icons.restaurant_rounded;
-    }
-    if (k.contains('kommunal') || k.contains('svet') || k.contains('gaz')) return Icons.bolt_rounded;
-    if (k.contains('internet') || k.contains('aloqa') || k.contains('telefon')) return Icons.wifi_rounded;
-    if (k.contains('xarid') || k.contains('kiyim') || k.contains("do'kon")) return Icons.shopping_bag_rounded;
-    if (k.contains('salomatlik') || k.contains('dori') || k.contains('apteka')) return Icons.medication_rounded;
-    if (k.contains("ko'ngilochar") || k.contains('kino')) return Icons.movie_rounded;
-    if (k.contains('sport') || k.contains('fitnes') || k.contains('zal')) return Icons.fitness_center_rounded;
-    if (k.contains('kitob') || k.contains("ta'lim")) return Icons.menu_book_rounded;
-    if (k.contains('uy') || k.contains('ijara')) return Icons.home_rounded;
-    if (k.contains('boshqa')) return Icons.category_rounded;
-    return Icons.folder_rounded;
+  static String _norm(String s) => s.toLowerCase()
+      .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
+
+  /// Toifa nomi -> glif kaliti (store._xfEmojiMap bilan bir xil ro'yxat)
+  static String glyphFor(String cat) {
+    const map = {
+      'oylik': 'briefcase', 'biznes': 'chart', 'boshqa kirim': 'coins', 'daromad': 'coins',
+      'transport': 'bus', 'taksi': 'taxi', 'kofe': 'coffee', 'oziq-ovqat': 'bowl',
+      'kommunal': 'bulb', 'xaridlar': 'bag', 'kiyim': 'bag', 'salomatlik': 'cross',
+      "ko'ngilochar": 'play', 'sport': 'dumbbell', 'kitoblar': 'book', 'uy': 'home',
+      'aloqa': 'phone', "ta'lim": 'cap', 'boshqa': 'box',
+    };
+    return map[_norm(cat)] ?? 'folder';
   }
 
   @override
-  Widget build(BuildContext context) => Icon(_iconFor(cat), size: size, color: color);
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _CatIconPainter(glyphFor(cat), color),
+    );
+  }
+}
+
+/// 24x24 koordinata maydonida chizadi, keyin kerakli o'lchamga masshtablanadi.
+class _CatIconPainter extends CustomPainter {
+  final String glyph;
+  final Color color;
+  _CatIconPainter(this.glyph, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 24;
+    canvas.scale(k, k);
+    final st = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final fl = Paint()..color = color;
+
+    switch (glyph) {
+      case 'briefcase': // portfel — oylik/maosh
+        canvas.drawRRect(RRect.fromLTRBR(3.2, 8, 20.8, 19, const Radius.circular(2.6)), st);
+        canvas.drawPath(Path()..moveTo(9, 8)..lineTo(9, 6.4)..cubicTo(9, 5.3, 9.9, 4.5, 11, 4.5)
+          ..lineTo(13, 4.5)..cubicTo(14.1, 4.5, 15, 5.3, 15, 6.4)..lineTo(15, 8), st);
+        canvas.drawLine(const Offset(3.2, 12.6), const Offset(20.8, 12.6), st);
+        canvas.drawLine(const Offset(12, 12.6), const Offset(12, 14.8), st);
+        break;
+      case 'chart': // o'sish grafigi — biznes
+        canvas.drawPath(Path()..moveTo(4, 17.5)..lineTo(9.8, 11.6)..lineTo(13.4, 14.6)..lineTo(20, 7.2), st);
+        canvas.drawPath(Path()..moveTo(15.6, 7.2)..lineTo(20, 7.2)..lineTo(20, 11.6), st);
+        break;
+      case 'coins': // ustma-ust tangalar — daromad
+        canvas.drawOval(const Rect.fromLTRB(6, 4.6, 18, 9.6), st);
+        canvas.drawPath(Path()..moveTo(6, 7.1)..lineTo(6, 12)..cubicTo(6, 13.4, 8.7, 14.5, 12, 14.5)
+          ..cubicTo(15.3, 14.5, 18, 13.4, 18, 12)..lineTo(18, 7.1), st);
+        canvas.drawPath(Path()..moveTo(6, 12)..lineTo(6, 16.9)..cubicTo(6, 18.3, 8.7, 19.4, 12, 19.4)
+          ..cubicTo(15.3, 19.4, 18, 18.3, 18, 16.9)..lineTo(18, 12), st);
+        break;
+      case 'bus': // avtobus — transport
+        canvas.drawRRect(RRect.fromLTRBR(4.2, 4, 19.8, 17.4, const Radius.circular(3)), st);
+        canvas.drawLine(const Offset(4.2, 10), const Offset(19.8, 10), st);
+        canvas.drawLine(const Offset(9.4, 13.7), const Offset(14.6, 13.7), st);
+        canvas.drawCircle(const Offset(7.6, 19.6), 1.5, fl);
+        canvas.drawCircle(const Offset(16.4, 19.6), 1.5, fl);
+        break;
+      case 'taxi': // yengil mashina — taksi
+        canvas.drawPath(Path()..moveTo(3.6, 16.2)..lineTo(3.6, 13.6)..cubicTo(3.6, 12.3, 4.5, 11.4, 5.9, 11.2)
+          ..lineTo(7.9, 7.7)..cubicTo(8.3, 6.9, 9.1, 6.5, 10, 6.5)..lineTo(14, 6.5)
+          ..cubicTo(14.9, 6.5, 15.7, 6.9, 16.1, 7.7)..lineTo(18.1, 11.2)
+          ..cubicTo(19.5, 11.4, 20.4, 12.3, 20.4, 13.6)..lineTo(20.4, 16.2), st);
+        canvas.drawLine(const Offset(6.4, 11.2), const Offset(17.6, 11.2), st);
+        canvas.drawCircle(const Offset(7.6, 16.8), 1.9, st);
+        canvas.drawCircle(const Offset(16.4, 16.8), 1.9, st);
+        break;
+      case 'coffee': // piyola + bug' — kofe
+        canvas.drawPath(Path()..moveTo(5, 10.4)..lineTo(16.2, 10.4)..lineTo(16.2, 15)
+          ..cubicTo(16.2, 17.6, 13.9, 19.4, 10.6, 19.4)..cubicTo(7.3, 19.4, 5, 17.6, 5, 15)..close(), st);
+        canvas.drawPath(Path()..moveTo(16.2, 11.8)..lineTo(17.4, 11.8)
+          ..cubicTo(19, 11.8, 19.8, 13, 19.4, 14.3)..cubicTo(19, 15.5, 17.8, 16.2, 16.2, 15.9), st);
+        canvas.drawLine(const Offset(8.6, 4.6), const Offset(8.6, 7), st);
+        canvas.drawLine(const Offset(12.4, 4.6), const Offset(12.4, 7), st);
+        break;
+      case 'bowl': // kosa + bug' — oziq-ovqat
+        canvas.drawPath(Path()..moveTo(4.4, 12)..lineTo(19.6, 12)
+          ..cubicTo(19.6, 15.8, 16.6, 18.6, 12, 18.6)..cubicTo(7.4, 18.6, 4.4, 15.8, 4.4, 12)..close(), st);
+        canvas.drawLine(const Offset(9.4, 6), const Offset(9.4, 8.6), st);
+        canvas.drawLine(const Offset(14.6, 6), const Offset(14.6, 8.6), st);
+        break;
+      case 'bulb': // lampochka — kommunal
+        canvas.drawCircle(const Offset(12, 10), 5, st);
+        canvas.drawLine(const Offset(9.9, 17.4), const Offset(14.1, 17.4), st);
+        canvas.drawLine(const Offset(10.5, 19.8), const Offset(13.5, 19.8), st);
+        canvas.drawLine(const Offset(12, 15), const Offset(12, 17.4), st);
+        break;
+      case 'bag': // xarid sumkasi — xaridlar/kiyim
+        canvas.drawRRect(RRect.fromLTRBR(5, 8.4, 19, 20, const Radius.circular(3)), st);
+        canvas.drawPath(Path()..moveTo(8.8, 8.4)..lineTo(8.8, 7)
+          ..cubicTo(8.8, 4.9, 10.2, 3.6, 12, 3.6)..cubicTo(13.8, 3.6, 15.2, 4.9, 15.2, 7)..lineTo(15.2, 8.4), st);
+        break;
+      case 'cross': // tibbiy xoch — salomatlik
+        canvas.drawPath(Path()..moveTo(9.8, 4.6)..lineTo(14.2, 4.6)..lineTo(14.2, 9.8)..lineTo(19.4, 9.8)
+          ..lineTo(19.4, 14.2)..lineTo(14.2, 14.2)..lineTo(14.2, 19.4)..lineTo(9.8, 19.4)
+          ..lineTo(9.8, 14.2)..lineTo(4.6, 14.2)..lineTo(4.6, 9.8)..lineTo(9.8, 9.8)..close(), st);
+        break;
+      case 'play': // ijro doirasi — ko'ngilochar
+        canvas.drawCircle(const Offset(12, 12), 8.4, st);
+        canvas.drawPath(Path()..moveTo(10.3, 8.9)..lineTo(15.9, 12)..lineTo(10.3, 15.1)..close(), fl);
+        break;
+      case 'dumbbell': // gantel — sport
+        canvas.drawLine(const Offset(8.6, 12), const Offset(15.4, 12), st);
+        canvas.drawRRect(RRect.fromLTRBR(5.4, 8.4, 8.6, 15.6, const Radius.circular(1.2)), st);
+        canvas.drawRRect(RRect.fromLTRBR(15.4, 8.4, 18.6, 15.6, const Radius.circular(1.2)), st);
+        canvas.drawLine(const Offset(3.4, 10), const Offset(3.4, 14), st);
+        canvas.drawLine(const Offset(20.6, 10), const Offset(20.6, 14), st);
+        break;
+      case 'book': // ochiq kitob — kitoblar
+        canvas.drawPath(Path()..moveTo(12, 6.6)..cubicTo(10.4, 5, 8, 4.5, 4.6, 4.9)..lineTo(4.6, 17.7)
+          ..cubicTo(8, 17.3, 10.4, 17.9, 12, 19.4)..cubicTo(13.6, 17.9, 16, 17.3, 19.4, 17.7)
+          ..lineTo(19.4, 4.9)..cubicTo(16, 4.5, 13.6, 5, 12, 6.6)..close(), st);
+        canvas.drawLine(const Offset(12, 6.6), const Offset(12, 19.4), st);
+        break;
+      case 'home': // uy
+        canvas.drawPath(Path()..moveTo(4.4, 11.4)..lineTo(12, 4.4)..lineTo(19.6, 11.4), st);
+        canvas.drawPath(Path()..moveTo(6.4, 10)..lineTo(6.4, 19.4)..lineTo(17.6, 19.4)..lineTo(17.6, 10), st);
+        canvas.drawPath(Path()..moveTo(10.4, 19.4)..lineTo(10.4, 14.6)
+          ..cubicTo(10.4, 13.7, 11.1, 13, 12, 13)..cubicTo(12.9, 13, 13.6, 13.7, 13.6, 14.6)..lineTo(13.6, 19.4), st);
+        break;
+      case 'phone': // telefon — aloqa
+        canvas.drawRRect(RRect.fromLTRBR(7, 3.6, 17, 20.4, const Radius.circular(2.8)), st);
+        canvas.drawLine(const Offset(10.6, 6.4), const Offset(13.4, 6.4), st);
+        canvas.drawCircle(const Offset(12, 17.6), 1, fl);
+        break;
+      case 'cap': // bitiruv qalpog'i — ta'lim
+        canvas.drawPath(Path()..moveTo(12, 5)..lineTo(21, 9.4)..lineTo(12, 13.8)..lineTo(3, 9.4)..close(), st);
+        canvas.drawLine(const Offset(21, 9.4), const Offset(21, 13.4), st);
+        canvas.drawPath(Path()..moveTo(7, 11.6)..lineTo(7, 15)
+          ..cubicTo(7, 16.7, 9.2, 18, 12, 18)..cubicTo(14.8, 18, 17, 16.7, 17, 15)..lineTo(17, 11.6), st);
+        break;
+      case 'box': // quti — boshqa
+        canvas.drawPath(Path()..moveTo(4.6, 8)..lineTo(12, 4.4)..lineTo(19.4, 8)..lineTo(19.4, 16)
+          ..lineTo(12, 19.6)..lineTo(4.6, 16)..close(), st);
+        canvas.drawPath(Path()..moveTo(4.6, 8)..lineTo(12, 11.6)..lineTo(19.4, 8), st);
+        canvas.drawLine(const Offset(12, 11.6), const Offset(12, 19.6), st);
+        break;
+      default: // papka — noma'lum toifa
+        canvas.drawPath(Path()..moveTo(4, 16.6)..lineTo(4, 7.4)..cubicTo(4, 6.3, 4.9, 5.4, 6, 5.4)
+          ..lineTo(9.1, 5.4)..cubicTo(9.7, 5.4, 10.3, 5.7, 10.7, 6.1)..lineTo(12, 7.5)..lineTo(18, 7.5)
+          ..cubicTo(19.1, 7.5, 20, 8.4, 20, 9.5)..lineTo(20, 16.6)..cubicTo(20, 17.7, 19.1, 18.6, 18, 18.6)
+          ..lineTo(6, 18.6)..cubicTo(4.9, 18.6, 4, 17.7, 4, 16.6)..close(), st);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CatIconPainter old) => old.glyph != glyph || old.color != color;
 }
