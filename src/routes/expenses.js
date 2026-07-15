@@ -101,6 +101,49 @@ router.post('/confirm', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PATCH /api/expenses/:id  { amount?, income?, category?, note? }
+// Chatdagi yozuvni inline tahrirlash. Toifa faqat mavjud ro'yxatdan (yangi jimgina yaratilmaydi).
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { data: e } = await supabaseAdmin.from('expenses').select('*').eq('id', req.params.id).maybeSingle();
+    if (!e || e.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const patch = {};
+    if (req.body?.amount !== undefined) {
+      const a = Math.round(Number(req.body.amount) || 0);
+      if (a <= 0) return res.status(400).json({ success: false, error: "Summa noto'g'ri" });
+      patch.amount = a;
+    }
+    if (req.body?.income !== undefined) patch.income = !!req.body.income;
+    if (req.body?.note !== undefined) patch.note = req.body.note || null;
+    if (req.body?.category !== undefined) {
+      const income = patch.income ?? e.income;
+      if (income) patch.category = 'Daromad';
+      else {
+        const cats = await ensureCategories(req.user.id);
+        const cat = String(req.body.category || 'Boshqa').trim();
+        const hit = cats.find((c) => c.name.toLowerCase() === cat.toLowerCase());
+        patch.category = hit ? hit.name : 'Boshqa';
+      }
+    } else if (patch.income === true) {
+      patch.category = 'Daromad';
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
+    const { data, error } = await supabaseAdmin.from('expenses').update(patch).eq('id', e.id).select().single();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/expenses/:id — chatdan yozuvni o'chirish
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { data: e } = await supabaseAdmin.from('expenses').select('user_id').eq('id', req.params.id).maybeSingle();
+    if (!e || e.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    await supabaseAdmin.from('expenses').delete().eq('id', req.params.id);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
 // GET /api/expenses/summary  (bu oy: daromad, xarajat, sof, toifalar, limit)
 router.get('/summary/month', async (req, res, next) => {
   try {

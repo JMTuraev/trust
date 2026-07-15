@@ -1,5 +1,4 @@
-// Xarajat ekrani — prototype/template.html 467–651 bilan 1:1
-import 'dart:math' as math;
+// Xarajat ekrani — ovoz-birinchi (hold-to-talk), avtomatik chatga, inline tahrirlash
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
@@ -14,23 +13,18 @@ class XarajatScreen extends StatefulWidget {
 }
 
 class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateMixin {
+  // Mikrofon pulslash halqasi (yozayotganda)
   late final AnimationController _ring =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat();
-  late final AnimationController _tick =
-      AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
-  final DateTime _t0 = DateTime.now();
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
   final ScrollController _chatCtl = ScrollController();
   int _lastChatLen = -1;
 
   @override
   void dispose() {
     _ring.dispose();
-    _tick.dispose();
     _chatCtl.dispose();
     super.dispose();
   }
-
-  double _ms() => DateTime.now().difference(_t0).inMilliseconds.toDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +76,6 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             if (v['xtChat'] == true) ..._chat(v, p, context),
           ],
         ),
-        if (v['vOpen'] == true) Positioned.fill(child: _voice(v, p)),
       ],
     );
   }
@@ -484,7 +477,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 250),
                   child: Tx(
-                    "O'zingiz bilan chat — xarajat yoki daromadni yozing yoki ayting, AI avtomatik toifalaydi",
+                    "O'zingiz bilan chat — xarajat, daromad yoki qarzni aytib yuboring, AI o'zi yozib toifalaydi",
                     size: 11.5,
                     color: p.t4,
                     lh: 17.25,
@@ -530,62 +523,71 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     ),
                   ),
                 )
+              else if (cb['editing'] == true)
+                // Inline tahrirlash — o'sha bubble o'rnida (alohida oyna emas)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: _bubbleEdit(v, p),
+                )
               else
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(
                     mainAxisAlignment: cb['just'] == 'start' ? MainAxisAlignment.start : MainAxisAlignment.end,
                     children: [
-                      Container(
-                        constraints: BoxConstraints(maxWidth: maxW),
-                        padding: const EdgeInsets.fromLTRB(13, 10, 13, 7),
-                        decoration: BoxDecoration(
-                          color: p.card2,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular((cb['rad'] as List)[0]),
-                            topRight: Radius.circular((cb['rad'] as List)[1]),
-                            bottomRight: Radius.circular((cb['rad'] as List)[2]),
-                            bottomLeft: Radius.circular((cb['rad'] as List)[3]),
+                      Tap(
+                        onTap: cb['tap'],
+                        child: Container(
+                          constraints: BoxConstraints(maxWidth: maxW),
+                          padding: const EdgeInsets.fromLTRB(13, 10, 13, 7),
+                          decoration: BoxDecoration(
+                            color: p.card2,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular((cb['rad'] as List)[0]),
+                              topRight: Radius.circular((cb['rad'] as List)[1]),
+                              bottomRight: Radius.circular((cb['rad'] as List)[2]),
+                              bottomLeft: Radius.circular((cb['rad'] as List)[3]),
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 22,
-                                  height: 22,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: p.bd),
-                                  ),
-                                  child: Tx(cb['abbr'], size: 8.5, w: FontWeight.w700, color: p.ink),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Asl aytilgan gap — bubble tepasida
+                              if (cb['hasNote'] == true)
+                                Tx(cb['note'], size: 13.5, w: FontWeight.w500, color: p.ink),
+                              Padding(
+                                padding: EdgeInsets.only(top: cb['hasNote'] == true ? 5 : 0),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
+                                      child: Tx(cb['abbr'], size: 8, w: FontWeight.w700, color: p.ink),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Tx(cb['cat'], size: 10, w: FontWeight.w600, color: p.t2, ls: 0.5),
+                                    const SizedBox(width: 8),
+                                    Tx(cb['amt'], size: 15, w: FontWeight.w700, color: cb['color'], tab: true),
+                                  ],
                                 ),
-                                const SizedBox(width: 7),
-                                Tx(cb['cat'], size: 10.5, w: FontWeight.w600, color: p.t2, ls: 0.5),
-                              ],
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 7),
-                              child: Tx(cb['amt'], size: 16, w: FontWeight.w700, color: cb['color'], tab: true),
-                            ),
-                            if (cb['hasNote'] == true)
+                              ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 3),
-                                child: Tx(cb['note'], size: 13, color: p.t1),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Tx('tahrirlash uchun bosing', size: 9, color: p.t5),
+                                    const SizedBox(width: 8),
+                                    Tx(cb['time'], size: 10, color: p.t4),
+                                  ],
+                                ),
                               ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Tx(cb['time'], size: 10, color: p.t4),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -594,93 +596,64 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           ],
         ),
       ),
-      // Input bar
+      // Pastki panel: mikrofonni BOSIB USHLAB gapirish (Telegram/Instagram uslubi).
+      // Alohida ekran yo'q — shu tugma o'zi yozadi, qo'yib yuborilganda avtomatik chatga.
       Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
         decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair))),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                height: 42,
-                padding: const EdgeInsets.only(left: 15, right: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: p.bd),
-                  borderRadius: BorderRadius.circular(21),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: StoreField(
-                        value: v['xarTextVal'],
-                        onChanged: (t) => v['xarTextSet'](t),
-                        hint: 'Masalan: «taksiga 25 ming»',
-                        style: GoogleFonts.inter(fontSize: 13.5, color: p.ink),
-                        onSubmit: v['xarTextGo'],
-                      ),
-                    ),
-                    if (v['xHasText'] == true)
-                      Tap(
-                        onTap: v['xarTextGo'],
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                          child: Tx('↑', size: 14, color: p.bg),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Tap(
-              onTap: v['xarMicTap'],
-              child: SizedBox(
-                width: 46,
-                height: 46,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: AnimatedBuilder(
-                        animation: _ring,
-                        builder: (_, __) {
-                          final t = _ring.value;
-                          return Opacity(
-                            opacity: (1 - t) * 0.45,
-                            child: Transform.scale(
-                              scale: 1 + 0.6 * t,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: p.ink),
+            Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (_) => v['micHoldStart'](),
+                onTapUp: (_) => v['micHoldEnd'](),
+                onTapCancel: () => v['micHoldEnd'](),
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Yozayotganда pulslaydigan halqa
+                      if (v['micRec'] == true)
+                        Positioned.fill(
+                          child: AnimatedBuilder(
+                            animation: _ring,
+                            builder: (_, __) {
+                              final t = _ring.value;
+                              return Opacity(
+                                opacity: (1 - t) * 0.5,
+                                child: Transform.scale(
+                                  scale: 1 + 0.5 * t,
+                                  child: Container(
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: p.ink),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Container(
+                              );
+                            },
+                          ),
+                        ),
+                      // Tugma — yozayotganда biroz kattaroq
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: v['micRec'] == true ? 64 : 58,
+                        height: v['micRec'] == true ? 64 : 58,
                         decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              width: 9,
-                              height: 13,
-                              decoration: BoxDecoration(
-                                color: p.bg,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
+                              width: 11,
+                              height: 16,
+                              decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(6)),
                             ),
                             Transform.translate(
-                              offset: const Offset(0, -4),
+                              offset: const Offset(0, -5),
                               child: Container(
-                                width: 15,
-                                height: 7,
+                                width: 19,
+                                height: 9,
                                 decoration: BoxDecoration(
                                   border: Border(
                                     left: BorderSide(color: p.bg, width: 2),
@@ -688,314 +661,93 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                                     bottom: BorderSide(color: p.bg, width: 2),
                                   ),
                                   borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(8),
-                                    bottomRight: Radius.circular(8),
+                                    bottomLeft: Radius.circular(10),
+                                    bottomRight: Radius.circular(10),
                                   ),
                                 ),
                               ),
                             ),
                             Transform.translate(
-                              offset: const Offset(0, -4),
-                              child: Container(width: 2, height: 2, color: p.bg),
+                              offset: const Offset(0, -5),
+                              child: Container(width: 2, height: 3, color: p.bg),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            Tx(v['micHint'], size: 11, color: v['micRec'] == true ? p.ink : p.t4),
           ],
         ),
       ),
     ];
   }
 
-  // ---------------- VOICE OVERLAY ----------------
-  Widget _voice(Map<String, dynamic> v, Pal p) {
-    final wave = (v['vWave'] as List).cast<Map<String, dynamic>>();
-    final samples = (v['vSamples'] as List).cast<Map<String, dynamic>>();
+  // Chatdagi yozuvni inline tahrirlash — o'sha bubble o'rnida (alohida oyna emas)
+  Widget _bubbleEdit(Map<String, dynamic> v, Pal p) {
+    final cats = (v['xEditCats'] as List).cast<Map<String, dynamic>>();
+    final isX = v['xEditIsX'] == true;
     return Container(
-      color: p.bg,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Tap(
-                  onTap: v['vClose'],
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: p.bd),
-                    ),
-                    child: Tx('✕', size: 13, color: p.t2),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (v['vListen'] == true)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(26, 0, 26, 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Tap(
-                      onTap: () => v['vStop'](),
-                      child: SizedBox(
-                        height: 60,
-                        child: AnimatedBuilder(
-                          animation: _tick,
-                          builder: (_, __) {
-                            final ms = _ms();
-                            return Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                for (var i = 0; i < wave.length; i++) ...[
-                                  if (i > 0) const SizedBox(width: 3),
-                                  _waveBar(wave[i], ms, p),
-                                ],
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Tx('Tinglayapman…', size: 20, w: FontWeight.w700, color: p.ink),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Tx((v['vHint'] ?? '') as String, size: 12.5, color: p.t3),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Column(
-                      children: [
-                        for (var i = 0; i < samples.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 10),
-                          Tap(
-                            onTap: samples[i]['pick'],
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: p.bd),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Tx('«${samples[i]['text']}»', size: 14, color: p.ink),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (v['vParsing'] == true)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(30, 0, 30, 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Tx('«${v['vText']}»', size: 19, w: FontWeight.w600, color: p.ink, lh: 26.6, align: TextAlign.center),
-                    const SizedBox(height: 22),
-                    AnimatedBuilder(
-                      animation: _tick,
-                      builder: (_, __) {
-                        final ms = _ms();
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (var i = 0; i < 3; i++) ...[
-                              if (i > 0) const SizedBox(width: 9),
-                              Opacity(
-                                opacity: 0.3 + 0.7 * (0.5 + 0.5 * math.sin(2 * math.pi * (ms - i * 200) / 1000)),
-                                child: Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(width: 9),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Tx('AI tahlil qilmoqda…', size: 12.5, color: p.t3),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (v['xcOpen'] == true) Expanded(child: _confirmCard(v, p)),
-        ],
+      decoration: BoxDecoration(
+        color: p.bg,
+        border: Border.all(color: p.bd),
+        borderRadius: BorderRadius.circular(14),
       ),
-    );
-  }
-
-  // ---------------- TASDIQLASH KARTASI (XOTIRA §3-4) ----------------
-  // Ishonch past / yangi toifa / qarz bo'lganda: summa, tomon, toifa
-  // bosib o'zgartiriladi; qarz amali Hamkorlar oqimiga yo'naltiriladi.
-  Widget _confirmCard(Map<String, dynamic> v, Pal p) {
-    final rows = (v['xcRows'] as List).cast<Map<String, dynamic>>();
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      children: [
-        Center(
-          child: Tx('«${v['vText']}»', size: 16, w: FontWeight.w600, color: p.ink, lh: 22.4, align: TextAlign.center),
-        ),
-        const SizedBox(height: 6),
-        Center(child: Tx("Tekshiring — kerak bo'lsa bosib o'zgartiring", size: 11.5, color: p.t4)),
-        const SizedBox(height: 14),
-        for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              border: Border.all(color: p.bd),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: rows[i]['isQarz'] == true ? _qarzRow(rows[i], p) : _xdRow(rows[i], p),
-          ),
-        ],
-        const SizedBox(height: 16),
-        Row(
-          children: [
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Expanded(child: _chip('Xarajat', isX, v['xEditPickX'], p)),
+            const SizedBox(width: 8),
+            Expanded(child: _chip('Daromad', v['xEditIsD'] == true, v['xEditPickD'], p)),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
             Expanded(
-              child: Tap(
-                onTap: v['xcSaveTap'],
-                child: Container(
-                  height: 46,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(13)),
-                  child: Tx('Saqlash', size: 14, w: FontWeight.w700, color: p.bg),
+              child: Container(
+                height: 46,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(border: Border.all(color: p.bd), borderRadius: BorderRadius.circular(10)),
+                child: StoreField(
+                  value: v['xEditAmount'],
+                  onChanged: v['xEditOnAmount'],
+                  hint: '0',
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: p.ink),
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Tap(
-              onTap: v['vClose'],
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border.all(color: p.bd),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Tx('Bekor', size: 14, w: FontWeight.w600, color: p.t2),
-              ),
-            ),
+            Tx("so'm", size: 13, color: p.t3),
+          ]),
+          if (isX && cats.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final c in cats) _chip(c['name'] as String, c['sel'] == true, c['pick'], p),
+            ]),
           ],
-        ),
-      ],
-    );
-  }
-
-  // Daromad/xarajat qatori: tomon + summa + toifa chiplari
-  Widget _xdRow(Map<String, dynamic> r, Pal p) {
-    final cats = (r['cats'] as List).cast<Map<String, dynamic>>();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _chip('Xarajat', r['isX'] == true, r['pickX'], p),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: InkBtn(label: 'Saqlash', h: 46, onTap: v['xEditSave'])),
             const SizedBox(width: 8),
-            _chip('Daromad', r['isD'] == true, r['pickD'], p),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Container(
-                height: 42,
-                padding: const EdgeInsets.symmetric(horizontal: 13),
-                decoration: BoxDecoration(
-                  border: Border.all(color: p.bd),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Center(
-                  child: StoreField(
-                    value: r['amount'],
-                    onChanged: (t) => r['onAmount'](t),
-                    hint: 'Summa',
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: p.ink),
-                  ),
-                ),
-              ),
+            GhostBtn(label: 'Bekor', h: 46, onTap: v['xEditClose']),
+          ]),
+          const SizedBox(height: 8),
+          Center(
+            child: Tap(
+              onTap: v['xEditDelete'],
+              child: Tx("Yozuvni o'chirish", size: 12.5, w: FontWeight.w600, color: p.red),
             ),
-            const SizedBox(width: 8),
-            Tx("so'm", size: 12.5, color: p.t3),
-          ],
-        ),
-        if (cats.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              for (final c in cats)
-                _chip(c['name'] as String, c['sel'] == true, c['pick'], p, isNew: c['isNew'] == true),
-            ],
           ),
         ],
-        if ((r['note'] as String).isNotEmpty) ...[
-          const SizedBox(height: 9),
-          Tx(r['note'], size: 12, color: p.t3),
-        ],
-      ],
-    );
-  }
-
-  // Qarz qatori: Xarajatga yozilmaydi — Hamkorlar oqimida davom etadi
-  Widget _qarzRow(Map<String, dynamic> r, Pal p) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 9),
-              decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(7)),
-              child: Tx('QARZ', size: 9.5, w: FontWeight.w700, color: p.bg, ls: 0.8),
-            ),
-            const SizedBox(width: 8),
-            Tx(r['qarzLabel'], size: 13, w: FontWeight.w600, color: p.ink),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Tx(
-          '${(r['person'] as String).isNotEmpty ? '${r['person']} · ' : ''}${r['amount']} so\'m',
-          size: 14, w: FontWeight.w700, color: p.ink, tab: true,
-        ),
-        const SizedBox(height: 6),
-        Tx("Bu yozuv Xarajatga emas — saqlansa Hamkorlar bo'limida davom etadi", size: 11.5, color: p.t4, lh: 16.1),
-      ],
+      ),
     );
   }
 
@@ -1010,24 +762,6 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           borderRadius: BorderRadius.circular(10),
         ),
         child: Tx(label, size: 12, w: isNew || sel ? FontWeight.w600 : FontWeight.w400, color: sel ? p.bg : p.ink),
-      ),
-    );
-  }
-
-  Widget _waveBar(Map<String, dynamic> w, double ms, Pal p) {
-    final dur = (w['dur'] as num).toDouble();
-    final delay = (w['delay'] as num).toDouble();
-    // alternate (reverse) animatsiya: davri 2*dur, uchburchak to'lqin 0.15..1
-    final t = ((ms - delay) / dur);
-    final ph = t - t.floorToDouble(); // 0..1
-    final cycle = (t.floor() % 2 == 0) ? ph : 1 - ph;
-    final scale = 0.15 + 0.85 * cycle.clamp(0.0, 1.0);
-    return Transform.scale(
-      scaleY: scale,
-      child: Container(
-        width: 3.5,
-        height: (w['h'] as num).toDouble(),
-        decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(2)),
       ),
     );
   }

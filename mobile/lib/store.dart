@@ -91,10 +91,10 @@ const List<Map<String, dynamic>> ccList = [
 class TrustStore extends ChangeNotifier {
   final Map<String, dynamic> S = {
     'stage': 'welcome', 'lang': 'uz', 'dark': false, 'phone': '', 'otpVal': '', 'pinVal': '',
-    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '', 'xarText': '', 'vReal': false,
-    // Tasdiqlash kartasi (AI parse natijasi) — XOTIRA §3
-    'xcText': '', 'xcSource': 'text', 'xcActions': null, 'xcParsed': null,
-    'xcCats': <String>[], 'qarzDraft': null, 'xcEdit': null,
+    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '',
+    'xcCats': <String>[], 'qarzDraft': null,
+    // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
+    'xEditId': null, 'xEditVals': null,
     'xarLimit': 0, 'limEdit': null,
     'xarEntries': <Map<String, dynamic>>[],
     'screen': 'home', 'clientId': null, 'tab': 'chat',
@@ -128,7 +128,7 @@ class TrustStore extends ChangeNotifier {
     'pMeta': <String, String>{}, // hamkor o'zgarish-imzolari (poll uchun)
   };
 
-  Timer? _tt, _pi, _lp, _xt, _poll;
+  Timer? _tt, _pi, _lp, _poll;
   Map<String, dynamic>? _sw;
   bool _swClick = false;
   bool _busy = false;
@@ -772,36 +772,50 @@ class TrustStore extends ChangeNotifier {
     return {'kind': inc ? 'd' : 'x', 'amount': ai != 0 ? ai.toString() : '', 'cat': cat, 'note': note};
   }
 
-  // Real ovoz yozish (STT) — XOTIRA spec: mikrofon -> backend (Groq, zaxira OpenAI) -> matn
-  void voiceStart_() {
-    set({'voiceStage': 'listen', 'vText': '', 'vReal': false});
-    Stt.start(
-      onStarted: () {
-        if (S['voiceStage'] == 'listen') set({'vReal': true});
-      },
-      onDone: _voiceDone,
-    );
-  }
+  // Real ovoz — Telegram/Instagram uslubi: mikrofonni BOSIB USHLAB turganda yozadi,
+  // qo'yib yuborganda to'xtaydi va avtomatik chatga chiqadi (alohida ekran/tasdiq yo'q).
+  bool _recActive = false;
 
-  void _voiceDone(String? text) {
-    if (S['voiceStage'] != 'listen') return; // yopilgan yoki demo tanlangan
-    if (text != null && text.trim().isNotEmpty) {
-      xarPick_(text.trim(), source: 'voice');
-    } else {
-      set({'voiceStage': null, 'vText': '', 'vReal': false});
-      toast_("Ovoz matnga aylanmadi — qayta urinib ko'ring");
+  Future<void> voiceHoldStart() async {
+    if (_recActive) return;
+    _recActive = true;
+    set({'voiceStage': 'rec', 'vText': ''});
+    await Stt.start(
+      onStarted: () {},
+      onDone: (text) {
+        _recActive = false;
+        _voiceDone(text);
+      },
+    );
+    if (Stt.lastError != null && S['voiceStage'] == 'rec') {
+      _recActive = false;
+      set({'voiceStage': null, 'vText': ''});
+      toast_(Stt.lastError!);
     }
   }
 
-  // Server parse (LLM + qoida + lug'at). XOTIRA §3: ishonch yuqori -> bubble
-  // to'g'ridan-to'g'ri; past/qarz/yangi toifa -> tasdiqlash kartasi.
+  void voiceHoldEnd() {
+    if (!_recActive) return;
+    Stt.finish(); // STT natijani onDone orqali qaytaradi
+  }
+
+  void _voiceDone(String? text) {
+    if (S['voiceStage'] != 'rec') return;
+    if (text != null && text.trim().isNotEmpty) {
+      xarPick_(text.trim(), source: 'voice');
+    } else {
+      set({'voiceStage': null, 'vText': ''});
+      toast_(Stt.lastError ?? "Ovoz matnga aylanmadi — qayta urinib ko'ring");
+    }
+  }
+
+  // Server parse -> AVTOMATIK saqlash (tasdiqlash kartasi yo'q). Qarz -> Hamkorlar oqimiga.
+  // Toifa/summa xato bo'lsa — chatdagi bubble'ni bosib inline tuzatiladi.
   Future<void> xarPick_(String txt, {String source = 'text'}) async {
     Stt.cancel();
-    set({'voiceStage': 'parsing', 'vText': txt, 'xcEdit': null});
+    set({'voiceStage': 'parsing', 'vText': txt});
     final r = await Api.parseExpense(txt, source);
-    if (S['voiceStage'] != 'parsing') return; // user yopib yuborgan
     if (!r.ok) {
-      // Zaxira: server parse ishlamasa — lokal qoida-parser (eski oqim)
       if (r.status == 0 || r.status >= 500) return _xarOffline(txt);
       set({'voiceStage': null, 'vText': ''});
       toast_(r.error);
@@ -814,29 +828,9 @@ class TrustStore extends ChangeNotifier {
       toast_('Summa aniqlanmadi — «taksiga 25 ming» deb ayting');
       return;
     }
-    if (d['needs_confirm'] != true) {
-      // Yuqori ishonch — to'g'ridan-to'g'ri saqlash (tasdiqsiz)
-      final ok = await _xcConfirm(txt, source, actions, null);
-      if (!ok) _xcOpen(txt, source, actions); // saqlash yiqilsa — karta orqali qayta
-      return;
-    }
-    _xcOpen(txt, source, actions);
-  }
-
-  // Tasdiqlash kartasini ochish (toifalar ro'yxati bilan)
-  Future<void> _xcOpen(String txt, String source, List<Map<String, dynamic>> actions) async {
-    if ((S['xcCats'] as List).isEmpty) {
-      final c = await Api.categories();
-      if (c.ok) {
-        set({'xcCats': (c.data as List).map((x) => (x as Map)['name'] as String).toList()});
-      }
-    }
-    set({
-      'voiceStage': 'confirm', 'vText': txt,
-      'xcText': txt, 'xcSource': source,
-      'xcActions': actions.map((a) => Map<String, dynamic>.from(a)).toList(),
-      'xcParsed': actions.map((a) => Map<String, dynamic>.from(a)).toList(),
-    });
+    // Har doim avtomatik: parse natijasi to'g'ridan-to'g'ri chatga (parsed = xato tuzatishni o'rganish uchun)
+    final ok = await _xcConfirm(txt, source, actions, actions);
+    if (!ok) set({'voiceStage': null, 'vText': ''});
   }
 
   // Yakuniy saqlash: daromad/xarajat -> expenses; qarz -> Hamkorlar oqimiga yo'naltiriladi
@@ -854,7 +848,7 @@ class TrustStore extends ChangeNotifier {
       final es = saved.map(_mapExpense).toList();
       set({'xarEntries': [...es.reversed, ..._xar()]});
     }
-    set({'voiceStage': null, 'vText': '', 'xcActions': null, 'xcParsed': null});
+    set({'voiceStage': null, 'vText': ''});
     if (saved.isNotEmpty) {
       final cats = saved.map((e) => e['category'] ?? 'Boshqa').toSet().join(', ');
       toast_('AI toifaladi: $cats — chatga yozildi');
@@ -898,7 +892,7 @@ class TrustStore extends ChangeNotifier {
     final a = int.tryParse(f['amount'] as String) ?? 0;
     if (a == 0) {
       set({'voiceStage': null, 'vText': ''});
-      toast_('Summa aniqlanmadi — masalan: «taksiga 25 ming»');
+      toast_('Summa aniqlanmadi — «taksiga 25 ming» deb ayting');
       return;
     }
     final r = await Api.addExpense(a, f['kind'] == 'd', f['cat'] as String, f['note'] as String);
@@ -912,30 +906,70 @@ class TrustStore extends ChangeNotifier {
     toast_('AI toifaladi: ${f['cat']} — chatga yozildi');
   }
 
-  // Karta ichida tahrirlash
-  void xcSet_(int i, Map<String, dynamic> patch) {
-    final list = (S['xcActions'] as List).cast<Map<String, dynamic>>().toList();
-    if (i < 0 || i >= list.length) return;
-    list[i] = {...list[i], ...patch};
-    set({'xcActions': list});
+  // ---------- Chatdagi yozuvni inline tahrirlash (bubble bosilganda) ----------
+  Future<void> _ensureXcCats() async {
+    if ((S['xcCats'] as List).isNotEmpty) return;
+    final c = await Api.categories();
+    if (c.ok) set({'xcCats': (c.data as List).map((x) => (x as Map)['name'] as String).toList()});
   }
 
-  Future<void> xcSave_() async {
-    final list = (S['xcActions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    for (final a in list) {
-      final amt = a['amount'] is num ? (a['amount'] as num).round() : int.tryParse('${a['amount']}') ?? 0;
-      if (amt <= 0) {
-        toast_('Summani kiriting');
-        return;
-      }
-      a['amount'] = amt;
+  void xEditOpen_(String id) {
+    final e = _xar().firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
+    if (e.isEmpty) return;
+    set({
+      'xEditId': id,
+      'xEditVals': {'kind': e['kind'], 'amount': '${e['a']}', 'cat': e['cat'], 'note': e['note'] ?? ''},
+    });
+    _ensureXcCats();
+  }
+
+  void xEditSet_(Map<String, dynamic> patch) {
+    final v = Map<String, dynamic>.from((S['xEditVals'] as Map?) ?? {});
+    set({'xEditVals': {...v, ...patch}});
+  }
+
+  void xEditClose_() => set({'xEditId': null, 'xEditVals': null});
+
+  Future<void> xEditSave_() async {
+    final id = S['xEditId'] as String?;
+    final v = S['xEditVals'] as Map<String, dynamic>?;
+    if (id == null || v == null) return;
+    final amt = int.tryParse('${v['amount']}'.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+    if (amt <= 0) {
+      toast_('Summani kiriting');
+      return;
     }
     if (_busy) return;
     _busy = true;
-    final ok = await _xcConfirm(S['xcText'] as String, S['xcSource'] as String,
-        list, (S['xcParsed'] as List?)?.cast<Map<String, dynamic>>());
+    final income = v['kind'] == 'd';
+    final r = await Api.patchExpense(id,
+        amount: amt, income: income, category: income ? 'Daromad' : (v['cat'] as String? ?? 'Boshqa'));
     _busy = false;
-    if (ok) hydrate(full: false);
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    final e = _mapExpense(r.data as Map<String, dynamic>);
+    set({
+      'xarEntries': _xar().map((x) => x['id'] == id ? e : x).toList(),
+      'xEditId': null, 'xEditVals': null,
+    });
+    toast_('Yangilandi');
+  }
+
+  Future<void> xEditDelete_() async {
+    final id = S['xEditId'] as String?;
+    if (id == null) return;
+    if (_busy) return;
+    _busy = true;
+    final r = await Api.deleteExpense(id);
+    _busy = false;
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    set({'xarEntries': _xar().where((x) => x['id'] != id).toList(), 'xEditId': null, 'xEditVals': null});
+    toast_("O'chirildi");
   }
 
   Future<void> limSave_() async {
@@ -1123,8 +1157,9 @@ class TrustStore extends ChangeNotifier {
         lastDay = e['days'] as int;
       }
       final isD = e['kind'] == 'd';
+      final eid = e['id'] as String;
       visual.add({
-        'key': e['id'],
+        'key': eid, 'id': eid,
         'sep': false, 'bub': true,
         'just': isD ? 'start' : 'end',
         'rad': isD ? [4.0, 16.0, 16.0, 16.0] : [16.0, 4.0, 16.0, 16.0],
@@ -1134,6 +1169,9 @@ class TrustStore extends ChangeNotifier {
         'note': e['note'],
         'hasNote': (e['note'] as String? ?? '').isNotEmpty && (e['note'] as String).toLowerCase() != (e['cat'] as String).toLowerCase(),
         'time': e['t'] ?? '',
+        // Bubble bosilsa inline tahrirlash ochiladi (o'sha joyda — alohida oyna emas)
+        'editing': S['xEditId'] == eid,
+        'tap': () => xEditOpen_(eid),
       });
     }
     final xChat = visual.reversed.toList();
@@ -1205,77 +1243,36 @@ class TrustStore extends ChangeNotifier {
               })
           .toList(),
       'xarCatsEmpty': perCat.isEmpty,
-      'xarMicTap': () => voiceStart_(),
-      'vStop': () => Stt.finish(),
-      'vHint': S['vReal'] == true
-          ? "Gapiring… bo'lgach to'lqinni bosing (maks 10 s)"
-          : "Demo: aytmoqchi bo'lgan jumlani tanlang",
-      'vOpen': S['voiceStage'] != null,
-      'vListen': S['voiceStage'] == 'listen',
-      'vParsing': S['voiceStage'] == 'parsing',
-      'vText': S['vText'],
-      'vClose': () {
-        _xt?.cancel();
-        Stt.cancel();
-        set({'voiceStage': null, 'vText': '', 'vReal': false, 'xcActions': null, 'xcParsed': null, 'xcEdit': null});
-      },
-      // ---- Tasdiqlash kartasi (XOTIRA §3-4) ----
-      'xcOpen': S['voiceStage'] == 'confirm',
-      'xcSaveTap': () => xcSave_(),
-      // Matnni tahrirlash — klaviatura FAQAT shu yerda chiqadi (inputsiz UX)
-      'xcEditing': S['xcEdit'] != null,
-      'xcEditVal': (S['xcEdit'] as String?) ?? '',
-      'xcEditSet': (String t) => set({'xcEdit': t}),
-      'xcEditStart': () => set({'xcEdit': S['xcText']}),
-      'xcEditGo': () {
-        final t = ((S['xcEdit'] as String?) ?? '').trim();
-        if (t.isEmpty) {
-          toast_('Jumla bo\'sh');
-          return;
-        }
-        xarPick_(t, source: S['xcSource'] as String); // qayta tahlil
-      },
-      'xcRows': ((S['xcActions'] as List?) ?? []).asMap().entries.map((en) {
-        final i = en.key;
-        final a = en.value as Map<String, dynamic>;
-        final dir = a['direction'] as String? ?? 'xarajat';
-        final qarz = dir != 'daromad' && dir != 'xarajat';
-        final sugg = (a['new_category_suggestion'] as String?)?.trim();
-        final cats = <Map<String, dynamic>>[
-          for (final c in (S['xcCats'] as List).cast<String>())
-            {
-              'name': c, 'isNew': false,
-              'sel': !qarz && dir == 'xarajat' && a['category'] == c,
-              'pick': () => xcSet_(i, {'category': c, 'accept_new_category': false}),
-            },
-          if (sugg != null && sugg.isNotEmpty)
-            {
-              'name': '+ $sugg', 'isNew': true,
-              'sel': a['category'] == sugg && a['accept_new_category'] == true,
-              'pick': () => xcSet_(i, {'category': sugg, 'accept_new_category': true}),
-            },
-        ];
-        return {
-          'isQarz': qarz,
-          'qarzLabel': qarz ? (_typeUz[dir] ?? dir) : '',
-          'person': (a['person'] as String?) ?? '',
-          'isX': dir == 'xarajat', 'isD': dir == 'daromad',
-          'pickX': () => xcSet_(i, {'direction': 'xarajat'}),
-          'pickD': () => xcSet_(i, {'direction': 'daromad'}),
-          'amount': '${a['amount'] ?? ''}',
-          'onAmount': (String t) => xcSet_(i, {'amount': t.replaceAll(RegExp(r'[^\d]'), '')}),
-          'note': (a['note'] as String?) ?? '',
-          'cats': dir == 'xarajat' ? cats : <Map<String, dynamic>>[],
-        };
-      }).toList(),
-      'vSamples': ['Taksiga 25 ming', 'Oyligim 5 million tushdi', '50 ming oziq-ovqatga']
-          .map((text) => {'text': text, 'pick': () => xarPick_(text)})
-          .toList(),
-      'vWave': List.generate(21, (i) => {
-            'h': 10.0 + ((i * 53) % 37),
-            'dur': 550 + ((i * 29) % 40) * 10,
-            'delay': i * 90,
-          }),
+      // ---- Mikrofon: bosib ushlab yozish (Telegram/Instagram) ----
+      'micHoldStart': () => voiceHoldStart(),
+      'micHoldEnd': () => voiceHoldEnd(),
+      'micRec': S['voiceStage'] == 'rec',        // yozayapti (pulse)
+      'micParsing': S['voiceStage'] == 'parsing', // tahlil qilinyapti
+      'micHint': S['voiceStage'] == 'rec'
+          ? "Tinglayapman… gapiring, qo'yib yuboring"
+          : S['voiceStage'] == 'parsing'
+              ? 'Tahlil qilinyapti…'
+              : "Bosib ushlab gapiring — AI o'zi yozib toifalaydi",
+      // ---- Chatdagi yozuvni inline tahrirlash (bubble bosilganda) ----
+      'xEditOpen': S['xEditId'] != null,
+      'xEditId': S['xEditId'],
+      'xEditClose': () => xEditClose_(),
+      'xEditSave': () => xEditSave_(),
+      'xEditDelete': () => xEditDelete_(),
+      'xEditIsX': (S['xEditVals'] as Map?)?['kind'] == 'x',
+      'xEditIsD': (S['xEditVals'] as Map?)?['kind'] == 'd',
+      'xEditAmount': '${(S['xEditVals'] as Map?)?['amount'] ?? ''}',
+      'xEditNote': '${(S['xEditVals'] as Map?)?['note'] ?? ''}',
+      'xEditPickX': () => xEditSet_({'kind': 'x'}),
+      'xEditPickD': () => xEditSet_({'kind': 'd', 'cat': 'Daromad'}),
+      'xEditOnAmount': (String t) => xEditSet_({'amount': t.replaceAll(RegExp(r'[^\d]'), '')}),
+      'xEditCats': (S['xEditVals'] as Map?)?['kind'] == 'd'
+          ? <Map<String, dynamic>>[]
+          : (S['xcCats'] as List).cast<String>().map((c) => {
+                'name': c,
+                'sel': (S['xEditVals'] as Map?)?['cat'] == c,
+                'pick': () => xEditSet_({'cat': c}),
+              }).toList(),
     };
   }
 

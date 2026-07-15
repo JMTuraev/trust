@@ -50,6 +50,8 @@ class Api {
           res = await http.put(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
         case 'PATCH':
           res = await http.patch(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
+        case 'DELETE':
+          res = await http.delete(uri, headers: headers).timeout(t);
         default:
           res = await http.post(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
       }
@@ -115,6 +117,15 @@ class Api {
         if (category.isNotEmpty) 'category': category,
         if (note.isNotEmpty) 'note': note,
       });
+  // Chatdagi yozuvni inline tahrirlash / o'chirish
+  static Future<ApiRes> patchExpense(String id, {num? amount, bool? income, String? category, String? note}) =>
+      _req('PATCH', '/api/expenses/$id', body: {
+        if (amount != null) 'amount': amount,
+        if (income != null) 'income': income,
+        if (category != null) 'category': category,
+        if (note != null) 'note': note,
+      });
+  static Future<ApiRes> deleteExpense(String id) => _req('DELETE', '/api/expenses/$id');
 
   // ---- AI parse (Xarajat: matn -> daromad/xarajat/qarz) ----
   // parse hech narsa saqlamaydi; saqlash confirmExpense orqali (tasdiqlash kartasi oqimi).
@@ -142,11 +153,17 @@ class Api {
   static Future<ApiRes> readAllNotifs() => _req('POST', '/api/notifications/read-all');
 
   /// Ovoz -> matn (backend: 1-qatlam Groq whisper, 2-qatlam OpenAI zaxira).
-  /// null = ishlamadi (token yo'q / server / STT) — ilova matn rejimiga qaytadi.
+  /// null = ishlamadi — sabab [lastSttError] da (UI aniq toast ko'rsatadi).
+  static String? lastSttError;
+
   static Future<String?> transcribe(List<int> audioBytes) async {
+    lastSttError = null;
     try {
       if (token == null) await loadToken();
-      if (token == null) return null; // faqat real login bilan
+      if (token == null) {
+        lastSttError = "Ovoz uchun avval raqamingiz bilan kiring (demo rejimda ishlamaydi)";
+        return null;
+      }
       final res = await http
           .post(
             Uri.parse('$apiUrl/api/stt/transcribe'),
@@ -158,9 +175,13 @@ class Api {
           )
           .timeout(const Duration(seconds: 25));
       final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      if (res.statusCode >= 400 || data['success'] == false) return null;
+      if (res.statusCode >= 400 || data['success'] == false) {
+        lastSttError = (data['error'] as String?) ?? 'Server xatosi (${res.statusCode})';
+        return null;
+      }
       return ((data['data'] as Map?)?['text'] as String?);
     } catch (_) {
+      lastSttError = "Serverga ulanib bo'lmadi — internet yoki API_URL'ni tekshiring";
       return null;
     }
   }

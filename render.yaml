@@ -31,3 +31,24 @@ services:
         value: "300"
       - key: OTP_MAX_ATTEMPTS
         value: "5"
+      # STT (ovoz->matn) VA LLM parsing (matn->xarajat/qarz) — bitta Groq kaliti.
+      # Majburiy: Xarajat AI shu kalitsiz faqat qoida-parserga tushadi.
+      - key: GROQ_API_KEY
+        sync: false
+      # Zaxira LLM/STT (tavsiya) — Groq yiqilganda ishlatiladi
+      - key: OPENAI_API_KEY
+        sync: false
+      # LLM modellari (ixtiyoriy — defaultlari kodda bor)
+      - key: GROQ_LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: OPENAI_LLM_MODEL
+        value: gpt-4o-mini
+      # Link modeli sozlamalari (ixtiyoriy — defaultlari kodda bor)
+      - key: REJECT_SIGNAL_DELAY_HOURS
+        value: "24"
+      - key: PARTNER_DAILY_LIMIT
+        value: "20"
+      - key: REJECT_FLAG_COUNT
+        value: "3"
+      - key: REJECT_FLAG_WINDOW_HOURS
+        value: "72"
