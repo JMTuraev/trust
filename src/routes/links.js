@@ -104,6 +104,23 @@ async function transition(req, res, next, allowedFrom, toStatus) {
     } else if (toStatus === 'accepted') {
       // Yuborilmagan rad signali bekor bo'ladi
       await supabaseAdmin.from('reject_signals').delete().eq('partner_id', p.id).eq('sent', false);
+      // JOIN oqimi (ledger spec 5.1): off-Trust davri (oneSided) qarzlari endi ko'rib chiqish
+      // navbatiga tushadi — mijoz ularni tasdiqlaydi (twoSided) yoki rad etadi (disputed).
+      const { data: reviewRows } = await supabaseAdmin.from('debts')
+        .update({ under_review: true, updated_at: new Date().toISOString() })
+        .eq('partner_id', p.id).eq('prov', 'oneSided').eq('under_review', false)
+        .in('status', ['active', 'closed']).select('id');
+      if (reviewRows?.length && (await notifEnabled(req.user.id))) {
+        const { data: seller } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', p.owner_id).maybeSingle();
+        await supabaseAdmin.from('notifications').insert({
+          user_id: req.user.id,
+          sender_id: p.owner_id,
+          type: 'review_req',
+          title: 'Eski yozuvlarni ko\'rib chiqing',
+          detail: `${displayName(seller)} bilan ${reviewRows.length} ta tasdiqsiz yozuv — tasdiqlang yoki rad eting`,
+          link_id: p.id,
+        });
+      }
       // Sotuvchiga ijobiy xabar (sozlamaga bo'ysunadi)
       if (await notifEnabled(p.owner_id)) {
         const { data: me } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', req.user.id).maybeSingle();
