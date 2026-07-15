@@ -515,7 +515,7 @@ class _ClientScreenState extends State<ClientScreen> {
                                       decoration: BoxDecoration(color: p.red, shape: BoxShape.circle)),
                                 ),
                                 const SizedBox(width: 8),
-                                Tx('Tinglayapman… qo\'yib yuboring', size: 14, color: p.t1),
+                                Tx('Yozilmoqda… qo\'yib yuborsangiz jo\'naydi', size: 14, color: p.t1),
                               ])
                             : StoreField(
                                 value: v['chatInput'] as String,

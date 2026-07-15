@@ -2,9 +2,12 @@
 // Barcha state, hodisalar va hosilaviy qiymatlar (vals) prototip bilan 1:1.
 // vals() Map qaytaradi — kalitlar prototip template placeholderlari bilan bir xil.
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:image_picker/image_picker.dart';
 import 'theme.dart';
 import 'api.dart';
 import 'stt.dart';
@@ -72,6 +75,14 @@ class TrustStore extends ChangeNotifier {
     'txs': <Map<String, dynamic>>[],
     'msgs': <String, List<Map<String, dynamic>>>{},
     'localMsgs': <String, List<Map<String, dynamic>>>{},
+    // REAL chat (server): xabarlar hamkor bo'yicha + o'qilmagan hisoblagichlar (badge)
+    'srvMsgs': <String, List<Map<String, dynamic>>>{},
+    'msgUnread': <String, int>{},
+    // Profil qo'shimchalari
+    'meAvatar': null, // lokal rasm yo'li (galereyadan)
+    'cur': 'UZS', // asosiy valyuta (yangi yozuv formasi uchun default)
+    'subStatus': 'trial', 'trialEnd': null, // obuna holati (backend /profile/me)
+    'delArmAt': 0, // profil o'chirish ikki bosqichli tasdiq vaqti
     'notifs': <Map<String, dynamic>>[],
     // Bog'lanishlar (meni kontragent qilib qo'shganlar) — link modeli
     'links': <Map<String, dynamic>>[],
@@ -109,6 +120,12 @@ class TrustStore extends ChangeNotifier {
     Api.onUnauthorized = _forceLogout;
     await Api.loadToken();
     S['pinOn'] = await SecureStore.hasPin(); // toggle holatini secure storage'dan tiklaymiz
+    // Valyuta va avatar (lokal saqlanadi)
+    try {
+      final sp = await SharedPreferences.getInstance();
+      S['cur'] = sp.getString('trust_cur') ?? 'UZS';
+      S['meAvatar'] = sp.getString('trust_avatar');
+    } catch (_) {}
     if (Api.token != null) {
       _tryResume(); // splash ko'rinib turadi — natijaga qarab app/pin/welcome
     } else {
@@ -128,6 +145,9 @@ class TrustStore extends ChangeNotifier {
       set({
         'meId': p['id'], 'mePhone': p['phone'], 'meName': p['full_name'],
         'notifOn': p['notif_enabled'] != false,
+        // Obuna holati: trial (7 kun) / premium / expired — profil va paywall uchun
+        'subStatus': p['status'] ?? 'trial',
+        'trialEnd': p['trial_ends_at'],
         'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true,
       });
       await hydrate();
@@ -302,13 +322,17 @@ class TrustStore extends ChangeNotifier {
     _hydrating = true;
     try {
       final rs = await Future.wait(
-          [Api.partners(), Api.notifications(), Api.expenses(), Api.getLimit(), Api.links()]);
-      final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4];
+          [Api.partners(), Api.notifications(), Api.expenses(), Api.getLimit(), Api.links(), Api.unreadCounts()]);
+      final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4], ur = rs[5];
       var plist = <Map<String, dynamic>>[];
       final patch = <String, dynamic>{};
       if (pr.ok && pr.data is List) {
         plist = (pr.data as List).cast<Map<String, dynamic>>();
         patch['clients'] = plist.map(_mapPartner).toList();
+      }
+      // O'qilmagan xabarlar (badge) — hamkor qatorlarida ko'rinadi
+      if (ur.ok && ur.data is Map) {
+        patch['msgUnread'] = (ur.data as Map).map((k, v) => MapEntry('$k', _numToInt(v)));
       }
       if (nr.ok && nr.data is List) {
         patch['notifs'] = (nr.data as List).cast<Map<String, dynamic>>().map(_mapNotif).toList();
@@ -516,9 +540,13 @@ class TrustStore extends ChangeNotifier {
   List<Map<String, dynamic>> _txs() => List<Map<String, dynamic>>.from(S['txs']);
   List<Map<String, dynamic>> _notifs() => List<Map<String, dynamic>>.from(S['notifs']);
   List<Map<String, dynamic>> _xar() => List<Map<String, dynamic>>.from(S['xarEntries']);
-  /// Chat oqimi: serverdan hosil qilingan (tx) + lokal yozilgan xabarlar
+  /// Chat oqimi: serverdan hosil qilingan (tx) + REAL server xabarlari + lokal (eski) xabarlar
   Map<String, List<Map<String, dynamic>>> _msgs() {
     final d = Map<String, List<Map<String, dynamic>>>.from(S['msgs']);
+    final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
+    for (final e in srv.entries) {
+      d[e.key] = [...(d[e.key] ?? []), ...e.value];
+    }
     final l = Map<String, List<Map<String, dynamic>>>.from(S['localMsgs'] as Map);
     for (final e in l.entries) {
       d[e.key] = [...(d[e.key] ?? []), ...e.value];
@@ -714,36 +742,206 @@ class TrustStore extends ChangeNotifier {
     });
   }
 
-  // Chat ovozi — REAL hold-to-talk (Telegram uslubi): bosib turib gapiriladi,
-  // qo'yib yuborilganda STT matnga aylantirib chat maydoniga qo'yadi.
-  // Input bar almashtirilmaydi — klaviatura holatiga tegilmaydi.
+  // ================= REAL CHAT (server): matn + OVOZLI xabarlar =================
+  Timer? _chatPoll;
+  final AudioPlayer _player = AudioPlayer();
+  StreamSubscription? _posSub, _doneSub;
+  String? _playKey;
+
+  /// Server xabari -> chat bubble shakli (mavjud render bilan mos)
+  Map<String, dynamic> _mapMsg(Map<String, dynamic> m) => {
+        'id': m['id'],
+        'k': m['kind'] == 'audio' ? 'voice' : 'text',
+        'mine': m['sender_id'] == S['meId'],
+        'text': m['body'] ?? '',
+        'dur': _numToInt(m['duration_sec'] ?? 1).clamp(1, 600),
+        'audioUrl': m['audio_url'],
+        'time': _dt(m['created_at']) != null ? _hhmm(_dt(m['created_at'])!.toLocal()) : '',
+        'read': m['read_at'] != null,
+        'at': m['created_at'] ?? '',
+      };
+
+  List<Map<String, dynamic>> _srv(String pid) =>
+      List<Map<String, dynamic>>.from((S['srvMsgs'] as Map)[pid] as List? ?? []);
+
+  /// Chat ochilganda: to'liq tarix + o'qildi + tez polling (realtime his)
+  Future<void> openChat_(String partnerId) async {
+    final r = await Api.messages(partnerId);
+    if (r.ok && r.data is List) {
+      final list = (r.data as List).cast<Map<String, dynamic>>().map(_mapMsg).toList();
+      final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
+      srv[partnerId] = list;
+      final un = Map<String, int>.from(S['msgUnread'] as Map)..remove(partnerId);
+      set({'srvMsgs': srv, 'msgUnread': un});
+      Api.readMsgs(partnerId); // kutmaymiz
+    }
+    _chatPoll?.cancel();
+    // Realtime: chat ochiq ekan har 3 soniyada faqat YANGI xabarlar (after=oxirgi)
+    _chatPoll = Timer.periodic(const Duration(seconds: 3), (_) => _chatTick(partnerId));
+  }
+
+  Future<void> _chatTick(String partnerId) async {
+    if (S['clientId'] != partnerId) {
+      _chatPoll?.cancel();
+      return;
+    }
+    final cur = _srv(partnerId);
+    final after = cur.isNotEmpty ? cur.last['at'] as String? : null;
+    final r = await Api.messages(partnerId, after: after);
+    if (!r.ok || r.data is! List) return;
+    final fresh = (r.data as List).cast<Map<String, dynamic>>().map(_mapMsg).toList();
+    if (fresh.isEmpty) return;
+    final ids = cur.map((m) => m['id']).toSet();
+    final add = fresh.where((m) => !ids.contains(m['id'])).toList();
+    if (add.isEmpty) return;
+    final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
+    srv[partnerId] = [...cur, ...add];
+    set({'srvMsgs': srv});
+    // Qarshi tomondan kelganlar — darhol o'qildi
+    if (add.any((m) => m['mine'] != true)) Api.readMsgs(partnerId);
+  }
+
+  void stopChatPoll_() {
+    _chatPoll?.cancel();
+    _player.stop();
+    _playKey = null;
+    set({'playing': null});
+  }
+
+  /// Matn xabar — SERVERGA yoziladi (real chat), javob darhol oqimga qo'shiladi
+  Future<void> sendChatServer_(String partnerId, String text) async {
+    final r = await Api.sendMsg(partnerId, text);
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    final m = _mapMsg(r.data as Map<String, dynamic>);
+    final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
+    srv[partnerId] = [..._srv(partnerId), m];
+    set({'srvMsgs': srv});
+  }
+
+  // Chat ovozi — endi AUDIO XABAR (Telegram kabi): bosib turib gapiriladi,
+  // qo'yib yuborilganda audio o'zi yuboriladi (STT/matn EMAS).
   Future<void> chatMicStart() async {
     if (_recActive) return;
     _recActive = true;
-    set({'recOn': true});
-    await Stt.start(
-      onStarted: () {},
-      onDone: (text) {
-        _recActive = false;
-        set({'recOn': false});
-        if (text != null && text.trim().isNotEmpty) {
-          // Matn chat maydoniga tushadi — foydalanuvchi ko'rib, tahrirlashi va yuborishi mumkin
-          set({'chatInput': '${(S['chatInput'] as String).trim().isEmpty ? '' : '${S['chatInput']} '}${text.trim()}'});
-        } else {
-          toast_(Stt.lastError ?? "Ovoz matnga aylanmadi — qayta urinib ko'ring");
-        }
-      },
-    );
-    if (Stt.lastError != null && S['recOn'] == true) {
+    final ok = await ChatRec.start();
+    if (!ok) {
       _recActive = false;
-      set({'recOn': false});
-      toast_(Stt.lastError!);
+      toast_(ChatRec.lastError ?? 'Mikrofon ishlamadi');
+      return;
+    }
+    set({'recOn': true});
+  }
+
+  Future<void> chatMicEnd() async {
+    if (!_recActive) return;
+    _recActive = false;
+    set({'recOn': false});
+    final res = await ChatRec.stop();
+    if (res == null) {
+      if (ChatRec.lastError != null) toast_(ChatRec.lastError!);
+      return;
+    }
+    final (path, dur) = res;
+    final pid = S['clientId'] as String?;
+    if (pid == null) return;
+    toast_('Yuborilmoqda…');
+    final bytes = await File(path).readAsBytes();
+    final r = await Api.sendAudio(pid, bytes, dur);
+    try { File(path).deleteSync(); } catch (_) {}
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    final m = _mapMsg(r.data as Map<String, dynamic>);
+    final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
+    srv[pid] = [..._srv(pid), m];
+    set({'srvMsgs': srv});
+  }
+
+  /// REAL audio ijro (audioplayers): play/pause, progress S['playing'] orqali UI'ga
+  Future<void> togglePlayReal(String key, int dur, String? url) async {
+    if (url == null) return togglePlay(key, dur); // eski (lokal demo) xabarlar
+    if (_playKey == key) {
+      final st = _player.state;
+      if (st == PlayerState.playing) {
+        await _player.pause();
+        final p = S['playing'] as Map<String, dynamic>?;
+        set({'playing': {...?p, 'paused': true}});
+      } else {
+        await _player.resume();
+        final p = S['playing'] as Map<String, dynamic>?;
+        set({'playing': {...?p, 'paused': false}});
+      }
+      return;
+    }
+    await _player.stop();
+    _playKey = key;
+    set({'playing': {'key': key, 'prog': 0.0, 'paused': false}});
+    _posSub?.cancel();
+    _doneSub?.cancel();
+    _posSub = _player.onPositionChanged.listen((pos) {
+      final total = dur > 0 ? dur * 1000 : 1;
+      final prog = (pos.inMilliseconds / total).clamp(0.0, 1.0);
+      if (_playKey == key) set({'playing': {'key': key, 'prog': prog, 'paused': false}});
+    });
+    _doneSub = _player.onPlayerComplete.listen((_) {
+      if (_playKey == key) {
+        _playKey = null;
+        set({'playing': null});
+      }
+    });
+    try {
+      await _player.play(UrlSource(url));
+    } catch (_) {
+      _playKey = null;
+      set({'playing': null});
+      toast_('Audio ochilmadi — qayta urinib ko\'ring');
     }
   }
 
-  void chatMicEnd() {
-    if (!_recActive) return;
-    Stt.finish(); // natija onDone orqali chatInput'ga tushadi
+  // ================= PROFIL: foto / valyuta / obuna / o'chirish =================
+  Future<void> pickAvatar_() async {
+    try {
+      final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 85);
+      if (x == null) return;
+      final dir = await SharedPreferences.getInstance();
+      // Rasmni doimiy joyga ko'chirmaymiz — picker cache yo'lini saqlaymiz (lokal ko'rinish).
+      await dir.setString('trust_avatar', x.path);
+      set({'meAvatar': x.path});
+      toast_('Rasm yangilandi');
+    } catch (e) {
+      toast_('Rasm tanlab bo\'lmadi');
+    }
+  }
+
+  static const _curList = ['UZS', 'USD', 'EUR', 'RUB'];
+  void cycleCur_() {
+    final i = _curList.indexOf(S['cur'] as String? ?? 'UZS');
+    final next = _curList[(i + 1) % _curList.length];
+    SharedPreferences.getInstance().then((sp) => sp.setString('trust_cur', next));
+    set({'cur': next});
+  }
+
+  /// Profil o'chirish — ikki bosqichli tasdiq (5s ichida ikkinchi bosish).
+  /// SOFT delete: qarshi tomonda daftar QOLADI (link modeli), qayta kirish = tiklash.
+  Future<void> profileDelete_() async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final armed = (S['delArmAt'] as int? ?? 0);
+    if (now - armed > 5000) {
+      set({'delArmAt': now});
+      toast_("O'chirishni tasdiqlash uchun YANA bir marta bosing");
+      return;
+    }
+    final r = await Api.deleteProfile();
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    toast_('Profil o\'chirildi — qayta kirsangiz tiklanadi');
+    logout_();
   }
 
   String _fmt(int n) =>
@@ -816,8 +1014,9 @@ class TrustStore extends ChangeNotifier {
     set({
       'txs': [..._txs(), tx], 'msgs': msgs, 'sheetOpen': false,
       'clientId': cid, 'tab': 'chat',
-      'form': {'type': 'Qarz berdim', 'amount': '', 'currency': 'UZS', 'note': '', 'name': ''},
+      'form': {'type': 'Qarz berdim', 'amount': '', 'currency': S['cur'] ?? 'UZS', 'note': '', 'name': ''},
     });
+    openChat_(cid); // real chat oqimini yuklash + polling
     toast_(L()['tSaved']);
     hydrate(full: false);
   }
@@ -1037,8 +1236,9 @@ class TrustStore extends ChangeNotifier {
       set({
         'screen': 'home', 'clientId': match.first['id'], 'tab': 'chat',
         'sheetOpen': true, 'sheetClient': match.first['id'],
-        'form': {'type': type, 'amount': amount, 'currency': 'UZS', 'note': note, 'name': ''},
+        'form': {'type': type, 'amount': amount, 'currency': S['cur'] ?? 'UZS', 'note': note, 'name': ''},
       });
+      openChat_(match.first['id'] as String);
       toast_("Qarz amali — ma'lumotlar to'ldirildi, saqlang");
     } else {
       set({
@@ -1516,6 +1716,7 @@ class TrustStore extends ChangeNotifier {
       hydrate(full: false);
       if (_client(linkId) != null) {
         set({'notifOpen': false, 'clientId': linkId, 'tab': 'chat', 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false, 'opsVis': 8});
+        openChat_(linkId); // real chat oqimi
       } else {
         set({'notifOpen': false});
       }
@@ -1954,6 +2155,8 @@ class TrustStore extends ChangeNotifier {
         'onTrust': c['onTrust'] != false, 'oneSided': c['onTrust'] == false,
         'sub': last != null ? '${L0['last']}${last['date']}' : L0['noOps'],
         'bal': b['text'], 'color': b['color'], 'balSub': b['sub'],
+        // O'qilmagan xabarlar soni — qatorda badge (sms kelsa ko'rinadi)
+        'unread': (S['msgUnread'] as Map)[cid] ?? 0,
         'open': () {
           if (_swClick) {
             _swClick = false;
@@ -1964,6 +2167,7 @@ class TrustStore extends ChangeNotifier {
             return;
           }
           set({'clientId': cid, 'inLinkId': null, 'tab': 'chat', 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false, 'opsVis': 8});
+          openChat_(cid); // real chat oqimini yuklash + tez polling
         },
       };
     }).toList();
@@ -2105,7 +2309,7 @@ class TrustStore extends ChangeNotifier {
               'bars': barsV, 'isPlaying': isPlaying, 'notPlaying': !isPlaying,
               'durText': '0:${(p != null ? cur : dur).toString().padLeft(2, '0')}',
               'time': m['time'], 'checks': checks,
-              'toggle': () => togglePlay(key, dur),
+              'toggle': () => togglePlayReal(key, dur, m['audioUrl'] as String?),
             };
           }
           final rem = dur - (prog * dur).round();
@@ -2122,7 +2326,7 @@ class TrustStore extends ChangeNotifier {
             'isPlaying': isPlaying, 'notPlaying': !isPlaying,
             'durText': '0:${(p != null ? rem : dur).toString().padLeft(2, '0')}',
             'time': m['time'], 'checks': checks,
-            'toggle': () => togglePlay(key, dur),
+            'toggle': () => togglePlayReal(key, dur, m['audioUrl'] as String?),
           };
         }
         if (m['k'] == 'text') {
@@ -2322,7 +2526,8 @@ class TrustStore extends ChangeNotifier {
     final rejCount = linksAll.where((l) => l['status'] == 'rejected').length;
     final profRows = [
       {'label': L0['profTil'], 'value': L0['profTilVal'], 'isPlain': true, 'isSwitch': false, 'tap': () => set({'langOpen': true})},
-      {'label': L0['profCur'], 'value': 'UZS', 'isPlain': true, 'isSwitch': false, 'tap': () {}},
+      // Asosiy valyuta — bosishda aylanadi (UZS -> USD -> EUR -> RUB), yangi yozuv defaulti
+      {'label': L0['profCur'], 'value': '${S['cur'] ?? 'UZS'}', 'isPlain': true, 'isSwitch': false, 'tap': () => cycleCur_()},
       mkSwitch(L0['darkMode'], dk, () => setDark(!dk)),
       mkSwitch(L0['profPin'], S['pinOn'] == true, () => _togglePin()),
       // PIN kodni o'zgartirish — joriy PIN tasdig'i bilan (faqat PIN yoniq bo'lsa)
@@ -2356,6 +2561,28 @@ class TrustStore extends ChangeNotifier {
           return n > 0 ? n.toString() : '';
         }(),
         'isPlain': true, 'isSwitch': false, 'tap': () {},
+      },
+      // Obuna: 7 kun bepul sinov, keyin $9/oy (to'lov integratsiyasi keyingi bosqichda)
+      {
+        'label': L0['profSub'] ?? 'Obuna',
+        'value': () {
+          final st = S['subStatus'] as String? ?? 'trial';
+          if (st == 'premium') return 'Premium';
+          final te = _dt(S['trialEnd'] as String?);
+          if (st == 'trial' && te != null) {
+            final left = te.difference(DateTime.now()).inDays + 1;
+            return 'Sinov · ${left.clamp(0, 7)} kun qoldi';
+          }
+          return 'Sinov tugagan · \$9/oy';
+        }(),
+        'isPlain': true, 'isSwitch': false,
+        'tap': () => toast_("7 kun bepul, keyin \$9/oy — to'lov tez orada ulanadi"),
+      },
+      // Profilni o'chirish (App Store/Play siyosati) — SOFT: qarshi tomonda daftar qoladi
+      {
+        'label': L0['profDelete'] ?? "Profilni o'chirish",
+        'value': '', 'isPlain': true, 'isSwitch': false, 'danger': true,
+        'tap': () => profileDelete_(),
       },
     ];
 
@@ -2643,7 +2870,10 @@ class TrustStore extends ChangeNotifier {
         if (client == null) return;
         toast_("Raqam egasi Trust'ga kirganda bog'lanish so'rovi avtomatik boradi");
       },
-      'back': () => set({'clientId': null, 'inLinkId': null, 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false}),
+      'back': () {
+        stopChatPoll_(); // chat polling + audio to'xtaydi
+        set({'clientId': null, 'inLinkId': null, 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false});
+      },
       'toChat': () => set({'tab': 'chat'}),
       'toOps': () {
         final cid = S['clientId'] as String?;
@@ -2675,10 +2905,11 @@ class TrustStore extends ChangeNotifier {
       'chatInput': S['chatInput'],
       'onChatInput': (String t) => set({'chatInput': t}),
       'sendChat': () {
-        if ((S['chatInput'] as String).trim().isEmpty || client == null) return;
-        addLocalMsg(client['id'] as String,
-            {'k': 'text', 'mine': true, 'text': (S['chatInput'] as String).trim(), 'time': _hhmm(DateTime.now()), 'read': false});
+        final text = (S['chatInput'] as String).trim();
+        if (text.isEmpty || client == null) return;
         set({'chatInput': ''});
+        // REAL chat: serverga yoziladi — qarshi tomonga yetib boradi (badge/notification)
+        sendChatServer_(client['id'] as String, text);
       },
       // Kiruvchi daftar faqat o'qish uchun — yangi yozuvni faqat sotuvchi kiritadi
       'canWrite': client != null,
@@ -2698,6 +2929,8 @@ class TrustStore extends ChangeNotifier {
       'molTotals': molTotals, 'bars': bars, 'reminders': reminders, 'profRows': profRows,
       'meName': meLabel(),
       'meInitials': initials(meLabel()),
+      'meAvatar': S['meAvatar'], // lokal foto yo'li (galereyadan)
+      'pickAvatar': () => pickAvatar_(),
       'mePhoneFmt': _fmtSrvPhone((S['mePhone'] as String?) ?? ''),
       // Profil ismini tahrirlash (mijozlarga shu ism ko'rinadi)
       'meEditing': S['meNameEdit'] != null,

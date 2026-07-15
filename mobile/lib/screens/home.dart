@@ -402,6 +402,15 @@ class _SwipeRowState extends State<_SwipeRow> {
             ),
           ),
           const SizedBox(width: 14),
+          // O'qilmagan xabarlar badge (sms kelsa ko'rinadi)
+          if ((r['unread'] as int? ?? 0) > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(color: p.green, borderRadius: BorderRadius.circular(999)),
+              child: Tx('${r['unread']}', size: 10.5, w: FontWeight.w700, color: p.bg),
+            ),
+            const SizedBox(width: 8),
+          ],
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

@@ -164,6 +164,43 @@ class Api {
   static Future<ApiRes> getLimit() => _req('GET', '/api/limits');
   static Future<ApiRes> setLimit(num v) => _req('PUT', '/api/limits', body: {'monthly_limit': v});
 
+  // ---- Messages (REAL 1:1 chat: matn + ovozli xabarlar) ----
+  static Future<ApiRes> messages(String partnerId, {String? after}) => _req('GET',
+      '/api/messages/$partnerId${after != null ? '?after=${Uri.encodeComponent(after)}' : ''}');
+  static Future<ApiRes> sendMsg(String partnerId, String body) =>
+      _req('POST', '/api/messages/$partnerId', body: {'kind': 'text', 'body': body});
+  static Future<ApiRes> readMsgs(String partnerId) => _req('POST', '/api/messages/$partnerId/read');
+  static Future<ApiRes> unreadCounts() => _req('GET', '/api/messages/unread/counts');
+
+  /// Ovozli xabar yuborish — xom audio (m4a) bayтlari, davomiylik query'da
+  static Future<ApiRes> sendAudio(String partnerId, List<int> bytes, int durationSec) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$apiUrl/api/messages/$partnerId/audio?duration_sec=$durationSec'),
+            headers: {
+              'Content-Type': 'audio/m4a',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+            body: bytes,
+          )
+          .timeout(const Duration(seconds: 30));
+      final map = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      if (res.statusCode >= 400 || map['success'] == false) {
+        if (res.statusCode == 401 && token != null) onUnauthorized?.call();
+        return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
+      }
+      return ApiRes(true, map['data'], '', res.statusCode);
+    } on TimeoutException {
+      return ApiRes(false, null, 'Yuborish uzoq cho\'zildi — qayta urinib ko\'ring', 0);
+    } catch (_) {
+      return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
+    }
+  }
+
+  // ---- Profil hayoti (soft-delete) ----
+  static Future<ApiRes> deleteProfile() => _req('DELETE', '/api/profile/me');
+
   // ---- Notifications ----
   static Future<ApiRes> notifications() => _req('GET', '/api/notifications');
   static Future<ApiRes> readNotif(String id) => _req('POST', '/api/notifications/$id/read');

@@ -1,4 +1,5 @@
 // Profil ekrani — prototype/template.html 654–681 bilan 1:1
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
@@ -22,12 +23,42 @@ class ProfilScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-                child: Tx(v['meInitials'], size: 22, w: FontWeight.w600, color: p.ink),
+              // Avatar — bosilsa galereyadan rasm tanlanadi (edit photo)
+              Tap(
+                onTap: () => v['pickAvatar'](),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: p.card2,
+                        shape: BoxShape.circle,
+                        image: v['meAvatar'] != null
+                            ? DecorationImage(
+                                image: FileImage(File(v['meAvatar'] as String)), fit: BoxFit.cover)
+                            : null,
+                      ),
+                      child: v['meAvatar'] == null
+                          ? Tx(v['meInitials'], size: 22, w: FontWeight.w600, color: p.ink)
+                          : null,
+                    ),
+                    Positioned(
+                      right: -2, bottom: -2,
+                      child: Container(
+                        width: 24, height: 24, alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: p.ink, shape: BoxShape.circle,
+                          border: Border.all(color: p.bg, width: 2),
+                        ),
+                        child: Icon(Icons.photo_camera_outlined, size: 12, color: p.bg),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (v['meEditing'] == true)
                 Padding(
@@ -93,7 +124,8 @@ class ProfilScreen extends StatelessWidget {
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
               child: Row(
                 children: [
-                  Expanded(child: Tx(pr['label'], size: 14.5, color: p.ink)),
+                  // danger (profil o'chirish) — qizil rangda
+                  Expanded(child: Tx(pr['label'], size: 14.5, color: pr['danger'] == true ? p.red : p.ink)),
                   const SizedBox(width: 12),
                   if (pr['isSwitch'] == true)
                     Container(
