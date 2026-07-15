@@ -143,8 +143,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           // Yoy (arc) traektoriya — to'g'ri chiziq emas, ko'tarilib tushadi (ko'zga tashlanadi)
           final lift = math.sin(t * math.pi) * 56;
           final pos = Offset.lerp(start, end, t)! - Offset(0, lift);
-          final op = t < .08 ? t / .08 : (t > .85 ? (1 - t) / .15 : 1.0);
-          final sc = 1.0 - t * .22;
+          final op = t < .08 ? t / .08 : (t > .88 ? (1 - t) / .12 : 1.0);
+          // Yo'l-yo'lakay KATTALASHIB ko'rinadi (cho'qqi 1.3x), so'ng KICHRAYIB
+          // papkaga "kirib ketadi" (0.4x) — foydalanuvchi so'ragan his
+          final sc = t < .45
+              ? lerpDouble(.75, 1.3, Curves.easeOut.transform(t / .45))!
+              : lerpDouble(1.3, .4, Curves.easeIn.transform((t - .45) / .55))!;
           return Positioned(
             left: pos.dx,
             top: pos.dy,
@@ -318,26 +322,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         ),
         child: Stack(
           children: [
+            // Mazmunga mos KATTA fon-glif — kartaning o'ng qismida, suv belgisi kabi
             Positioned(
-              left: 0, top: 10, bottom: 10,
-              child: Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(3), bottomRight: Radius.circular(3)),
-                ),
+              right: -18, top: -8,
+              child: Transform.rotate(
+                angle: -0.18,
+                child: CatIcon(cat: name, size: 92, color: accent.withValues(alpha: .09)),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(13, 13, 13, 10),
+              padding: const EdgeInsets.fromLTRB(13, 13, 13, 11),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Tx('${f['emoji']}', size: 20, color: p.ink),
+                      // Vektor ikonka-chip (emoji o'rniga)
+                      Container(
+                        width: 31, height: 31, alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: .12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: CatIcon(cat: name, size: 17.5, color: accent),
+                      ),
                       if (f['isNew'] == true)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -350,7 +359,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                         ),
                     ],
                   ),
-                  const SizedBox(height: 7),
+                  const SizedBox(height: 8),
                   Tx(name, size: 12.5, w: FontWeight.w500, color: p.t2, maxLines: 1),
                   const SizedBox(height: 5),
                   Row(
@@ -376,12 +385,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                       ],
                     ],
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   SizedBox(
-                    width: double.infinity, height: 18,
+                    width: double.infinity, height: 22,
                     child: _AnimSpark(
                       pts: (f['spark'] as List).cast<double>(),
-                      color: inc ? p.green.withValues(alpha: .65) : p.t5,
+                      color: accent,
                     ),
                   ),
                 ],

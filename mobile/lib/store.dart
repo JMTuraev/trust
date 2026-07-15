@@ -1132,7 +1132,12 @@ class TrustStore extends ChangeNotifier {
   // qo'shilganda chiziq siljiydi (rolling oyna). Kam yozuvda chapdan past qiymat bilan to'ldiriladi.
   List<double> _xfSpark(List entries) {
     final es = entries.cast<Map<String, dynamic>>().toList()
-      ..sort((a, b) => (b['days'] as int).compareTo(a['days'] as int)); // eski -> yangi
+      ..sort((a, b) {
+        // eski -> yangi: avval kun, bir kun ichida vaqt (HH:mm) bo'yicha
+        final d = (b['days'] as int).compareTo(a['days'] as int);
+        if (d != 0) return d;
+        return ('${a['t']}').compareTo('${b['t']}');
+      });
     final amts = es.map((e) => (e['a'] as int).toDouble()).toList();
     final last = amts.length > 8 ? amts.sublist(amts.length - 8) : amts;
     // DIQQAT: List.filled fixed-length qaytaradi — addAll qulatadi; spread bilan yig'amiz
