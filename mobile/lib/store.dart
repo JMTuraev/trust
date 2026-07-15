@@ -907,16 +907,25 @@ class TrustStore extends ChangeNotifier {
         final c = e['cat'] as String;
         if (!existing.contains(c) && !newCats.contains(c)) newCats.add(c);
       }
-      // Fly-animatsiya hodisalari: har yozuv o'z papkasiga "uchadi" (dizayn: flyToFolder)
+      // Fly-animatsiya hodisalari: har yozuv o'z papkasiga "uchadi" (dizayn: flyToFolder).
+      // MUHIM: yozuvlar xarEntries'ga DARHOL qo'shilmaydi — har biri chip QO'NGANDA
+      // (xfLandOne_) alohida qo'shiladi; shunda papka raqami aynan qo'nish paytida sanaydi.
       final fly = List<Map<String, dynamic>>.from(S['xfFly'] as List);
       for (final e in es) {
         fly.add({
           'cat': e['cat'], 'emoji': xfEmoji(e['cat'] as String),
           'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
           'inc': e['kind'] == 'd',
+          'entry': e, // qo'nishda commit qilinadigan to'liq yozuv
         });
       }
-      set({'xarEntries': [...es.reversed, ..._xar()], 'xfNewCats': newCats, 'xfFly': fly});
+      set({'xfNewCats': newCats, 'xfFly': fly});
+      // Zaxira: biror sabab bilan land bo'lmasa (ekran yopildi) — 8s dan keyin to'g'ridan-to'g'ri
+      Timer(const Duration(seconds: 8), () {
+        for (final e in es) {
+          xfLandOne_(e);
+        }
+      });
       for (final e in es) {
         _xfLogAdd('add',
             cat: e['cat'] as String,
@@ -934,6 +943,16 @@ class TrustStore extends ChangeNotifier {
     set({'voiceStage': null, 'vText': ''});
     if (routed.isNotEmpty) _routeQarz(routed.first);
     return true;
+  }
+
+  // Chip qo'nganda BITTA yozuvni kiritish — papka/balans raqamlari shu paytda sanaydi.
+  // Idempotent: qayta chaqirilsa yoki undo qilingan bo'lsa hech narsa qilmaydi.
+  final Set<String> _xfCancelledLand = {};
+  void xfLandOne_(Map<String, dynamic> e) {
+    final id = e['id'] as String?;
+    if (id != null && _xfCancelledLand.contains(id)) return;
+    if (id != null && _xar().any((x) => x['id'] == id)) return;
+    set({'xarEntries': [e, ..._xar()]});
   }
 
   // Lokal (dizayn uslubidagi) toast — 5 soniyada o'zi yopiladi
@@ -1287,6 +1306,7 @@ class TrustStore extends ChangeNotifier {
       toast_('Qaytarildi');
     } else if (t['kind'] == 'add') {
       final ids = (t['ids'] as List?)?.cast<String>() ?? [];
+      _xfCancelledLand.addAll(ids); // hali qo'nmagan chip'lar keyin kirib qolmasin
       for (final id in ids) {
         await Api.deleteExpense(id);
       }
@@ -1743,7 +1763,14 @@ class TrustStore extends ChangeNotifier {
           // To'liq ekran: header'dagi orqaga tugmasi (dizayn: bottom navsiz)
           'xfBack': () => set({'screen': 'home', 'xfDetail': null, 'xfLogOpen': false}),
           // Fly-animatsiya hodisalari: UI o'qib, ishga tushirib, xfFlyDone bilan tozalaydi
-          'xfFlyEvents': (S['xfFly'] as List).cast<Map<String, dynamic>>(),
+          'xfFlyEvents': (S['xfFly'] as List).cast<Map<String, dynamic>>().map((ev) => {
+                ...ev,
+                // Chip qo'nganda chaqiriladi: yozuv shu paytda kiritiladi -> raqamlar sanaydi
+                'land': () {
+                  final en = ev['entry'];
+                  if (en is Map<String, dynamic>) xfLandOne_(en);
+                },
+              }).toList(),
           'xfFlyDone': () {
             if ((S['xfFly'] as List).isNotEmpty) S['xfFly'] = <Map<String, dynamic>>[];
           },

@@ -88,8 +88,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   }
 
   // ================= FLY ANIMATSIYASI (dizayn: flyToFolder) =================
-  // Harakat aniq KO'RINISHI uchun: 1) klaviatura yopiladi (papkalar ochiladi),
-  // 2) nishon papka avval ekranga scroll qilinadi, 3) chip yoy (arc) bo'ylab uchadi.
+  // QAT'IY KETMA-KET xoreografiya: chip uchadi -> qo'nadi -> yozuv kiritiladi
+  // (papka + balans raqamlari SANAB ko'tariladi) -> sanash tugagach KEYINGI chip.
+  // Bir inputdagi 2-3 summa "kapalakday" birdan uchmaydi — birma-bir.
   Future<void> _launchFly(List<Map<String, dynamic>> events) async {
     FocusManager.instance.primaryFocus?.unfocus(); // klaviatura yopiladi
     await Future.delayed(const Duration(milliseconds: 240));
@@ -104,13 +105,18 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         await Future.delayed(const Duration(milliseconds: 60));
       }
       if (!mounted) return;
-      _flyOne(events[i], i);
-      // Keyingi chip oldingisi qo'nay deganda uchadi — harakat ketma-ket o'qiladi
-      await Future.delayed(const Duration(milliseconds: 420));
+      await _flyOne(events[i], i); // chip qo'nguncha kutamiz
+      // Qo'nish: yozuv kiritiladi -> papka summasi va balans sanay boshlaydi + puls
+      (events[i]['land'] as Function?)?.call();
+      if (mounted) {
+        setState(() => _pulse[cat] = (_pulse[cat] ?? 0) + 1);
+      }
+      // Raqam sanashi (900ms) tugagach keyingi operatsiya "kapalagi" jonlanadi
+      await Future.delayed(const Duration(milliseconds: 950));
     }
   }
 
-  void _flyOne(Map<String, dynamic> e, int i) {
+  Future<void> _flyOne(Map<String, dynamic> e, int i) async {
     final p = curPal();
     final overlay = Overlay.of(context);
     final inputBox = _inputKey.currentContext?.findRenderObject() as RenderBox?;
@@ -175,12 +181,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       ),
     );
     overlay.insert(entry);
-    ctrl.forward().whenComplete(() {
-      entry.remove();
-      ctrl.dispose();
-      // Qo'ngan papka pulslaydi
-      if (mounted) setState(() => _pulse[e['cat'] as String] = (_pulse[e['cat'] as String] ?? 0) + 1);
-    });
+    await ctrl.forward(); // qo'nguncha kutamiz — puls va sanash caller'da
+    entry.remove();
+    ctrl.dispose();
   }
 
   // ================= SARLAVHA (dizayn: back + title + jurnal) =================
