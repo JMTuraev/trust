@@ -11,6 +11,7 @@ class TrustTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = store.vals();
     final Pal p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
     return Container(
       decoration: BoxDecoration(
         color: p.bg,
@@ -26,7 +27,7 @@ class TrustTabBar extends StatelessWidget {
                 _tab(
                   onTap: () => v['goHome'](),
                   color: v['cMij'],
-                  label: 'Hamkorlar',
+                  label: L0['navClients'] as String,
                   icon: SizedBox(
                     height: 20,
                     child: Column(
@@ -65,7 +66,7 @@ class TrustTabBar extends StatelessWidget {
                 _tab(
                   onTap: () => v['goXarajat'](),
                   color: v['cXar'],
-                  label: 'Xarajat',
+                  label: L0['navXar'] as String,
                   icon: SizedBox(
                     height: 20,
                     child: Center(
@@ -96,7 +97,7 @@ class TrustTabBar extends StatelessWidget {
                 _tab(
                   onTap: () => v['goMoliya'](),
                   color: v['cMol'],
-                  label: 'Moliya',
+                  label: L0['navFin'] as String,
                   icon: SizedBox(
                     height: 20,
                     child: Padding(
@@ -118,7 +119,7 @@ class TrustTabBar extends StatelessWidget {
                 _tab(
                   onTap: () => v['goProfil'](),
                   color: v['cProf'],
-                  label: 'Profil',
+                  label: L0['navProfile'] as String,
                   icon: Container(
                     width: 18,
                     height: 18,

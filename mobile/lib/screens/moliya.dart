@@ -10,6 +10,7 @@ class MoliyaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = store.vals();
     final p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
     final totals = (v['molTotals'] as List).cast<Map<String, dynamic>>();
     final bars = (v['bars'] as List).cast<Map<String, dynamic>>();
     final reminders = (v['reminders'] as List).cast<Map<String, dynamic>>();
@@ -19,7 +20,7 @@ class MoliyaScreen extends StatelessWidget {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: Tx('Moliya', size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
+          child: Tx(L0['finTitle'] as String, size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
         ),
         Expanded(
           child: ListView(
@@ -49,7 +50,7 @@ class MoliyaScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Cap('OYLIK AYLANMA', ls: 1.6),
+                    Cap(L0['turnover'] as String, ls: 1.6),
                     Container(
                       height: 120,
                       margin: const EdgeInsets.only(top: 16),
@@ -101,7 +102,7 @@ class MoliyaScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: const Cap('ESLATMALAR', ls: 1.6),
+                  child: Cap(L0['remindersCap'] as String, ls: 1.6),
                 ),
               ),
               for (final rm in reminders)
@@ -136,7 +137,7 @@ class MoliyaScreen extends StatelessWidget {
                               border: Border.all(color: p.bd),
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Tx('Eslatish', size: 12, w: FontWeight.w600, color: p.ink),
+                            child: Tx(L0['remind'] as String, size: 12, w: FontWeight.w600, color: p.ink),
                           ),
                         ),
                       if (rm['cooling'] == true)

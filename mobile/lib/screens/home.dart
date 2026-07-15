@@ -1,4 +1,5 @@
-// Hamkorlar (Home) ekrani — prototype/template.html 315–418 bilan 1:1
+// Hamkorlar (Home) ekrani — logo header, pill qidiruv, "in Trust" avatar-badge.
+// Arxiv endi headerdagi tugma orqali alohida ekranda (screens/archive.dart).
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
@@ -12,6 +13,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = store.vals();
     final p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
 
     final listChildren = <Widget>[];
     if (v['skelHome'] == true) {
@@ -20,19 +22,10 @@ class HomeScreen extends StatelessWidget {
       }
     }
     for (final r in (v['clientRows'] as List)) {
-      listChildren.add(_SwipeRow(key: ValueKey(r['id']), r: r as Map<String, dynamic>, isArch: false));
+      listChildren.add(_SwipeRow(key: ValueKey(r['id']), r: r as Map<String, dynamic>));
     }
     if (v['homeLoadingMore'] == true) {
       listChildren.add(_skelRow(p, 0.48, 0.30, border: false));
-    }
-    if (v['hasArch'] == true) {
-      listChildren.add(const Padding(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 6),
-        child: Cap('ARXIV', ls: 1.6),
-      ));
-      for (final ar in (v['archRows'] as List)) {
-        listChildren.add(_SwipeRow(key: ValueKey(ar['id']), r: ar as Map<String, dynamic>, isArch: true));
-      }
     }
 
     return Stack(
@@ -47,18 +40,24 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Tx('Trust', size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
                       Row(
                         children: [
-                          Tx('Ishonchli hisob-kitob', size: 11, w: FontWeight.w500, color: p.t4, ls: 0.4),
-                          const SizedBox(width: 14),
+                          const TrustMark(size: 27, boxed: true),
+                          const SizedBox(width: 9),
+                          Tx('Trust', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _archBtn(v, p),
+                          const SizedBox(width: 10),
                           _bellBtn(v, p),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 22),
-                  const Cap('SOF BALANS', ls: 1.6),
+                  Cap(L0['netCap'] as String, ls: 1.6),
                   const SizedBox(height: 6),
                   Tx(v['netText'], size: 34, w: FontWeight.w700, color: v['netColor'], ls: -0.8),
                   const SizedBox(height: 10),
@@ -67,26 +66,46 @@ class HomeScreen extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       Row(mainAxisSize: MainAxisSize.min, children: [
-                        Tx('Sizga qarz  ', size: 12, color: p.t2),
+                        Tx('${L0['owedTo']}  ', size: 12, color: p.t2),
                         Tx(v['owedToMe'], size: 12, w: FontWeight.w600, color: p.ink),
                       ]),
                       Row(mainAxisSize: MainAxisSize.min, children: [
-                        Tx('Qarzingiz  ', size: 12, color: p.t2),
+                        Tx('${L0['owedBy']}  ', size: 12, color: p.t2),
                         Tx(v['owedByMe'], size: 12, w: FontWeight.w600, color: p.ink),
                       ]),
                     ],
                   ),
                   const SizedBox(height: 20),
                   Container(
-                    height: 40,
+                    height: 44,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    alignment: Alignment.centerLeft,
-                    decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(10)),
-                    child: StoreField(
-                      value: v['search'],
-                      onChanged: (t) => v['onSearch'](t),
-                      hint: 'Qidirish',
-                      style: GoogleFonts.inter(fontSize: 14, color: p.ink),
+                    decoration: BoxDecoration(
+                      color: p.field,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: p.hair2),
+                    ),
+                    child: Row(
+                      children: [
+                        SearchGlyph(color: p.t3, size: 16),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: StoreField(
+                            value: v['search'],
+                            onChanged: (t) => v['onSearch'](t),
+                            hint: L0['searchPh'] as String,
+                            style: GoogleFonts.inter(fontSize: 14, color: p.ink),
+                          ),
+                        ),
+                        if ((v['search'] as String).isNotEmpty)
+                          Tap(
+                            onTap: () => v['onSearch'](''),
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: Center(child: _cross(10, p.t3)),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -137,6 +156,71 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// × belgisi (qidiruvni tozalash)
+  Widget _cross(double s, Color c) {
+    return SizedBox(
+      width: s,
+      height: s,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Transform.rotate(angle: 0.785398, child: Container(width: s, height: 1.6, color: c)),
+          Transform.rotate(angle: -0.785398, child: Container(width: s, height: 1.6, color: c)),
+        ],
+      ),
+    );
+  }
+
+  /// Arxiv tugmasi (header) — quti belgisi, bosilganda arxiv ekrani ochiladi
+  Widget _archBtn(Map<String, dynamic> v, Pal p) {
+    return Tap(
+      onTap: () => v['openArch'](),
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 14,
+                height: 4.5,
+                decoration: BoxDecoration(
+                  border: Border.all(color: p.ink, width: 1.4),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+              const SizedBox(height: 1.5),
+              Container(
+                width: 11,
+                height: 7,
+                alignment: Alignment.topCenter,
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: p.ink, width: 1.4),
+                    right: BorderSide(color: p.ink, width: 1.4),
+                    bottom: BorderSide(color: p.ink, width: 1.4),
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(2.5),
+                    bottomRight: Radius.circular(2.5),
+                  ),
+                ),
+                child: Container(
+                  width: 4,
+                  height: 1.4,
+                  margin: const EdgeInsets.only(top: 1.4),
+                  color: p.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -238,11 +322,10 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Chapga surib arxivlash/qaytarish qatori.
+/// Chapga surib arxivlash qatori.
 class _SwipeRow extends StatefulWidget {
   final Map<String, dynamic> r;
-  final bool isArch;
-  const _SwipeRow({super.key, required this.r, required this.isArch});
+  const _SwipeRow({super.key, required this.r});
 
   @override
   State<_SwipeRow> createState() => _SwipeRowState();
@@ -255,7 +338,6 @@ class _SwipeRowState extends State<_SwipeRow> {
   Widget build(BuildContext context) {
     final p = curPal();
     final r = widget.r;
-    final isArch = widget.isArch;
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
       child: ClipRect(
@@ -267,11 +349,11 @@ class _SwipeRowState extends State<_SwipeRow> {
               bottom: 0,
               width: 96,
               child: Tap(
-                onTap: () => (isArch ? r['restore'] : r['archTap'])(),
+                onTap: () => r['archTap'](),
                 child: Container(
                   color: p.ink,
                   alignment: Alignment.center,
-                  child: Tx(isArch ? 'Qaytarish' : r['actLabel'], size: 12, w: FontWeight.w600, color: p.bg),
+                  child: Tx(r['actLabel'], size: 12, w: FontWeight.w600, color: p.bg),
                 ),
               ),
             ),
@@ -279,7 +361,7 @@ class _SwipeRowState extends State<_SwipeRow> {
               offset: Offset((r['tx'] as num).toDouble(), 0),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => (isArch ? r['rowTap'] : r['open'])(),
+                onTap: () => r['open'](),
                 onHorizontalDragStart: (_) {
                   _dx = 0;
                   store.swBegin(r['id']);
@@ -288,11 +370,11 @@ class _SwipeRowState extends State<_SwipeRow> {
                   _dx += d.delta.dx;
                   store.swMove(r['id'], _dx);
                 },
-                onHorizontalDragEnd: (_) => store.swEnd(r['id'], isArch ? r['restoreAct'] : r['archAct']),
-                onHorizontalDragCancel: () => store.swEnd(r['id'], isArch ? r['restoreAct'] : r['archAct']),
+                onHorizontalDragEnd: (_) => store.swEnd(r['id'], r['archAct']),
+                onHorizontalDragCancel: () => store.swEnd(r['id'], r['archAct']),
                 child: Container(
                   color: p.bg,
-                  child: isArch ? _archContent(p, r) : _clientContent(p, r),
+                  child: _clientContent(p, r),
                 ),
               ),
             ),
@@ -307,19 +389,7 @@ class _SwipeRowState extends State<_SwipeRow> {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
       child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-                child: Center(child: Tx(r['initials'], size: 14, w: FontWeight.w600, color: p.ink)),
-              ),
-              if (r['onTrust'] == true) TrustBadge(),
-              if (r['oneSided'] == true) OneSidedBadge(),
-            ],
-          ),
+          TrustAvatar(initials: r['initials'] as String, size: 46, onTrust: r['onTrust'] == true),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -341,31 +411,6 @@ class _SwipeRowState extends State<_SwipeRow> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _archContent(Pal p, Map<String, dynamic> r) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 24),
-      child: Opacity(
-        opacity: 0.75,
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-              child: Center(child: Tx(r['initials'], size: 11.5, w: FontWeight.w600, color: p.ink)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Tx(r['name'], size: 14, w: FontWeight.w500, color: p.t1, maxLines: 1, ellipsis: true),
-            ),
-            const SizedBox(width: 12),
-            Tx('Arxivda', size: 11, color: p.t4),
-          ],
-        ),
       ),
     );
   }

@@ -132,42 +132,85 @@ class ChevRight extends StatelessWidget {
   }
 }
 
-/// Avatar ustidagi "Trust'da" belgisi. Stack(clipBehavior: Clip.none) ichida ishlatiladi.
-class TrustBadge extends StatelessWidget {
+/// Trust logotipi — "Qavat toshlar": qatlam-qatlam qurilgan T (piramida).
+/// boxed=true — app-ikonka uslubi: to'q fonli yumaloq kvadrat ichida qatlamlar.
+class TrustMark extends StatelessWidget {
   final double size;
-  const TrustBadge({super.key, this.size = 16});
+  final bool boxed;
+  final Color? color;
+  const TrustMark({super.key, this.size = 24, this.boxed = false, this.color});
+
+  Widget _bars(double s, Color c) {
+    Widget bar(double w) => Container(
+          width: w,
+          height: s * 9 / 48,
+          decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(s * 4.5 / 48)),
+        );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        bar(s * 36 / 48),
+        SizedBox(height: s * 4 / 48),
+        bar(s * 24 / 48),
+        SizedBox(height: s * 4 / 48),
+        bar(s * 12 / 48),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = curPal();
-    final k = size / 16;
-    return Positioned(
-      right: -2,
-      bottom: -2,
-      child: Container(
+    if (boxed) {
+      return Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: p.ink,
-          shape: BoxShape.circle,
-          border: Border.all(color: p.bg, width: 2),
-        ),
-        child: Center(
-          child: Transform.translate(
-            offset: Offset(0, -1.5 * k),
-            child: Transform.rotate(
-              angle: -0.785398,
-              child: Container(
-                width: 6 * k,
-                height: 3 * k,
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(color: p.bg, width: 1.4),
-                    bottom: BorderSide(color: p.bg, width: 1.4),
-                  ),
+        decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(size * 0.23)),
+        child: Center(child: _bars(size * 0.66, p.bg)),
+      );
+    }
+    return SizedBox(width: size, height: size, child: Center(child: _bars(size, color ?? p.ink)));
+  }
+}
+
+/// Hamkor avatari. Trust ilovasini ishlatadiganlarda rasm ichida, pastki qismida
+/// "in Trust" lenta-badge ko'rinadi (kichik burchak-ikonkalar o'rniga).
+class TrustAvatar extends StatelessWidget {
+  final String initials;
+  final double size;
+  final bool onTrust;
+  const TrustAvatar({super.key, required this.initials, this.size = 44, this.onTrust = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipOval(
+        child: Container(
+          color: p.card2,
+          child: Stack(
+            children: [
+              Center(
+                child: Transform.translate(
+                  offset: Offset(0, onTrust ? -size * 0.07 : 0),
+                  child: Tx(initials, size: size * 0.32, w: FontWeight.w600, color: p.ink),
                 ),
               ),
-            ),
+              if (onTrust)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    height: size * 0.30,
+                    color: p.ink,
+                    alignment: const Alignment(0, -0.45),
+                    child: Tx('in Trust', size: size * 0.155, w: FontWeight.w600, color: p.bg, ls: 0.2),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -175,52 +218,38 @@ class TrustBadge extends StatelessWidget {
   }
 }
 
-/// "Trust'da yo'q" belgisi
-class OneSidedBadge extends StatelessWidget {
+/// Qidiruv belgisi (lupa) — chiziqlar bilan chizilgan, ikonka to'plamisiz.
+class SearchGlyph extends StatelessWidget {
+  final Color color;
   final double size;
-  const OneSidedBadge({super.key, this.size = 16});
+  const SearchGlyph({super.key, required this.color, this.size = 16});
 
   @override
   Widget build(BuildContext context) {
-    final p = curPal();
     final k = size / 16;
-    return Positioned(
-      right: -2,
-      bottom: -2,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: p.bg,
-          shape: BoxShape.circle,
-          border: Border.all(color: p.t4, width: 1.4),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 4 * k,
-              height: 4 * k,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.t2, width: 1.2)),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 1 * k,
+            top: 1 * k,
+            child: Container(
+              width: 10 * k,
+              height: 10 * k,
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 1.6)),
             ),
-            Container(
-              width: 8 * k,
-              height: 3.5 * k,
-              margin: const EdgeInsets.only(top: 0.5),
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: p.t2, width: 1.2),
-                  top: BorderSide(color: p.t2, width: 1.2),
-                  right: BorderSide(color: p.t2, width: 1.2),
-                ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(4 * k),
-                  topRight: Radius.circular(4 * k),
-                ),
-              ),
+          ),
+          Positioned(
+            right: 1.5 * k,
+            bottom: 3.2 * k,
+            child: Transform.rotate(
+              angle: 0.785398,
+              child: Container(width: 6 * k, height: 1.6, color: color),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -469,6 +498,8 @@ class StoreField extends StatefulWidget {
   final VoidCallback? onSubmit;
   final TextAlign textAlign;
   final bool autofocus;
+  final int maxLines;
+  final int minLines;
   const StoreField({
     super.key,
     required this.value,
@@ -480,6 +511,8 @@ class StoreField extends StatefulWidget {
     this.onSubmit,
     this.textAlign = TextAlign.start,
     this.autofocus = false,
+    this.maxLines = 1,
+    this.minLines = 1,
   });
 
   @override
@@ -514,9 +547,11 @@ class _StoreFieldState extends State<StoreField> {
       controller: _c,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
-      keyboardType: widget.keyboardType,
+      keyboardType: widget.maxLines > 1 ? TextInputType.multiline : widget.keyboardType,
       textAlign: widget.textAlign,
       autofocus: widget.autofocus,
+      maxLines: widget.maxLines,
+      minLines: widget.minLines,
       style: st,
       cursorColor: p.ink,
       decoration: InputDecoration(

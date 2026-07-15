@@ -143,7 +143,7 @@ class ProfilScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 24),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Tx('Chiqish', size: 14.5, w: FontWeight.w600, color: p.ink),
+              child: Tx((v['L'] as Map)['logout'] as String, size: 14.5, w: FontWeight.w600, color: p.ink),
             ),
           ),
         ),

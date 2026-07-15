@@ -22,7 +22,7 @@ class NotifsScreen extends StatelessWidget {
             children: [
               BackBtn(onTap: v['closeNotifs']),
               const SizedBox(width: 10),
-              Tx('Bildirishnomalar', size: 16, w: FontWeight.w700, color: p.ink),
+              Tx((v['L'] as Map)['profNotif'] as String, size: 16, w: FontWeight.w700, color: p.ink),
             ],
           ),
         ),

@@ -9,76 +9,12 @@ import 'theme.dart';
 import 'api.dart';
 import 'stt.dart';
 import 'secure.dart';
+import 'l10n.dart';
 
 // Ovozli kiritish (STT) vaqtincha o'chirilgan — matn-birinchi rejim.
 // Qayta yoqish: true qiling (mic UI qaytadi, matn input yo'qoladi).
 const bool kSttEnabled = false;
 
-const Map<String, dynamic> _uz = {
-  'slogan': "«Hisobli do'st — ayrilmas»",
-  'tagline': "Qarz va hisob-kitoblaringizni bitta joyda yuriting. Har bir yozuv saqlanadi — kontragent qabul qilsa, unga ham ko'rinadi.",
-  'start': 'Boshlash', 'terms': 'Davom etish orqali foydalanish shartlariga rozilik bildirasiz',
-  'phoneTitle': 'Telefon raqami', 'phoneSub': "Hisobingiz shu raqamga bog'lanadi", 'cont': 'Davom etish',
-  'otpTitle': 'Tasdiqlash kodi', 'otpDemo': 'SMS orqali kelgan 5 xonali kodni kiriting', 'confirm': 'Tasdiqlash',
-  'pinTitle': "PIN o'rnating", 'pinSub': 'Ilovaga kirish uchun 4 xonali kod',
-  'appSub': 'Ishonchli hisob-kitob', 'netCap': 'SOF BALANS', 'owedTo': 'Sizga qarz', 'owedBy': 'Qarzingiz', 'searchPh': 'Qidirish',
-  'navClients': 'Hamkorlar', 'navFin': 'Moliya', 'navProfile': 'Profil',
-  'tabChat': 'Chat', 'tabOps': 'Operatsiyalar', 'opCap': 'Operatsiya',
-  'codeWrong': "Kod noto'g'ri. Qayta urinib ko'ring.",
-  'openDalil': 'Dalilni ochish', 'msgPh': 'Xabar yozing',
-  'receiptTitle': 'Dalil', 'lockedCap': 'QULFLANGAN YOZUV', 'from': 'Kimdan', 'to': 'Kimga', 'date': 'Sana',
-  'codeLabel': 'Tasdiqlash kodi', 'statusL': 'Holat', 'statusVal': 'Daftar yozuvi',
-  'receiptNote': "Ushbu yozuv o'chirib bo'lmaydi. O'zgartirish faqat ikki tomon roziligi bilan amalga oshiriladi.",
-  'share': 'Ulashish (PDF)', 'changeReq': "O'zgartirish so'rovi", 'archive': 'Arxivlash',
-  'finTitle': 'Moliya', 'turnover': 'OYLIK AYLANMA', 'mlnHint': "mln so'm hisobida", 'remindersCap': 'ESLATMALAR', 'remind': 'Eslatish',
-  'given': 'Berilgan qarzlar', 'taken': 'Olingan qarzlar', 'repaid': "Qaytarilgan to'lovlar", 'netLabel': 'Sof balans',
-  'logout': 'Chiqish',
-  'namePh': 'Ism yozing', 'notePh': 'Masalan: mol savdosi uchun',
-  'sheetNew': 'Yangi operatsiya', 'sheetNewBook': 'Yangi tasdiqsiz yozuv', 'makeCode': 'Kod yaratish', 'saveUnconf': 'Saqlash (tasdiqsiz)',
-  'hintClient': "Kod chatda ko'rinadi. Ikkinchi tomon kodni kiritgach, yozuv qulflanadi.",
-  'hintBook': 'Bu yozuv faqat sizning daftaringizda saqlanadi — dalil emas.',
-  'balPfx': 'Balans: ', 'stPending': 'Kutilmoqda', 'stOk': 'Yozuv', 'stArch': 'Arxivda', 'kod': 'kod',
-  'me': 'Jasur Toshmatov (siz)', 'last': "So'nggi: ", 'noOps': "Amaliyot yo'q",
-  'subPos': 'sizga qarz', 'subNeg': 'siz qarzsiz', 'subZero': 'hisob teng', 'zero': "0 so'm", 'som': "so'm", 'due': 'muddat',
-  'tCode': 'Kod yaratildi — ', 'tSaved': 'Tasdiqsiz yozuv saqlandi', 'tDalil': 'Dalil yaratildi',
-  'tArch': "Arxivga ko'chirildi", 'tWelcome': 'Xush kelibsiz!',
-  'tSum': 'Summani kiriting', 'tNum': "Raqamni to'liq kiriting", 'tEnterCode': 'Kodni kiriting',
-  'profTil': 'Til', 'profTilVal': "O'zbek (lotin)", 'profCur': 'Asosiy valyuta', 'profPin': 'PIN-kod',
-  'profNotif': 'Bildirishnomalar', 'profArch': 'Arxivlangan yozuvlar', 'on': 'Yoqilgan',
-};
-
-const Map<String, dynamic> _ru = {
-  'slogan': '«Счёт дружбы не портит»',
-  'tagline': 'Ведите долги в одном месте. Каждая запись сохраняется — если контрагент примет связь, она видна и ему.',
-  'start': 'Начать', 'terms': 'Продолжая, вы соглашаетесь с условиями использования',
-  'phoneTitle': 'Номер телефона', 'phoneSub': 'Аккаунт будет привязан к этому номеру', 'cont': 'Продолжить',
-  'otpTitle': 'Код подтверждения', 'otpDemo': 'Введите 5-значный код из SMS', 'confirm': 'Подтвердить',
-  'pinTitle': 'Установите PIN', 'pinSub': 'Код из 4 цифр для входа в приложение',
-  'appSub': 'учёт долгов', 'netCap': 'ЧИСТЫЙ БАЛАНС', 'owedTo': 'Вам должны', 'owedBy': 'Вы должны', 'searchPh': 'Поиск',
-  'navClients': 'Клиенты', 'navFin': 'Финансы', 'navProfile': 'Профиль',
-  'tabChat': 'Чат', 'tabOps': 'Операции', 'opCap': 'Операция',
-  'codeWrong': 'Неверный код. Попробуйте ещё раз.',
-  'openDalil': 'Открыть далил', 'msgPh': 'Напишите сообщение',
-  'receiptTitle': 'Далил', 'lockedCap': 'ЗАЩИЩЁННАЯ ЗАПИСЬ', 'from': 'От кого', 'to': 'Кому', 'date': 'Дата',
-  'codeLabel': 'Код подтверждения', 'statusL': 'Статус', 'statusVal': 'Запись в тетради',
-  'receiptNote': 'Эту запись нельзя удалить. Изменения — только с согласия обеих сторон.',
-  'share': 'Поделиться (PDF)', 'changeReq': 'Запрос на изменение', 'archive': 'В архив',
-  'finTitle': 'Финансы', 'turnover': 'ОБОРОТ ПО МЕСЯЦАМ', 'mlnHint': 'в млн сумов', 'remindersCap': 'НАПОМИНАНИЯ', 'remind': 'Напомнить',
-  'given': 'Выдано в долг', 'taken': 'Взято в долг', 'repaid': 'Возвращено', 'netLabel': 'Чистый баланс',
-  'logout': 'Выйти',
-  'namePh': 'Введите имя', 'notePh': 'Например: за товар',
-  'sheetNew': 'Новая операция', 'sheetNewBook': 'Запись без подтверждения', 'makeCode': 'Создать код', 'saveUnconf': 'Сохранить (без подтв.)',
-  'hintClient': 'Код появится в чате. Когда вторая сторона введёт код, запись будет заблокирована.',
-  'hintBook': 'Эта запись хранится только в вашей тетради — это не далил.',
-  'balPfx': 'Баланс: ', 'stPending': 'Ожидание', 'stOk': 'Запись', 'stArch': 'В архиве', 'kod': 'код',
-  'me': 'Жасур Тошматов (вы)', 'last': 'Последняя: ', 'noOps': 'Нет операций',
-  'subPos': 'вам должны', 'subNeg': 'вы должны', 'subZero': 'счёт равный', 'zero': '0 сум', 'som': 'сум', 'due': 'срок',
-  'tCode': 'Код создан — ', 'tSaved': 'Запись сохранена (без подтв.)', 'tDalil': 'Далил создан',
-  'tArch': 'Перенесено в архив', 'tWelcome': 'Добро пожаловать!',
-  'tSum': 'Введите сумму', 'tNum': 'Введите номер полностью', 'tEnterCode': 'Введите код',
-  'profTil': 'Язык', 'profTilVal': 'Русский', 'profCur': 'Основная валюта', 'profPin': 'PIN-код',
-  'profNotif': 'Уведомления', 'profArch': 'Записи в архиве', 'on': 'Включено',
-};
 
 const List<Map<String, dynamic>> ccList = [
   {'f': '🇺🇿', 'n': "O'zbekiston", 'd': '+998', 'len': 9, 'ph': '90 123 45 67'},
@@ -107,8 +43,9 @@ class TrustStore extends ChangeNotifier {
     'xfTray': <Map<String, dynamic>>[], // ANIQLANMAGAN — papka tanlanishi kutilayotgan yozuvlar
     'xfEditing': null, // {id, label} — input orqali tahrirlash rejimi
     'xfConfirm': null, // {kind:'merge'|'delf', from, to} — tasdiqlash kartasi
-    'xfToast': null, // {text, undo} — o'chirishda "Bekor qilish" bilan lokal toast
+    'xfToast': null, // {text, kind:'add'|'del', ids|entry} — "Bekor qilish" bilan lokal toast
     'xfNewCats': <String>[], // shu sessiyada yangi ochilgan papkalar ("Yangi ✨")
+    'xfFly': <Map<String, dynamic>>[], // papkaga "uchish" animatsiya hodisalari (UI iste'mol qiladi)
     // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
     'xEditId': null, 'xEditVals': null,
     'xarLimit': 0, 'limEdit': null,
@@ -116,7 +53,7 @@ class TrustStore extends ChangeNotifier {
     'screen': 'home', 'clientId': null, 'tab': 'chat',
     'sheetOpen': false, 'sheetMode': 'client', 'sheetClient': null,
     'receiptId': null, 'search': '', 'chatInput': '', 'toast': '',
-    'notifOpen': false,
+    'notifOpen': false, 'archOpen': false, 'langOpen': false,
     'editFormOpen': false, 'editA': '', 'editNote': '', 'pdfOpen': false,
     'playing': null, 'recOn': false, 'remTimes': <String, int>{},
     'pinOn': true, 'notifOn': true,
@@ -436,7 +373,7 @@ class TrustStore extends ChangeNotifier {
     _startPolling();
   }
 
-  Map<String, dynamic> L() => S['lang'] == 'ru' ? _ru : _uz;
+  Map<String, dynamic> L() => kLangs[S['lang']] ?? lUz;
 
   void toast_(String msg) {
     _tt?.cancel();
@@ -454,13 +391,7 @@ class TrustStore extends ChangeNotifier {
     set({'lang': l});
   }
 
-  String typeLabel(String t) {
-    if (S['lang'] != 'ru') return t;
-    return {
-      'Qarz berdim': 'Дал в долг', 'Qarz oldim': 'Взял в долг',
-      "To'lov oldim": 'Получил оплату', "To'lov berdim": 'Отдал оплату',
-    }[t] ?? t;
-  }
+  String typeLabel(String t) => kTypeLabels[S['lang']]?[t] ?? t;
 
   /// Foydalanuvchi yozgan chat xabari (lokal — serverda chat yo'q)
   void addLocalMsg(String cid, Map<String, dynamic> m) {
@@ -958,21 +889,40 @@ class TrustStore extends ChangeNotifier {
         final c = e['cat'] as String;
         if (!existing.contains(c) && !newCats.contains(c)) newCats.add(c);
       }
-      set({'xarEntries': [...es.reversed, ..._xar()], 'xfNewCats': newCats});
+      // Fly-animatsiya hodisalari: har yozuv o'z papkasiga "uchadi" (dizayn: flyToFolder)
+      final fly = List<Map<String, dynamic>>.from(S['xfFly'] as List);
+      for (final e in es) {
+        fly.add({
+          'cat': e['cat'], 'emoji': xfEmoji(e['cat'] as String),
+          'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
+          'inc': e['kind'] == 'd',
+        });
+      }
+      set({'xarEntries': [...es.reversed, ..._xar()], 'xfNewCats': newCats, 'xfFly': fly});
       for (final e in es) {
         _xfLogAdd('add',
             cat: e['cat'] as String,
             desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
             amount: e['a'] as int, income: e['kind'] == 'd', id: e['id'] as String?);
       }
+      // Dizayn toasti: "N ta yozuv saqlandi · X so'm" + Bekor qilish (saqlanganlarni o'chiradi)
+      final total = es.fold<int>(0, (s, e) => s + (e['a'] as int));
+      final ids = es.map((e) => e['id'] as String).toList();
+      _xfToastShow({
+        'text': "${es.length} ta yozuv saqlandi · ${_fx(total)} so'm",
+        'kind': 'add', 'ids': ids,
+      });
     }
     set({'voiceStage': null, 'vText': ''});
-    if (saved.isNotEmpty) {
-      final cats = saved.map((e) => e['category'] ?? 'Boshqa').toSet().join(', ');
-      toast_('✓ Qo\'shildi: $cats');
-    }
     if (routed.isNotEmpty) _routeQarz(routed.first);
     return true;
+  }
+
+  // Lokal (dizayn uslubidagi) toast — 5 soniyada o'zi yopiladi
+  void _xfToastShow(Map<String, dynamic> t) {
+    set({'xfToast': t});
+    _xfToastT?.cancel();
+    _xfToastT = Timer(const Duration(seconds: 5), () => set({'xfToast': null}));
   }
 
   // Qarz amali — Xarajatga EMAS (XOTIRA §3: bitta mic — uch natija).
@@ -1141,15 +1091,17 @@ class TrustStore extends ChangeNotifier {
       ..sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
   }
 
-  // Sparkline: oy kunlari -> 8 savat, 0..1 normallashgan
+  // Dinamik sparkline (dizayn kabi): papkaning OXIRGI 8 yozuvi summalari — yangi yozuv
+  // qo'shilganda chiziq siljiydi (rolling oyna). Kam yozuvda chapdan past qiymat bilan to'ldiriladi.
   List<double> _xfSpark(List entries) {
-    final b = List<double>.filled(8, 0);
-    for (final e in entries) {
-      final d = (((e as Map)['dom'] as int? ?? 1) - 1).clamp(0, 30);
-      b[(d * 8 / 31).floor()] += ((e)['a'] as int).toDouble();
-    }
-    final m = b.reduce(math.max);
-    return m <= 0 ? List<double>.filled(8, 0.06) : b.map((v) => v <= 0 ? 0.06 : v / m).toList();
+    final es = entries.cast<Map<String, dynamic>>().toList()
+      ..sort((a, b) => (b['days'] as int).compareTo(a['days'] as int)); // eski -> yangi
+    final amts = es.map((e) => (e['a'] as int).toDouble()).toList();
+    final last = amts.length > 8 ? amts.sublist(amts.length - 8) : amts;
+    final vals = List<double>.filled(8 - last.length, 0.0)..addAll(last);
+    final m = vals.reduce(math.max);
+    if (m <= 0) return List<double>.filled(8, 0.08);
+    return vals.map((v) => v <= 0 ? 0.08 : (0.15 + (v / m) * 0.85)).toList();
   }
 
   // Sessiya jurnali (Oxirgi o'zgarishlar) — max 12
@@ -1288,31 +1240,38 @@ class TrustStore extends ChangeNotifier {
       toast_(r.error);
       return;
     }
-    set({
-      'xarEntries': _xar().where((x) => x['id'] != id).toList(),
-      'xfToast': {'text': "O'chirildi", 'undo': e},
-    });
+    set({'xarEntries': _xar().where((x) => x['id'] != id).toList()});
     _xfLogAdd('del', cat: e['cat'] as String,
         desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
         amount: e['a'] as int, income: e['kind'] == 'd');
-    _xfToastT?.cancel();
-    _xfToastT = Timer(const Duration(seconds: 5), () => set({'xfToast': null}));
+    _xfToastShow({'text': "O'chirildi", 'kind': 'del', 'entry': e});
   }
 
+  // Bekor qilish (undo): del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi
   Future<void> xfUndo_() async {
     final t = S['xfToast'] as Map<String, dynamic>?;
-    final e = t?['undo'] as Map<String, dynamic>?;
     _xfToastT?.cancel();
     set({'xfToast': null});
-    if (e == null) return;
-    final r = await Api.addExpense(e['a'] as int, e['kind'] == 'd', e['cat'] as String, (e['note'] as String?) ?? '');
-    if (!r.ok) {
-      toast_(r.error);
-      return;
+    if (t == null) return;
+    if (t['kind'] == 'del') {
+      final e = t['entry'] as Map<String, dynamic>?;
+      if (e == null) return;
+      final r = await Api.addExpense(e['a'] as int, e['kind'] == 'd', e['cat'] as String, (e['note'] as String?) ?? '');
+      if (!r.ok) {
+        toast_(r.error);
+        return;
+      }
+      final ne = _mapExpense(r.data as Map<String, dynamic>);
+      set({'xarEntries': [ne, ..._xar()]});
+      toast_('Qaytarildi');
+    } else if (t['kind'] == 'add') {
+      final ids = (t['ids'] as List?)?.cast<String>() ?? [];
+      for (final id in ids) {
+        await Api.deleteExpense(id);
+      }
+      set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList()});
+      toast_('Bekor qilindi');
     }
-    final ne = _mapExpense(r.data as Map<String, dynamic>);
-    set({'xarEntries': [ne, ..._xar()]});
-    toast_('Qaytarildi');
   }
 
   // ANIQLANMAGAN tray
@@ -1397,6 +1356,7 @@ class TrustStore extends ChangeNotifier {
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
       'screen': 'home', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
       'notifOpen': false, 'linkDecisionId': null, 'rejOpen': false,
+      'archOpen': false, 'langOpen': false,
       'inLinkId': null, 'inLinkOps': <Map<String, dynamic>>[],
       'links': <Map<String, dynamic>>[],
       'clients': <Map<String, dynamic>>[], 'txs': <Map<String, dynamic>>[],
@@ -1753,6 +1713,13 @@ class TrustStore extends ChangeNotifier {
           'xfUndo': () => xfUndo_(),
           'xfBusy': S['voiceStage'] == 'parsing',
           'xfSend': () => xfSend_(),
+          // To'liq ekran: header'dagi orqaga tugmasi (dizayn: bottom navsiz)
+          'xfBack': () => set({'screen': 'home', 'xfDetail': null, 'xfLogOpen': false}),
+          // Fly-animatsiya hodisalari: UI o'qib, ishga tushirib, xfFlyDone bilan tozalaydi
+          'xfFlyEvents': (S['xfFly'] as List).cast<Map<String, dynamic>>(),
+          'xfFlyDone': () {
+            if ((S['xfFly'] as List).isNotEmpty) S['xfFly'] = <Map<String, dynamic>>[];
+          },
         };
       })(),
       // ---- Chatdagi yozuvni inline tahrirlash (bubble bosilganda) ----
@@ -1872,7 +1839,7 @@ class TrustStore extends ChangeNotifier {
               'archTap': () {}, 'archAct': () {},
               'name': l['name'], 'initials': initials(l['name'] as String),
               'onTrust': true, 'oneSided': false,
-              'sub': "Sizni kontragent qilib qo'shgan",
+              'sub': L0['addedYou'],
               'bal': tot == 0 ? L0['zero'] : (tot > 0 ? '+' : '−') + money(tot.abs(), 'UZS'),
               'color': tot > 0 ? green : (tot < 0 ? red : mut),
               'balSub': tot > 0 ? L0['subPos'] : (tot < 0 ? L0['subNeg'] : L0['subZero']),
@@ -2054,7 +2021,7 @@ class TrustStore extends ChangeNotifier {
     }
 
     // Receipt
-    final meStr = '${meLabel()} ${S['lang'] == 'ru' ? '(вы)' : '(siz)'}';
+    final meStr = '${meLabel()} ${L0['you']}';
     String shortId(String id) => id.replaceAll('-', '').substring(0, math.min(6, id.replaceAll('-', '').length)).toUpperCase();
     String fullDate(int? ts) {
       if (ts == null || ts == 0) return '';
@@ -2209,9 +2176,9 @@ class TrustStore extends ChangeNotifier {
         };
     final rejCount = linksAll.where((l) => l['status'] == 'rejected').length;
     final profRows = [
-      {'label': L0['profTil'], 'value': L0['profTilVal'], 'isPlain': true, 'isSwitch': false, 'tap': () => setLang(S['lang'] == 'uz' ? 'ru' : 'uz')},
+      {'label': L0['profTil'], 'value': L0['profTilVal'], 'isPlain': true, 'isSwitch': false, 'tap': () => set({'langOpen': true})},
       {'label': L0['profCur'], 'value': 'UZS', 'isPlain': true, 'isSwitch': false, 'tap': () {}},
-      mkSwitch('Tungi rejim', dk, () => setDark(!dk)),
+      mkSwitch(L0['darkMode'], dk, () => setDark(!dk)),
       mkSwitch(L0['profPin'], S['pinOn'] == true, () => _togglePin()),
       // Bildirishnomalar — serverda saqlanadi (op_new/rem shu bilan boshqariladi)
       mkSwitch(L0['profNotif'], S['notifOn'] == true, () async {
@@ -2225,7 +2192,7 @@ class TrustStore extends ChangeNotifier {
       }),
       // Rad etilgan bog'lanishlar — istalgan payt tiklash mumkin
       {
-        'label': 'Rad etilgan bog\'lanishlar',
+        'label': L0['rejLinks'],
         'value': rejCount > 0 ? rejCount.toString() : '',
         'isPlain': true, 'isSwitch': false,
         'tap': () => set({'rejOpen': true}),
@@ -2361,6 +2328,7 @@ class TrustStore extends ChangeNotifier {
       'onSearch': (String t) => set({'search': t, 'homeVis': 6}),
       'clientRows': homeRows,
       'hasArch': S['skelHome'] != true && _clients().any((c) => c['archived'] == true),
+      'archCount': _clients().where((c) => c['archived'] == true).length,
       'archRows': _clients().where((c) => c['archived'] == true).map((c) {
         final aid = 'a${c['id']}';
         final cid = c['id'] as String;
@@ -2557,7 +2525,7 @@ class TrustStore extends ChangeNotifier {
       'sendChat': () {
         if ((S['chatInput'] as String).trim().isEmpty || client == null) return;
         addLocalMsg(client['id'] as String,
-            {'k': 'text', 'mine': true, 'text': (S['chatInput'] as String).trim(), 'time': 'Hozir', 'read': false});
+            {'k': 'text', 'mine': true, 'text': (S['chatInput'] as String).trim(), 'time': _hhmm(DateTime.now()), 'read': false});
         set({'chatInput': ''});
       },
       // Kiruvchi daftar faqat o'qish uchun — yangi yozuvni faqat sotuvchi kiritadi
@@ -2627,10 +2595,8 @@ class TrustStore extends ChangeNotifier {
       'isApp': stage == 'app',
       // PIN ekrani ikki holatda: onboardingda o'rnatish / qayta kirishda tekshirish
       'pinCheck': S['pinMode'] == 'check',
-      'pinTitle': S['pinMode'] == 'check' ? 'PIN kiriting' : "PIN o'rnating",
-      'pinSub': S['pinMode'] == 'check'
-          ? 'Davom etish uchun 4 xonali kodni kiriting'
-          : 'Ilovaga kirish uchun 4 xonali kod',
+      'pinTitle': S['pinMode'] == 'check' ? L0['pinEnterTitle'] : L0['pinTitle'],
+      'pinSub': S['pinMode'] == 'check' ? L0['pinEnterSub'] : L0['pinSub'],
       'pinErr': S['pinErr'] == true,
       'startOnb': () => set({'stage': 'phone'}),
       'backToWelcome': () => set({'stage': 'welcome'}),
@@ -2686,6 +2652,24 @@ class TrustStore extends ChangeNotifier {
       'notifOpen': S['notifOpen'],
       'notifRows': notifRows,
       'bellDot': _notifs().any((n) => n['unread'] == true),
+
+      // Arxiv — headerdagi tugma orqali alohida ekran
+      'archOpen': S['archOpen'] == true,
+      'openArch': () => set({'archOpen': true}),
+      'closeArch': () => set({'archOpen': false}),
+
+      // Til tanlash sheet'i
+      'langOpen': S['langOpen'] == true,
+      'closeLang': () => set({'langOpen': false}),
+      'langRows': kLangMeta.map((m) => {
+        'key': m['code'],
+        'flag': m['flag'], 'name': m['name'],
+        'sel': S['lang'] == m['code'],
+        'pick': () {
+          setLang(m['code']!);
+          set({'langOpen': false});
+        },
+      }).toList(),
 
       // Bog'lanish qarori (minimal preview) + rad etilganlar
       'linkDecisionOpen': ldLink != null,

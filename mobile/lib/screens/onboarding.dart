@@ -12,23 +12,24 @@ class OnboardingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = store.vals();
     final p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
     Widget body;
     if (v['isOnbWelcome'] == true) {
-      body = _welcome(v, p);
+      body = _welcome(v, p, L0);
     } else if (v['isOnbPhone'] == true) {
-      body = _phone(v, p);
+      body = _phone(v, p, L0);
     } else if (v['isOnbOtp'] == true) {
-      body = _otp(v, p);
+      body = _otp(v, p, L0);
     } else if (v['isOnbPin'] == true) {
-      body = _pin(v, p);
+      body = _pin(v, p, L0);
     } else {
       return const SizedBox.shrink();
     }
     return Container(color: p.bg, child: body);
   }
 
-  // 0a · Xush kelibsiz
-  Widget _welcome(Map<String, dynamic> v, Pal p) {
+  // 0a · Xush kelibsiz — markazda brend logotip (Qavat toshlar)
+  Widget _welcome(Map<String, dynamic> v, Pal p, Map<String, dynamic> L0) {
     return Column(
       children: [
         Expanded(
@@ -38,18 +39,12 @@ class OnboardingScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                  child: Tx('T', size: 24, w: FontWeight.w700, color: p.bg),
-                ),
-                const SizedBox(height: 20),
+                const TrustMark(size: 84, boxed: true),
+                const SizedBox(height: 22),
                 Tx('Trust', size: 32, w: FontWeight.w700, color: p.ink, ls: -0.5),
                 const SizedBox(height: 14),
                 Tx(
-                  "Qarz va hisob-kitoblaringizni ikki tomonlama tasdiq bilan yuriting. Har bir yozuv — o'chirilmas halol dalil.",
+                  L0['tagline'] as String,
                   size: 14,
                   color: p.t1,
                   lh: 22.4,
@@ -63,10 +58,10 @@ class OnboardingScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
           child: Column(
             children: [
-              InkBtn(label: 'Boshlash', h: 52, onTap: () => v['startOnb']()),
+              InkBtn(label: L0['start'] as String, h: 52, onTap: () => v['startOnb']()),
               const SizedBox(height: 14),
               Tx(
-                'Davom etish orqali foydalanish shartlariga rozilik bildirasiz',
+                L0['terms'] as String,
                 size: 11,
                 color: p.t5,
                 align: TextAlign.center,
@@ -79,7 +74,7 @@ class OnboardingScreen extends StatelessWidget {
   }
 
   // 0b · Telefon raqami
-  Widget _phone(Map<String, dynamic> v, Pal p) {
+  Widget _phone(Map<String, dynamic> v, Pal p, Map<String, dynamic> L0) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -92,9 +87,9 @@ class OnboardingScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Tx('Telefon raqami', size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
+              Tx(L0['phoneTitle'] as String, size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
               const SizedBox(height: 8),
-              Tx("Hisobingiz shu raqamga bog'lanadi", size: 13.5, color: p.t2, lh: 20.25),
+              Tx(L0['phoneSub'] as String, size: 13.5, color: p.t2, lh: 20.25),
               const SizedBox(height: 28),
               Row(
                 children: [
@@ -161,7 +156,7 @@ class OnboardingScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              InkBtn(label: 'Davom etish', h: 52, onTap: () => v['phoneNext']()),
+              InkBtn(label: L0['cont'] as String, h: 52, onTap: () => v['phoneNext']()),
             ],
           ),
         ),
@@ -170,7 +165,7 @@ class OnboardingScreen extends StatelessWidget {
   }
 
   // 0c · Tasdiqlash kodi
-  Widget _otp(Map<String, dynamic> v, Pal p) {
+  Widget _otp(Map<String, dynamic> v, Pal p, Map<String, dynamic> L0) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -185,9 +180,9 @@ class OnboardingScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx('Tasdiqlash kodi', size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
+                Tx(L0['otpTitle'] as String, size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
                 const SizedBox(height: 8),
-                Tx('${v['otpPhone']} raqamiga yuborildi', size: 13.5, color: p.t2, maxLines: 1),
+                Tx('${v['otpPhone']}', size: 13.5, w: FontWeight.w600, color: p.t2, maxLines: 1, tab: true),
                 const SizedBox(height: 28),
                 Center(
                   child: CodeBoxes(
@@ -202,7 +197,7 @@ class OnboardingScreen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Tx(v['L']['otpDemo'] as String, size: 12, color: p.t4),
                 const SizedBox(height: 24),
-                InkBtn(label: 'Tasdiqlash', h: 52, onTap: () => v['otpConfirm']()),
+                InkBtn(label: L0['confirm'] as String, h: 52, onTap: () => v['otpConfirm']()),
               ],
             ),
           ),
@@ -213,7 +208,7 @@ class OnboardingScreen extends StatelessWidget {
   }
 
   // 0d · PIN o'rnating
-  Widget _pin(Map<String, dynamic> v, Pal p) {
+  Widget _pin(Map<String, dynamic> v, Pal p, Map<String, dynamic> L0) {
     return Column(
       children: [
         Align(

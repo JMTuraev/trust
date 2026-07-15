@@ -1,6 +1,10 @@
 // Xarajatlar — papka (folder) UI, dizayn "Xarajatlar Trust.html" bilan 1:1.
-// Matn-birinchi: pastdagi input -> AI toifalaydi -> yozuv papkaga tushadi.
-// Buyruqlar: "X ni Yga birlashtir", "X papkasini o'chir". Tahrir/o'chirish — papka ichida.
+// TO'LIQ EKRAN: bottom navsiz, header'da orqaga. Matn-birinchi: input -> AI -> papka.
+// Dinamika (dizayn kabi): input ichida rangli belgilash (summa yashil/qizil, toifa/buyruq/sana
+// fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
+// yangisida siljiydi), yangi papka "pop", tray "shake", toastlar "Bekor qilish" bilan.
+import 'dart:ui' show lerpDouble;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
@@ -14,15 +18,30 @@ class XarajatScreen extends StatefulWidget {
   State<XarajatScreen> createState() => _XarajatScreenState();
 }
 
-class _XarajatScreenState extends State<XarajatScreen> {
+class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateMixin {
+  // Papka kartalari pozitsiyasi (fly nishoni) va pulslash hisoblagichi
+  final Map<String, GlobalKey> _fk = {};
+  final GlobalKey _inputKey = GlobalKey();
+  final Map<String, int> _pulse = {};
+
+  GlobalKey _keyFor(String name) => _fk.putIfAbsent(name, () => GlobalKey());
+
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
     final p = curPal();
 
+    // Fly hodisalarini iste'mol qilamiz — kadr chizilgach uchiramiz (pozitsiyalar tayyor)
+    final flyEvents = (v['xfFlyEvents'] as List).cast<Map<String, dynamic>>();
+    if (flyEvents.isNotEmpty) {
+      final events = List<Map<String, dynamic>>.from(flyEvents);
+      (v['xfFlyDone'] as Function)();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _launchFly(events));
+    }
+
     return Stack(
       children: [
-        // ------- Asosiy sahifa: sarlavha, balans, papkalar -------
+        // ------- Asosiy sahifa -------
         Column(
           children: [
             _header(v, p),
@@ -60,24 +79,108 @@ class _XarajatScreenState extends State<XarajatScreen> {
         // ------- Oxirgi o'zgarishlar (jurnal) -------
         if (v['xfLogOpen'] == true) Positioned.fill(child: _logPanel(v, p)),
 
-        // ------- Pastki qatlam: tahrir chipi, toast, tasdiqlash, input -------
+        // ------- Pastki qatlam -------
         Positioned(left: 0, right: 0, bottom: 0, child: _bottomOverlay(v, p)),
       ],
     );
   }
 
-  // ================= SARLAVHA =================
+  // ================= FLY ANIMATSIYASI (dizayn: flyToFolder) =================
+  void _launchFly(List<Map<String, dynamic>> events) {
+    for (var i = 0; i < events.length; i++) {
+      Future.delayed(Duration(milliseconds: i * 120), () {
+        if (mounted) _flyOne(events[i], i);
+      });
+    }
+  }
+
+  void _flyOne(Map<String, dynamic> e, int i) {
+    final p = curPal();
+    final overlay = Overlay.of(context);
+    final inputBox = _inputKey.currentContext?.findRenderObject() as RenderBox?;
+    final folderBox = _fk[e['cat']]?.currentContext?.findRenderObject() as RenderBox?;
+    if (inputBox == null) return;
+    final start = inputBox.localToGlobal(Offset(14 + i * 8.0, -58));
+    // Nishon: papka kartasi markazi; karta hali ko'rinmasa — biroz yuqoriga uchib so'nadi
+    final end = folderBox != null
+        ? folderBox.localToGlobal(Offset.zero) +
+            Offset(folderBox.size.width / 2 - 62, folderBox.size.height / 2 - 18)
+        : start - const Offset(0, 220);
+
+    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 720));
+    final curve = CurvedAnimation(parent: ctrl, curve: const Cubic(.22, .9, .26, 1));
+    final inc = e['inc'] == true;
+    final glow = inc ? p.green : p.red;
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => AnimatedBuilder(
+        animation: curve,
+        builder: (_, __) {
+          final t = curve.value;
+          final pos = Offset.lerp(start, end, t)!;
+          final op = t < .08 ? t / .08 : (t > .82 ? (1 - t) / .18 : 1.0);
+          final sc = 1.0 - t * .16;
+          return Positioned(
+            left: pos.dx,
+            top: pos.dy,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: op.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: sc,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      border: Border.all(color: p.bd2),
+                      borderRadius: BorderRadius.circular(13),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 32, offset: const Offset(0, 14)),
+                        BoxShadow(color: glow.withValues(alpha: inc ? .40 : .22), blurRadius: 22),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Tx('${e['emoji']} ${e['cat']}', size: 13, w: FontWeight.w500, color: p.ink),
+                        const SizedBox(width: 8),
+                        Tx('${e['amtTxt']}', size: 13, w: FontWeight.w600, color: inc ? p.green : p.red),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    overlay.insert(entry);
+    ctrl.forward().whenComplete(() {
+      entry.remove();
+      ctrl.dispose();
+      // Qo'ngan papka pulslaydi
+      if (mounted) setState(() => _pulse[e['cat'] as String] = (_pulse[e['cat'] as String] ?? 0) + 1);
+    });
+  }
+
+  // ================= SARLAVHA (dizayn: back + title + jurnal) =================
   Widget _header(Map<String, dynamic> v, Pal p) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 10, 20, 0),
       child: Row(
         children: [
+          Tap(
+            onTap: v['xfBack'],
+            child: SizedBox(width: 34, height: 34, child: Center(child: BackChevron(color: p.ink))),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx('Xarajatlar', size: 20, w: FontWeight.w700, color: p.ink, ls: -0.3),
-                const SizedBox(height: 2),
+                Tx('Xarajatlar', size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2),
+                const SizedBox(height: 1),
                 Tx('${v['xfMonth']}', size: 11.5, color: p.t3),
               ],
             ),
@@ -154,7 +257,6 @@ class _XarajatScreenState extends State<XarajatScreen> {
         child: Tx(t, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
       );
 
-  // 2 ustunli grid (dizayn: grid-template-columns 1fr 1fr, gap 10)
   Widget _grid(List<Map<String, dynamic>> fs, Pal p) {
     final rows = <Widget>[];
     for (var i = 0; i < fs.length; i += 2) {
@@ -174,9 +276,12 @@ class _XarajatScreenState extends State<XarajatScreen> {
   Widget _folderCard(Map<String, dynamic> f, Pal p) {
     final inc = f['inc'] == true;
     final accent = inc ? p.green : p.red;
-    return Tap(
+    final name = '${f['name']}';
+
+    Widget card = Tap(
       onTap: f['open'],
       child: Container(
+        key: _keyFor(name),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: inc ? Color.alphaBlend(p.green.withValues(alpha: .05), p.hov2) : p.hov2,
@@ -185,7 +290,6 @@ class _XarajatScreenState extends State<XarajatScreen> {
         ),
         child: Stack(
           children: [
-            // Chap aksent chiziq
             Positioned(
               left: 0, top: 10, bottom: 10,
               child: Container(
@@ -219,7 +323,7 @@ class _XarajatScreenState extends State<XarajatScreen> {
                     ],
                   ),
                   const SizedBox(height: 7),
-                  Tx('${f['name']}', size: 12.5, w: FontWeight.w500, color: p.t2, maxLines: 1),
+                  Tx(name, size: 12.5, w: FontWeight.w500, color: p.t2, maxLines: 1),
                   const SizedBox(height: 5),
                   Row(
                     children: [
@@ -243,11 +347,9 @@ class _XarajatScreenState extends State<XarajatScreen> {
                   const SizedBox(height: 5),
                   SizedBox(
                     width: double.infinity, height: 18,
-                    child: CustomPaint(
-                      painter: _Spark(
-                        (f['spark'] as List).cast<double>(),
-                        inc ? p.green.withValues(alpha: .65) : p.t5,
-                      ),
+                    child: _AnimSpark(
+                      pts: (f['spark'] as List).cast<double>(),
+                      color: inc ? p.green.withValues(alpha: .65) : p.t5,
                     ),
                   ),
                 ],
@@ -257,6 +359,32 @@ class _XarajatScreenState extends State<XarajatScreen> {
         ),
       ),
     );
+
+    // Yangi papka "pop" (dizayn: xkPop scale-bounce)
+    if (f['isNew'] == true) {
+      card = TweenAnimationBuilder<double>(
+        key: ValueKey('pop-$name'),
+        tween: Tween(begin: 0.82, end: 1.0),
+        duration: const Duration(milliseconds: 550),
+        curve: Curves.elasticOut,
+        builder: (_, s, child) => Transform.scale(scale: s, child: child),
+        child: card,
+      );
+    }
+
+    // Fly qo'nganda puls (scale 1.06 -> 1)
+    final pc = _pulse[name] ?? 0;
+    if (pc > 0) {
+      card = TweenAnimationBuilder<double>(
+        key: ValueKey('pulse-$name-$pc'),
+        tween: Tween(begin: 1.06, end: 1.0),
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutBack,
+        builder: (_, s, child) => Transform.scale(scale: s, child: child),
+        child: card,
+      );
+    }
+    return card;
   }
 
   Widget _emptyAll(Pal p) {
@@ -305,54 +433,57 @@ class _XarajatScreenState extends State<XarajatScreen> {
         ),
         const SizedBox(height: 10),
         for (final t in (v['xfTrayRows'] as List).cast<Map<String, dynamic>>()) ...[
-          Tap(
-            onTap: t['toggle'],
-            child: _Dashed(
-              color: p.red.withValues(alpha: .45),
-              radius: 14,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: p.field,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Tx('${t['text']}', size: 13, color: p.t1, maxLines: 1),
-                        ),
-                        const SizedBox(width: 8),
-                        Tx('papka tanlang ↓', size: 11, color: p.t4),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Tx('${t['amtTxt']} so\'m', size: 13, w: FontWeight.w600, color: p.red),
-                    if (t['open'] == true) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6, runSpacing: 6,
+          _Shake(
+            key: ValueKey('shake-${t['id']}'),
+            child: Tap(
+              onTap: t['toggle'],
+              child: _Dashed(
+                color: p.red.withValues(alpha: .45),
+                radius: 14,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: p.field,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
-                            Tap(
-                              onTap: c['pick'],
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: p.card2,
-                                  border: Border.all(color: p.bd),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Tx('${c['label']}', size: 12, w: FontWeight.w500, color: p.ink),
-                              ),
-                            ),
+                          Expanded(
+                            child: Tx('${t['text']}', size: 13, color: p.t1, maxLines: 1),
+                          ),
+                          const SizedBox(width: 8),
+                          Tx('papka tanlang ↓', size: 11, color: p.t4),
                         ],
                       ),
+                      const SizedBox(height: 3),
+                      Tx('${t['amtTxt']} so\'m', size: 13, w: FontWeight.w600, color: p.red),
+                      if (t['open'] == true) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6, runSpacing: 6,
+                          children: [
+                            for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
+                              Tap(
+                                onTap: c['pick'],
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: p.card2,
+                                    border: Border.all(color: p.bd),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Tx('${c['label']}', size: 12, w: FontWeight.w500, color: p.ink),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -369,7 +500,6 @@ class _XarajatScreenState extends State<XarajatScreen> {
       color: p.bg,
       child: Column(
         children: [
-          // Sarlavha: orqaga, emoji, nom, sparkline
           Container(
             padding: const EdgeInsets.fromLTRB(16, 10, 20, 12),
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
@@ -397,17 +527,14 @@ class _XarajatScreenState extends State<XarajatScreen> {
                 ),
                 SizedBox(
                   width: 60, height: 20,
-                  child: CustomPaint(
-                    painter: _Spark(
-                      (v['xfDSpark'] as List).cast<double>(),
-                      v['xfDInc'] == true ? p.green.withValues(alpha: .65) : p.t5,
-                    ),
+                  child: _AnimSpark(
+                    pts: (v['xfDSpark'] as List).cast<double>(),
+                    color: v['xfDInc'] == true ? p.green.withValues(alpha: .65) : p.t5,
                   ),
                 ),
               ],
             ),
           ),
-          // Jami summa + eslatma
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 6),
             child: Column(
@@ -430,7 +557,6 @@ class _XarajatScreenState extends State<XarajatScreen> {
               ],
             ),
           ),
-          // Yozuvlar (kun bo'yicha guruhlangan)
           Expanded(
             child: v['xfDEmpty'] == true
                 ? Padding(
@@ -510,7 +636,7 @@ class _XarajatScreenState extends State<XarajatScreen> {
     );
   }
 
-  // ================= JURNAL (Oxirgi o'zgarishlar) =================
+  // ================= JURNAL =================
   Widget _logPanel(Map<String, dynamic> v, Pal p) {
     return Container(
       color: p.bg,
@@ -650,77 +776,81 @@ class _XarajatScreenState extends State<XarajatScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Tahrir rejimi chipi
           if (v['xfEditingOpen'] == true) ...[
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 5, 6, 5),
-              decoration: BoxDecoration(
-                color: p.card2,
-                border: Border.all(color: p.bd2),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Tx('Tahrirlanmoqda: ', size: 12, color: p.t2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 150),
-                    child: Tx('${v['xfEditLabel']}', size: 12, w: FontWeight.w600,
-                        color: p.ink, maxLines: 1),
-                  ),
-                  const SizedBox(width: 8),
-                  Tap(
-                    onTap: v['xfEditCancel'],
-                    child: Container(
-                      width: 22, height: 22, alignment: Alignment.center,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: p.hair2),
-                      child: Tx('✕', size: 10, color: p.t1),
+            _SlideIn(
+              key: const ValueKey('editchip'),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 5, 6, 5),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  border: Border.all(color: p.bd2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tx('Tahrirlanmoqda: ', size: 12, color: p.t2),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 150),
+                      child: Tx('${v['xfEditLabel']}', size: 12, w: FontWeight.w600,
+                          color: p.ink, maxLines: 1),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-
-          // O'chirish toasti — "Bekor qilish" (undo)
-          if (v['xfToastOpen'] == true) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: p.card2,
-                border: Border.all(color: p.bd2),
-                borderRadius: BorderRadius.circular(13),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .45), blurRadius: 30, offset: const Offset(0, 12))],
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: Tx('${v['xfToastText']}', size: 13, color: p.ink)),
-                  Tap(
-                    onTap: v['xfUndo'],
-                    child: Text(
-                      'Bekor qilish',
-                      style: GoogleFonts.inter(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: p.ink,
-                        decoration: TextDecoration.underline,
+                    const SizedBox(width: 8),
+                    Tap(
+                      onTap: v['xfEditCancel'],
+                      child: Container(
+                        width: 22, height: 22, alignment: Alignment.center,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: p.hair2),
+                        child: Tx('✕', size: 10, color: p.t1),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 10),
           ],
 
-          // Tasdiqlash kartasi: birlashtirish / papka o'chirish
-          if (v['xfCfOpen'] == true) ...[
-            _confirmCard(v, p),
+          if (v['xfToastOpen'] == true) ...[
+            _SlideIn(
+              key: ValueKey('toast-${v['xfToastText']}'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  border: Border.all(color: p.bd2),
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .45), blurRadius: 30, offset: const Offset(0, 12))],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(child: Tx('${v['xfToastText']}', size: 13, color: p.ink)),
+                    Tap(
+                      onTap: v['xfUndo'],
+                      child: Text(
+                        'Bekor qilish',
+                        style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w600, color: p.ink,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
           ],
 
-          // Matn input + yuborish
+          if (v['xfCfOpen'] == true) ...[
+            _SlideIn(key: const ValueKey('confirm'), child: _confirmCard(v, p)),
+            const SizedBox(height: 10),
+          ],
+
+          // Matn input (rangli highlight bilan) + yuborish
           Container(
+            key: _inputKey,
             height: 46,
             decoration: BoxDecoration(
               color: p.field.withValues(alpha: .95),
@@ -733,11 +863,10 @@ class _XarajatScreenState extends State<XarajatScreen> {
                 Positioned.fill(
                   left: 16, right: 52,
                   child: Center(
-                    child: StoreField(
+                    child: _HlField(
                       value: '${v['xarTextVal'] ?? ''}',
                       onChanged: (t) => v['xarTextSet'](t),
                       hint: 'Oziq-ovqatga 120 000 sarfladim...',
-                      style: GoogleFonts.inter(fontSize: 14, color: p.ink),
                       onSubmit: v['xfSend'],
                     ),
                   ),
@@ -751,7 +880,9 @@ class _XarajatScreenState extends State<XarajatScreen> {
                       child: Container(
                         width: 34, height: 34, alignment: Alignment.center,
                         decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                        child: Tx(v['xfBusy'] == true ? '…' : '↑', size: 16, w: FontWeight.w700, color: p.bg),
+                        child: v['xfBusy'] == true
+                            ? _PulseDots(color: p.bg)
+                            : Tx('↑', size: 16, w: FontWeight.w700, color: p.bg),
                       ),
                     ),
                   ),
@@ -887,9 +1018,202 @@ class _XarajatScreenState extends State<XarajatScreen> {
   }
 }
 
-// ================= YORDAMCHI CHIZUVCHILAR =================
+// ================= RANGLI INPUT (dizayn: highlight) =================
+// Summa — yashil/qizil (+13% fon), toifa so'zi — card2 fon, buyruq/sana — hair2 fon.
+class _HlController extends TextEditingController {
+  static final _amtRe = RegExp(
+      r"(\d{1,3}(?:[  .]\d{3})+|\d+)(\s*(?:ming|mln|million))?(\s*so['’ʻ`]?m)?",
+      caseSensitive: false);
+  static final _catRe = RegExp(
+      r"oziq-ovqat|oziq|tushlik|nonushta|ovqat|bozor|market|taksi|avtobus|metro|benzin|transport|kofe|qahva|kommunal|svet|gaz|internet|telefon|kiyim|xarid\w*|do['’ʻ`]?kon|dori\w*|shifokor|apteka|kino|konsert|sport|zal|fitnes|kitob\w*|papka\w*|oylik|maosh|avans|mijoz\w*|sotuv\w*|biznes|daromad|bonus",
+      caseSensitive: false);
+  static final _cmdRe = RegExp(r"birlashtir\w*|o['’ʻ`]?chir\w*|keldi|tushdi|qaytdi",
+      caseSensitive: false);
+  static final _dateRe = RegExp(r"bugun|kechqurun|kecha|ertalab|ertaga", caseSensitive: false);
+  static final _incRe = RegExp(
+      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi",
+      caseSensitive: false);
+  static final _cutRe = RegExp(r",|\bva\b", caseSensitive: false);
 
-// Mini sparkline (dizayn: polyline 0..100 x 22, stroke 2)
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final p = curPal();
+    final t = text;
+    if (t.isEmpty) return TextSpan(style: style);
+
+    // Segment yo'nalishi: vergul/"va" bo'laklari ichida INC so'zi bormi
+    final cuts = <int>[0];
+    for (final m in _cutRe.allMatches(t)) {
+      cuts.add(m.start);
+    }
+    cuts.add(t.length);
+    bool segIn(int pos) {
+      for (var i = 0; i < cuts.length - 1; i++) {
+        if (pos >= cuts[i] && pos < cuts[i + 1]) return _incRe.hasMatch(t.substring(cuts[i], cuts[i + 1]));
+      }
+      return false;
+    }
+
+    final ranges = <List<dynamic>>[]; // [s, e, type]
+    void push(RegExp re, String type) {
+      for (final m in re.allMatches(t)) {
+        if (m.end > m.start) ranges.add([m.start, m.end, type]);
+      }
+    }
+
+    push(_amtRe, 'amt');
+    push(_catRe, 'cat');
+    push(_cmdRe, 'cmd');
+    push(_dateRe, 'date');
+    ranges.sort((a, b) => (a[0] as int) != (b[0] as int)
+        ? (a[0] as int) - (b[0] as int)
+        : ((b[1] as int) - (b[0] as int)) - ((a[1] as int) - (a[0] as int)));
+    final kept = <List<dynamic>>[];
+    var last = 0;
+    for (final r in ranges) {
+      if ((r[0] as int) >= last) {
+        kept.add(r);
+        last = r[1] as int;
+      }
+    }
+
+    final spans = <TextSpan>[];
+    var pos = 0;
+    for (final r in kept) {
+      final s = r[0] as int, e = r[1] as int, type = r[2] as String;
+      if (s > pos) spans.add(TextSpan(text: t.substring(pos, s)));
+      Color c;
+      Color bg;
+      if (type == 'amt') {
+        final cc = segIn(s) ? p.green : p.red;
+        c = cc;
+        bg = cc.withValues(alpha: .13);
+      } else if (type == 'cat') {
+        c = p.ink;
+        bg = p.card2;
+      } else if (type == 'cmd') {
+        c = p.t1;
+        bg = p.hair2;
+      } else {
+        c = p.t2;
+        bg = p.hair2;
+      }
+      spans.add(TextSpan(
+        text: t.substring(s, e),
+        style: TextStyle(color: c, background: Paint()..color = bg),
+      ));
+      pos = e;
+    }
+    if (pos < t.length) spans.add(TextSpan(text: t.substring(pos)));
+    return TextSpan(style: style, children: spans);
+  }
+}
+
+/// Store bilan sinxron RANGLI TextField (StoreField + _HlController)
+class _HlField extends StatefulWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String? hint;
+  final VoidCallback? onSubmit;
+  const _HlField({required this.value, required this.onChanged, this.hint, this.onSubmit});
+
+  @override
+  State<_HlField> createState() => _HlFieldState();
+}
+
+class _HlFieldState extends State<_HlField> {
+  late final _HlController _c = _HlController()..text = widget.value;
+
+  @override
+  void didUpdateWidget(covariant _HlField old) {
+    super.didUpdateWidget(old);
+    if (widget.value != _c.text) {
+      _c.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final st = GoogleFonts.inter(fontSize: 14, color: p.ink);
+    return TextField(
+      controller: _c,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
+      style: st,
+      cursorColor: p.ink,
+      decoration: InputDecoration(
+        isDense: true,
+        isCollapsed: true,
+        border: InputBorder.none,
+        hintText: widget.hint,
+        hintStyle: st.copyWith(color: p.t5),
+      ),
+    );
+  }
+}
+
+// ================= YORDAMCHI ANIMATSIYALAR =================
+
+/// Jonli sparkline — nuqtalar o'zgarганда eski holatdan yangисига silliq o'tadi
+class _AnimSpark extends StatefulWidget {
+  final List<double> pts;
+  final Color color;
+  const _AnimSpark({required this.pts, required this.color});
+
+  @override
+  State<_AnimSpark> createState() => _AnimSparkState();
+}
+
+class _AnimSparkState extends State<_AnimSpark> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 550), value: 1);
+  late List<double> _from = widget.pts;
+  late List<double> _to = widget.pts;
+
+  List<double> _now() {
+    final t = Curves.easeOutCubic.transform(_c.value);
+    return [
+      for (var i = 0; i < _to.length; i++)
+        lerpDouble(i < _from.length ? _from[i] : 0, _to[i], t) ?? _to[i],
+    ];
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimSpark old) {
+    super.didUpdateWidget(old);
+    if (!listEquals(old.pts, widget.pts)) {
+      _from = _now();
+      _to = widget.pts;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => CustomPaint(painter: _Spark(_now(), widget.color)),
+    );
+  }
+}
+
+/// Sparkline chizuvchi (dizayn: polyline, stroke 2, round)
 class _Spark extends CustomPainter {
   final List<double> pts;
   final Color color;
@@ -921,7 +1245,7 @@ class _Spark extends CustomPainter {
   bool shouldRepaint(_Spark old) => old.pts != pts || old.color != color;
 }
 
-// Shtrixli (dashed) ramka — dizayndagi 1.5px dashed
+/// Shtrixli (dashed) ramka — dizayndagi 1.5px dashed
 class _Dashed extends StatelessWidget {
   final Widget child;
   final Color color;
@@ -962,4 +1286,90 @@ class _DashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DashPainter old) => old.color != color || old.radius != radius;
+}
+
+/// Paydo bo'lishda pastdan siljib kirish (dizayn: xkSlidein)
+class _SlideIn extends StatelessWidget {
+  final Widget child;
+  const _SlideIn({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOut,
+      builder: (_, t, c) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, (1 - t) * 10), child: c),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Paydo bo'lishda chayqalish (dizayn: xkShake — tray e'tibor tortadi)
+class _Shake extends StatelessWidget {
+  final Widget child;
+  const _Shake({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOut,
+      builder: (_, t, c) {
+        final amp = (1 - t) * 5;
+        final dx = amp * ((t * 25).floor() % 2 == 0 ? 1 : -1);
+        return Transform.translate(offset: Offset(dx, 0), child: c);
+      },
+      child: child,
+    );
+  }
+}
+
+/// Band holat: nuqtalar pulslashi (yuborish tugmasida)
+class _PulseDots extends StatefulWidget {
+  final Color color;
+  const _PulseDots({required this.color});
+
+  @override
+  State<_PulseDots> createState() => _PulseDotsState();
+}
+
+class _PulseDotsState extends State<_PulseDots> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final t = _c.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 2),
+              Opacity(
+                opacity: (0.35 + 0.65 * ((t * 3 - i).clamp(0.0, 1.0) - ((t * 3 - i - 1).clamp(0.0, 1.0)))).clamp(0.2, 1.0),
+                child: Container(
+                  width: 3.5, height: 3.5,
+                  decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
 }

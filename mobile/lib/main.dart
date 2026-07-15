@@ -20,6 +20,8 @@ import 'screens/new_partner_sheet.dart';
 import 'screens/edit_form_sheet.dart';
 import 'screens/link_decision_sheet.dart';
 import 'screens/rejected_links.dart';
+import 'screens/archive.dart';
+import 'screens/lang_sheet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,7 +85,6 @@ class Root extends StatelessWidget {
                             children: [
                               if (v['isHome'] == true) Positioned.fill(child: HomeScreen()),
                               if (v['isMoliya'] == true) Positioned.fill(child: MoliyaScreen()),
-                              if (v['isXarajat'] == true) Positioned.fill(child: XarajatScreen()),
                               if (v['isProfil'] == true) Positioned.fill(child: ProfilScreen()),
                             ],
                           ),
@@ -92,6 +93,9 @@ class Root extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // Xarajatlar — TO'LIQ EKRAN (dizayn: bottom navsiz, header'da orqaga) (z:8)
+                  if (v['isXarajat'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
                   // Hamkor sahifasi (z:10)
                   if (v['clientOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: ClientScreen())),
@@ -101,6 +105,9 @@ class Root extends StatelessWidget {
                   // Rad etilgan bog'lanishlar (z:14)
                   if (v['rejOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: RejectedLinksScreen())),
+                  // Arxiv (z:16)
+                  if (v['archOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: ArchiveScreen())),
                   // Dalil (z:20)
                   if (v['receiptOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: ReceiptScreen())),
@@ -117,6 +124,8 @@ class Root extends StatelessWidget {
                   Positioned.fill(child: OnboardingScreen()),
                 // Davlat kodi sheet (z:60)
                 if (v['ccOpen'] == true) CcSheet(),
+                // Til tanlash sheet (z:62)
+                if (v['langOpen'] == true) LangSheet(),
                 // Toast (z:70)
                 ToastView(open: v['toastOpen'] == true, text: v['toast'] as String),
               ],

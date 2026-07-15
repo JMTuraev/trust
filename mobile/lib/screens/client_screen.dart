@@ -49,20 +49,38 @@ class _ClientScreenState extends State<ClientScreen> {
     );
   }
 
+  /// Telegram uslubidagi bubble radiusi: "dum" tomonda kichik burchak
+  BorderRadius _bubbleR(bool end) => BorderRadius.only(
+        topLeft: const Radius.circular(16),
+        topRight: const Radius.circular(16),
+        bottomLeft: Radius.circular(end ? 16 : 5),
+        bottomRight: Radius.circular(end ? 5 : 16),
+      );
+
   Widget _chatItem(BuildContext context, Map<String, dynamic> m, Map<String, dynamic> v, Pal p) {
     final end = m['align'] == 'end';
     final maxW = MediaQuery.of(context).size.width * 0.76;
+    final dk = store.S['dark'] == true;
+    // Kiruvchi bubble: yorug' rejimda oq (kulrang fonda), tungi rejimda field
+    final inBg = dk ? p.field : p.bg;
+    final shadow = dk
+        ? const <BoxShadow>[]
+        : const [BoxShadow(offset: Offset(0, 1), blurRadius: 1.5, color: Color(0x0F000000))];
 
     if (m['isText'] == true) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),
         child: Row(
           mainAxisAlignment: end ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
             Container(
               constraints: BoxConstraints(maxWidth: maxW),
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 14),
-              decoration: BoxDecoration(color: m['bg'] as Color, borderRadius: BorderRadius.circular(16)),
+              padding: const EdgeInsets.fromLTRB(13, 8, 13, 8),
+              decoration: BoxDecoration(
+                color: end ? m['bg'] as Color : inBg,
+                borderRadius: _bubbleR(end),
+                boxShadow: shadow,
+              ),
               child: Text.rich(
                 TextSpan(children: [
                   TextSpan(
@@ -70,7 +88,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     style: GoogleFonts.inter(fontSize: 14, color: m['fg'] as Color, height: 20.3 / 14),
                   ),
                   TextSpan(
-                    text: ' ${m['time']}${m['checks']}',
+                    text: '  ${m['time']}${m['checks']}',
                     style: GoogleFonts.inter(fontSize: 10, color: m['tc'] as Color),
                   ),
                 ]),
@@ -102,7 +120,11 @@ class _ClientScreenState extends State<ClientScreen> {
               onTap: m['toggle'] as VoidCallback,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                decoration: BoxDecoration(color: m['bg'] as Color, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: end ? m['bg'] as Color : inBg,
+                  borderRadius: _bubbleR(end),
+                  boxShadow: shadow,
+                ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Container(
                     width: 34,
@@ -195,13 +217,17 @@ class _ClientScreenState extends State<ClientScreen> {
     }
 
     if (m['isSys'] == true) {
+      // Telegram uslubidagi sana/tizim chipi — yarim shaffof pill
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Center(
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-            decoration: BoxDecoration(border: Border.all(color: p.hair), borderRadius: BorderRadius.circular(20)),
-            child: Tx(m['text'] as String, size: 11, color: p.t2, align: TextAlign.center),
+            decoration: BoxDecoration(
+              color: dk ? const Color(0x26FFFFFF) : const Color(0x12111111),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Tx(m['text'] as String, size: 11, w: FontWeight.w500, color: p.t1, align: TextAlign.center),
           ),
         ),
       );
@@ -213,9 +239,10 @@ class _ClientScreenState extends State<ClientScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         decoration: BoxDecoration(
-          color: p.bg,
-          border: Border.all(color: p.bd2),
+          color: dk ? p.field : p.bg,
+          border: Border.all(color: dk ? p.bd2 : p.hair),
           borderRadius: BorderRadius.circular(14),
+          boxShadow: shadow,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
@@ -250,7 +277,7 @@ class _ClientScreenState extends State<ClientScreen> {
                 padding: const EdgeInsets.only(top: 12),
                 decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Tx('Dalilni ochish', size: 13, w: FontWeight.w600, color: p.ink),
+                  Tx((v['L'] as Map)['openDalil'] as String, size: 13, w: FontWeight.w600, color: p.ink),
                   ChevRight(color: p.ink),
                 ]),
               ),
@@ -275,6 +302,10 @@ class _ClientScreenState extends State<ClientScreen> {
   Widget build(BuildContext context) {
     final v = store.vals();
     final p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
+    final dk = store.S['dark'] == true;
+    // Chat fon rangi — Telegram uslubida biroz tiniq kulrang
+    final chatBg = dk ? p.bg : const Color(0xFFF0F0EE);
 
     final chatItems = (v['chatItems'] as List).cast<Map<String, dynamic>>();
     if (v['isChatTab'] == true && chatItems.length != _lastCount) {
@@ -290,16 +321,7 @@ class _ClientScreenState extends State<ClientScreen> {
       child: Row(children: [
         BackBtn(onTap: () => v['back']()),
         const SizedBox(width: 12),
-        Stack(clipBehavior: Clip.none, children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-            child: Center(child: Tx(v['cInitials'] as String, size: 13, w: FontWeight.w600, color: p.ink)),
-          ),
-          if (v['cOnTrust'] == true) TrustBadge(size: 15),
-          if (v['oneSided'] == true) OneSidedBadge(size: 15),
-        ]),
+        TrustAvatar(initials: v['cInitials'] as String, size: 40, onTrust: v['cOnTrust'] == true),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -390,7 +412,7 @@ class _ClientScreenState extends State<ClientScreen> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 11),
               decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 2, color: v['chatTabLine'] as Color))),
-              child: Center(child: Tx('Chat', size: 13.5, w: FontWeight.w600, color: v['chatTabColor'] as Color)),
+              child: Center(child: Tx(L0['tabChat'] as String, size: 13.5, w: FontWeight.w600, color: v['chatTabColor'] as Color)),
             ),
           ),
         ),
@@ -400,7 +422,7 @@ class _ClientScreenState extends State<ClientScreen> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 11),
               decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 2, color: v['opsTabLine'] as Color))),
-              child: Center(child: Tx('Operatsiyalar', size: 13.5, w: FontWeight.w600, color: v['opsTabColor'] as Color)),
+              child: Center(child: Tx(L0['tabOps'] as String, size: 13.5, w: FontWeight.w600, color: v['opsTabColor'] as Color)),
             ),
           ),
         ),
@@ -411,148 +433,166 @@ class _ClientScreenState extends State<ClientScreen> {
         ? Container(
             padding: const EdgeInsets.fromLTRB(20, 9, 16, 9),
             decoration: BoxDecoration(color: p.card2, border: Border(bottom: BorderSide(color: p.hair2))),
-            child: Tx(
-                "Bog'lanish kutilmoqda — raqam egasi qabul qilganda yozuvlar unga ham ko'rinadi",
-                size: 11.5, color: p.t1, lh: 16.1),
+            child: Tx(L0['linkWait'] as String, size: 11.5, color: p.t1, lh: 16.1),
           )
         : const SizedBox.shrink();
 
-    // Chat input bar
+    // Chat input bar — Telegram uslubi: pill maydon + dumaloq yuborish tugmasi
     Widget inputBar() {
+      // Kiruvchi daftar faqat o'qish uchun — input o'rniga izoh
+      if (v['canWrite'] != true) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
+          child: Center(child: Tx(L0['readOnly'] as String, size: 12, color: p.t3, align: TextAlign.center)),
+        );
+      }
+      // Ovoz yozilmoqda — pulsli indikator
+      if (v['recOn'] == true) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+          decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
+          child: Row(children: [
+            _Pulse(
+              duration: const Duration(milliseconds: 1000),
+              child: Container(width: 10, height: 10, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
+            ),
+            const SizedBox(width: 10),
+            Tx('yozilmoqda…', size: 14, color: p.t1),
+            const Spacer(),
+            Tx('0:02', size: 12, color: p.t3, tab: true),
+          ]),
+        );
+      }
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
         decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
-        child: Row(children: [
-          if (v['recOn'] == true)
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
             Expanded(
-              child: SizedBox(
-                height: 40,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(children: [
-                    _Pulse(
-                      duration: const Duration(milliseconds: 1000),
-                      child: Container(width: 10, height: 10, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                decoration: BoxDecoration(
+                  color: p.field,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        child: StoreField(
+                          value: v['chatInput'] as String,
+                          onChanged: (t) => v['onChatInput'](t),
+                          hint: L0['msgPh'] as String,
+                          maxLines: 5,
+                          style: GoogleFonts.inter(fontSize: 14.5, color: p.ink, height: 1.35),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    Tx('yozilmoqda…', size: 14, color: p.t1),
-                    const Spacer(),
-                    Tx('0:02', size: 12, color: p.t3, tab: true),
-                  ]),
+                    // Biriktirish (+) — pill ichida, o'ng tomonda
+                    Tap(
+                      onTap: () => v['attachTap'](),
+                      child: SizedBox(width: 36, height: 44, child: Center(child: _plus(16, p.t2))),
+                    ),
+                    // Kamera — pill ichida
+                    Tap(
+                      onTap: () => v['camTap'](),
+                      child: SizedBox(
+                        width: 36,
+                        height: 44,
+                        child: Center(
+                          child: SizedBox(
+                            width: 17,
+                            height: 13,
+                            child: Stack(clipBehavior: Clip.none, children: [
+                              Container(
+                                width: 17,
+                                height: 13,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: p.t2, width: 1.6),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                              Positioned(right: -6, top: 2.5, child: _tri(t: 3.5, b: 3.5, l: 4.5, c: p.t2, side: 'left')),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                 ),
               ),
             ),
-          if (v['recOff'] == true)
-            Expanded(
-              child: Row(children: [
-                Tap(
-                  onTap: () => v['attachTap'](),
-                  child: SizedBox(width: 38, height: 38, child: Center(child: _plus(16, p.t1))),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    alignment: Alignment.centerLeft,
-                    decoration: BoxDecoration(border: Border.all(color: p.bd2), borderRadius: BorderRadius.circular(20)),
-                    child: StoreField(
-                      value: v['chatInput'] as String,
-                      onChanged: (t) => v['onChatInput'](t),
-                      hint: 'Xabar...',
-                      style: GoogleFonts.inter(fontSize: 14, color: p.ink),
+            const SizedBox(width: 8),
+            // Yuborish (matn bor) yoki mikrofon (bo'sh) — dumaloq tugma
+            if (v['hasText'] == true)
+              Tap(
+                onTap: () => v['sendChat'](),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 3),
+                      child: _tri(t: 6, b: 6, l: 11, c: p.bg, side: 'left'),
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Tap(
-                  onTap: () => v['camTap'](),
-                  child: SizedBox(
-                    width: 38,
-                    height: 38,
-                    child: Center(
-                      child: SizedBox(
-                        width: 17,
-                        height: 13,
-                        child: Stack(clipBehavior: Clip.none, children: [
-                          Container(
-                            width: 17,
-                            height: 13,
+              )
+            else
+              Tap(
+                onTap: () => v['micTap'](),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: p.field, shape: BoxShape.circle),
+                  child: Center(
+                    child: Transform.translate(
+                      offset: const Offset(0, 2.5),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                          width: 9,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: p.ink, width: 1.6),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                        Transform.translate(
+                          offset: const Offset(0, -5),
+                          child: Container(
+                            width: 15,
+                            height: 7,
                             decoration: BoxDecoration(
-                              border: Border.all(color: p.t1, width: 1.6),
-                              borderRadius: BorderRadius.circular(3),
+                              border: Border(
+                                left: BorderSide(color: p.ink, width: 1.6),
+                                right: BorderSide(color: p.ink, width: 1.6),
+                                bottom: BorderSide(color: p.ink, width: 1.6),
+                              ),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(8),
+                                bottomRight: Radius.circular(8),
+                              ),
                             ),
                           ),
-                          Positioned(right: -6, top: 2.5, child: _tri(t: 3.5, b: 3.5, l: 4.5, c: p.t1, side: 'left')),
-                        ]),
-                      ),
+                        ),
+                        Transform.translate(
+                          offset: const Offset(0, -5),
+                          child: Container(width: 1.6, height: 3, color: p.ink),
+                        ),
+                      ]),
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                if (v['hasText'] == true)
-                  Tap(
-                    onTap: () => v['sendChat'](),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 3),
-                          child: _tri(t: 6, b: 6, l: 11, c: p.bg, side: 'left'),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (v['noText'] == true)
-                  Tap(
-                    onTap: () => v['micTap'](),
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Center(
-                        child: Transform.translate(
-                          offset: const Offset(0, 2.5),
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Container(
-                              width: 9,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: p.ink, width: 1.6),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                            ),
-                            Transform.translate(
-                              offset: const Offset(0, -5),
-                              child: Container(
-                                width: 15,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(color: p.ink, width: 1.6),
-                                    right: BorderSide(color: p.ink, width: 1.6),
-                                    bottom: BorderSide(color: p.ink, width: 1.6),
-                                  ),
-                                  borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(8),
-                                    bottomRight: Radius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Transform.translate(
-                              offset: const Offset(0, -5),
-                              child: Container(width: 1.6, height: 3, color: p.ink),
-                            ),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  ),
-              ]),
-            ),
-        ]),
+              ),
+          ],
+        ),
       );
     }
 
@@ -632,11 +672,14 @@ class _ClientScreenState extends State<ClientScreen> {
         oneSidedBanner,
         if (v['isChatTab'] == true) ...[
           Expanded(
-            child: ListView.builder(
-              controller: _chat,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              itemCount: chatItems.length,
-              itemBuilder: (ctx, i) => _chatItem(ctx, chatItems[i], v, p),
+            child: Container(
+              color: chatBg,
+              child: ListView.builder(
+                controller: _chat,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                itemCount: chatItems.length,
+                itemBuilder: (ctx, i) => _chatItem(ctx, chatItems[i], v, p),
+              ),
             ),
           ),
           inputBar(),
@@ -665,12 +708,12 @@ class _ClientScreenState extends State<ClientScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-                _menuItem(p, 'Nomni tahrirlash', () => v['menuRename']()),
+                _menuItem(p, L0['menuRename'] as String, () => v['menuRename']()),
                 if (v['incoming'] == true)
-                  _menuItem(p, 'Aloqani uzish', () => v['menuDisconnect'](), top: true)
+                  _menuItem(p, L0['menuDisconnect'] as String, () => v['menuDisconnect'](), top: true)
                 else
-                  _menuItem(p, 'Arxivlash', () => v['menuArchive'](), top: true),
-                _menuItem(p, 'Profil', () => v['menuProfile'](), top: true),
+                  _menuItem(p, L0['menuArchive'] as String, () => v['menuArchive'](), top: true),
+                _menuItem(p, L0['menuProfile'] as String, () => v['menuProfile'](), top: true),
               ]),
             ),
           ),
@@ -692,15 +735,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(18)),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Stack(clipBehavior: Clip.none, children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-                          child: Center(child: Tx(v['cInitials'] as String, size: 18, w: FontWeight.w600, color: p.ink)),
-                        ),
-                        if (v['cOnTrust'] == true) TrustBadge(size: 18),
-                      ]),
+                      TrustAvatar(initials: v['cInitials'] as String, size: 60, onTrust: v['cOnTrust'] == true),
                       const SizedBox(height: 12),
                       Tx(v['cName'] as String, size: 17, w: FontWeight.w700, color: p.ink),
                       const SizedBox(height: 3),
@@ -716,14 +751,14 @@ class _ClientScreenState extends State<ClientScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 11),
                             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              Tx('Operatsiyalar', size: 13, color: p.t2),
+                              Tx(L0['tabOps'] as String, size: 13, color: p.t2),
                               Tx(v['pOps'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, tab: true),
                             ]),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 11),
                             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              Tx('Balans', size: 13, color: p.t2),
+                              Tx(L0['balLabel'] as String, size: 13, color: p.t2),
                               Tx(v['pBal'] as String, size: 13.5, w: FontWeight.w600, color: v['cBalColor'] as Color, tab: true),
                             ]),
                           ),
