@@ -43,6 +43,7 @@ router.post('/parse', rateLimit({ windowMs: 60_000, max: 30 }), async (req, res,
       return res.status(400).json({ success: false, error: "Matn 2–300 belgi bo'lsin" });
     }
     const r = await parseText(text, req.user.id);
+    console.log(`[parse] provider=${r.provider} | "${text}" -> ${r.actions.length} amal`);
     if (r.errors?.length) console.warn('parse fallback:', r.errors.join(' | '));
     res.json({ success: true, data: { actions: r.actions, needs_confirm: r.needs_confirm, provider: r.provider } });
   } catch (e) { next(e); }

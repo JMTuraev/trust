@@ -24,6 +24,9 @@ app.use(express.json({ limit: '256kb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.2' }));
 
+// So'rov kuzatuvi — health'dan tashqari har so'rov usuli+yo'li (parse/expenses kabi jonli ko'rinadi)
+app.use((req, _res, next) => { if (req.path !== '/health') console.log(`→ ${req.method} ${req.path}`); next(); });
+
 // Auth limitlar (ko'p qatlamli, toll-fraud + brute-force himoyasi):
 //  - send-otp: IP bo'yicha 3/min — botni sekinlashtiradi, axlat so'rovlarni to'sadi.
 //    BUTUN-servis SMS capi endi otp.js ichida, HAQIQIY yuborishdan oldin sanaladi

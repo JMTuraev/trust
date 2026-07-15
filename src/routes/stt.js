@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import express from 'express';
+import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { transcribe, sttReady } from '../services/stt.js';
@@ -15,6 +16,13 @@ router.post(
   express.raw({ type: () => true, limit: '10mb' }),
   async (req, res, next) => {
     try {
+      // Vaqtincha o'chirilgan (matn-birinchi rejim) — qayta yoqish: env STT_ENABLED=true
+      if (!config.stt.enabled) {
+        return res.status(503).json({
+          success: false,
+          error: "Ovozli kiritish vaqtincha o'chirilgan — yozib yuboring",
+        });
+      }
       if (!sttReady()) {
         return res.status(503).json({
           success: false,

@@ -10,6 +10,10 @@ import 'api.dart';
 import 'stt.dart';
 import 'secure.dart';
 
+// Ovozli kiritish (STT) vaqtincha o'chirilgan — matn-birinchi rejim.
+// Qayta yoqish: true qiling (mic UI qaytadi, matn input yo'qoladi).
+const bool kSttEnabled = false;
+
 const Map<String, dynamic> _uz = {
   'slogan': "«Hisobli do'st — ayrilmas»",
   'tagline': "Qarz va hisob-kitoblaringizni bitta joyda yuriting. Har bir yozuv saqlanadi — kontragent qabul qilsa, unga ham ko'rinadi.",
@@ -94,8 +98,17 @@ class TrustStore extends ChangeNotifier {
     'stage': 'welcome', 'lang': 'uz', 'dark': false, 'phone': '', 'otpVal': '', 'pinVal': '',
     'pinMode': 'set', // 'set' = onboardingda o'rnatish, 'check' = qayta kirishda tekshirish
     'pinErr': false, // noto'g'ri PIN — nuqtalar qizil chaqnaydi
-    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '',
+    'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '', 'xarText': '',
     'xcCats': <String>[], 'qarzDraft': null,
+    // Xarajatlar v2 — papka (folder) UI holati (dizayn: Xarajatlar Trust.html)
+    'xfDetail': null, // ochiq papka nomi
+    'xfLogOpen': false, 'xfLogDot': false,
+    'xfLog': <Map<String, dynamic>>[], // sessiya jurnali: add/edit/del/merge (max 12)
+    'xfTray': <Map<String, dynamic>>[], // ANIQLANMAGAN — papka tanlanishi kutilayotgan yozuvlar
+    'xfEditing': null, // {id, label} — input orqali tahrirlash rejimi
+    'xfConfirm': null, // {kind:'merge'|'delf', from, to} — tasdiqlash kartasi
+    'xfToast': null, // {text, undo} — o'chirishda "Bekor qilish" bilan lokal toast
+    'xfNewCats': <String>[], // shu sessiyada yangi ochilgan papkalar ("Yangi ✨")
     // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
     'xEditId': null, 'xEditVals': null,
     'xarLimit': 0, 'limEdit': null,
@@ -313,6 +326,11 @@ class TrustStore extends ChangeNotifier {
         'a': _numToInt(e['amount']),
         'days': _daysAgo(e['occurred_at']),
         't': _dt(e['occurred_at']) != null ? _hhmm(_dt(e['occurred_at'])!) : '',
+        // Papka UI uchun: oy kaliti va oy kuni (sparkline savatlari)
+        'ym': _dt(e['occurred_at']) != null
+            ? '${_dt(e['occurred_at'])!.year}-${_dt(e['occurred_at'])!.month}'
+            : '',
+        'dom': _dt(e['occurred_at'])?.day ?? 1,
       };
 
   Map<String, dynamic> _mapNotif(Map<String, dynamic> n) => {
@@ -886,9 +904,38 @@ class TrustStore extends ChangeNotifier {
       toast_('Summa aniqlanmadi — «taksiga 25 ming» deb ayting');
       return;
     }
-    // Har doim avtomatik: parse natijasi to'g'ridan-to'g'ri chatga (parsed = xato tuzatishni o'rganish uchun)
-    final ok = await _xcConfirm(txt, source, actions, actions);
-    if (!ok) set({'voiceStage': null, 'vText': ''});
+    // Ajratamiz: toifasi aniq -> darhol papkaga; noaniq ('Boshqa'/bo'sh xarajat) -> ANIQLANMAGAN tray
+    final sure = <Map<String, dynamic>>[];
+    final unsure = <Map<String, dynamic>>[];
+    for (final a in actions) {
+      final cat = ((a['category'] as String?) ?? '').trim();
+      if (a['type'] == 'xarajat' && (cat.isEmpty || cat.toLowerCase() == 'boshqa')) {
+        unsure.add(a);
+      } else {
+        sure.add(a);
+      }
+    }
+    if (unsure.isNotEmpty) {
+      final tray = List<Map<String, dynamic>>.from(S['xfTray'] as List);
+      for (var i = 0; i < unsure.length; i++) {
+        final a = unsure[i];
+        final note = ((a['note'] as String?) ?? '').trim();
+        tray.add({
+          'id': 't${DateTime.now().microsecondsSinceEpoch}_$i',
+          'text': note.isNotEmpty ? note : txt,
+          'open': false, 'action': a, 'src': txt,
+        });
+      }
+      set({'xfTray': tray});
+    }
+    if (sure.isNotEmpty) {
+      // parsed = barcha amallar (xato tuzatishni o'rganish uchun)
+      final ok = await _xcConfirm(txt, source, sure, actions);
+      if (!ok) set({'voiceStage': null, 'vText': ''});
+    } else {
+      set({'voiceStage': null, 'vText': ''});
+      if (unsure.isNotEmpty) toast_('Papka tanlang — ANIQLANMAGAN bo\'limida kutmoqda');
+    }
   }
 
   // Yakuniy saqlash: daromad/xarajat -> expenses; qarz -> Hamkorlar oqimiga yo'naltiriladi
@@ -904,12 +951,25 @@ class TrustStore extends ChangeNotifier {
     final routed = ((d['routed'] as List?) ?? []).cast<Map<String, dynamic>>();
     if (saved.isNotEmpty) {
       final es = saved.map(_mapExpense).toList();
-      set({'xarEntries': [...es.reversed, ..._xar()]});
+      // Yangi papka belgisi ("Yangi ✨"): saqlashdan OLDIN mavjud bo'lmagan toifalar
+      final existing = _xfFolders().map((f) => f['name']).toSet();
+      final newCats = List<String>.from(S['xfNewCats'] as List);
+      for (final e in es) {
+        final c = e['cat'] as String;
+        if (!existing.contains(c) && !newCats.contains(c)) newCats.add(c);
+      }
+      set({'xarEntries': [...es.reversed, ..._xar()], 'xfNewCats': newCats});
+      for (final e in es) {
+        _xfLogAdd('add',
+            cat: e['cat'] as String,
+            desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
+            amount: e['a'] as int, income: e['kind'] == 'd', id: e['id'] as String?);
+      }
     }
     set({'voiceStage': null, 'vText': ''});
     if (saved.isNotEmpty) {
       final cats = saved.map((e) => e['category'] ?? 'Boshqa').toSet().join(', ');
-      toast_('AI toifaladi: $cats — chatga yozildi');
+      toast_('✓ Qo\'shildi: $cats');
     }
     if (routed.isNotEmpty) _routeQarz(routed.first);
     return true;
@@ -1028,6 +1088,250 @@ class TrustStore extends ChangeNotifier {
     }
     set({'xarEntries': _xar().where((x) => x['id'] != id).toList(), 'xEditId': null, 'xEditVals': null});
     toast_("O'chirildi");
+  }
+
+  // ================= Xarajatlar v2 — papka (folder) UI =================
+  Timer? _xfToastT;
+
+  static const _monFull = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+    'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+
+  // Toifa -> emoji (dizayn KW ro'yxati + backend seed toifalari)
+  static const _xfEmojiMap = {
+    'oylik': '💼', 'biznes': '📈', 'boshqa kirim': '💰', 'daromad': '💰',
+    'transport': '🚌', 'taksi': '🚕', 'kofe': '☕️', 'oziq-ovqat': '🍜',
+    'kommunal': '💡', 'xaridlar': '🛍️', 'kiyim': '🛍️', 'salomatlik': '💊',
+    "ko'ngilochar": '🎬', 'sport': '🏋️', 'kitoblar': '📚', 'uy': '🏠',
+    'aloqa': '📱', "ta'lim": '🎓', 'boshqa': '📦',
+  };
+  String xfEmoji(String cat) => _xfEmojiMap[_xfNorm(cat)] ?? '📁';
+
+  String _xfNorm(String s) => s.toLowerCase()
+      .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
+
+  // 1234567 -> "1 234 567" (dizayndagi format; valyuta belgisi alohida ko'rsatiladi)
+  String _fx(num v) {
+    final s = v.abs().round().toString();
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
+  // Joriy oy yozuvlari (papka UI faqat shu oy bilan ishlaydi — "IYUL BALANSI")
+  List<Map<String, dynamic>> _xfMonthEntries() {
+    final now = DateTime.now();
+    final ym = '${now.year}-${now.month}';
+    return _xar().where((e) => e['ym'] == ym).toList();
+  }
+
+  // Papkalar: joriy oy yozuvlaridan toifa bo'yicha
+  List<Map<String, dynamic>> _xfFolders() {
+    final map = <String, Map<String, dynamic>>{};
+    for (final e in _xfMonthEntries()) {
+      final cat = (e['cat'] as String?) ?? 'Boshqa';
+      final f = map.putIfAbsent(cat,
+          () => {'name': cat, 'income': e['kind'] == 'd', 'total': 0, 'entries': <Map<String, dynamic>>[]});
+      f['total'] = (f['total'] as int) + (e['a'] as int);
+      (f['entries'] as List).add(e);
+    }
+    return map.values.toList()
+      ..sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
+  }
+
+  // Sparkline: oy kunlari -> 8 savat, 0..1 normallashgan
+  List<double> _xfSpark(List entries) {
+    final b = List<double>.filled(8, 0);
+    for (final e in entries) {
+      final d = (((e as Map)['dom'] as int? ?? 1) - 1).clamp(0, 30);
+      b[(d * 8 / 31).floor()] += ((e)['a'] as int).toDouble();
+    }
+    final m = b.reduce(math.max);
+    return m <= 0 ? List<double>.filled(8, 0.06) : b.map((v) => v <= 0 ? 0.06 : v / m).toList();
+  }
+
+  // Sessiya jurnali (Oxirgi o'zgarishlar) — max 12
+  void _xfLogAdd(String type,
+      {required String cat, required String desc, required int amount, required bool income, String? id}) {
+    final log = List<Map<String, dynamic>>.from(S['xfLog'] as List);
+    log.insert(0, {
+      'id': 'l${DateTime.now().microsecondsSinceEpoch}', 'type': type,
+      'cat': cat, 'desc': desc, 'a': amount, 'income': income, 'eid': id,
+      't': _hhmm(DateTime.now()),
+    });
+    set({'xfLog': log.take(12).toList(), if (S['xfLogOpen'] != true) 'xfLogDot': true});
+  }
+
+  // Yuborish: tahrir rejimi / birlashtirish / papka o'chirish / oddiy parse
+  Future<void> xfSend_() async {
+    final t = ((S['xarText'] as String?) ?? '').trim();
+    if (t.isEmpty) {
+      toast_('Jumla yozing');
+      return;
+    }
+    final ed = S['xfEditing'] as Map<String, dynamic>?;
+    if (ed != null) {
+      set({'xarText': ''});
+      return _xfEditSave(ed['id'] as String, t);
+    }
+    final low = _xfNorm(t);
+    if (low.contains('birlashtir')) {
+      set({'xarText': ''});
+      return _xfMergeAsk(low);
+    }
+    if (low.contains('papka') && low.contains("o'chir")) {
+      set({'xarText': ''});
+      return _xfDelFolderAsk(low);
+    }
+    set({'xarText': ''});
+    await xarPick_(t, source: 'text');
+  }
+
+  // "Taksi xarajatlarini Transportga birlashtir" — matnda 2 papka nomini topamiz
+  void _xfMergeAsk(String low) {
+    final hits = <Map<String, dynamic>>[];
+    for (final f in _xfFolders()) {
+      final i = low.indexOf(_xfNorm(f['name'] as String));
+      if (i >= 0) hits.add({'f': f, 'i': i});
+    }
+    hits.sort((a, b) => (a['i'] as int).compareTo(b['i'] as int));
+    if (hits.length < 2) {
+      toast_('Ikkita papka nomini ayting: «Taksi xarajatlarini Transportga birlashtir»');
+      return;
+    }
+    set({'xfConfirm': {'kind': 'merge', 'from': hits[0]['f'], 'to': hits[1]['f']}});
+  }
+
+  // "Taksi papkasini o'chir" — bitta papka nomi
+  void _xfDelFolderAsk(String low) {
+    for (final f in _xfFolders()) {
+      if (low.contains(_xfNorm(f['name'] as String))) {
+        set({'xfConfirm': {'kind': 'delf', 'from': f}});
+        return;
+      }
+    }
+    toast_('Papka topilmadi');
+  }
+
+  // Tasdiqlash kartasi: OK — birlashtirish yoki papka o'chirish
+  Future<void> xfCfOk_() async {
+    final c = S['xfConfirm'] as Map<String, dynamic>?;
+    if (c == null) return;
+    set({'xfConfirm': null});
+    final from = c['from'] as Map<String, dynamic>;
+    final ids = (from['entries'] as List).cast<Map<String, dynamic>>().map((e) => e['id'] as String).toList();
+    if (c['kind'] == 'merge') {
+      final to = c['to'] as Map<String, dynamic>;
+      for (final id in ids) {
+        await Api.patchExpense(id, category: to['name'] as String);
+      }
+      set({'xarEntries': _xar().map((x) => ids.contains(x['id']) ? {...x, 'cat': to['name']} : x).toList()});
+      _xfLogAdd('merge', cat: to['name'] as String, desc: "${from['name']} → ${to['name']}",
+          amount: from['total'] as int, income: from['income'] == true);
+      toast_("Birlashtirildi: ${from['name']} → ${to['name']}");
+    } else {
+      for (final id in ids) {
+        await Api.deleteExpense(id);
+      }
+      set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList(), 'xfDetail': null});
+      _xfLogAdd('del', cat: from['name'] as String, desc: "${from['name']} papkasi",
+          amount: from['total'] as int, income: from['income'] == true);
+      toast_("O'chirildi: ${from['name']}");
+    }
+  }
+
+  void xfCfNo_() => set({'xfConfirm': null});
+
+  // Yozuvni tahrirlash: input'ga joriy qiymat tushadi, yuborish -> PATCH
+  void xfEditStart_(String id) {
+    final e = _xar().firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
+    if (e.isEmpty) return;
+    final label = (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'];
+    set({
+      'xfEditing': {'id': id, 'label': label},
+      'xarText': '${e['note'] ?? ''} ${e['a']}'.trim(),
+      'xfLogOpen': false,
+    });
+  }
+
+  void xfEditCancel_() => set({'xfEditing': null, 'xarText': ''});
+
+  Future<void> _xfEditSave(String id, String t) async {
+    set({'xfEditing': null});
+    final f = xarParse_(t);
+    final amt = int.tryParse(f['amount'] as String) ?? 0;
+    if (amt <= 0) {
+      toast_('Summani kiriting');
+      return;
+    }
+    final r = await Api.patchExpense(id, amount: amt, note: f['note'] as String?);
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    final e = _mapExpense(r.data as Map<String, dynamic>);
+    set({'xarEntries': _xar().map((x) => x['id'] == id ? e : x).toList()});
+    _xfLogAdd('edit', cat: e['cat'] as String,
+        desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
+        amount: e['a'] as int, income: e['kind'] == 'd', id: id);
+    toast_('Yangilandi');
+  }
+
+  // Yozuvni o'chirish — "Bekor qilish" (undo) bilan lokal toast
+  Future<void> xfDelEntry_(String id) async {
+    final e = _xar().firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
+    if (e.isEmpty) return;
+    final r = await Api.deleteExpense(id);
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    set({
+      'xarEntries': _xar().where((x) => x['id'] != id).toList(),
+      'xfToast': {'text': "O'chirildi", 'undo': e},
+    });
+    _xfLogAdd('del', cat: e['cat'] as String,
+        desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
+        amount: e['a'] as int, income: e['kind'] == 'd');
+    _xfToastT?.cancel();
+    _xfToastT = Timer(const Duration(seconds: 5), () => set({'xfToast': null}));
+  }
+
+  Future<void> xfUndo_() async {
+    final t = S['xfToast'] as Map<String, dynamic>?;
+    final e = t?['undo'] as Map<String, dynamic>?;
+    _xfToastT?.cancel();
+    set({'xfToast': null});
+    if (e == null) return;
+    final r = await Api.addExpense(e['a'] as int, e['kind'] == 'd', e['cat'] as String, (e['note'] as String?) ?? '');
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    final ne = _mapExpense(r.data as Map<String, dynamic>);
+    set({'xarEntries': [ne, ..._xar()]});
+    toast_('Qaytarildi');
+  }
+
+  // ANIQLANMAGAN tray
+  void xfTrayToggle_(String id) {
+    set({
+      'xfTray': (S['xfTray'] as List).cast<Map<String, dynamic>>()
+          .map((t) => t['id'] == id ? {...t, 'open': t['open'] != true} : t).toList(),
+    });
+  }
+
+  Future<void> xfTrayPick_(String id, String cat) async {
+    final tray = (S['xfTray'] as List).cast<Map<String, dynamic>>();
+    final t = tray.firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
+    if (t.isEmpty) return;
+    final a = Map<String, dynamic>.from(t['action'] as Map);
+    a['category'] = cat;
+    set({'xfTray': tray.where((x) => x['id'] != id).toList()});
+    // confirm orqali saqlaymiz — parsed bilan birga (lug'at o'rganadi: keyingi safar AI o'zi topadi)
+    await _xcConfirm(t['src'] as String, 'text', [a], [Map<String, dynamic>.from(t['action'] as Map)]);
   }
 
   Future<void> limSave_() async {
@@ -1303,6 +1607,16 @@ class TrustStore extends ChangeNotifier {
           .toList(),
       'xarCatsEmpty': perCat.isEmpty,
       // ---- Mikrofon: bosib ushlab yozish (Telegram/Instagram) ----
+      // STT o'chiq bo'lsa (kSttEnabled=false) mic o'rniga matn input ko'rsatiladi.
+      'sttOn': kSttEnabled,
+      'xarTextVal': S['xarText'] ?? '',
+      'xarTextSet': (String t) => set({'xarText': t}),
+      'xarTextGo': () {
+        final t = ((S['xarText'] as String?) ?? '').trim();
+        if (t.isEmpty) { toast_('Jumla yozing'); return; }
+        set({'xarText': ''});
+        xarPick_(t, source: 'text');
+      },
       'micHoldStart': () => voiceHoldStart(),
       'micHoldEnd': () => voiceHoldEnd(),
       'micRec': S['voiceStage'] == 'rec',        // yozayapti (pulse)
@@ -1312,6 +1626,135 @@ class TrustStore extends ChangeNotifier {
           : S['voiceStage'] == 'parsing'
               ? 'Tahlil qilinyapti…'
               : "Bosib ushlab gapiring — AI o'zi yozib toifalaydi",
+      // ---- Xarajatlar v2: papka (folder) UI (dizayn: Xarajatlar Trust.html) ----
+      ...(() {
+        final xfNow = DateTime.now();
+        final xfFs = _xfFolders();
+        final xfNew = (S['xfNewCats'] as List).cast<String>();
+        int xfTin = 0, xfTout = 0;
+        for (final f in xfFs) {
+          if (f['income'] == true) {
+            xfTin += f['total'] as int;
+          } else {
+            xfTout += f['total'] as int;
+          }
+        }
+        final xfBal = xfTin - xfTout;
+        Map<String, dynamic> xfCard(Map<String, dynamic> f) => {
+              'name': f['name'], 'emoji': xfEmoji(f['name'] as String),
+              'inc': f['income'] == true,
+              'totalTxt': (f['income'] == true ? '+' : '−') + _fx(f['total'] as int),
+              'spark': _xfSpark(f['entries'] as List),
+              'isNew': xfNew.contains(f['name']),
+              'open': () => set({'xfDetail': f['name']}),
+            };
+        // Ochiq papka (tafsilot)
+        final xfDN = S['xfDetail'] as String?;
+        final xfDFl = xfFs.where((f) => f['name'] == xfDN).toList();
+        final xfDF = xfDFl.isEmpty ? null : xfDFl.first;
+        final xfGroups = <Map<String, dynamic>>[];
+        if (xfDF != null) {
+          final ents = (xfDF['entries'] as List).cast<Map<String, dynamic>>().toList()
+            ..sort((a, b) => (a['days'] as int).compareTo(b['days'] as int));
+          for (final e in ents) {
+            final d = e['days'] as int;
+            final label = d <= 0 ? 'Bugun' : d == 1 ? 'Kecha' : '$d kun avval';
+            if (xfGroups.isEmpty || xfGroups.last['label'] != label) {
+              xfGroups.add({'label': label, 'rows': <Map<String, dynamic>>[]});
+            }
+            (xfGroups.last['rows'] as List).add({
+              'desc': (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'],
+              'time': e['t'],
+              'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
+              'inc': e['kind'] == 'd',
+              'edit': () => xfEditStart_(e['id'] as String),
+              'del': () => xfDelEntry_(e['id'] as String),
+            });
+          }
+        }
+        // Tasdiqlash kartasi (birlashtirish / papka o'chirish)
+        final xfCf = S['xfConfirm'] as Map<String, dynamic>?;
+        final xfCfF = xfCf?['from'] as Map<String, dynamic>?;
+        final xfCfT = xfCf?['to'] as Map<String, dynamic>?;
+        // Tray chiplari: mavjud chiqim papkalari (bo'sh bo'lsa standart to'plam)
+        final xfChipCats = xfFs.where((f) => f['income'] != true).map((f) => f['name'] as String).toList();
+        final chipSrc = xfChipCats.isEmpty
+            ? ['Transport', 'Oziq-ovqat', 'Kommunal', 'Xaridlar', 'Salomatlik']
+            : xfChipCats;
+        return <String, dynamic>{
+          'xfMonth': '${_monFull[xfNow.month - 1]} ${xfNow.year}',
+          'xfBalCap': '${_monFull[xfNow.month - 1].toUpperCase()} BALANSI',
+          'xfBalTxt': (xfBal >= 0 ? '+' : '−') + _fx(xfBal.abs()),
+          'xfBalPos': xfBal >= 0,
+          'xfInTxt': '+${_fx(xfTin)}',
+          'xfOutTxt': '−${_fx(xfTout)}',
+          'xfInFolders': xfFs.where((f) => f['income'] == true).map(xfCard).toList(),
+          'xfOutFolders': xfFs.where((f) => f['income'] != true).map(xfCard).toList(),
+          'xfEmptyAll': xfFs.isEmpty,
+          // Papka tafsiloti
+          'xfDetailOpen': xfDF != null,
+          'xfDEmoji': xfDF == null ? '' : xfEmoji(xfDF['name'] as String),
+          'xfDName': xfDF == null ? '' : xfDF['name'],
+          'xfDCount': xfDF == null ? '' : '${_monFull[xfNow.month - 1]} ${xfNow.year} · ${(xfDF['entries'] as List).length} ta yozuv',
+          'xfDTotalTxt': xfDF == null ? '' : ((xfDF['income'] == true ? '+' : '−') + _fx(xfDF['total'] as int)),
+          'xfDInc': xfDF?['income'] == true,
+          'xfDSpark': xfDF == null ? List<double>.filled(8, 0.06) : _xfSpark(xfDF['entries'] as List),
+          'xfDGroups': xfGroups,
+          'xfDEmpty': xfDF != null && (xfDF['entries'] as List).isEmpty,
+          'xfDetailClose': () => set({'xfDetail': null}),
+          // Jurnal (Oxirgi o'zgarishlar)
+          'xfLogOpen': S['xfLogOpen'] == true,
+          'xfLogDot': S['xfLogDot'] == true,
+          'xfLogToggle': () => set({'xfLogOpen': S['xfLogOpen'] != true, 'xfLogDot': false}),
+          'xfLogEmpty': (S['xfLog'] as List).isEmpty,
+          'xfLogRows': (S['xfLog'] as List).cast<Map<String, dynamic>>().map((o) => {
+                'emoji': xfEmoji(o['cat'] as String),
+                'desc': o['desc'],
+                'isDel': o['type'] == 'del',
+                'badge': o['type'] == 'add' ? 'YANGI'
+                    : o['type'] == 'del' ? "O'CHIRILDI"
+                    : o['type'] == 'edit' ? 'TAHRIR' : 'BIRLASHDI',
+                'type': o['type'],
+                'sub': '${o['cat']} · ${o['t']}',
+                'amtTxt': (o['income'] == true ? '+' : '−') + _fx(o['a'] as int),
+                'inc': o['income'] == true,
+                'canAct': o['type'] != 'del' && o['eid'] != null,
+                'edit': () { if (o['eid'] != null) xfEditStart_(o['eid'] as String); },
+                'delTap': () { if (o['eid'] != null) xfDelEntry_(o['eid'] as String); },
+              }).toList(),
+          // ANIQLANMAGAN tray
+          'xfShowTray': (S['xfTray'] as List).isNotEmpty,
+          'xfTrayCount': '${(S['xfTray'] as List).length}',
+          'xfTrayRows': (S['xfTray'] as List).cast<Map<String, dynamic>>().map((t) => {
+                'id': t['id'],
+                'text': t['text'],
+                'amtTxt': '−${_fx(_numToInt((t['action'] as Map)['amount']))}',
+                'open': t['open'] == true,
+                'toggle': () => xfTrayToggle_(t['id'] as String),
+                'chips': [
+                  for (final c in chipSrc)
+                    {'label': '${xfEmoji(c)} $c', 'pick': () => xfTrayPick_(t['id'] as String, c)},
+                ],
+              }).toList(),
+          // Tahrir rejimi / tasdiqlash / undo-toast / yuborish
+          'xfEditingOpen': S['xfEditing'] != null,
+          'xfEditLabel': '${(S['xfEditing'] as Map?)?['label'] ?? ''}',
+          'xfEditCancel': () => xfEditCancel_(),
+          'xfCfOpen': xfCf != null,
+          'xfCfMerge': xfCf?['kind'] == 'merge',
+          'xfCfFromTxt': xfCfF == null ? '' : '${xfEmoji(xfCfF['name'] as String)} ${xfCfF['name']}',
+          'xfCfFromSum': xfCfF == null ? '' : ((xfCfF['income'] == true ? '+' : '−') + _fx(xfCfF['total'] as int)),
+          'xfCfToTxt': xfCfT == null ? '' : '${xfEmoji(xfCfT['name'] as String)} ${xfCfT['name']}',
+          'xfCfToSum': xfCfT == null ? '' : ((xfCfT['income'] == true ? '+' : '−') + _fx(xfCfT['total'] as int)),
+          'xfCfOk': () => xfCfOk_(),
+          'xfCfNo': () => xfCfNo_(),
+          'xfToastOpen': S['xfToast'] != null,
+          'xfToastText': '${(S['xfToast'] as Map?)?['text'] ?? ''}',
+          'xfUndo': () => xfUndo_(),
+          'xfBusy': S['voiceStage'] == 'parsing',
+          'xfSend': () => xfSend_(),
+        };
+      })(),
       // ---- Chatdagi yozuvni inline tahrirlash (bubble bosilganda) ----
       'xEditOpen': S['xEditId'] != null,
       'xEditId': S['xEditId'],

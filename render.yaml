@@ -34,6 +34,10 @@ services:
       # SMS toll-fraud: butun servis bo'yicha soatlik OTP capi (devsms balansini himoya)
       - key: SMS_GLOBAL_HOURLY_CAP
         value: "200"
+      # STT (ovoz->matn) VAQTINCHA O'CHIQ — matn-birinchi rejim (2026-07-15).
+      # Qayta yoqish: "true". LLM parsing bunga bog'liq EMAS, ishlayveradi.
+      - key: STT_ENABLED
+        value: "false"
       # STT (ovoz->matn) VA LLM parsing (matn->xarajat/qarz) — bitta Groq kaliti.
       # Majburiy: Xarajat AI shu kalitsiz faqat qoida-parserga tushadi.
       - key: GROQ_API_KEY
