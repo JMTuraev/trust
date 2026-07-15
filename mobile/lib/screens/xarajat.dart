@@ -1200,16 +1200,21 @@ class _NumGroupFmt extends TextInputFormatter {
     return b.toString();
   }
 
+  // Guruh bo'shlig'i: ikki raqam ORASIDAGI yolg'iz bo'shliq (format belgisi)
+  bool _isGroupSpace(String s, int i) =>
+      s[i] == ' ' && i > 0 && i + 1 < s.length && _d.hasMatch(s[i - 1]) && _d.hasMatch(s[i + 1]);
+
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
     final t = newV.text;
     if (t.isEmpty || !_d.hasMatch(t)) return newV;
 
-    // Kursordan oldingi raqamlar soni (format o'zgarsa ham joyini topamiz)
-    var digitsBefore = 0;
+    // Kursordan oldingi MA'NOLI belgilar soni (guruh bo'shliqlari hisobga OLINMAYDI) —
+    // faqat raqam sanash harf yozilganda kursorni orqada qoldirib, matnni teskari yozdirardi
+    var meaningfulBefore = 0;
     final selEnd = newV.selection.end.clamp(0, t.length);
     for (var i = 0; i < selEnd; i++) {
-      if (_d.hasMatch(t[i])) digitsBefore++;
+      if (!_isGroupSpace(t, i)) meaningfulBefore++;
     }
 
     // Raqam oqimlarini yig'ish: raqamlar orasidagi YOLG'IZ bo'shliq format qoldig'i
@@ -1239,10 +1244,10 @@ class _NumGroupFmt extends TextInputFormatter {
     }
     final res = out.toString();
 
-    // Kursorni raqamlar soni bo'yicha qayta joylash
+    // Kursorni ma'noli belgilar soni bo'yicha qayta joylash
     var pos = 0, seen = 0;
-    while (pos < res.length && seen < digitsBefore) {
-      if (_d.hasMatch(res[pos])) seen++;
+    while (pos < res.length && seen < meaningfulBefore) {
+      if (!_isGroupSpace(res, pos)) seen++;
       pos++;
     }
     return TextEditingValue(text: res, selection: TextSelection.collapsed(offset: pos));
