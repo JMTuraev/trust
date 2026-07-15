@@ -1116,7 +1116,8 @@ class TrustStore extends ChangeNotifier {
       ..sort((a, b) => (b['days'] as int).compareTo(a['days'] as int)); // eski -> yangi
     final amts = es.map((e) => (e['a'] as int).toDouble()).toList();
     final last = amts.length > 8 ? amts.sublist(amts.length - 8) : amts;
-    final vals = List<double>.filled(8 - last.length, 0.0)..addAll(last);
+    // DIQQAT: List.filled fixed-length qaytaradi — addAll qulatadi; spread bilan yig'amiz
+    final vals = [...List<double>.filled(8 - last.length, 0.0), ...last];
     final m = vals.reduce(math.max);
     if (m <= 0) return List<double>.filled(8, 0.08);
     return vals.map((v) => v <= 0 ? 0.08 : (0.15 + (v / m) * 0.85)).toList();
