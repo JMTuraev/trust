@@ -16,14 +16,18 @@ SQL Editor'da (**https://supabase.com/dashboard/project/cgqudcbvezwxjxgaqdiw/sql
 
 1. `supabase/migrations/001_init.sql`
 2. `supabase/migrations/002_trust_model.sql`
-3. `supabase/migrations/003_v2_fixes.sql` ← **yangi, majburiy**
+3. `supabase/migrations/003_v2_fixes.sql`
+4. `supabase/migrations/004_link_model.sql` ← **yangi, majburiy** (bog'lanish modeli)
+5. `supabase/migrations/005_xarajat_ai.sql` ← **yangi, majburiy** (Xarajat AI: toifalar, lug'at, tuzatishlar)
 
 Hammasi idempotent — oldin qisman bajarilgan bo'lsa ham qayta yurgizish xavfsiz.
 
-**Tekshirish (Table Editor'da shu 9 jadval bo'lishi kerak):**
-`profiles, otp_codes, partners, operations, op_history, edit_requests, expenses, limits, notifications`.
-`debts, payments, reminders` (eski v1) — 003 dan keyin YO'Q bo'lishi kerak.
-`notifications` jadvalida `sender_id` ustuni paydo bo'lgan bo'lishi kerak.
+**Tekshirish (Table Editor'da shu jadvallar bo'lishi kerak):**
+`profiles, otp_codes, partners, operations, op_history, expenses, limits, notifications`
++ 004 dan keyin: `link_events, reject_signals, blocks` (va `partners`da `link_status, client_alias`; `profiles`da `notif_enabled`; `notifications`da `link_id`).
++ 005 dan keyin: `categories, word_map, corrections` (va `expenses`da `source, confidence, raw_text` ustunlari).
+`debts, payments, reminders` (eski v1) — 003 dan keyin YO'Q. `edit_requests` — 004 dan keyin YO'Q (tasdiq oqimi olib tashlandi).
+`partners.on_trust` va `operations.confirm_code` — 004 dan keyin YO'Q bo'lishi kerak.
 
 ## 3. Lokal ishga tushirish
 
@@ -70,6 +74,16 @@ Kod 12-factor: barcha sozlama env orqali, holat faqat Supabase'da — shuning uc
 5. Test: ilovada login → Xarajat → mikrofon → gapiring → to'lqinni bosing
 
 Kalit qo'shilmaguncha endpoint 503 qaytaradi va ilova demo/matn rejimida ishlayveradi.
+
+## 7. AI parsing (matn → daromad/xarajat/qarz) — XOTIRA §3
+
+STT bilan **bir xil kalitlar** ishlatiladi, qo'shimcha sozlash kerak emas:
+- Asosiy LLM: Groq `llama-3.3-70b-versatile` (`GROQ_API_KEY`, bepul tarif yetadi)
+- Zaxira: OpenAI `gpt-4o-mini` (`OPENAI_API_KEY`)
+- Ikkalasi yiqilsa: backend qoida-parser bilan javob beradi (majburiy tasdiqlash kartasi)
+- Modelni almashtirish: `GROQ_LLM_MODEL` / `OPENAI_LLM_MODEL` env o'zgaruvchilari
+
+Oqim: `POST /api/expenses/parse` (hech narsa saqlamaydi) → mobil tasdiqlash kartasi yoki avto → `POST /api/expenses/confirm` (saqlash + lug'atga o'rganish). Qarz iboralari (`"Anvarga 500 ming qarz berdim"`) Xarajatga yozilmaydi — Hamkorlar oqimiga yo'naltiriladi. Migratsiya `005_xarajat_ai.sql` majburiy.
 
 ## Eslatma
 - **O'zbekiston (+998)** raqamlari — devsms.uz orqali OTP (AllClubs shabloni, 5 xonali kod). Tayyor.

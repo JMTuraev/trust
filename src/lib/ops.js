@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 // Operatsiya turidan owner balansiga signed ta'sir (+ = menga qarzdor)
 export function deltaFor(type, amount) {
   const a = Math.abs(Number(amount));
@@ -19,8 +17,4 @@ export function typeLabel(type) {
     qaytardim: 'Qaytardim',
     menga_qaytarildi: 'Menga qaytarildi',
   }[type] || type;
-}
-
-export function genCode() {
-  return String(crypto.randomInt(10000, 100000)); // 5 xonali
 }

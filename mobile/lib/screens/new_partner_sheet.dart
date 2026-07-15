@@ -97,53 +97,11 @@ class NewPartnerSheet extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          const Cap('HOLAT'),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _stateBtn(
-                  "Trust'da bor",
-                  bg: v['npOnBg'],
-                  bd: v['npOnBd'],
-                  fg: v['npOnFg'],
-                  onTap: () => v['npPickOn'](),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _stateBtn(
-                  'Taklif qilish',
-                  bg: v['npInvBg'],
-                  bd: v['npInvBd'],
-                  fg: v['npInvFg'],
-                  onTap: () => v['npPickInv'](),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           Tx(v['npHint'], size: 11, color: p.t3, lh: 16.5),
           const SizedBox(height: 24),
           InkBtn(label: "Qo'shish", onTap: () => v['npCreate']()),
         ],
-      ),
-    );
-  }
-
-  Widget _stateBtn(String label, {required Color bg, required Color bd, required Color fg, required VoidCallback onTap}) {
-    return Tap(
-      onTap: onTap,
-      child: Container(
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: bd),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Tx(label, size: 13, w: FontWeight.w600, color: fg),
       ),
     );
   }

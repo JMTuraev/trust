@@ -34,7 +34,7 @@ class Api {
     }
   }
 
-  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body}) async {
+  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 10}) async {
     try {
       final uri = Uri.parse('$apiUrl$path');
       final headers = {
@@ -42,7 +42,7 @@ class Api {
         if (token != null) 'Authorization': 'Bearer $token',
       };
       late http.Response res;
-      const t = Duration(seconds: 10);
+      final t = Duration(seconds: timeoutSec);
       switch (method) {
         case 'GET':
           res = await http.get(uri, headers: headers).timeout(t);
@@ -70,34 +70,42 @@ class Api {
 
   // ---- Profile ----
   static Future<ApiRes> me() => _req('GET', '/api/profile/me');
-  static Future<ApiRes> updateProfile({String? fullName}) =>
-      _req('PUT', '/api/profile/me', body: {if (fullName != null) 'full_name': fullName});
+  static Future<ApiRes> updateProfile({String? fullName, bool? notifEnabled}) =>
+      _req('PUT', '/api/profile/me', body: {
+        if (fullName != null) 'full_name': fullName,
+        if (notifEnabled != null) 'notif_enabled': notifEnabled,
+      });
 
-  // ---- Partners ----
+  // ---- Partners (sotuvchi tomoni) ----
   static Future<ApiRes> partners() => _req('GET', '/api/partners');
   static Future<ApiRes> partnerDetail(String id) => _req('GET', '/api/partners/$id');
-  static Future<ApiRes> createPartner(String name, String phone, bool onTrust) =>
-      _req('POST', '/api/partners', body: {'name': name, 'counterparty_phone': phone, 'on_trust': onTrust});
+  static Future<ApiRes> createPartner(String name, String phone) =>
+      _req('POST', '/api/partners', body: {'name': name, 'counterparty_phone': phone});
   static Future<ApiRes> patchPartner(String id, {String? name, bool? archived}) => _req('PATCH', '/api/partners/$id',
       body: {if (name != null) 'name': name, if (archived != null) 'archived': archived});
   static Future<ApiRes> remind(String id) => _req('POST', '/api/partners/$id/remind');
+  static Future<ApiRes> movePartner(String id, String newPhone) =>
+      _req('POST', '/api/partners/$id/move', body: {'new_phone': newPhone});
 
-  // ---- Operations ----
+  // ---- Links (mijoz tomoni: meni kontragent qilib qo'shganlar) ----
+  static Future<ApiRes> links() => _req('GET', '/api/links');
+  static Future<ApiRes> linkAction(String id, String action) => _req('POST', '/api/links/$id/$action');
+  static Future<ApiRes> linkAlias(String id, String alias) =>
+      _req('PATCH', '/api/links/$id', body: {'alias': alias});
+  static Future<ApiRes> linkOperations(String id) => _req('GET', '/api/links/$id/operations');
+
+  // ---- Operations (bir tomonlama da'vo — tasdiqsiz) ----
   static Future<ApiRes> createOp(String partnerId, String type, num amount, String currency, String note) =>
       _req('POST', '/api/operations', body: {
         'partner_id': partnerId, 'type': type, 'amount': amount, 'currency': currency,
         if (note.isNotEmpty) 'note': note,
       });
   static Future<ApiRes> opDetail(String id) => _req('GET', '/api/operations/$id');
-  static Future<ApiRes> confirmOp(String id, String code) =>
-      _req('POST', '/api/operations/$id/confirm', body: {'code': code});
+  static Future<ApiRes> patchOp(String id, {num? amount, String? note}) =>
+      _req('PATCH', '/api/operations/$id',
+          body: {if (amount != null) 'amount': amount, if (note != null) 'note': note});
   static Future<ApiRes> cancelOp(String id) => _req('POST', '/api/operations/$id/cancel');
   static Future<ApiRes> archiveOp(String id) => _req('POST', '/api/operations/$id/archive');
-  static Future<ApiRes> editRequest(String id, num newAmount, String newNote) =>
-      _req('POST', '/api/operations/$id/edit-request',
-          body: {'new_amount': newAmount, if (newNote.isNotEmpty) 'new_note': newNote});
-  static Future<ApiRes> resolveEdit(String opId, String reqId, bool approve) =>
-      _req('POST', '/api/operations/$opId/edit-request/$reqId/resolve', body: {'approve': approve});
 
   // ---- Expenses / Limits ----
   static Future<ApiRes> expenses() => _req('GET', '/api/expenses');
@@ -107,6 +115,24 @@ class Api {
         if (category.isNotEmpty) 'category': category,
         if (note.isNotEmpty) 'note': note,
       });
+
+  // ---- AI parse (Xarajat: matn -> daromad/xarajat/qarz) ----
+  // parse hech narsa saqlamaydi; saqlash confirmExpense orqali (tasdiqlash kartasi oqimi).
+  static Future<ApiRes> parseExpense(String text, String source) =>
+      _req('POST', '/api/expenses/parse', body: {'text': text, 'source': source}, timeoutSec: 20);
+  static Future<ApiRes> confirmExpense(String text, String source,
+          List<Map<String, dynamic>> actions, {List<Map<String, dynamic>>? parsed}) =>
+      _req('POST', '/api/expenses/confirm', body: {
+        'text': text, 'source': source, 'actions': actions,
+        if (parsed != null) 'parsed': parsed,
+      });
+
+  // ---- Toifalar (CRUD: qo'shish/qayta nomlash/arxivlash — o'chirish yo'q) ----
+  static Future<ApiRes> categories() => _req('GET', '/api/categories');
+  static Future<ApiRes> addCategory(String name) => _req('POST', '/api/categories', body: {'name': name});
+  static Future<ApiRes> patchCategory(String id, {String? name, bool? archived}) =>
+      _req('PATCH', '/api/categories/$id',
+          body: {if (name != null) 'name': name, if (archived != null) 'archived': archived});
   static Future<ApiRes> getLimit() => _req('GET', '/api/limits');
   static Future<ApiRes> setLimit(num v) => _req('PUT', '/api/limits', body: {'monthly_limit': v});
 

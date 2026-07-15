@@ -1,18 +1,31 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
-import { deltaFor, typeLabel, genCode } from '../lib/ops.js';
+import { deltaFor, typeLabel } from '../lib/ops.js';
+import { displayName, notifEnabled } from '../lib/links.js';
 
 const router = Router();
 router.use(requireAuth);
 
-async function notify(userId, type, title, detail, operationId) {
-  if (!userId) return;
-  await supabaseAdmin.from('notifications').insert({ user_id: userId, type, title, detail, operation_id: operationId ?? null });
+const fmt = (n) => Number(n).toLocaleString('ru-RU');
+
+// Qabul qilingan bog'lanishdagi mijozga xabar (profil sozlamasiga bo'ysunadi)
+async function notifyCounterparty(partner, sellerId, title, detail, operationId) {
+  if (!partner?.counterparty_id || partner.link_status !== 'accepted') return;
+  if (!(await notifEnabled(partner.counterparty_id))) return;
+  await supabaseAdmin.from('notifications').insert({
+    user_id: partner.counterparty_id,
+    sender_id: sellerId,
+    type: 'op_new',
+    title,
+    detail,
+    operation_id: operationId ?? null,
+    link_id: partner.id,
+  });
 }
 
 // POST /api/operations  { partner_id, type, amount, currency?, note? }
-// Yaratuvchi yozadi -> pending + confirm_code; 2-tomon kod bilan tasdiqlaydi
+// Bir tomonlama da'vo: sotuvchi yozadi, hech qanday tasdiq talab qilinmaydi.
 router.post('/', async (req, res, next) => {
   try {
     const { partner_id, type, amount, currency, note } = req.body || {};
@@ -23,9 +36,6 @@ router.post('/', async (req, res, next) => {
     const { data: p } = await supabaseAdmin.from('partners').select('*').eq('id', partner_id).maybeSingle();
     if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });
 
-    const code = p.on_trust ? genCode() : null;
-    // Trust'da bo'lmasa — bir tomonlama daftar yozuvi: 'unconfirmed' (dalil EMAS)
-    const status = p.on_trust ? 'pending' : 'unconfirmed';
     const { data, error } = await supabaseAdmin.from('operations').insert({
       owner_id: req.user.id,
       partner_id,
@@ -35,54 +45,69 @@ router.post('/', async (req, res, next) => {
       delta: deltaFor(type, amount),
       currency: currency || 'UZS',
       note: note || null,
-      status,
-      confirm_code: code,
-      confirmed_at: null,
+      status: 'active',
       created_by: req.user.id,
     }).select().single();
     if (error) throw new Error(error.message);
 
-    if (p.on_trust && p.counterparty_id) {
-      await notify(p.counterparty_id, 'req', `${p.name} tasdiq so'radi`,
-        `${typeLabel(type)} · ${Number(amount).toLocaleString('ru-RU')} ${currency || 'UZS'}`, data.id);
-    }
-    // Yaratuvchiga kodni ko'rsatamiz (2-tomon kiritishi uchun)
-    res.status(201).json({ success: true, data: { ...data, confirm_code: code } });
+    const { data: me } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', req.user.id).maybeSingle();
+    await notifyCounterparty(p, req.user.id, `${displayName(me)} yozuv kiritdi`,
+      `${typeLabel(type)} · ${fmt(amount)} ${currency || 'UZS'}`, data.id);
+
+    res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
 });
 
-// POST /api/operations/:id/confirm  { code }
-router.post('/:id/confirm', async (req, res, next) => {
+// PATCH /api/operations/:id  { amount?, note? }
+// Yaratuvchi o'z yozuvini tuzatadi; har o'zgarish op_history'ga yoziladi (audit).
+router.patch('/:id', async (req, res, next) => {
   try {
     const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
-    if (!op) return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (op.status !== 'pending') return res.status(400).json({ success: false, error: `Holat 'pending' emas: ${op.status}` });
-    if (String(req.body?.code || '') !== String(op.confirm_code || ''))
-      return res.status(400).json({ success: false, error: "Kod noto'g'ri" });
-    // Tasdiqlovchi aynan qarshi tomon bo'lishi kerak (yaratuvchi emas, begona ham emas)
-    if (op.created_by === req.user.id)
-      return res.status(403).json({ success: false, error: "O'zingiz yaratgan yozuvni o'zingiz tasdiqlay olmaysiz" });
-    if (op.counterparty_id !== req.user.id && op.owner_id !== req.user.id)
-      return res.status(403).json({ success: false, error: 'Bu yozuv sizga tegishli emas' });
+    if (!op || op.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    if (op.created_by !== req.user.id)
+      return res.status(403).json({ success: false, error: 'Faqat yozuv muallifi tuzatadi' });
+    if (!['active', 'archived'].includes(op.status))
+      return res.status(400).json({ success: false, error: 'Bekor qilingan yozuv tuzatilmaydi' });
 
-    const { data, error } = await supabaseAdmin.from('operations')
-      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', op.id).select().single();
+    const patch = { updated_at: new Date().toISOString() };
+    let histText = null;
+    if (req.body?.amount !== undefined) {
+      const newA = Number(req.body.amount);
+      if (!newA || newA <= 0) return res.status(400).json({ success: false, error: 'amount musbat bo\'lishi kerak' });
+      if (newA !== Number(op.amount)) {
+        patch.amount = newA;
+        patch.delta = deltaFor(op.type, newA);
+        histText = `${fmt(op.amount)} -> ${fmt(newA)}`;
+      }
+    }
+    if (req.body?.note !== undefined) patch.note = req.body.note || null;
+    if (!histText && req.body?.note === undefined)
+      return res.status(400).json({ success: false, error: 'O\'zgarish kiritilmadi' });
+
+    const { data, error } = await supabaseAdmin.from('operations').update(patch).eq('id', op.id).select().single();
     if (error) throw new Error(error.message);
-    await notify(op.owner_id, 'ok', 'Yozuv tasdiqlandi', `${typeLabel(op.type)} · dalil bo'ldi`, op.id);
+
+    if (histText) {
+      await supabaseAdmin.from('op_history').insert({
+        operation_id: op.id, change_text: histText, changed_by: req.user.id,
+      });
+      const { data: p } = await supabaseAdmin.from('partners').select('*').eq('id', op.partner_id).maybeSingle();
+      const { data: me } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', req.user.id).maybeSingle();
+      await notifyCounterparty(p, req.user.id, `${displayName(me)} yozuvni tuzatdi`, histText, op.id);
+    }
+
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
 
-// POST /api/operations/:id/cancel
+// POST /api/operations/:id/cancel — muallif o'z yozuvini bekor qiladi
 router.post('/:id/cancel', async (req, res, next) => {
   try {
     const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
-    if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
+    if (!op || op.owner_id !== req.user.id)
       return res.status(404).json({ success: false, error: 'Topilmadi' });
-    // MUHIM: tasdiqlangan dalil o'chirilmas — faqat pending/unconfirmed bekor qilinadi
-    if (!['pending', 'unconfirmed'].includes(op.status))
-      return res.status(400).json({ success: false, error: "Tasdiqlangan dalilni bekor qilib bo'lmaydi — o'zgartirish so'rovi yuboring" });
+    if (op.status !== 'active')
+      return res.status(400).json({ success: false, error: 'Faqat faol yozuv bekor qilinadi' });
     const { data, error } = await supabaseAdmin.from('operations')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', op.id).select().single();
     if (error) throw new Error(error.message);
@@ -90,14 +115,14 @@ router.post('/:id/cancel', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/operations/:id/archive  — dalil ro'yxatdan yashiriladi, balansda qoladi
+// POST /api/operations/:id/archive — ro'yxatdan yashiriladi, balansda qoladi
 router.post('/:id/archive', async (req, res, next) => {
   try {
     const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
-    if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
+    if (!op || op.owner_id !== req.user.id)
       return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (!['confirmed', 'unconfirmed'].includes(op.status))
-      return res.status(400).json({ success: false, error: 'Faqat yakunlangan yozuv arxivlanadi' });
+    if (op.status !== 'active')
+      return res.status(400).json({ success: false, error: 'Faqat faol yozuv arxivlanadi' });
     const { data, error } = await supabaseAdmin.from('operations')
       .update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', op.id).select().single();
     if (error) throw new Error(error.message);
@@ -105,70 +130,18 @@ router.post('/:id/archive', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/operations/:id  (dalil — tarix bilan)
+// GET /api/operations/:id  (tarix bilan) — sotuvchi yoki QABUL QILGAN mijoz
 router.get('/:id', async (req, res, next) => {
   try {
-    const { data: op } = await supabaseAdmin.from('operations').select('*, op_history(*), edit_requests(*)').eq('id', req.params.id).maybeSingle();
+    const { data: op } = await supabaseAdmin.from('operations').select('*, op_history(*)').eq('id', req.params.id).maybeSingle();
     if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
       return res.status(404).json({ success: false, error: 'Topilmadi' });
-    res.json({ success: true, data: op });
-  } catch (e) { next(e); }
-});
-
-// POST /api/operations/:id/edit-request  { new_amount, new_note? }
-router.post('/:id/edit-request', async (req, res, next) => {
-  try {
-    const { new_amount, new_note } = req.body || {};
-    if (!new_amount || Number(new_amount) <= 0) return res.status(400).json({ success: false, error: 'new_amount kerak' });
-    const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', req.params.id).maybeSingle();
-    if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
-      return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (!['confirmed', 'archived'].includes(op.status)) return res.status(400).json({ success: false, error: "Faqat tasdiqlangan yozuvni o'zgartirish mumkin" });
-    const { data: existing } = await supabaseAdmin.from('edit_requests')
-      .select('id').eq('operation_id', op.id).eq('status', 'pending').limit(1);
-    if (existing?.length) return res.status(409).json({ success: false, error: "So'rov allaqachon yuborilgan" });
-
-    const { data, error } = await supabaseAdmin.from('edit_requests').insert({
-      operation_id: op.id, new_amount: Number(new_amount), new_note: new_note || null, requested_by: req.user.id,
-    }).select().single();
-    if (error) throw new Error(error.message);
-    const other = op.owner_id === req.user.id ? op.counterparty_id : op.owner_id;
-    await notify(other, 'edit', "O'zgartirish so'rovi",
-      `${Number(op.amount).toLocaleString('ru-RU')} -> ${Number(new_amount).toLocaleString('ru-RU')}`, op.id);
-    res.status(201).json({ success: true, data });
-  } catch (e) { next(e); }
-});
-
-// POST /api/operations/:id/edit-request/:reqId/resolve  { approve: true|false }
-router.post('/:id/edit-request/:reqId/resolve', async (req, res, next) => {
-  try {
-    const approve = !!req.body?.approve;
-    const { data: er } = await supabaseAdmin.from('edit_requests').select('*').eq('id', req.params.reqId).maybeSingle();
-    if (!er || er.operation_id !== req.params.id) return res.status(404).json({ success: false, error: 'So\'rov topilmadi' });
-    if (er.status !== 'pending') return res.status(400).json({ success: false, error: 'So\'rov allaqachon hal qilingan' });
-    const { data: op } = await supabaseAdmin.from('operations').select('*').eq('id', er.operation_id).maybeSingle();
-    if (!op || (op.owner_id !== req.user.id && op.counterparty_id !== req.user.id))
-      return res.status(404).json({ success: false, error: 'Topilmadi' });
-    if (er.requested_by === req.user.id)
-      return res.status(403).json({ success: false, error: "O'z so'rovingizni o'zingiz hal qila olmaysiz" });
-
-    await supabaseAdmin.from('edit_requests')
-      .update({ status: approve ? 'approved' : 'rejected', resolved_at: new Date().toISOString() }).eq('id', er.id);
-
-    if (approve) {
-      const fmt = (n) => Number(n).toLocaleString('ru-RU');
-      await supabaseAdmin.from('op_history').insert({
-        operation_id: op.id, change_text: `${fmt(op.amount)} -> ${fmt(er.new_amount)}`, changed_by: req.user.id,
-      });
-      await supabaseAdmin.from('operations').update({
-        amount: er.new_amount, delta: (op.delta < 0 ? -1 : 1) * Number(er.new_amount),
-        note: er.new_note ?? op.note, updated_at: new Date().toISOString(),
-      }).eq('id', op.id);
-      await notify(er.requested_by, 'ok', "O'zgartirish tasdiqlandi", `${fmt(op.amount)} -> ${fmt(er.new_amount)}`, op.id);
-    } else {
-      await notify(er.requested_by, 'rej', "O'zgartirish rad etildi", null, op.id);
+    if (op.counterparty_id === req.user.id && op.owner_id !== req.user.id) {
+      const { data: p } = await supabaseAdmin.from('partners').select('link_status').eq('id', op.partner_id).maybeSingle();
+      if (p?.link_status !== 'accepted')
+        return res.status(403).json({ success: false, error: 'Avval bog\'lanishni qabul qiling' });
     }
-    res.json({ success: true, data: { approved: approve } });
+    res.json({ success: true, data: op });
   } catch (e) { next(e); }
 });
 

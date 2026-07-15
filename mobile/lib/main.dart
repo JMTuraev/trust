@@ -13,14 +13,13 @@ import 'screens/profil.dart';
 import 'screens/tab_bar.dart';
 import 'screens/client_screen.dart';
 import 'screens/notifs.dart';
-import 'screens/confirm_screen.dart';
 import 'screens/receipt.dart';
 import 'screens/pdf_preview.dart';
 import 'screens/new_tx_sheet.dart';
 import 'screens/new_partner_sheet.dart';
 import 'screens/edit_form_sheet.dart';
-import 'screens/review_screen.dart';
-import 'screens/push_demo.dart';
+import 'screens/link_decision_sheet.dart';
+import 'screens/rejected_links.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -99,12 +98,9 @@ class Root extends StatelessWidget {
                   // Bildirishnomalar (z:12)
                   if (v['notifOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: NotifsScreen())),
-                  // Ikkinchi tomon tasdig'i (z:14)
-                  if (v['confirmOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: ConfirmScreen())),
-                  // O'zgartirishni tasdiqlash (z:16)
-                  if (v['reviewOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: ReviewScreen())),
+                  // Rad etilgan bog'lanishlar (z:14)
+                  if (v['rejOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: RejectedLinksScreen())),
                   // Dalil (z:20)
                   if (v['receiptOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: ReceiptScreen())),
@@ -115,8 +111,8 @@ class Root extends StatelessWidget {
                   if (v['sheetOpen'] == true) NewTxSheet(),
                   if (v['npOpen'] == true) NewPartnerSheet(),
                   if (v['editFormOpen'] == true) EditFormSheet(),
-                  // Android push demo (z:48)
-                  if (v['pushOpen'] == true) Positioned.fill(child: PushDemo()),
+                  // Bog'lanish qarori (z:50) — minimal preview bilan qabul/rad
+                  if (v['linkDecisionOpen'] == true) LinkDecisionSheet(),
                 ] else
                   Positioned.fill(child: OnboardingScreen()),
                 // Davlat kodi sheet (z:60)

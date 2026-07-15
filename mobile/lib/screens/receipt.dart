@@ -127,8 +127,7 @@ class ReceiptScreen extends StatelessWidget {
               detailRow('Kimdan', Tx(receipt['from'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
               detailRow('Kimga', Tx(receipt['to'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
               detailRow('Sana', Tx(receipt['date'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow('Tasdiqlash kodi', Tx(receipt['code'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, ls: 3, tab: true, maxLines: 1)),
-              detailRow('Holat', Tx('Ikki tomonlama tasdiqlangan', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1), border: false),
+              detailRow('Holat', Tx('Daftar yozuvi — tarixi saqlanadi', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1), border: false),
               if (receipt['corrected'] == true) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 6),

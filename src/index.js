@@ -10,6 +10,9 @@ import expenseRoutes from './routes/expenses.js';
 import limitRoutes from './routes/limits.js';
 import notifRoutes from './routes/notifications.js';
 import sttRoutes from './routes/stt.js';
+import categoryRoutes from './routes/categories.js';
+import linkRoutes from './routes/links.js';
+import { startRejectSignalSweeper } from './services/rejectSignal.js';
 
 assertConfig();
 
@@ -19,7 +22,7 @@ app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '2.2' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.0' }));
 
 // Auth — qattiqroq limit (SMS xarajati va brute-force'dan himoya)
 app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 10 }), authRoutes);
@@ -31,6 +34,8 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/limits', limitRoutes);
 app.use('/api/notifications', notifRoutes);
 app.use('/api/stt', sttRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/links', linkRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {
@@ -39,8 +44,11 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(config.port, () =>
-  console.log(`trust-backend ${config.port}-portda ishga tushdi (v2.2)`)
+  console.log(`trust-backend ${config.port}-portda ishga tushdi (v3.0)`)
 );
+
+// Kechiktirilgan rad signallari (link modeli)
+startRejectSignalSweeper();
 
 // Render/Docker SIGTERM yuboradi — ochiq so'rovlarni yakunlab chiqamiz
 for (const sig of ['SIGTERM', 'SIGINT']) {

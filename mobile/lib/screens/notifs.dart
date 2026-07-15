@@ -57,7 +57,9 @@ class NotifsScreen extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Tx(n['title'], size: 14, w: FontWeight.w600, color: p.ink),
+                                  Flexible(
+                                    child: Tx(n['title'], size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                                  ),
                                   if (n['unread'] == true) ...[
                                     const SizedBox(width: 8),
                                     Container(
@@ -84,16 +86,7 @@ class NotifsScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                child: GhostBtn(
-                  label: "Android push ko'rinishi (demo)",
-                  onTap: v['openPush'],
-                  h: 40,
-                  r: 20,
-                  fs: 12.5,
-                ),
-              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

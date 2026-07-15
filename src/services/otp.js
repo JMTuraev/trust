@@ -106,21 +106,31 @@ export async function verifyOtp(phone, code) {
 
 // ---------- Yordamchilar ----------
 
-// Yangi ro'yxatdan o'tgan foydalanuvchini uni oldindan hamkor qilib qo'shganlarga bog'lash.
-// (003 migratsiyadagi trigger ham shu ishni qiladi — bu kod eski profillar uchun zaxira.)
+// Yangi ro'yxatdan o'tgan foydalanuvchini uni oldindan kontragent qilib qo'shganlarga bog'lash.
+// (004 migratsiyadagi trigger ham shu ishni qiladi — bu kod eski profillar uchun zaxira.)
+// Qaror mijozda: unga har bir pending bog'lanish uchun 'link_new' bildirishnoma boradi.
 async function linkPartners(user) {
   const { data: linked } = await supabaseAdmin
     .from('partners')
-    .update({ counterparty_id: user.id, on_trust: true, updated_at: new Date().toISOString() })
+    .update({ counterparty_id: user.id, updated_at: new Date().toISOString() })
     .eq('counterparty_phone', user.phone)
     .is('counterparty_id', null)
-    .select('id, owner_id, name');
+    .select('id, owner_id, link_status');
   for (const p of linked || []) {
+    if (p.link_status !== 'pending') continue;
+    const { data: exists } = await supabaseAdmin.from('notifications')
+      .select('id').eq('link_id', p.id).eq('type', 'link_new').limit(1);
+    if (exists?.length) continue;
+    const { data: seller } = await supabaseAdmin
+      .from('profiles').select('full_name, phone').eq('id', p.owner_id).maybeSingle();
+    const who = (seller?.full_name || '').trim() || `+${seller?.phone || ''}`;
     await supabaseAdmin.from('notifications').insert({
-      user_id: p.owner_id,
-      type: 'ok',
-      title: "Hamkor Trust'ga qo'shildi",
-      detail: `${p.name} endi Trust'da — yozuvlar ikki tomonlama tasdiqlanadi`,
+      user_id: user.id,
+      sender_id: p.owner_id,
+      type: 'link_new',
+      title: 'Sizni kontragent qilib qo\'shishdi',
+      detail: `${who} sizni kontragent qilib qo'shgan — qabul qilasizmi?`,
+      link_id: p.id,
     });
   }
 }

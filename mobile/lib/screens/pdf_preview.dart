@@ -190,10 +190,8 @@ class PdfPreviewScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Tx('TASDIQ · IKKI TOMON TASDIQLADI', size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
-                                _confRow('1-tomon (yaratdi)', Tx((pdf['madeAt'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, maxLines: 1), 10),
-                                _confRow('2-tomon (kod bilan tasdiqladi)', Tx((pdf['okAt'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, maxLines: 1), 7),
-                                _confRow('Tasdiqlash kodi', Tx((pdf['code'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, ls: 2, tab: true, maxLines: 1), 7),
+                                const Tx('YOZUV MA\'LUMOTI', size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
+                                _confRow('Yaratilgan vaqt', Tx((pdf['madeAt'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, maxLines: 1), 10),
                               ],
                             ),
                           ),
@@ -221,7 +219,7 @@ class PdfPreviewScreen extends StatelessWidget {
                             ),
                           const SizedBox(height: 16),
                           const Tx(
-                            "Ushbu hujjat ikki tomonning kod orqali tasdig'i asosida yaratildi. O'chirib bo'lmaydi.",
+                            "Ushbu hujjat Trust daftaridagi yozuv asosida yaratildi. Barcha o'zgarishlar tarixi saqlanadi.",
                             size: 10.5, color: _lightC, lh: 16.8,
                           ),
                         ],

@@ -6,7 +6,7 @@ export const config = {
     url: process.env.SUPABASE_URL,
     anonKey: process.env.SUPABASE_ANON_KEY,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    
+
   },
   devsms: {
     token: process.env.DEVSMS_TOKEN,
@@ -25,6 +25,20 @@ export const config = {
     // XOTIRA-ovoz-va-kategoriya.md: asosiy Groq whisper-large-v3, zaxira OpenAI gpt-4o-transcribe
     groqKey: process.env.GROQ_API_KEY,
     openaiKey: process.env.OPENAI_API_KEY,
+  },
+  llm: {
+    // Parsing (matn -> daromad/xarajat/qarz). STT bilan bir xil kalitlar — qo'shimcha sozlash yo'q.
+    groqModel: process.env.GROQ_LLM_MODEL || 'llama-3.3-70b-versatile',
+    openaiModel: process.env.OPENAI_LLM_MODEL || 'gpt-4o-mini',
+  },
+  links: {
+    // Mijoz rad etganda sotuvchiga signal shu kechikish bilan boradi (tiklansa — umuman bormaydi)
+    rejectSignalDelayMs: Math.round(parseFloat(process.env.REJECT_SIGNAL_DELAY_HOURS || '24') * 3600_000),
+    // Bitta sotuvchi 24 soatda yaratadigan yangi kontragentlar cheklovi
+    partnerDailyLimit: parseInt(process.env.PARTNER_DAILY_LIMIT || '20', 10),
+    // Rad-flag: oynada shuncha rad olgan sotuvchi yangi kontragent yarata olmaydi
+    rejectFlagCount: parseInt(process.env.REJECT_FLAG_COUNT || '3', 10),
+    rejectFlagWindowMs: Math.round(parseFloat(process.env.REJECT_FLAG_WINDOW_HOURS || '72') * 3600_000),
   },
 };
 

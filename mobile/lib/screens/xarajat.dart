@@ -848,7 +848,168 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ),
               ),
             ),
+          if (v['xcOpen'] == true) Expanded(child: _confirmCard(v, p)),
         ],
+      ),
+    );
+  }
+
+  // ---------------- TASDIQLASH KARTASI (XOTIRA §3-4) ----------------
+  // Ishonch past / yangi toifa / qarz bo'lganda: summa, tomon, toifa
+  // bosib o'zgartiriladi; qarz amali Hamkorlar oqimiga yo'naltiriladi.
+  Widget _confirmCard(Map<String, dynamic> v, Pal p) {
+    final rows = (v['xcRows'] as List).cast<Map<String, dynamic>>();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      children: [
+        Center(
+          child: Tx('«${v['vText']}»', size: 16, w: FontWeight.w600, color: p.ink, lh: 22.4, align: TextAlign.center),
+        ),
+        const SizedBox(height: 6),
+        Center(child: Tx("Tekshiring — kerak bo'lsa bosib o'zgartiring", size: 11.5, color: p.t4)),
+        const SizedBox(height: 14),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(color: p.bd),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: rows[i]['isQarz'] == true ? _qarzRow(rows[i], p) : _xdRow(rows[i], p),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Tap(
+                onTap: v['xcSaveTap'],
+                child: Container(
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(13)),
+                  child: Tx('Saqlash', size: 14, w: FontWeight.w700, color: p.bg),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Tap(
+              onTap: v['vClose'],
+              child: Container(
+                height: 46,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(color: p.bd),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Tx('Bekor', size: 14, w: FontWeight.w600, color: p.t2),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Daromad/xarajat qatori: tomon + summa + toifa chiplari
+  Widget _xdRow(Map<String, dynamic> r, Pal p) {
+    final cats = (r['cats'] as List).cast<Map<String, dynamic>>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _chip('Xarajat', r['isX'] == true, r['pickX'], p),
+            const SizedBox(width: 8),
+            _chip('Daromad', r['isD'] == true, r['pickD'], p),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                decoration: BoxDecoration(
+                  border: Border.all(color: p.bd),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Center(
+                  child: StoreField(
+                    value: r['amount'],
+                    onChanged: (t) => r['onAmount'](t),
+                    hint: 'Summa',
+                    keyboardType: TextInputType.number,
+                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: p.ink),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Tx("so'm", size: 12.5, color: p.t3),
+          ],
+        ),
+        if (cats.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final c in cats)
+                _chip(c['name'] as String, c['sel'] == true, c['pick'], p, isNew: c['isNew'] == true),
+            ],
+          ),
+        ],
+        if ((r['note'] as String).isNotEmpty) ...[
+          const SizedBox(height: 9),
+          Tx(r['note'], size: 12, color: p.t3),
+        ],
+      ],
+    );
+  }
+
+  // Qarz qatori: Xarajatga yozilmaydi — Hamkorlar oqimida davom etadi
+  Widget _qarzRow(Map<String, dynamic> r, Pal p) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 9),
+              decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(7)),
+              child: Tx('QARZ', size: 9.5, w: FontWeight.w700, color: p.bg, ls: 0.8),
+            ),
+            const SizedBox(width: 8),
+            Tx(r['qarzLabel'], size: 13, w: FontWeight.w600, color: p.ink),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Tx(
+          '${(r['person'] as String).isNotEmpty ? '${r['person']} · ' : ''}${r['amount']} so\'m',
+          size: 14, w: FontWeight.w700, color: p.ink, tab: true,
+        ),
+        const SizedBox(height: 6),
+        Tx("Bu yozuv Xarajatga emas — saqlansa Hamkorlar bo'limida davom etadi", size: 11.5, color: p.t4, lh: 16.1),
+      ],
+    );
+  }
+
+  Widget _chip(String label, bool sel, dynamic onTap, Pal p, {bool isNew = false}) {
+    return Tap(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 13),
+        decoration: BoxDecoration(
+          color: sel ? p.ink : Colors.transparent,
+          border: Border.all(color: sel ? p.ink : (isNew ? p.t3 : p.bd)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Tx(label, size: 12, w: isNew || sel ? FontWeight.w600 : FontWeight.w400, color: sel ? p.bg : p.ink),
       ),
     );
   }

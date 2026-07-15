@@ -64,9 +64,26 @@ Yangi toifa yaratish:
 
 ## 5. Qurish tartibi (roadmap)
 
-1. Matn kiritish + qoida-parser + tasdiqlash kartasi + toifa CRUD (audio hali yo'q, oqim ishlaydi).
-2. LLM parsing ustiga; qoida-parser validator roliga o'tadi; lug'at + tuzatishlardan o'rganish.
-3. Groq STT + mic UX ("Tinglayapman..." reali); matn kiritish fallback bo'lib qoladi.
-4. OpenAI zaxira-STT, confidence-marshrutlash, offline navbat, monitoring (STT xato %, parsing aniqlik %, fallback chastotasi). Keyin pgvector va kontekst signallari.
+1. ✅ Matn kiritish + qoida-parser + tasdiqlash kartasi + toifa CRUD (audio hali yo'q, oqim ishlaydi).
+2. ✅ LLM parsing ustiga; qoida-parser validator roliga o'tadi; lug'at + tuzatishlardan o'rganish.
+3. ✅ Groq STT + mic UX ("Tinglayapman..." reali); matn kiritish fallback bo'lib qoladi.
+4. ⬜ OpenAI zaxira-STT ✅, confidence-marshrutlash ✅, offline navbat ⬜, monitoring (STT xato %, parsing aniqlik %, fallback chastotasi) ⬜. Keyin pgvector ⬜ va kontekst signallari ⬜, "Boshqa"ni haftalik klasterlash (pg_cron) ⬜.
 
 Tamoyil: har bosqichda app to'liq ishlaydi — yangi texnologiya tagida doim tayyor fallback turadi.
+
+## 6. Joriy holat (2026-07-15 — 2-bosqich amalga oshirildi)
+
+Backend:
+- `src/services/parse.js` — uch signal orkestri: `parseText(text, userId)`. Groq llama-3.3-70b (JSON mode, massiv, few-shot bilan) → zaxira OpenAI gpt-4o-mini → ikkalasi yiqilsa qoida-parser (majburiy tasdiq). Lug'at (word_map): user x3 og'irlik + global agregat, score>=2 bo'lsa toifani LLM'siz belgilaydi. Validator: matndagi har bir summa LLM natijasida bo'lishi shart, aks holda karta.
+- `POST /api/expenses/parse` (saqlamaydi) va `POST /api/expenses/confirm` (saqlaydi + `learnFrom`: word_map hits++, tuzatish bo'lsa corrections'ga few-shot). Qarz `routed` bo'lib qaytadi — expenses'ga yozilmaydi.
+- `/api/categories` CRUD (arxivlash, o'chirish yo'q), baza 7 toifa birinchi so'rovda seed.
+- Migratsiya: `005_xarajat_ai.sql` (categories, word_map, corrections + expenses.source/confidence/raw_text).
+
+Mobil:
+- `xarPick_` endi server parse'ga boradi (lokal `xarParse_` faqat server yiqilganda zaxira).
+- Tasdiqlash kartasi (`voiceStage: 'confirm'`, xarajat.dart `_confirmCard`): tomon (X/D chip), summa, toifa chiplari, yangi toifa taklifi "+ Nomi" (bir bosishda `accept_new_category`), qarz qatori "QARZ" belgisi bilan.
+- Qarz yo'naltirish `_routeQarz`: hamkor ismdan topilsa — operatsiya oynasi to'ldirilgan holda; topilmasa — yangi hamkor oynasi + `qarzDraft` (hamkor yaratilgach avtomatik davom etadi).
+
+Tasdiqlash kartasi qachon chiqadi: ishonch < 0.8 YOKI summa mos kelmasa YOKI yangi toifa taklifi YOKI qarz. Aks holda bubble to'g'ridan-to'g'ri.
+
+Keyingi navbat (4-bosqich qoldiqlari): offline navbat, monitoring metrikalar, pgvector k-NN, kontekst signallari, haftalik "Boshqa" klasterlash, toifa boshiga limit.

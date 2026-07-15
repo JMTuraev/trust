@@ -194,42 +194,6 @@ class _ClientScreenState extends State<ClientScreen> {
       );
     }
 
-    if (m['isCode'] == true) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
-        child: Row(
-          mainAxisAlignment: end ? MainAxisAlignment.end : MainAxisAlignment.start,
-          children: [
-            Tap(
-              onTap: m['revealTap'] as VoidCallback,
-              child: Container(
-                constraints: BoxConstraints(maxWidth: maxW),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                decoration: BoxDecoration(color: m['bg'] as Color, borderRadius: BorderRadius.circular(16)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Tx('TASDIQ KODI', size: 10.5, w: FontWeight.w600, color: m['cap'] as Color, ls: 1.2),
-                  if (m['hidden'] == true) ...[
-                    const SizedBox(height: 4),
-                    Tx('•••••', size: 22, w: FontWeight.w700, color: m['fg'] as Color, ls: 6),
-                    const SizedBox(height: 4),
-                    Tx("Kodni ko'rish uchun bosing", size: 11, color: m['cap'] as Color),
-                  ],
-                  if (m['revealed'] == true) ...[
-                    const SizedBox(height: 4),
-                    Tx(m['codeText'] as String, size: 22, w: FontWeight.w700, color: m['fg'] as Color, ls: 6, tab: true),
-                    const SizedBox(height: 4),
-                    Tx(m['capText'] as String, size: 11, color: m['cap'] as Color),
-                  ],
-                  const SizedBox(height: 5),
-                  Tx(m['time'] as String, size: 10, color: m['cap'] as Color),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (m['isSys'] == true) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -274,63 +238,11 @@ class _ClientScreenState extends State<ClientScreen> {
           ),
           const SizedBox(height: 3),
           Tx(m['date'] as String, size: 11.5, color: p.t4),
-          if (m['unconf'] == true)
-            Container(
-              margin: const EdgeInsets.only(top: 13),
-              padding: const EdgeInsets.only(top: 11),
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
-              child: Row(children: [
-                Expanded(child: Tx('Bir tomonlama yozuv — dalil emas', size: 12, color: p.t3)),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-                  decoration: BoxDecoration(border: Border.all(color: p.bd2), borderRadius: BorderRadius.circular(20)),
-                  child: Tx('tasdiqsiz', size: 10, w: FontWeight.w600, color: p.t2, ls: 0.6),
-                ),
-              ]),
-            ),
-          if (m['showInput'] == true)
-            Container(
-              margin: const EdgeInsets.only(top: 13),
-              padding: const EdgeInsets.only(top: 13),
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Tap(
-                  onTap: m['fillCode'] as VoidCallback,
-                  child: Tx(m['fillText'] as String, size: 12, color: p.t1, lh: 18),
-                ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  CodeBoxes(
-                    boxes: (v['codeBoxes'] as List).cast<Map<String, dynamic>>(),
-                    w: 31, h: 40, fs: 16, gap: 6, r: 9,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: InkBtn(label: 'Tasdiqlash', onTap: m['confirm'] as VoidCallback, h: 42, fs: 13),
-                    ),
-                  ),
-                ]),
-                if (v['codeError'] == true) ...[
-                  const SizedBox(height: 8),
-                  Tx("Kod noto'g'ri. Qayta urinib ko'ring.", size: 12, color: p.t1),
-                ],
-              ]),
-            ),
-          if (m['showMyCode'] == true)
-            Container(
-              margin: const EdgeInsets.only(top: 13),
-              padding: const EdgeInsets.only(top: 13),
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Tx('Tasdiqlash kodi — ikkinchi tomon kiritadi', size: 12, color: p.t1),
-                const SizedBox(height: 6),
-                Tx(m['code'] as String, size: 24, w: FontWeight.w700, color: p.ink, ls: 8, tab: true),
-              ]),
-            ),
-          if (m['done'] == true)
+          if ((m['byText'] as String? ?? '').isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Tx(m['byText'] as String, size: 11, color: p.t3),
+          ],
+          if (m['done'] == true && v['incoming'] != true)
             Tap(
               onTap: m['openReceipt'] as VoidCallback,
               child: Container(
@@ -370,23 +282,6 @@ class _ClientScreenState extends State<ClientScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_chat.hasClients) _chat.jumpTo(_chat.position.maxScrollExtent);
       });
-    }
-
-    // Flip icon (14x13)
-    Widget flipIcon() {
-      final fg = v['flipFg'] as Color;
-      return SizedBox(
-        width: 14,
-        height: 13,
-        child: Stack(children: [
-          Positioned(top: 2.6, left: 0,
-              child: Container(width: 9, height: 1.6, decoration: BoxDecoration(color: fg, borderRadius: BorderRadius.circular(1)))),
-          Positioned(top: 0, right: 0, child: _tri(t: 3.4, b: 3.4, l: 5, c: fg, side: 'left')),
-          Positioned(bottom: 2.6, right: 0,
-              child: Container(width: 9, height: 1.6, decoration: BoxDecoration(color: fg, borderRadius: BorderRadius.circular(1)))),
-          Positioned(bottom: 0, left: 0, child: _tri(t: 3.4, b: 3.4, r: 5, c: fg, side: 'right')),
-        ]),
-      );
     }
 
     final header = Container(
@@ -470,32 +365,19 @@ class _ClientScreenState extends State<ClientScreen> {
             ],
           ]),
         ),
-        if (v['canFlip'] == true) ...[
+        // Yangi yozuv — faqat o'z daftarida (kiruvchi daftar faqat o'qish uchun)
+        if (v['canWrite'] == true) ...[
           const SizedBox(width: 12),
           Tap(
-            onTap: () => v['flipTap'](),
+            onTap: () => v['openSheetClient'](),
             child: Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: v['flipBg'] as Color,
-                border: Border.all(color: v['flipBd'] as Color),
-              ),
-              child: Center(child: flipIcon()),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
+              child: Center(child: _plus(12, p.ink)),
             ),
           ),
         ],
-        const SizedBox(width: 12),
-        Tap(
-          onTap: () => v['openSheetClient'](),
-          child: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
-            child: Center(child: _plus(12, p.ink)),
-          ),
-        ),
       ]),
     );
 
@@ -525,57 +407,13 @@ class _ClientScreenState extends State<ClientScreen> {
       ]),
     );
 
-    final flippedBanner = v['flipped'] == true
-        ? Tap(
-            onTap: () => v['flipTap'](),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
-              decoration: BoxDecoration(color: p.card2, border: Border(bottom: BorderSide(color: p.hair2))),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                _Pulse(
-                  duration: const Duration(milliseconds: 1800),
-                  child: Container(width: 6, height: 6, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
-                ),
-                const SizedBox(width: 7),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text.rich(
-                      TextSpan(children: [
-                        TextSpan(text: "Ikkinchi tomon ko'rinishi — ", style: GoogleFonts.inter(fontSize: 11.5, color: p.t1)),
-                        TextSpan(text: v['flipWho'] as String, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: p.ink)),
-                        TextSpan(text: ' ekrani · yopish uchun bosing', style: GoogleFonts.inter(fontSize: 11.5, color: p.t1)),
-                      ]),
-                      maxLines: 1,
-                      textScaler: TextScaler.noScaling,
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          )
-        : const SizedBox.shrink();
-
-    final oneSidedBanner = v['oneSided'] == true
+    final oneSidedBanner = v['linkPending'] == true
         ? Container(
             padding: const EdgeInsets.fromLTRB(20, 9, 16, 9),
             decoration: BoxDecoration(color: p.card2, border: Border(bottom: BorderSide(color: p.hair2))),
-            child: Row(children: [
-              Expanded(
-                child: Tx("Trust'da yo'q — yozuvlar tasdiqsiz, dalil kuchiga ega emas", size: 11.5, color: p.t1, lh: 16.1),
-              ),
-              const SizedBox(width: 10),
-              Tap(
-                onTap: () => v['inviteTap'](),
-                child: Container(
-                  height: 30,
-                  padding: const EdgeInsets.symmetric(horizontal: 13),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(15)),
-                  child: Tx("Trust'ga taklif qilish", size: 11.5, w: FontWeight.w600, color: p.bg),
-                ),
-              ),
-            ]),
+            child: Tx(
+                "Bog'lanish kutilmoqda — raqam egasi qabul qilganda yozuvlar unga ham ko'rinadi",
+                size: 11.5, color: p.t1, lh: 16.1),
           )
         : const SizedBox.shrink();
 
@@ -791,7 +629,6 @@ class _ClientScreenState extends State<ClientScreen> {
       Column(children: [
         header,
         tabs,
-        flippedBanner,
         oneSidedBanner,
         if (v['isChatTab'] == true) ...[
           Expanded(
@@ -829,7 +666,10 @@ class _ClientScreenState extends State<ClientScreen> {
               borderRadius: BorderRadius.circular(12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
                 _menuItem(p, 'Nomni tahrirlash', () => v['menuRename']()),
-                _menuItem(p, 'Arxivlash', () => v['menuArchive'](), top: true),
+                if (v['incoming'] == true)
+                  _menuItem(p, 'Aloqani uzish', () => v['menuDisconnect'](), top: true)
+                else
+                  _menuItem(p, 'Arxivlash', () => v['menuArchive'](), top: true),
                 _menuItem(p, 'Profil', () => v['menuProfile'](), top: true),
               ]),
             ),

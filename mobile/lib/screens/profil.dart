@@ -1,5 +1,6 @@
 // Profil ekrani — prototype/template.html 654–681 bilan 1:1
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
 
@@ -28,10 +29,54 @@ class ProfilScreen extends StatelessWidget {
                 decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
                 child: Tx(v['meInitials'], size: 22, w: FontWeight.w600, color: p.ink),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Tx(v['meName'], size: 18, w: FontWeight.w700, color: p.ink),
-              ),
+              if (v['meEditing'] == true)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 200,
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.centerLeft,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: p.bd),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: StoreField(
+                            value: v['meEditVal'],
+                            onChanged: (t) => v['onMeName'](t),
+                            hint: 'Ismingiz',
+                            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: p.ink),
+                            onSubmit: () => v['meNameSave'](),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Tap(
+                        onTap: () => v['meNameSave'](),
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(18)),
+                          child: Tx('OK', size: 12.5, w: FontWeight.w600, color: p.bg),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  // Ism — mijozlarga shu ko'rinadi; bosib tahrirlash mumkin
+                  child: Tap(
+                    onTap: () => v['meEditToggle'](),
+                    child: Tx(v['meName'], size: 18, w: FontWeight.w700, color: p.ink),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Tx(v['mePhoneFmt'], size: 13, color: p.t2),

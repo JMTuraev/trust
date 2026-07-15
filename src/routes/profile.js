@@ -20,13 +20,17 @@ router.get('/me', async (req, res, next) => {
   }
 });
 
-// PUT /api/profile/me  { "full_name": "...", "avatar_url": "..." }
+// PUT /api/profile/me  { "full_name": "...", "avatar_url": "...", "notif_enabled": true|false }
 router.put('/me', async (req, res, next) => {
   try {
-    const { full_name, avatar_url } = req.body || {};
+    const { full_name, avatar_url, notif_enabled } = req.body || {};
+    const patch = { updated_at: new Date().toISOString() };
+    if (full_name !== undefined) patch.full_name = full_name;
+    if (avatar_url !== undefined) patch.avatar_url = avatar_url;
+    if (notif_enabled !== undefined) patch.notif_enabled = !!notif_enabled;
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .update({ full_name, avatar_url, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq('id', req.user.id)
       .select()
       .single();
