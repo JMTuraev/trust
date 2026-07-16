@@ -14,17 +14,21 @@ import categoryRoutes from './routes/categories.js';
 import linkRoutes from './routes/links.js';
 import messageRoutes from './routes/messages.js';
 import debtRoutes from './routes/debts.js';
+import circleRoutes from './routes/circles.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
 
 assertConfig();
 
 const app = express();
-app.set('trust proxy', true); // Render bir necha proxy hop ortida — leftmost X-Forwarded-For (haqiqiy client) uchun
+// Render bitta proxy hop ortida: trust proxy'ni ANIQ hop soniga qo'yamiz (true EMAS).
+// true bo'lsa Express req.ip'ni eng chap X-Forwarded-For'dan oladi — u klient tomonidan
+// spoof qilinadi va per-IP rate limitlar chetlab o'tiladi. 1 = faqat eng yaqin (Render) proxy.
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.2' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.3' }));
 
 // So'rov kuzatuvi — health'dan tashqari har so'rov usuli+yo'li (parse/expenses kabi jonli ko'rinadi)
 app.use((req, _res, next) => { if (req.path !== '/health') console.log(`→ ${req.method} ${req.path}`); next(); });
@@ -48,6 +52,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/debts', debtRoutes);
+app.use('/api/circles', circleRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {

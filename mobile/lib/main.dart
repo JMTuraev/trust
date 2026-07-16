@@ -7,7 +7,15 @@ import 'ui.dart';
 import 'screens/onboarding.dart';
 import 'screens/cc_sheet.dart';
 import 'screens/home.dart';
-import 'screens/moliya.dart';
+import 'screens/circles.dart';
+import 'screens/circle_detail.dart';
+import 'screens/circle_create.dart';
+import 'screens/circle_history.dart';
+import 'screens/circle_manage.dart';
+import 'screens/circle_join.dart';
+import 'screens/circle_pay_sheet.dart';
+import 'screens/circle_confirm_sheet.dart';
+import 'screens/circle_invite_sheet.dart';
 import 'screens/xarajat.dart';
 import 'screens/profil.dart';
 import 'screens/tab_bar.dart';
@@ -80,11 +88,14 @@ class Root extends StatelessWidget {
                   Positioned.fill(
                     child: Column(
                       children: [
+                        // Obuna banneri (tugagan / ≤3 kun qoldi) — header hududida,
+                        // layout'da joy egallaydi. const EMAS (store'dan o'qiydi).
+                        SubBanner(),
                         Expanded(
                           child: Stack(
                             children: [
                               if (v['isHome'] == true) Positioned.fill(child: HomeScreen()),
-                              if (v['isMoliya'] == true) Positioned.fill(child: MoliyaScreen()),
+                              if (v['isCircles'] == true) Positioned.fill(child: CirclesScreen()),
                               if (v['isProfil'] == true) Positioned.fill(child: ProfilScreen()),
                             ],
                           ),
@@ -96,6 +107,18 @@ class Root extends StatelessWidget {
                   // Xarajatlar — TO'LIQ EKRAN (dizayn: bottom navsiz, header'da orqaga) (z:8)
                   if (v['isXarajat'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
+                  // Circle to'liq-ekran overlaylar (z:9 — tab bar ustida). Manage/History
+                  // detaildan ochilsa uning ustida ko'rinishi uchun detaildan KEYIN keladi.
+                  if (v['circleOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: CircleDetailScreen())),
+                  if (v['circleHistoryOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: CircleHistoryScreen())),
+                  if (v['circleManageOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: CircleManageScreen())),
+                  if (v['circleCreateOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: CircleCreateScreen())),
+                  if (v['circleJoinOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: CircleJoinScreen())),
                   // Hamkor sahifasi (z:10)
                   if (v['clientOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: ClientScreen())),
@@ -118,6 +141,10 @@ class Root extends StatelessWidget {
                   if (v['sheetOpen'] == true) NewTxSheet(),
                   if (v['npOpen'] == true) NewPartnerSheet(),
                   if (v['editFormOpen'] == true) EditFormSheet(),
+                  // Circle sheetlar (z:35 — barcha overlaylardan yuqori)
+                  if (v['circlePayOpen'] == true) CirclePaySheet(),
+                  if (v['circleConfirmOpen'] == true) CircleConfirmSheet(),
+                  if (v['circleInviteOpen'] == true) CircleInviteSheet(),
                   // Bog'lanish qarori (z:50) — minimal preview bilan qabul/rad
                   if (v['linkDecisionOpen'] == true) LinkDecisionSheet(),
                 ] else

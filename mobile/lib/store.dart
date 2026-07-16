@@ -8,11 +8,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:collection/collection.dart';
 import 'theme.dart';
 import 'api.dart';
 import 'stt.dart';
 import 'secure.dart';
 import 'l10n.dart';
+import 'ledger/debt_ledger.dart';
+import 'circles_data.dart';
+import 'circles_l10n.dart';
 
 // Ovozli kiritish (STT) vaqtincha o'chirilgan — matn-birinchi rejim.
 // Qayta yoqish: true qiling (mic UI qaytadi, matn input yo'qoladi).
@@ -47,10 +51,15 @@ class TrustStore extends ChangeNotifier {
     'xfLogOpen': false, 'xfLogDot': false,
     'xfLog': <Map<String, dynamic>>[], // sessiya jurnali: add/edit/del/merge (max 12)
     'xfTray': <Map<String, dynamic>>[], // ANIQLANMAGAN — papka tanlanishi kutilayotgan yozuvlar
+    'xfTrayNaming': null, // qo'lda nom yozilayotgan tray qatori id'si
+    'xfTrayName': '', // qo'lda nom buferi (TextField onChanged shu yerga yozadi)
     'xfEditing': null, // {id, label} — input orqali tahrirlash rejimi
     'xfConfirm': null, // {kind:'merge'|'delf', from, to} — tasdiqlash kartasi
     'xfToast': null, // {text, kind:'add'|'del', ids|entry} — "Bekor qilish" bilan lokal toast
     'xfNewCats': <String>[], // shu sessiyada yangi ochilgan papkalar ("Yangi ✨")
+    // Uchish nishoni: yangi toifa GHOST-kartasi (cat -> kirimmi). Chip uchishidan
+    // OLDIN xira karta paydo bo'ladi, qo'nganda haqiqiy yozuv bilan to'ladi.
+    'xfGhostCats': <String, bool>{},
     'xfFly': <Map<String, dynamic>>[], // papkaga "uchish" animatsiya hodisalari (UI iste'mol qiladi)
     // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
     'xEditId': null, 'xEditVals': null,
@@ -78,10 +87,18 @@ class TrustStore extends ChangeNotifier {
     // REAL chat (server): xabarlar hamkor bo'yicha + o'qilmagan hisoblagichlar (badge)
     'srvMsgs': <String, List<Map<String, dynamic>>>{},
     'msgUnread': <String, int>{},
+    // Qarz daftari (ledger) — ochiq hamkor yozuvlari (server'dan, DebtEntry ro'yxati)
+    'ledgerRows': <Map<String, dynamic>>[],
+    'ledgerLoading': false,
+    // Input panel: chAct = null|'lend'|'borrow'|'close'; forma maydonlari
+    'chAct': null, 'chA': '', 'chCur': 'UZS', 'chDue': '', 'chDate': '', 'chNote': '',
+    'chDebt': null, 'chReason': 'returned', // yopish oqimida tanlangan qarz + sabab
+    'histId': null, 'histEdit': false, 'eA': '', 'eDue': '', 'eNote': '', // yozuv dialogi/tahrir
+    'revAllOpen': false, // "Hammasini tasdiqlash" ogohlantirishi
     // Profil qo'shimchalari
     'meAvatar': null, // lokal rasm yo'li (galereyadan)
     'cur': 'UZS', // asosiy valyuta (yangi yozuv formasi uchun default)
-    'subStatus': 'trial', 'trialEnd': null, // obuna holati (backend /profile/me)
+    'subStatus': 'trial', 'trialEnd': null, 'premUntil': null, // obuna holati (backend /profile/me)
     'delArmAt': 0, // profil o'chirish ikki bosqichli tasdiq vaqti
     'notifs': <Map<String, dynamic>>[],
     // Bog'lanishlar (meni kontragent qilib qo'shganlar) — link modeli
@@ -93,6 +110,7 @@ class TrustStore extends ChangeNotifier {
     // Auth / sessiya
     'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null,
     'pMeta': <String, String>{}, // hamkor o'zgarish-imzolari (poll uchun)
+    'busy': null, // server javobini kutayotgan tugma kaliti (loading spinner)
   };
 
   Timer? _tt, _pi, _lp, _poll;
@@ -118,6 +136,12 @@ class TrustStore extends ChangeNotifier {
     } catch (_) {}
     // Token muddati o'tsa (401) — istalgan ekrandan markazlashgan logout
     Api.onUnauthorized = _forceLogout;
+    // Server yozishni 402 bilan bloklagan = obuna tugagan. Lokal holat darhol
+    // 'expired'ga o'tadi — global banner va profil kartasi to'g'ri ko'rinadi
+    // (aks holda ilova qayta ochilgunicha eski "trial" holati ko'rsatilardi).
+    Api.onPaymentRequired = () {
+      if (S['subStatus'] != 'expired') set({'subStatus': 'expired'});
+    };
     await Api.loadToken();
     S['pinOn'] = await SecureStore.hasPin(); // toggle holatini secure storage'dan tiklaymiz
     // Valyuta va avatar (lokal saqlanadi)
@@ -148,6 +172,7 @@ class TrustStore extends ChangeNotifier {
         // Obuna holati: trial (7 kun) / premium / expired — profil va paywall uchun
         'subStatus': p['status'] ?? 'trial',
         'trialEnd': p['trial_ends_at'],
+        'premUntil': p['premium_until'],
         'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true,
       });
       await hydrate();
@@ -170,7 +195,7 @@ class TrustStore extends ChangeNotifier {
   void _forceLogout() {
     if (S['stage'] != 'app') return;
     logout_();
-    toast_('Sessiya tugadi — qaytadan kiring');
+    toast_(L()['tSessionEnd']);
   }
 
   // ---------------- SERVER <-> UI mapping ----------------
@@ -192,8 +217,16 @@ class TrustStore extends ChangeNotifier {
   static const _notifKind = {
     'rem': 'reminder',
     'link_new': 'linknew', 'link_acc': 'linkacc', 'link_rej': 'linkrej', 'op_new': 'opnew',
+    // qarz daftari va chat — bosilganda hamkor daftariga olib boradi (openFromNotif)
+    'debt_new': 'debt', 'debt_confirm': 'debt', 'debt_reject': 'debt',
+    'repay_new': 'debt', 'settle_new': 'debt', 'edit_req': 'debt', 'review_req': 'debt',
+    'msg': 'msg',
     // eski (v2) turlari — tarixiy qatorlar uchun
     'req': 'confirmed', 'ok': 'confirmed', 'edit': 'confirmed', 'rej': 'rejected',
+    // circle hodisalari (mavjud ikonkalar bilan xavfsiz render)
+    'circle_invite': 'confirmed', 'circle_turn': 'confirmed', 'circle_paid': 'confirmed',
+    'circle_confirm': 'confirmed', 'circle_due': 'reminder', 'circle_joined': 'confirmed',
+    'circle_closed': 'confirmed',
   };
 
   int _numToInt(dynamic v) => v == null ? 0 : (v is num ? v : (num.tryParse('$v') ?? 0)).round();
@@ -208,8 +241,8 @@ class TrustStore extends ChangeNotifier {
     if (d == null) return '';
     final now = DateTime.now();
     final diff = DateTime(now.year, now.month, now.day).difference(DateTime(d.year, d.month, d.day)).inDays;
-    if (diff == 0) return 'Bugun';
-    if (diff == 1) return 'Kecha';
+    if (diff == 0) return L()['tToday'] as String;
+    if (diff == 1) return L()['tYesterday'] as String;
     return '${d.day}-${_monU[d.month - 1]}';
   }
 
@@ -218,8 +251,8 @@ class TrustStore extends ChangeNotifier {
     final d = _dt(iso);
     if (d == null) return '';
     final diff = DateTime.now().difference(d);
-    if (diff.inMinutes < 1) return 'Hozir';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} daqiqa oldin';
+    if (diff.inMinutes < 1) return L()['tNow'] as String;
+    if (diff.inMinutes < 60) return Lf('tMinAgo', {'n': '${diff.inMinutes}'});
     final today = DateTime.now();
     if (d.year == today.year && d.month == today.month && d.day == today.day) return _hhmm(d);
     return _fmtDateIso(iso);
@@ -249,6 +282,9 @@ class TrustStore extends ChangeNotifier {
         'linkStatus': p['link_status'] ?? 'pending',
         'onTrust': p['link_status'] == 'accepted',
         'archived': p['archived'] == true,
+        'srvBal': (p['balances'] is Map)
+            ? (p['balances'] as Map).map((k, v) => MapEntry('$k', _numToInt(v)))
+            : <String, int>{},
       };
 
   /// Menga kelgan bog'lanish (GET /api/links qatori)
@@ -307,6 +343,7 @@ class TrustStore extends ChangeNotifier {
         'time': _relTime(n['created_at']),
         'tx': n['operation_id'],
         'link': n['link_id'],
+        'circle': n['circle_id'],
       };
 
   /// Foydalanuvchi ko'rsatiladigan nomi
@@ -400,12 +437,31 @@ class TrustStore extends ChangeNotifier {
     S['meId'] = user['id'];
     S['mePhone'] = user['phone'];
     final prof = await Api.me();
-    if (prof.ok && prof.data is Map) S['meName'] = (prof.data as Map)['full_name'];
+    if (prof.ok && prof.data is Map) {
+      final p = prof.data as Map;
+      S['meName'] = p['full_name'];
+      S['notifOn'] = p['notif_enabled'] != false;
+      // Obuna holati birinchi kirishda ham to'ldirilsin — aks holda profil qatori
+      // ilova qayta ochilgunicha "Sinov tugagan" deb NOTO'G'RI ko'rsatadi
+      S['subStatus'] = p['status'] ?? 'trial';
+      S['trialEnd'] = p['trial_ends_at'];
+      S['premUntil'] = p['premium_until'];
+    }
     hydrate(); // fonda yuklanadi — foydalanuvchi PIN kiritayotgan payt
     _startPolling();
   }
 
   Map<String, dynamic> L() => kLangs[S['lang']] ?? lUz;
+
+  /// Tarjima + {token} almashtirish (interpolatsiyali xabarlar uchun).
+  String Lf(String key, Map<String, String> vars) {
+    var s = (L()[key] ?? key).toString();
+    vars.forEach((k, val) => s = s.replaceAll('{$k}', val));
+    return s;
+  }
+
+  // Server javobini kutayotgan tugma kaliti (null = hech biri). UI spinner ko'rsatadi.
+  void _setBusy(String? key) => set({'busy': key});
 
   void toast_(String msg) {
     _tt?.cancel();
@@ -475,7 +531,7 @@ class TrustStore extends ChangeNotifier {
           Timer(const Duration(milliseconds: 950), () => set({'skelHome': false}));
           toast_(L()['tWelcome']);
         } else {
-          toast_("PIN o'rnatildi");
+          toast_(L()['tPinSet']);
         }
       });
     } else {
@@ -483,7 +539,7 @@ class TrustStore extends ChangeNotifier {
       set({'pinErr': true});
       Timer(const Duration(milliseconds: 450), () {
         set({'pinMode': 'set', 'pinFirst': '', 'pinVal': '', 'pinErr': false});
-        toast_('PIN mos kelmadi — qaytadan kiriting');
+        toast_(L()['tPinMismatch']);
       });
     }
   }
@@ -527,7 +583,7 @@ class TrustStore extends ChangeNotifier {
     set({'pinOn': on});
     if (!on) {
       await SecureStore.clearPin();
-      toast_('PIN o\'chirildi');
+      toast_(L()['tPinRemoved']);
     } else if (!await SecureStore.hasPin()) {
       set({'stage': 'pin', 'pinMode': 'set', 'pinVal': '', 'pinRet': 'profil'});
     }
@@ -570,7 +626,7 @@ class TrustStore extends ChangeNotifier {
 
   void archive_(String id) => _setArchived(id, true, L()['tArch']);
 
-  void restore_(String id) => _setArchived(id, false, 'Arxivdan qaytarildi');
+  void restore_(String id) => _setArchived(id, false, L()['tRestoredArch'] as String);
 
   Future<void> _setArchived(String id, bool v, String msg) async {
     final before = _clients();
@@ -648,7 +704,7 @@ class TrustStore extends ChangeNotifier {
       'clients': _clients().map((x) => x['id'] == id ? {...x, 'name': v} : x).toList(),
       'cRen': null,
     });
-    toast_('Nom yangilandi');
+    toast_(L()['tNameUpdated']);
   }
 
   List<Map<String, dynamic>> makeKeys(String field) {
@@ -684,6 +740,7 @@ class TrustStore extends ChangeNotifier {
       'clientId': null, 'tab': 'ops', 'cMenuOpen': false, 'cRen': null,
       'pProfOpen': false, 'opsVis': 8, 'notifOpen': false, 'linkDecisionId': null,
     });
+    openLedger_(linkId); // kiruvchi daftar ham LEDGER (qarz daftari) bilan ishlaydi
     await _loadLinkOps(linkId);
   }
 
@@ -698,8 +755,10 @@ class TrustStore extends ChangeNotifier {
   Future<void> linkAct(String id, String action, {String? okMsg}) async {
     if (_busy) return;
     _busy = true;
+    _setBusy('link:$action');
     final r = await Api.linkAction(id, action);
     _busy = false;
+    _setBusy(null);
     if (!r.ok) {
       toast_(r.error);
       return;
@@ -829,7 +888,7 @@ class TrustStore extends ChangeNotifier {
     final ok = await ChatRec.start();
     if (!ok) {
       _recActive = false;
-      toast_(ChatRec.lastError ?? 'Mikrofon ishlamadi');
+      toast_(ChatRec.lastError ?? L()['tMicFail'] as String);
       return;
     }
     set({'recOn': true});
@@ -847,7 +906,7 @@ class TrustStore extends ChangeNotifier {
     final (path, dur) = res;
     final pid = S['clientId'] as String?;
     if (pid == null) return;
-    toast_('Yuborilmoqda…');
+    toast_(L()['tSendingMsg']);
     final bytes = await File(path).readAsBytes();
     final r = await Api.sendAudio(pid, bytes, dur);
     try { File(path).deleteSync(); } catch (_) {}
@@ -898,7 +957,7 @@ class TrustStore extends ChangeNotifier {
     } catch (_) {
       _playKey = null;
       set({'playing': null});
-      toast_('Audio ochilmadi — qayta urinib ko\'ring');
+      toast_(L()['tAudioFail']);
     }
   }
 
@@ -911,9 +970,9 @@ class TrustStore extends ChangeNotifier {
       // Rasmni doimiy joyga ko'chirmaymiz — picker cache yo'lini saqlaymiz (lokal ko'rinish).
       await dir.setString('trust_avatar', x.path);
       set({'meAvatar': x.path});
-      toast_('Rasm yangilandi');
+      toast_(L()['tPhotoUpdated']);
     } catch (e) {
-      toast_('Rasm tanlab bo\'lmadi');
+      toast_(L()['tPhotoFail']);
     }
   }
 
@@ -932,7 +991,7 @@ class TrustStore extends ChangeNotifier {
     final armed = (S['delArmAt'] as int? ?? 0);
     if (now - armed > 5000) {
       set({'delArmAt': now});
-      toast_("O'chirishni tasdiqlash uchun YANA bir marta bosing");
+      toast_(L()['tDelConfirmAgain']);
       return;
     }
     final r = await Api.deleteProfile();
@@ -940,8 +999,235 @@ class TrustStore extends ChangeNotifier {
       toast_(r.error);
       return;
     }
-    toast_('Profil o\'chirildi — qayta kirsangiz tiklanadi');
+    toast_(L()['tProfileDeleted']);
     logout_();
+  }
+
+  // ================= QARZ DAFTARI (ledger) =================
+  Timer? _ledgerPoll;
+
+  /// Ochiq hamkorning DebtLedger obyektini quramiz (viewer = meId perspektivasi).
+  DebtLedger _ledgerFor(String partnerId) {
+    final c = _client(partnerId);
+    final accepted = c?['onTrust'] != false; // off-Trust bo'lsa oneSided oqim
+    final rows = (S['ledgerRows'] as List).cast<Map<String, dynamic>>();
+    final entries = rows.map((j) => DebtEntry.fromServer(j, '${S['meId']}')).toList();
+    return DebtLedger(meId: '${S['meId']}', partnerAccepted: accepted, entries: entries);
+  }
+
+  /// Hamkor daftarini serverdan yuklash + realtime polling (chat o'rniga).
+  Future<void> openLedger_(String partnerId) async {
+    // Daftar almashganda oldingi hamkor qatorlari ko'rinib turmasin
+    if (S['ledgerPid'] != partnerId) {
+      set({'ledgerPid': partnerId, 'ledgerRows': <Map<String, dynamic>>[], 'ledgerLoading': true});
+    } else {
+      set({'ledgerLoading': (S['ledgerRows'] as List).isEmpty});
+    }
+    final r = await Api.debts(partnerId);
+    if (r.ok && r.data is List) {
+      set({'ledgerRows': (r.data as List).cast<Map<String, dynamic>>(), 'ledgerLoading': false});
+    } else {
+      set({'ledgerLoading': false});
+    }
+    _ledgerPoll?.cancel();
+    _ledgerPoll = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (S['clientId'] == partnerId || S['inLinkId'] == partnerId) {
+        _refetchLedger(partnerId);
+      } else {
+        _ledgerPoll?.cancel();
+      }
+    });
+  }
+
+  Future<void> _refetchLedger(String partnerId) async {
+    final r = await Api.debts(partnerId);
+    if (r.ok && r.data is List) {
+      set({'ledgerRows': (r.data as List).cast<Map<String, dynamic>>()});
+    }
+  }
+
+  void stopLedgerPoll_() {
+    _ledgerPoll?.cancel();
+    set({'chAct': null, 'chA': '', 'chDebt': null, 'histId': null, 'histEdit': false, 'revAllOpen': false});
+  }
+
+  // Server call -> re-fetch (server = haqiqat manbai; ikki tomonlama tasdiq shundan)
+  Future<void> _ledgerAct(String partnerId, Future<ApiRes> Function() call, {String? okMsg}) async {
+    if (_busy) return;
+    _busy = true;
+    final r = await call();
+    _busy = false;
+    if (!r.ok) {
+      toast_(r.error);
+      return;
+    }
+    await _refetchLedger(partnerId);
+    if (okMsg != null) toast_(okMsg);
+  }
+
+  // ---- Input panel: 3 tugma ----
+  void chOpen_(String key) {
+    if (S['chAct'] == key) {
+      set({'chAct': null});
+      return;
+    }
+    final today = _isoDate(DateTime.now());
+    // Yopish oqimi: erkin qarz bo'lsa avtomatik tanlanadi
+    if (key == 'close') {
+      final led = _ledgerFor(_ledPid()!);
+      final closable = led.closableDebts().where((d) => led.remainingEff(d) > 0).toList();
+      set({
+        'chAct': 'close', 'chDebt': closable.length == 1 ? closable.first.id : null,
+        'chA': closable.length == 1 ? _fmt(led.remainingEff(closable.first)) : '',
+        'chReason': 'returned',
+      });
+      return;
+    }
+    set({'chAct': key, 'chA': '', 'chCur': (S['cur'] ?? 'UZS'), 'chDue': '', 'chDate': today, 'chNote': '', 'chDebt': null});
+  }
+
+  void chClose_() => set({'chAct': null, 'chA': '', 'chDue': '', 'chDate': '', 'chNote': '', 'chDebt': null});
+
+  void chSet_(Map<String, dynamic> patch) => set(patch);
+
+  /// Yuborish: lend/borrow -> yangi qarz; close -> repay yoki settle (tanlangan qarzga qarab).
+  Future<void> chSubmit_() async {
+    final pid = _ledPid();
+    if (pid == null) return;
+    final act = S['chAct'] as String?;
+    final amt = int.tryParse('${S['chA']}'.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+    if (amt <= 0) {
+      toast_(L()['tSum']);
+      return;
+    }
+    if (act == 'lend' || act == 'borrow') {
+      final dir = act == 'lend' ? 'toMe' : 'fromMe'; // viewer perspektivasi
+      chClose_();
+      await _ledgerAct(pid, () => Api.openDebt(pid,
+          direction: dir, amount: amt, currency: '${S['chCur'] ?? 'UZS'}',
+          actedAt: '${S['chDate']}'.isEmpty ? _isoDate(DateTime.now()) : '${S['chDate']}',
+          due: '${S['chDue']}', note: '${S['chNote']}'),
+          okMsg: _ledgerFor(pid).partnerAccepted ? (L()['okPendingConfirm'] as String) : (L()['okWroteUnconf'] as String));
+    } else if (act == 'close') {
+      final debtId = S['chDebt'] as String?;
+      if (debtId == null) {
+        toast_(L()['tPickDebt']);
+        return;
+      }
+      final led = _ledgerFor(pid);
+      DebtEntry? d;
+      for (final e in led.entries) {
+        if (e.id == debtId) d = e;
+      }
+      if (d == null) return;
+      chClose_();
+      if (d.direction == DebtDir.fromMe) {
+        // Men qaytaraman
+        await _ledgerAct(pid, () => Api.repay(pid, debtId, amt, note: '${S['chNote']}'), okMsg: L()['okRepaySent'] as String);
+      } else {
+        // U menga qarzdor — pulni oldim / kechdim
+        final reason = S['chReason'] == 'forgiven' ? 'forgiven' : 'returned';
+        await _ledgerAct(pid, () => Api.settle(pid, debtId, amt, reason, note: '${S['chNote']}'), okMsg: L()['okSent'] as String);
+      }
+    }
+  }
+
+  // ---- Yozuv amallari ----
+  // Ochiq daftar id'si: o'z hamkorim (clientId) YOKI kiruvchi bog'lanish (inLinkId)
+  String? _ledPid() => (S['clientId'] ?? S['inLinkId']) as String?;
+  void ledgerConfirm_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirm(id), okMsg: L()['okConfirmed'] as String);
+  void ledgerReject_(String id) => _ledgerAct(_ledPid()!, () => Api.debtReject(id), okMsg: L()['okRejected'] as String);
+  void ledgerConfirmOp_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirmOp(id), okMsg: L()['okConfirmed'] as String);
+  void ledgerCancel_(String id) => _ledgerAct(_ledPid()!, () => Api.debtCancel(id), okMsg: L()['tCancelled'] as String);
+  void ledgerEditConfirm_(String id) => _ledgerAct(_ledPid()!, () => Api.debtEditConfirm(id), okMsg: L()['okEditConfirmed'] as String);
+  void ledgerEditReject_(String id) => _ledgerAct(_ledPid()!, () => Api.debtEditReject(id), okMsg: L()['okRejected'] as String);
+  void ledgerReviewReject_(String id) => _ledgerAct(_ledPid()!, () => Api.reviewReject(id));
+  void ledgerReviewConfirm_(String debtId) =>
+      _ledgerAct(_ledPid()!, () => Api.reviewConfirm(_ledPid()!, debtId), okMsg: L()['okConfirmedTwoSided'] as String);
+
+  Future<void> ledgerReviewAll_() async {
+    set({'revAllOpen': false});
+    final pid = _ledPid()!;
+    final led = _ledgerFor(pid);
+    for (final d in led.reviewDebts()) {
+      await Api.reviewConfirm(pid, d.id);
+    }
+    await _refetchLedger(pid);
+    toast_(L()['tAllConfirmed']);
+  }
+
+  // ---- Yozuv tahriri (dialog) ----
+  void histOpen_(String id) => set({'histId': id, 'histEdit': false});
+  void histClose_() => set({'histId': null, 'histEdit': false});
+  void histEditStart_() {
+    final led = _ledgerFor(_ledPid()!);
+    DebtEntry? d;
+    for (final e in led.entries) {
+      if (e.id == S['histId']) d = e;
+    }
+    if (d == null) return;
+    set({'histEdit': true, 'eA': '${d.amount}', 'eDue': _isoDate(d.due), 'eNote': d.note});
+  }
+
+  Future<void> histEditSave_() async {
+    final id = S['histId'] as String?;
+    if (id == null) return;
+    final amt = int.tryParse('${S['eA']}'.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+    if (amt <= 0) {
+      toast_(L()['tSum']);
+      return;
+    }
+    set({'histEdit': false, 'histId': null});
+    await _ledgerAct(_ledPid()!,
+        () => Api.debtEdit(id, amount: amt, due: '${S['eDue']}', note: '${S['eNote']}'),
+        okMsg: L()['okEditSent'] as String);
+  }
+
+  String _isoDate(DateTime? d) => d == null ? '' : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // Qarz yozuvi sarlavhasi — tur+yo'nalish (spec 4.6/4.7 kartochka matnlari)
+  String _debtTitle(DebtEntry e, DebtLedger led) {
+    if (e.kind == EntryKind.repay) return L()['debtRepay'] as String;
+    if (e.kind == EntryKind.settle) {
+      return e.reason == CloseReason.forgiven ? (L()['debtForgive'] as String) : (L()['debtSettle'] as String);
+    }
+    // debt: yo'nalish "menga" / "men unga" — meId nuqtai nazaridan
+    return e.direction == DebtDir.toMe ? (L()['debtOwesYouT'] as String) : (L()['debtYouBorrowedT'] as String);
+  }
+
+  // Holat yorlig'i (spec 4.10 badge matnlari)
+  String _stLabel(EntryStatus s) {
+    switch (s) {
+      case EntryStatus.pending:
+        return L()['stPending'] as String;
+      case EntryStatus.active:
+        return L()['stActiveL'] as String;
+      case EntryStatus.closed:
+        return L()['stClosedL'] as String;
+      case EntryStatus.rejected:
+        return L()['okRejected'] as String;
+      case EntryStatus.cancelled:
+        return L()['tCancelled'] as String;
+      case EntryStatus.ok:
+        return L()['okConfirmed'] as String;
+      case EntryStatus.disputed:
+        return L()['stDisputedL'] as String;
+    }
+  }
+
+  Color _stColor(EntryStatus s, Color ink, Color red, Color mut) {
+    switch (s) {
+      case EntryStatus.active:
+      case EntryStatus.pending:
+        return ink;
+      case EntryStatus.rejected:
+      case EntryStatus.disputed:
+        return red;
+      case EntryStatus.closed:
+      case EntryStatus.cancelled:
+      case EntryStatus.ok:
+        return mut;
+    }
   }
 
   String _fmt(int n) =>
@@ -956,10 +1242,15 @@ class TrustStore extends ChangeNotifier {
     final newA = int.tryParse(S['editA'] as String) ?? (t['a'] as int);
     final newNote = (S['editNote'] as String).trim();
     if (newA == t['a'] && newNote == (t['note'] ?? '')) {
-      toast_("O'zgarish kiritilmadi");
+      toast_(L()['tNoChange']);
       return;
     }
+    if (_busy) return;
+    _busy = true;
+    _setBusy('submitEdit');
     final r = await Api.patchOp(t['id'] as String, amount: newA, note: newNote);
+    _busy = false;
+    _setBusy(null);
     if (!r.ok) {
       toast_(r.error);
       return;
@@ -977,7 +1268,7 @@ class TrustStore extends ChangeNotifier {
       }).toList(),
       'editFormOpen': false, 'editA': '', 'editNote': '',
     });
-    toast_('Yozuv tuzatildi — tarix saqlandi');
+    toast_(L()['tEntryFixed']);
     hydrate(full: false);
   }
 
@@ -990,11 +1281,12 @@ class TrustStore extends ChangeNotifier {
     }
     final cl0 = _client(S['sheetClient']);
     if (cl0 == null) {
-      toast_('Hamkorni tanlang');
+      toast_(L()['tPickPartner']);
       return;
     }
     if (_busy) return;
     _busy = true;
+    _setBusy('createTx');
     final r = await Api.createOp(
       cl0['id'] as String,
       _typeSrv[f['type']] ?? 'qarz_berdim',
@@ -1003,6 +1295,7 @@ class TrustStore extends ChangeNotifier {
       (f['note'] as String).trim(),
     );
     _busy = false;
+    _setBusy(null);
     if (!r.ok) {
       toast_(r.error);
       return;
@@ -1016,7 +1309,7 @@ class TrustStore extends ChangeNotifier {
       'clientId': cid, 'tab': 'chat',
       'form': {'type': 'Qarz berdim', 'amount': '', 'currency': S['cur'] ?? 'UZS', 'note': '', 'name': ''},
     });
-    openChat_(cid); // real chat oqimini yuklash + polling
+    openLedger_(cid); // qarz daftarini yuklash + polling
     toast_(L()['tSaved']);
     hydrate(full: false);
   }
@@ -1087,7 +1380,7 @@ class TrustStore extends ChangeNotifier {
       xarPick_(text.trim(), source: 'voice');
     } else {
       set({'voiceStage': null, 'vText': ''});
-      toast_(Stt.lastError ?? "Ovoz matnga aylanmadi — qayta urinib ko'ring");
+      toast_(Stt.lastError ?? L()['tVoiceFail'] as String);
     }
   }
 
@@ -1096,7 +1389,7 @@ class TrustStore extends ChangeNotifier {
   Future<void> xarPick_(String txt, {String source = 'text'}) async {
     Stt.cancel();
     set({'voiceStage': 'parsing', 'vText': txt});
-    final r = await Api.parseExpense(txt, source);
+    final r = await Api.parseExpense(txt);
     if (!r.ok) {
       if (r.status == 0 || r.status >= 500) return _xarOffline(txt);
       set({'voiceStage': null, 'vText': ''});
@@ -1107,7 +1400,7 @@ class TrustStore extends ChangeNotifier {
     final actions = ((d['actions'] as List?) ?? []).cast<Map<String, dynamic>>();
     if (actions.isEmpty) {
       set({'voiceStage': null, 'vText': ''});
-      toast_('Summa aniqlanmadi — «taksiga 25 ming» deb ayting');
+      toast_(L()['tAmountUnclear']);
       return;
     }
     // Ajratamiz: toifasi aniq -> darhol papkaga; noaniq ('Boshqa'/bo'sh xarajat) -> ANIQLANMAGAN tray
@@ -1115,7 +1408,8 @@ class TrustStore extends ChangeNotifier {
     final unsure = <Map<String, dynamic>>[];
     for (final a in actions) {
       final cat = ((a['category'] as String?) ?? '').trim();
-      if (a['type'] == 'xarajat' && (cat.isEmpty || cat.toLowerCase() == 'boshqa')) {
+      // DIQQAT: server maydoni 'direction' ('type' emas) — eski nom tray'ni o'lik qilib qo'ygandi
+      if (a['direction'] == 'xarajat' && (cat.isEmpty || cat.toLowerCase() == 'boshqa')) {
         unsure.add(a);
       } else {
         sure.add(a);
@@ -1137,11 +1431,20 @@ class TrustStore extends ChangeNotifier {
     if (sure.isNotEmpty) {
       // parsed = barcha amallar (xato tuzatishni o'rganish uchun)
       final ok = await _xcConfirm(txt, source, sure, actions);
-      if (!ok) set({'voiceStage': null, 'vText': ''});
+      if (!ok) set({'voiceStage': null, 'vText': ''}); // xato — matn inputda qoladi
     } else {
-      set({'voiceStage': null, 'vText': ''});
-      if (unsure.isNotEmpty) toast_('Papka tanlang — ANIQLANMAGAN bo\'limida kutmoqda');
+      set({'voiceStage': null, 'vText': '', if (unsure.isNotEmpty) 'xarText': _xarTextIfSame(txt)});
+      if (unsure.isNotEmpty) toast_(L()['tPickFolder']);
     }
+  }
+
+  // Inputni faqat yuborilgan matn O'ZGARMAGAN bo'lsa tozalaymiz — foydalanuvchi
+  // parse davomida yangi jumla yoza boshlagan bo'lsa, yozayotgani o'chib ketmasin
+  dynamic _xarTextIfSame(String sent) {
+    final cur = ((S['xarText'] as String?) ?? '')
+        .trim()
+        .replaceAllMapped(RegExp(r'(\d) (?=\d)'), (m) => m[1]!);
+    return cur == sent ? '' : S['xarText'];
   }
 
   // Yakuniy saqlash: daromad/xarajat -> expenses; qarz -> Hamkorlar oqimiga yo'naltiriladi
@@ -1176,7 +1479,14 @@ class TrustStore extends ChangeNotifier {
           'entry': e, // qo'nishda commit qilinadigan to'liq yozuv
         });
       }
-      set({'xfNewCats': newCats, 'xfFly': fly});
+      // Ghost-papka: yangi toifa kartasi chip uchishidan OLDIN nishon sifatida
+      // paydo bo'ladi — chip "hech narsaga" uchib, papka keyin paydo bo'lishi tuzatildi
+      final ghosts = Map<String, bool>.from((S['xfGhostCats'] as Map).cast<String, bool>());
+      for (final e in es) {
+        final c = e['cat'] as String;
+        if (!existing.contains(c)) ghosts[c] = e['kind'] == 'd';
+      }
+      set({'xfNewCats': newCats, 'xfFly': fly, 'xfGhostCats': ghosts});
       // Zaxira: biror sabab bilan land bo'lmasa (ekran yopildi) — 8s dan keyin to'g'ridan-to'g'ri
       Timer(const Duration(seconds: 8), () {
         for (final e in es) {
@@ -1193,12 +1503,23 @@ class TrustStore extends ChangeNotifier {
       final total = es.fold<int>(0, (s, e) => s + (e['a'] as int));
       final ids = es.map((e) => e['id'] as String).toList();
       _xfToastShow({
-        'text': "${es.length} ta yozuv saqlandi · ${_fx(total)} so'm",
+        'text': Lf('xUndoSaved', {'n': '${es.length}', 'sum': '${_fx(total)}'}),
         'kind': 'add', 'ids': ids,
       });
     }
-    set({'voiceStage': null, 'vText': ''});
-    if (routed.isNotEmpty) _routeQarz(routed.first);
+    // Matn AYNAN chip uchadigan framda tozalanadi — yozuv "inputdan uchib ketadi"
+    set({'voiceStage': null, 'vText': '', 'xarText': _xarTextIfSame(txt)});
+    if (routed.isNotEmpty) {
+      // Sahifadan ULOQTIRMAYMIZ: fly/kapalak o'ynab bo'lsin, foydalanuvchi Xarajatda
+      // qolsin. Qarz amali toast + "O'tish" tugmasi bilan taklif qilinadi — bosilsa
+      // _routeQarz eski oqimni (hamkor oynasi to'ldirilgan holda) ochadi.
+      final q = routed.first;
+      final person = ((q['person'] as String?) ?? '').trim();
+      _xfToastShow({
+        'text': "Qarz amali${person.isEmpty ? '' : ' ($person)'} — Hamkorlar bo'limida davom eting",
+        'kind': 'qarz', 'route': q,
+      }, seconds: 10);
+    }
     return true;
   }
 
@@ -1209,14 +1530,17 @@ class TrustStore extends ChangeNotifier {
     final id = e['id'] as String?;
     if (id != null && _xfCancelledLand.contains(id)) return;
     if (id != null && _xar().any((x) => x['id'] == id)) return;
-    set({'xarEntries': [e, ..._xar()]});
+    // Ghost-karta haqiqiyga aylanadi — yozuv kiritildi
+    final ghosts = Map<String, bool>.from((S['xfGhostCats'] as Map).cast<String, bool>());
+    ghosts.remove(e['cat']);
+    set({'xarEntries': [e, ..._xar()], 'xfGhostCats': ghosts});
   }
 
-  // Lokal (dizayn uslubidagi) toast — 5 soniyada o'zi yopiladi
-  void _xfToastShow(Map<String, dynamic> t) {
+  // Lokal (dizayn uslubidagi) toast — o'zi yopiladi (default 5s; qarz taklifi uzunroq)
+  void _xfToastShow(Map<String, dynamic> t, {int seconds = 5}) {
     set({'xfToast': t});
     _xfToastT?.cancel();
-    _xfToastT = Timer(const Duration(seconds: 5), () => set({'xfToast': null}));
+    _xfToastT = Timer(Duration(seconds: seconds), () => set({'xfToast': null}));
   }
 
   // Qarz amali — Xarajatga EMAS (XOTIRA §3: bitta mic — uch natija).
@@ -1234,18 +1558,19 @@ class TrustStore extends ChangeNotifier {
             (c['name'] as String).toLowerCase().contains(person.toLowerCase())).toList();
     if (match != null && match.isNotEmpty) {
       set({
-        'screen': 'home', 'clientId': match.first['id'], 'tab': 'chat',
-        'sheetOpen': true, 'sheetClient': match.first['id'],
-        'form': {'type': type, 'amount': amount, 'currency': S['cur'] ?? 'UZS', 'note': note, 'name': ''},
+        'screen': 'home', 'clientId': match.first['id'], 'tab': 'chat', 'inLinkId': null,
+        'chAct': type == 'Qarz oldim' ? 'borrow' : 'lend',
+        'chA': amount, 'chCur': S['cur'] ?? 'UZS', 'chDue': '',
+        'chDate': _isoDate(DateTime.now()), 'chNote': note, 'chDebt': null,
       });
-      openChat_(match.first['id'] as String);
-      toast_("Qarz amali — ma'lumotlar to'ldirildi, saqlang");
+      openLedger_(match.first['id'] as String);
+      toast_(L()['tDebtFilled']);
     } else {
       set({
         'screen': 'home', 'npOpen': true, 'npName': person, 'npPhone': '',
         'qarzDraft': {'type': type, 'amount': amount, 'note': note},
       });
-      toast_("Qarz amali — hamkorni qo'shing, yozuv tayyor turadi");
+      toast_(L()['tDebtAddPartner']);
     }
   }
 
@@ -1255,7 +1580,7 @@ class TrustStore extends ChangeNotifier {
     final a = int.tryParse(f['amount'] as String) ?? 0;
     if (a == 0) {
       set({'voiceStage': null, 'vText': ''});
-      toast_('Summa aniqlanmadi — «taksiga 25 ming» deb ayting');
+      toast_(L()['tAmountUnclear']);
       return;
     }
     final r = await Api.addExpense(a, f['kind'] == 'd', f['cat'] as String, f['note'] as String);
@@ -1265,8 +1590,8 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     final e = _mapExpense(r.data as Map<String, dynamic>);
-    set({'xarEntries': [e, ..._xar()], 'voiceStage': null, 'vText': ''});
-    toast_('AI toifaladi: ${f['cat']} — chatga yozildi');
+    set({'xarEntries': [e, ..._xar()], 'voiceStage': null, 'vText': '', 'xarText': _xarTextIfSame(txt)});
+    toast_(Lf('tAiCategorized', {'cat': '${f['cat']}'}));
   }
 
   // ---------- Chatdagi yozuvni inline tahrirlash (bubble bosilganda) ----------
@@ -1299,7 +1624,7 @@ class TrustStore extends ChangeNotifier {
     if (id == null || v == null) return;
     final amt = int.tryParse('${v['amount']}'.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
     if (amt <= 0) {
-      toast_('Summani kiriting');
+      toast_(L()['tSum']);
       return;
     }
     if (_busy) return;
@@ -1317,7 +1642,7 @@ class TrustStore extends ChangeNotifier {
       'xarEntries': _xar().map((x) => x['id'] == id ? e : x).toList(),
       'xEditId': null, 'xEditVals': null,
     });
-    toast_('Yangilandi');
+    toast_(L()['tUpdated']);
   }
 
   Future<void> xEditDelete_() async {
@@ -1332,7 +1657,7 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     set({'xarEntries': _xar().where((x) => x['id'] != id).toList(), 'xEditId': null, 'xEditVals': null});
-    toast_("O'chirildi");
+    toast_(L()['tDeletedOk']);
   }
 
   // ================= Xarajatlar v2 — papka (folder) UI =================
@@ -1382,6 +1707,12 @@ class TrustStore extends ChangeNotifier {
       f['total'] = (f['total'] as int) + (e['a'] as int);
       (f['entries'] as List).add(e);
     }
+    // Ghost-papkalar: fly-chip uchayotganda nishon karta mavjud bo'lishi uchun
+    // (yozuv hali kiritilmagan — chip qo'nganda haqiqiyga aylanadi)
+    for (final g in (S['xfGhostCats'] as Map).cast<String, bool>().entries) {
+      map.putIfAbsent(g.key, () =>
+          {'name': g.key, 'income': g.value, 'total': 0, 'entries': <Map<String, dynamic>>[], 'ghost': true});
+    }
     return map.values.toList()
       ..sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
   }
@@ -1419,11 +1750,12 @@ class TrustStore extends ChangeNotifier {
 
   // Yuborish: tahrir rejimi / birlashtirish / papka o'chirish / oddiy parse
   Future<void> xfSend_() async {
+    if (S['voiceStage'] == 'parsing') return; // parse ketmoqda — ikkilangan send yo'q
     // Ko'rinishdagi "400 000" formati parser uchun "400000" ga tozalanadi
     final raw = ((S['xarText'] as String?) ?? '').trim();
     final t = raw.replaceAllMapped(RegExp(r'(\d) (?=\d)'), (m) => m[1]!);
     if (t.isEmpty) {
-      toast_('Jumla yozing');
+      toast_(L()['tWriteSentence']);
       return;
     }
     final ed = S['xfEditing'] as Map<String, dynamic>?;
@@ -1440,7 +1772,10 @@ class TrustStore extends ChangeNotifier {
       set({'xarText': ''});
       return _xfDelFolderAsk(low);
     }
-    set({'xarText': ''});
+    // Klaviatura DARHOL yopiladi — ekran kengayib, parvoz to'liq kuzatiladi.
+    // Matn inputda rangli holicha KUTIB TURADI — chip uchgan framda tozalanadi
+    // (_xcConfirm), shunda "yozuv inputdan uchib ketdi" hissi beriladi.
+    FocusManager.instance.primaryFocus?.unfocus();
     await xarPick_(t, source: 'text');
   }
 
@@ -1453,10 +1788,16 @@ class TrustStore extends ChangeNotifier {
     }
     hits.sort((a, b) => (a['i'] as int).compareTo(b['i'] as int));
     if (hits.length < 2) {
-      toast_('Ikkita papka nomini ayting: «Taksi xarajatlarini Transportga birlashtir»');
+      toast_(L()['tSayTwoFolders']);
       return;
     }
-    set({'xfConfirm': {'kind': 'merge', 'from': hits[0]['f'], 'to': hits[1]['f']}});
+    final fromF = hits[0]['f'] as Map<String, dynamic>;
+    final toF = hits[1]['f'] as Map<String, dynamic>;
+    if (fromF['income'] != toF['income']) {
+      toast_("Kirim va chiqim papkalari birlashtirilmaydi");
+      return;
+    }
+    set({'xfConfirm': {'kind': 'merge', 'from': fromF, 'to': toF}});
   }
 
   // "Taksi papkasini o'chir" — bitta papka nomi
@@ -1467,7 +1808,7 @@ class TrustStore extends ChangeNotifier {
         return;
       }
     }
-    toast_('Papka topilmadi');
+    toast_(L()['tFolderNotFound']);
   }
 
   // Tasdiqlash kartasi: OK — birlashtirish yoki papka o'chirish
@@ -1485,7 +1826,7 @@ class TrustStore extends ChangeNotifier {
       set({'xarEntries': _xar().map((x) => ids.contains(x['id']) ? {...x, 'cat': to['name']} : x).toList()});
       _xfLogAdd('merge', cat: to['name'] as String, desc: "${from['name']} → ${to['name']}",
           amount: from['total'] as int, income: from['income'] == true);
-      toast_("Birlashtirildi: ${from['name']} → ${to['name']}");
+      toast_(Lf('tMerged', {'from': '${from['name']}', 'to': '${to['name']}'}));
     } else {
       for (final id in ids) {
         await Api.deleteExpense(id);
@@ -1493,7 +1834,7 @@ class TrustStore extends ChangeNotifier {
       set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList(), 'xfDetail': null});
       _xfLogAdd('del', cat: from['name'] as String, desc: "${from['name']} papkasi",
           amount: from['total'] as int, income: from['income'] == true);
-      toast_("O'chirildi: ${from['name']}");
+      toast_(Lf('tDeletedName', {'name': '${from['name']}'}));
     }
   }
 
@@ -1518,7 +1859,7 @@ class TrustStore extends ChangeNotifier {
     final f = xarParse_(t);
     final amt = int.tryParse(f['amount'] as String) ?? 0;
     if (amt <= 0) {
-      toast_('Summani kiriting');
+      toast_(L()['tSum']);
       return;
     }
     final r = await Api.patchExpense(id, amount: amt, note: f['note'] as String?);
@@ -1531,7 +1872,7 @@ class TrustStore extends ChangeNotifier {
     _xfLogAdd('edit', cat: e['cat'] as String,
         desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
         amount: e['a'] as int, income: e['kind'] == 'd', id: id);
-    toast_('Yangilandi');
+    toast_(L()['tUpdated']);
   }
 
   // Yozuvni o'chirish — "Bekor qilish" (undo) bilan lokal toast
@@ -1550,12 +1891,17 @@ class TrustStore extends ChangeNotifier {
     _xfToastShow({'text': "O'chirildi", 'kind': 'del', 'entry': e});
   }
 
-  // Bekor qilish (undo): del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi
+  // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi;
+  // qarz -> Hamkorlar oqimiga o'tish (faqat foydalanuvchi O'ZI bosganda)
   Future<void> xfUndo_() async {
     final t = S['xfToast'] as Map<String, dynamic>?;
     _xfToastT?.cancel();
     set({'xfToast': null});
     if (t == null) return;
+    if (t['kind'] == 'qarz') {
+      _routeQarz((t['route'] as Map).cast<String, dynamic>());
+      return;
+    }
     if (t['kind'] == 'del') {
       final e = t['entry'] as Map<String, dynamic>?;
       if (e == null) return;
@@ -1566,15 +1912,16 @@ class TrustStore extends ChangeNotifier {
       }
       final ne = _mapExpense(r.data as Map<String, dynamic>);
       set({'xarEntries': [ne, ..._xar()]});
-      toast_('Qaytarildi');
+      toast_(L()['tRestored']);
     } else if (t['kind'] == 'add') {
       final ids = (t['ids'] as List?)?.cast<String>() ?? [];
       _xfCancelledLand.addAll(ids); // hali qo'nmagan chip'lar keyin kirib qolmasin
       for (final id in ids) {
         await Api.deleteExpense(id);
       }
-      set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList()});
-      toast_('Bekor qilindi');
+      // Bekor qilingan partiyaning kutayotgan ghost-kartalari ham tozalanadi
+      set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList(), 'xfGhostCats': <String, bool>{}});
+      toast_(L()['tCancelled']);
     }
   }
 
@@ -1586,12 +1933,15 @@ class TrustStore extends ChangeNotifier {
     });
   }
 
-  Future<void> xfTrayPick_(String id, String cat) async {
+  // createNew: AI taklifi yoki qo'lda yozilgan nom — serverda yangi papka yaratiladi
+  // (/confirm accept_new_category), keyin ghost -> fly oqimi odatdagidek ishlaydi.
+  Future<void> xfTrayPick_(String id, String cat, {bool createNew = false}) async {
     final tray = (S['xfTray'] as List).cast<Map<String, dynamic>>();
     final t = tray.firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
     if (t.isEmpty) return;
     final a = Map<String, dynamic>.from(t['action'] as Map);
     a['category'] = cat;
+    if (createNew) a['accept_new_category'] = true;
     set({'xfTray': tray.where((x) => x['id'] != id).toList()});
     // confirm orqali saqlaymiz — parsed bilan birga (lug'at o'rganadi: keyingi safar AI o'zi topadi)
     await _xcConfirm(t['src'] as String, 'text', [a], [Map<String, dynamic>.from(t['action'] as Map)]);
@@ -1600,7 +1950,7 @@ class TrustStore extends ChangeNotifier {
   Future<void> limSave_() async {
     final v = int.tryParse((S['limEdit'] ?? '') as String) ?? 0;
     if (v == 0) {
-      toast_('Summani kiriting');
+      toast_(L()['tSum']);
       return;
     }
     final r = await Api.setLimit(v);
@@ -1609,7 +1959,7 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     set({'xarLimit': v, 'limEdit': null});
-    toast_('Oylik limit yangilandi');
+    toast_(L()['tLimitUpdated']);
   }
 
   // ---------------- Onboarding — real OTP (SMS) ----------------
@@ -1621,15 +1971,17 @@ class TrustStore extends ChangeNotifier {
     }
     if (_busy) return;
     _busy = true;
-    toast_('Kod yuborilmoqda…');
+    _setBusy('phone');
+    toast_(L()['tSendingCode']);
     final r = await Api.sendOtp('${S['onbCc']}${S['phone']}');
     _busy = false;
+    _setBusy(null);
     if (!r.ok) {
       toast_(r.error);
       return;
     }
     set({'stage': 'otp', 'otpVal': ''});
-    toast_('SMS kod yuborildi');
+    toast_(L()['tSmsSent']);
   }
 
   Future<void> otpConfirm_() async {
@@ -1639,16 +1991,19 @@ class TrustStore extends ChangeNotifier {
     }
     if (_busy) return;
     _busy = true;
-    toast_('Tekshirilmoqda…');
+    _setBusy('otp');
+    toast_(L()['tChecking']);
     final r = await Api.verifyOtp('${S['onbCc']}${S['phone']}', S['otpVal'] as String);
     if (!r.ok) {
       _busy = false;
+      _setBusy(null);
       set({'otpVal': ''});
       toast_(r.error);
       return;
     }
     await _loginSuccess(r.data as Map<String, dynamic>);
     _busy = false;
+    _setBusy(null);
     set({'stage': 'pin', 'pinVal': '', 'pinMode': 'set'}); // yangi kirish — PIN o'rnatiladi
   }
 
@@ -1668,7 +2023,10 @@ class TrustStore extends ChangeNotifier {
       'notifs': <Map<String, dynamic>>[], 'xarEntries': <Map<String, dynamic>>[],
       'xarLimit': 0, 'pMeta': <String, String>{},
       'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null,
+      'subStatus': 'trial', 'trialEnd': null, 'premUntil': null,
+      'meAvatar': null, // shu qurilmada boshqa user kirsa avvalgi rasm ko'rinmasin
     });
+    SharedPreferences.getInstance().then((sp) => sp.remove('trust_avatar'));
   }
 
   /// Bildirishnoma bosilganda marshrutlash (link modeli)
@@ -1679,6 +2037,17 @@ class TrustStore extends ChangeNotifier {
     final linkId = n['link'] as String?;
     final opId = n['tx'] as String?;
 
+    // Circle hodisasi -> yuklab, taklif bo'lsa Join, aks holda detal
+    final circleId = n['circle'] as String?;
+    if (circleId != null) {
+      await loadCircles(force: true);
+      final c = circlesRepo.byId(circleId);
+      if (c == null) { set({'notifOpen': false}); return; }
+      set({'notifOpen': false, 'circleId': circleId,
+           if (c.myStatus == 'invited') 'circleJoinOpen': true else 'circleOpen': true});
+      return;
+    }
+
     // Yangi bog'lanish so'rovi -> qaror sheet'i (minimal preview)
     if (kind == 'linknew' && linkId != null) {
       final kr = await Api.links();
@@ -1687,7 +2056,7 @@ class TrustStore extends ChangeNotifier {
       }
       final l = _link(linkId);
       if (l == null) {
-        toast_("Bog'lanish topilmadi");
+        toast_(L()['tLinkNotFound']);
         return;
       }
       if (l['status'] == 'pending') {
@@ -1695,7 +2064,7 @@ class TrustStore extends ChangeNotifier {
       } else if (l['status'] == 'accepted') {
         openIncoming(linkId);
       } else {
-        toast_("Bu bog'lanish rad etilgan — «Rad etilganlar»dan tiklashingiz mumkin");
+        toast_(L()['tLinkRejectedRestore']);
       }
       return;
     }
@@ -1716,7 +2085,25 @@ class TrustStore extends ChangeNotifier {
       hydrate(full: false);
       if (_client(linkId) != null) {
         set({'notifOpen': false, 'clientId': linkId, 'tab': 'chat', 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false, 'opsVis': 8});
-        openChat_(linkId); // real chat oqimi
+        openLedger_(linkId); // qarz daftari
+      } else {
+        set({'notifOpen': false});
+      }
+      return;
+    }
+
+    // Xabar (chat) bildirishnomasi — chat UI vaqtincha yashirin (flags.dart kChatEnabled=false):
+    // yuqorida o'qilgan deb belgilandi; HECH QAYERGA olib bormaymiz (panel ochiq qoladi).
+    if (kind == 'msg') return;
+
+    // Qarz daftari bildirishnomasi -> tegishli hamkor daftari
+    if (kind == 'debt' && linkId != null) {
+      if (_client(linkId) != null) {
+        set({'notifOpen': false, 'clientId': linkId, 'inLinkId': null, 'tab': 'chat',
+             'cMenuOpen': false, 'cRen': null, 'pProfOpen': false, 'opsVis': 8});
+        openLedger_(linkId);
+      } else if (_link(linkId)?['status'] == 'accepted') {
+        openIncoming(linkId);
       } else {
         set({'notifOpen': false});
       }
@@ -1740,8 +2127,8 @@ class TrustStore extends ChangeNotifier {
         }[c] ?? 'B';
     const mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
     String fmtDay(int d) {
-      if (d == 0) return 'Bugun';
-      if (d == 1) return 'Kecha';
+      if (d == 0) return L()['tToday'] as String;
+      if (d == 1) return L()['tYesterday'] as String;
       final dt = DateTime.now().subtract(Duration(days: d));
       return '${dt.day}-${mon[dt.month - 1]}';
     }
@@ -1818,23 +2205,23 @@ class TrustStore extends ChangeNotifier {
       'limSpentTxt': money(monthOut, 'UZS'),
       'limTotTxt': money(lim, 'UZS'),
       'limRemainTxt': lim == 0
-          ? 'Limit belgilanmagan'
-          : (limOver ? 'Limitdan oshdi' : 'Qoldi: ${money(limRem, 'UZS')}'),
+          ? (L()['limitNone'] as String)
+          : (limOver ? (L()['limitOver'] as String) : Lf('limitLeftPfx', {'a': '${money(limRem, 'UZS')}'})),
       'limNoteTxt': lim == 0
-          ? "Limit belgilanmagan — O'zgartirish orqali qo'ying"
+          ? (L()['limitNoteNone'] as String)
           : limOver
-              ? 'Limitdan oshdi · ${money(limRem, 'UZS')} ortiqcha'
+              ? Lf('limitOverBy', {'n': '${money(limRem, 'UZS')}'})
               : limNear
-                  ? 'Qoldi: ${money(limRem, 'UZS')} · limitga yaqin'
-                  : 'Qoldi: ${money(limRem, 'UZS')}',
-      'limBtnTxt': S['limEdit'] != null ? 'Bekor' : "O'zgartirish",
+                  ? Lf('limitNearLeft', {'a': '${money(limRem, 'UZS')}'})
+                  : Lf('limitLeftPfx', {'a': '${money(limRem, 'UZS')}'}),
+      'limBtnTxt': S['limEdit'] != null ? (L()['btnCancelShort'] as String) : (L()['btnChange'] as String),
       'limEditOpen': S['limEdit'] != null,
       'limEditVal': S['limEdit'] ?? '',
       'limEditSet': (String t) => set({'limEdit': t.replaceAll(RegExp(r'[^\d]'), '')}),
       'limSave': () => limSave_(),
       'limEditToggle': () => set({'limEdit': S['limEdit'] == null ? (S['xarLimit']).toString() : null}),
       'xtChat': S['xarTab'] == 'chat', 'xtHisobot': S['xarTab'] == 'hisobot',
-      'xarTabs': [['chat', 'Chat'], ['hisobot', 'Hisobotlar']]
+      'xarTabs': [['chat', L()['tabChat'] as String], ['hisobot', L()['segReports'] as String]]
           .map((kv) => {
                 'label': kv[1], 'pick': () => set({'xarTab': kv[0]}),
                 'bg': S['xarTab'] == kv[0] ? ink : Colors.transparent,
@@ -1851,7 +2238,7 @@ class TrustStore extends ChangeNotifier {
           'bg': i == 0 ? ink : (dk ? const Color(0xFF2E2E2F) : const Color(0xFFE6E6E2)),
         };
       }).toList(),
-      'xarPeriods': [['hafta', 'Hafta'], ['oy', 'Oy'], ['yil', 'Yil']]
+      'xarPeriods': [['hafta', L()['perWeek'] as String], ['oy', L()['perMonth'] as String], ['yil', L()['perYear'] as String]]
           .map((kv) => {
                 'label': kv[1], 'pick': () => set({'xarPeriod': kv[0]}),
                 'bg': S['xarPeriod'] == kv[0] ? ink : Colors.transparent,
@@ -1859,7 +2246,7 @@ class TrustStore extends ChangeNotifier {
                 'bd': S['xarPeriod'] == kv[0] ? ink : bd,
               })
           .toList(),
-      'xarNetCap': '${S['xarPeriod'] == 'hafta' ? 'HAFTA' : S['xarPeriod'] == 'oy' ? 'OY' : 'YIL'} · SOF NATIJA',
+      'xarNetCap': Lf('netResultCap', {'p': '${S['xarPeriod'] == 'hafta' ? 'HAFTA' : S['xarPeriod'] == 'oy' ? 'OY' : 'YIL'}'}),
       'xarNet': (net >= 0 ? '+' : '−') + money(net.abs(), 'UZS'),
       'xarOutTxt': '−${money(out, 'UZS')}',
       'xarInTxt': '+${money(inc, 'UZS')}',
@@ -1877,9 +2264,11 @@ class TrustStore extends ChangeNotifier {
       'xarTextVal': S['xarText'] ?? '',
       'xarTextSet': (String t) => set({'xarText': t}),
       'xarTextGo': () {
+        if (S['voiceStage'] == 'parsing') return;
         final t = ((S['xarText'] as String?) ?? '').trim();
-        if (t.isEmpty) { toast_('Jumla yozing'); return; }
-        set({'xarText': ''});
+        if (t.isEmpty) { toast_(L()['tWriteSentence']); return; }
+        // Klaviatura darhol yopiladi; matn chip uchgunicha inputda kutadi
+        FocusManager.instance.primaryFocus?.unfocus();
         xarPick_(t, source: 'text');
       },
       'micHoldStart': () => voiceHoldStart(),
@@ -1916,6 +2305,7 @@ class TrustStore extends ChangeNotifier {
               'totalVal': f['total'] as int, // count-up animatsiya uchun xom qiymat
               'spark': _xfSpark(f['entries'] as List),
               'isNew': xfNew.contains(f['name']),
+              'ghost': f['ghost'] == true,
               'open': () => set({'xfDetail': f['name']}),
             };
         // Ochiq papka (tafsilot)
@@ -1928,11 +2318,12 @@ class TrustStore extends ChangeNotifier {
             ..sort((a, b) => (a['days'] as int).compareTo(b['days'] as int));
           for (final e in ents) {
             final d = e['days'] as int;
-            final label = d <= 0 ? 'Bugun' : d == 1 ? 'Kecha' : '$d kun avval';
+            final label = d <= 0 ? (L()['tToday'] as String) : d == 1 ? (L()['tYesterday'] as String) : Lf('daysAgo', {'d': '$d'});
             if (xfGroups.isEmpty || xfGroups.last['label'] != label) {
               xfGroups.add({'label': label, 'rows': <Map<String, dynamic>>[]});
             }
             (xfGroups.last['rows'] as List).add({
+              'id': e['id'], 'a': e['a'],
               'desc': (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'],
               'time': e['t'],
               'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
@@ -1953,7 +2344,7 @@ class TrustStore extends ChangeNotifier {
             : xfChipCats;
         return <String, dynamic>{
           'xfMonth': '${_monFull[xfNow.month - 1]} ${xfNow.year}',
-          'xfBalCap': '${_monFull[xfNow.month - 1].toUpperCase()} BALANSI',
+          'xfBalCap': Lf('balOfMonth', {'month': '${_monFull[xfNow.month - 1].toUpperCase()}'}),
           'xfBalTxt': (xfBal >= 0 ? '+' : '−') + _fx(xfBal.abs()),
           // Count-up animatsiya uchun xom qiymatlar
           'xfBalVal': xfBal.abs(),
@@ -1969,7 +2360,7 @@ class TrustStore extends ChangeNotifier {
           'xfDetailOpen': xfDF != null,
           'xfDEmoji': xfDF == null ? '' : xfEmoji(xfDF['name'] as String),
           'xfDName': xfDF == null ? '' : xfDF['name'],
-          'xfDCount': xfDF == null ? '' : '${_monFull[xfNow.month - 1]} ${xfNow.year} · ${(xfDF['entries'] as List).length} ta yozuv',
+          'xfDCount': xfDF == null ? '' : Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'}),
           'xfDTotalTxt': xfDF == null ? '' : ((xfDF['income'] == true ? '+' : '−') + _fx(xfDF['total'] as int)),
           'xfDTotalVal': xfDF == null ? 0 : xfDF['total'] as int,
           'xfDInc': xfDF?['income'] == true,
@@ -1986,9 +2377,9 @@ class TrustStore extends ChangeNotifier {
                 'emoji': xfEmoji(o['cat'] as String),
                 'desc': o['desc'],
                 'isDel': o['type'] == 'del',
-                'badge': o['type'] == 'add' ? 'YANGI'
-                    : o['type'] == 'del' ? "O'CHIRILDI"
-                    : o['type'] == 'edit' ? 'TAHRIR' : 'BIRLASHDI',
+                'badge': o['type'] == 'add' ? (L()['logNew'] as String)
+                    : o['type'] == 'del' ? (L()['logDeleted'] as String)
+                    : o['type'] == 'edit' ? (L()['logEdited'] as String) : (L()['logMerged'] as String),
                 'type': o['type'],
                 'sub': '${o['cat']} · ${o['t']}',
                 'amtTxt': (o['income'] == true ? '+' : '−') + _fx(o['a'] as int),
@@ -2000,17 +2391,40 @@ class TrustStore extends ChangeNotifier {
           // ANIQLANMAGAN tray
           'xfShowTray': (S['xfTray'] as List).isNotEmpty,
           'xfTrayCount': '${(S['xfTray'] as List).length}',
-          'xfTrayRows': (S['xfTray'] as List).cast<Map<String, dynamic>>().map((t) => {
-                'id': t['id'],
-                'text': t['text'],
-                'amtTxt': '−${_fx(_numToInt((t['action'] as Map)['amount']))}',
-                'open': t['open'] == true,
-                'toggle': () => xfTrayToggle_(t['id'] as String),
-                'chips': [
-                  for (final c in chipSrc)
-                    {'label': '${xfEmoji(c)} $c', 'pick': () => xfTrayPick_(t['id'] as String, c)},
-                ],
-              }).toList(),
+          'xfTrayRows': (S['xfTray'] as List).cast<Map<String, dynamic>>().map((t) {
+            // AI taklif qilgan YANGI papka nomi (parse new_category_suggestion) — birinchi chip
+            final aiName = ((t['action'] as Map)['new_category_suggestion'] as String?)?.trim() ?? '';
+            return <String, dynamic>{
+              'id': t['id'],
+              'text': t['text'],
+              'amtTxt': '−${_fx(_numToInt((t['action'] as Map)['amount']))}',
+              'open': t['open'] == true,
+              'naming': S['xfTrayNaming'] == t['id'],
+              'toggle': () => xfTrayToggle_(t['id'] as String),
+              'chips': [
+                if (aiName.isNotEmpty)
+                  {
+                    'label': '✨ $aiName — yangi',
+                    'isNew': true,
+                    'pick': () => xfTrayPick_(t['id'] as String, aiName, createNew: true),
+                  },
+                for (final c in chipSrc)
+                  {'label': '${xfEmoji(c)} $c', 'pick': () => xfTrayPick_(t['id'] as String, c)},
+                {'label': L()['otherName'] as String, 'pick': () => set({'xfTrayNaming': t['id'], 'xfTrayName': ''})},
+              ],
+              // Qo'lda nom buferi — rebuild kerak emas (TextField matnni o'zi ushlab turadi)
+              'nameSet': (String v) => S['xfTrayName'] = v,
+              'nameOk': () {
+                final n = ('${S['xfTrayName'] ?? ''}').trim();
+                if (n.length < 2) {
+                  toast_(L()['tNameMin2']);
+                  return;
+                }
+                set({'xfTrayNaming': null, 'xfTrayName': ''});
+                xfTrayPick_(t['id'] as String, n, createNew: true);
+              },
+            };
+          }).toList(),
           // Tahrir rejimi / tasdiqlash / undo-toast / yuborish
           'xfEditingOpen': S['xfEditing'] != null,
           'xfEditLabel': '${(S['xfEditing'] as Map?)?['label'] ?? ''}',
@@ -2025,6 +2439,7 @@ class TrustStore extends ChangeNotifier {
           'xfCfNo': () => xfCfNo_(),
           'xfToastOpen': S['xfToast'] != null,
           'xfToastText': '${(S['xfToast'] as Map?)?['text'] ?? ''}',
+          'xfToastBtn': (S['xfToast'] as Map?)?['kind'] == 'qarz' ? "O'tish" : 'Bekor qilish',
           'xfUndo': () => xfUndo_(),
           'xfBusy': S['voiceStage'] == 'parsing',
           'xfSend': () => xfSend_(),
@@ -2061,7 +2476,7 @@ class TrustStore extends ChangeNotifier {
             'xfEditingOpen': false, 'xfEditLabel': '', 'xfEditCancel': () {},
             'xfCfOpen': false, 'xfCfMerge': false, 'xfCfFromTxt': '', 'xfCfFromSum': '',
             'xfCfToTxt': '', 'xfCfToSum': '', 'xfCfOk': () {}, 'xfCfNo': () {},
-            'xfToastOpen': false, 'xfToastText': '', 'xfUndo': () {},
+            'xfToastOpen': false, 'xfToastText': '', 'xfToastBtn': '', 'xfUndo': () {},
             'xfBusy': false, 'xfSend': () {},
             'xfBack': () => set({'screen': 'home'}),
             'xfFlyEvents': <Map<String, dynamic>>[], 'xfFlyDone': () {},
@@ -2097,12 +2512,18 @@ class TrustStore extends ChangeNotifier {
     final P = pal(dk);
     final ink = P.ink, bg = P.bg, bd = P.bd, mut = P.t3, green = P.green, red = P.red;
 
-    String money(int a, String cur) => cur == 'USD' ? '${_fmt(a)} \$' : '${_fmt(a)} ${L0['som']}';
+    String money(int a, String cur) => switch (cur) {
+          'USD' => '${_fmt(a)} \$', 'EUR' => '${_fmt(a)} €', 'RUB' => '${_fmt(a)} ₽',
+          _ => '${_fmt(a)} ${L0['som']}',
+        };
     int sign(String t) => (t == 'Qarz berdim' || t == "To'lov berdim") ? 1 : -1;
     String initials(String n) =>
         n.split(' ').where((w) => w.isNotEmpty).map((w) => w[0]).take(2).join().toUpperCase();
 
     Map<String, int> bal(String cid) {
+      // Server balansi (operations + qarz daftari) — haqiqat manbai; bo'sh bo'lsa lokal fallback
+      final srv = (_client(cid)?['srvBal'] as Map?)?.cast<String, int>();
+      if (srv != null && srv.isNotEmpty) return {'UZS': srv['UZS'] ?? 0, 'USD': srv['USD'] ?? 0};
       final b = {'UZS': 0, 'USD': 0};
       for (final t in _txs()) {
         if (t['c'] == cid && t['st'] != 'pending') {
@@ -2167,7 +2588,7 @@ class TrustStore extends ChangeNotifier {
             return;
           }
           set({'clientId': cid, 'inLinkId': null, 'tab': 'chat', 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false, 'opsVis': 8});
-          openChat_(cid); // real chat oqimini yuklash + tez polling
+          openLedger_(cid); // qarz daftarini yuklash + tez polling
         },
       };
     }).toList();
@@ -2192,6 +2613,8 @@ class TrustStore extends ChangeNotifier {
               'bal': tot == 0 ? L0['zero'] : (tot > 0 ? '+' : '−') + money(tot.abs(), 'UZS'),
               'color': tot > 0 ? green : (tot < 0 ? red : mut),
               'balSub': tot > 0 ? L0['subPos'] : (tot < 0 ? L0['subNeg'] : L0['subZero']),
+              // O'qilmagan xabarlar badge'i (data-qatlam; ko'rsatish ekran qaroriga bog'liq)
+              'unread': (S['msgUnread'] as Map)[lid] ?? 0,
               'open': () => openIncoming(lid),
             };
           }).toList();
@@ -2234,8 +2657,8 @@ class TrustStore extends ChangeNotifier {
         'date': t['date'],
         // Kim yozgani — mijozga "X yozgan" ko'rinadi
         'byText': incoming
-            ? '${inLink['name']} yozgan'
-            : (t['by'] == 'me' ? '' : 'Qarshi tomon yozgan'),
+            ? Lf('wroteBy', {'name': '${inLink['name']}'})
+            : (t['by'] == 'me' ? '' : (L()['wroteByOther'] as String)),
         'done': true,
         'canEdit': !incoming && t['by'] == 'me',
         'openReceipt': incoming ? () {} : () => set({'receiptId': t['id']}),
@@ -2400,7 +2823,7 @@ class TrustStore extends ChangeNotifier {
         'share': () => set({'pdfOpen': true}),
         'change': () {
           if (rt['by'] != 'me') {
-            toast_('Faqat yozuv muallifi tuzatadi');
+            toast_(L()['tOnlyAuthor']);
           } else {
             set({'editFormOpen': true, 'editA': '', 'editNote': rt['note'] ?? ''});
           }
@@ -2486,7 +2909,7 @@ class TrustStore extends ChangeNotifier {
       return {
         'key': key, 'name': name, 'sub': sub,
         'canRemind': !cool, 'cooling': cool,
-        'coolText': cool ? 'Keyingi eslatma: ${hrs}s ${mins}m' : '',
+        'coolText': cool ? Lf('nextReminder', {'h': '${hrs}', 'm': '${mins}'}) : '',
         'remind': () async {
           final lt = ((S['remTimes'] as Map)[key] as int?) ?? 0;
           if (DateTime.now().millisecondsSinceEpoch - lt < 10800000) return;
@@ -2500,7 +2923,7 @@ class TrustStore extends ChangeNotifier {
             return;
           }
           set({'remTimes': {...(S['remTimes'] as Map), key: DateTime.now().millisecondsSinceEpoch}});
-          toast_('Eslatma yuborildi — ${name.split(' ')[0]} push oladi');
+          toast_(Lf('tReminderSent', {'name': name.split(' ')[0]}));
         },
       };
     }
@@ -2567,16 +2990,23 @@ class TrustStore extends ChangeNotifier {
         'label': L0['profSub'] ?? 'Obuna',
         'value': () {
           final st = S['subStatus'] as String? ?? 'trial';
-          if (st == 'premium') return 'Premium';
+          if (st == 'premium') {
+            // "Premium · 12.08.2026" — konsumer bir qarashda qachongacha ekanini ko'radi
+            final pu = _dt(S['premUntil'] as String?);
+            final base = L()['subPremium'] as String;
+            if (pu == null) return base;
+            String d2(int x) => x.toString().padLeft(2, '0');
+            return '$base · ${d2(pu.day)}.${d2(pu.month)}.${pu.year}';
+          }
           final te = _dt(S['trialEnd'] as String?);
           if (st == 'trial' && te != null) {
             final left = te.difference(DateTime.now()).inDays + 1;
-            return 'Sinov · ${left.clamp(0, 7)} kun qoldi';
+            return Lf('subTrialLeft', {'n': '${left.clamp(0, 7)}'});
           }
-          return 'Sinov tugagan · \$9/oy';
+          return L()['subExpired9'] as String;
         }(),
         'isPlain': true, 'isSwitch': false,
-        'tap': () => toast_("7 kun bepul, keyin \$9/oy — to'lov tez orada ulanadi"),
+        'tap': () => toast_(L()['subInfo']),
       },
       // Profilni o'chirish (App Store/Play siyosati) — SOFT: qarshi tomonda daftar qoladi
       {
@@ -2653,9 +3083,10 @@ class TrustStore extends ChangeNotifier {
         'key': n['id'],
         'title': n['title'], 'detail': n['detail'], 'time': n['time'], 'unread': n['unread'] == true,
         'isReq': k == 'linknew',
+        'isMsg': k == 'msg', // chat yashirin (flags.dart): notifs.dart neytral "i" ko'rsatadi
         'isOk': k == 'linkacc' || k == 'opnew' || k == 'confirmed',
         'isRem': k == 'reminder',
-        'isEdit': false,
+        'isEdit': k == 'debt',
         'isRej': k == 'linkrej' || k == 'rejected',
         'tap': () => openFromNotif(n),
       };
@@ -2669,15 +3100,15 @@ class TrustStore extends ChangeNotifier {
             'name': ldLink['name'],
             'sellerLabel': ldLink['sellerLabel'],
             'initials': initials(ldLink['name'] as String),
-            'opsCount': "${ldLink['opsCount']} ta yozuv",
+            'opsCount': Lf('nRecords', {'n': '${ldLink['opsCount']}'}),
             'total': (ldLink['total'] as int) == 0
                 ? L0['zero']
                 : ((ldLink['total'] as int) > 0 ? '+' : '−') + money((ldLink['total'] as int).abs(), 'UZS'),
             'totalColor': (ldLink['total'] as int) > 0 ? green : ((ldLink['total'] as int) < 0 ? red : mut),
             'accept': () => linkAct(ldLink['id'] as String, 'accept',
-                okMsg: "Qabul qilindi — yozuvlar va balans ochildi"),
+                okMsg: L()['okLinkAccepted'] as String),
             'reject': () => linkAct(ldLink['id'] as String, 'reject',
-                okMsg: "Rad etildi — «Rad etilganlar»dan istalgan payt tiklaysiz"),
+                okMsg: L()['okLinkRejected'] as String),
           };
 
     // Rad etilganlar ro'yxati (tiklash faqat mijoz qo'lida)
@@ -2686,8 +3117,8 @@ class TrustStore extends ChangeNotifier {
       return {
         'key': lid,
         'name': l['name'], 'initials': initials(l['name'] as String),
-        'sub': '${l['opsCount']} ta yozuv · ${l['sellerLabel']}',
-        'restore': () => linkAct(lid, 'restore', okMsg: 'Tiklandi — yozuvlar va balans ochildi'),
+        'sub': Lf('nRecordsBy', {'n': '${l['opsCount']}', 'seller': '${l['sellerLabel']}'}),
+        'restore': () => linkAct(lid, 'restore', okMsg: L()['okLinkRestored'] as String),
       };
     }).toList();
 
@@ -2696,7 +3127,7 @@ class TrustStore extends ChangeNotifier {
 
     return {
       'isHome': S['screen'] == 'home' && noClient,
-      'isMoliya': S['screen'] == 'moliya' && noClient,
+      'isCircles': S['screen'] == 'circles' && noClient,
       'isXarajat': S['screen'] == 'xarajat' && noClient,
       'isProfil': S['screen'] == 'profil' && noClient,
       'netText': (net >= 0 ? '+' : '−') + money(net.abs(), 'UZS'),
@@ -2754,12 +3185,11 @@ class TrustStore extends ChangeNotifier {
         set({'npPhone': d});
       },
       'npCcFlag': ccNp['f'], 'npCcDial': ccNp['d'], 'npPh': ccNp['ph'],
-      'npHint':
-          "Raqam egasi Trust'ga kirganda bog'lanish so'rovi boradi — qabul qilsa, yozuvlar unga ham ko'rinadi. Sizning daftaringiz esa darhol ishlayveradi.",
+      'npHint': L()['npHintFull'] as String,
       'npCreate': () async {
         final nm = (S['npName'] as String).trim();
         if (nm.isEmpty) {
-          toast_('Ismni kiriting');
+          toast_(L()['enterName'] as String);
           return;
         }
         if ((S['npPhone'] as String).length != ccNp['len']) {
@@ -2768,8 +3198,10 @@ class TrustStore extends ChangeNotifier {
         }
         if (_busy) return;
         _busy = true;
+        _setBusy('npCreate');
         final r = await Api.createPartner(nm, '${S['npCc']}${S['npPhone']}');
         _busy = false;
+        _setBusy(null);
         if (!r.ok) {
           toast_(r.error);
           return;
@@ -2782,21 +3214,28 @@ class TrustStore extends ChangeNotifier {
           'pProfOpen': false, 'opsVis': 8, 'inLinkId': null,
           // Ovozdan kelgan qarz kutib turgan bo'lsa — operatsiya oynasi to'ldirilgan holda ochiladi
           if (qd != null) ...{
-            'qarzDraft': null, 'sheetOpen': true, 'sheetClient': cl['id'],
-            'form': {'type': qd['type'], 'amount': qd['amount'], 'currency': 'UZS', 'note': qd['note'], 'name': ''},
+            'qarzDraft': null,
+            'chAct': qd['type'] == 'Qarz oldim' ? 'borrow' : 'lend',
+            'chA': '${qd['amount']}', 'chCur': S['cur'] ?? 'UZS', 'chDue': '',
+            'chDate': _isoDate(DateTime.now()), 'chNote': '${qd['note']}', 'chDebt': null,
           },
         });
-        toast_("Kontragent qo'shildi");
+        openLedger_(cl['id'] as String); // yangi (bo'sh) daftar + polling
+        toast_(L()['tPartnerAdded']);
         hydrate(full: false);
       },
       'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
-      'goMoliya': () => set({'screen': 'moliya', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
+      'goCircles': () {
+        set({'screen': 'circles', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+        loadCircles();
+      },
       'goProfil': () => set({'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goXarajat': () => set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'cMij': S['screen'] == 'home' ? active : idle,
-      'cMol': S['screen'] == 'moliya' ? active : idle,
+      'cCircle': S['screen'] == 'circles' ? active : idle,
       'cXar': S['screen'] == 'xarajat' ? active : idle,
       'cProf': S['screen'] == 'profil' ? active : idle,
+      ...circleNav(),
       ...xarV,
 
       'clientOpen': client != null || incoming,
@@ -2825,7 +3264,7 @@ class TrustStore extends ChangeNotifier {
         if (!incoming) return;
         set({'cMenuOpen': false});
         linkAct(inLink['id'] as String, 'disconnect',
-            okMsg: "Aloqa uzildi — «Rad etilganlar»dan tiklashingiz mumkin");
+            okMsg: L()['okDisconnected'] as String);
       },
       'renaming': S['cRen'] != null,
       'notRenaming': S['cRen'] == null,
@@ -2849,7 +3288,7 @@ class TrustStore extends ChangeNotifier {
             'links': linksAll.map((l) => l['id'] == inLink['id'] ? {...l, 'name': v} : l).toList(),
             'cRen': null,
           });
-          toast_('Nom yangilandi');
+          toast_(L()['tNameUpdated']);
           return;
         }
         renSave_();
@@ -2859,19 +3298,19 @@ class TrustStore extends ChangeNotifier {
       'pPhone': client != null ? client['phone'] : (incoming ? inLink['phone'] : ''),
       'pStatus': client != null
           ? (client['linkStatus'] == 'accepted'
-              ? "Bog'langan — yozuvlar ikki tomonda ko'rinadi"
-              : "Kutilmoqda — raqam egasi hali qabul qilmagan")
-          : (incoming ? "Sizni kontragent qilib qo'shgan — bog'lanish qabul qilingan" : ''),
+              ? (L()['pStatusLinked'] as String)
+              : (L()['pStatusPending'] as String))
+          : (incoming ? (L()['pStatusIncoming'] as String) : ''),
       'pOps': client != null
           ? _txs().where((t) => t['c'] == client['id']).length.toString()
           : (incoming ? '${inLink['opsCount']}' : ''),
       'pBal': cBal.replaceFirst(L0['balPfx'] as String, ''),
       'inviteTap': () {
         if (client == null) return;
-        toast_("Raqam egasi Trust'ga kirganda bog'lanish so'rovi avtomatik boradi");
+        toast_(L()['tInviteAuto']);
       },
       'back': () {
-        stopChatPoll_(); // chat polling + audio to'xtaydi
+        stopLedgerPoll_(); // ledger polling to'xtaydi
         set({'clientId': null, 'inLinkId': null, 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false});
       },
       'toChat': () => set({'tab': 'chat'}),
@@ -2925,6 +3364,241 @@ class TrustStore extends ChangeNotifier {
       'chatMicStart': () => chatMicStart(),
       'chatMicEnd': () => chatMicEnd(),
 
+      // ================= QARZ DAFTARI (ledger) — client_screen UI =================
+      ...(() {
+        try {
+          // Ledger ikki tomonli: o'z hamkorim (client) YOKI meni qo'shgan tomon (incoming inLink).
+          if (client == null && inLink == null) return <String, dynamic>{'hasLedger': false};
+          final pid = (client?['id'] ?? inLink?['id']) as String?;
+          if (pid == null) return <String, dynamic>{'hasLedger': false};
+          final pName = (client?['name'] ?? inLink?['name'] ?? '') as String;
+          final firstName = pName.trim().split(' ').first;
+          final led = _ledgerFor(pid);
+          final accepted = inLink != null ? (inLink['status'] == 'accepted') : (client?['onTrust'] != false);
+
+          String fmtAmt(int a, String cur) => money(a, cur);
+          String fmtDate(DateTime d) => '${d.day}-${_monU[d.month - 1]}';
+          String balParts(Map<String, int> m) =>
+              m.entries.map((e) => fmtAmt(e.value.abs(), e.key)).join(' + ');
+
+          // ---- Header balans (spec 4.9) ----
+          final bals = led.balances();
+          final unver = led.unverifiedBalances();
+          final inCur = <String, int>{}, outCur = <String, int>{};
+          bals.forEach((c, v) {
+            if (v > 0) {
+              inCur[c] = v;
+            } else if (v < 0) outCur[c] = -v;
+          });
+          bool overIn = false, overOut = false;
+          for (final d in led.entries) {
+            if (led.isOverdue(d)) {
+              if (d.direction == DebtDir.toMe) overIn = true;
+              if (d.direction == DebtDir.fromMe) overOut = true;
+            }
+          }
+          String unvSfx(bool isIn) {
+            final u = unver.entries.where((e) => isIn ? e.value > 0 : e.value < 0);
+            if (u.isEmpty) return '';
+            final m = {for (final e in u) e.key: e.value.abs()};
+            return Lf('unconfSuffix', {'a': '${balParts(m)}'});
+          }
+          final balLines = <Map<String, dynamic>>[];
+          if (inCur.isNotEmpty) {
+            balLines.add({'text': Lf('balOwesYou', {'a': '${balParts(inCur)}'}) + unvSfx(true) + (overIn ? (L()['balOverdueSfx'] as String) : ''), 'color': overIn ? red : green});
+          }
+          if (outCur.isNotEmpty) {
+            balLines.add({'text': Lf('balYouOwe', {'a': '${balParts(outCur)}'}) + unvSfx(false) + (overOut ? (L()['balOverdueSfx'] as String) : ''), 'color': red});
+          }
+          if (balLines.isEmpty) balLines.add({'text': L()['balSettledLine'] as String, 'color': mut});
+
+          // ---- Tasdiqlash cardlari (qarshi tomon pending amallari) ----
+          final cards = <Map<String, dynamic>>[];
+          for (final e in led.entries) {
+            final mine = e.createdBy == '${S['meId']}';
+            if (mine) continue;
+            if (e.pendingEdit != null) {
+              final pe = e.pendingEdit!;
+              final diffs = <Map<String, dynamic>>[];
+              if (pe.amount != e.amount) diffs.add({'label': L()['lblAmount'] as String, 'old': fmtAmt(e.amount, e.currency), 'new': fmtAmt(pe.amount, e.currency)});
+              if (_isoDate(pe.due) != _isoDate(e.due)) diffs.add({'label': L()['lblDue'] as String, 'old': _isoDate(e.due).isEmpty ? '—' : _isoDate(e.due), 'new': _isoDate(pe.due).isEmpty ? '—' : _isoDate(pe.due)});
+              if (pe.note != e.note) diffs.add({'label': L()['lblNote'] as String, 'old': e.note.isEmpty ? '—' : e.note, 'new': pe.note.isEmpty ? '—' : pe.note});
+              cards.add({
+                'id': e.id, 'isEdit': true, 'cap': L()['capChangeReq'] as String,
+                'title': _debtTitle(e, led), 'diffs': diffs,
+                'confirm': () => ledgerEditConfirm_(e.id), 'reject': () => ledgerEditReject_(e.id),
+              });
+            } else if (e.status == EntryStatus.pending) {
+              final refDebt = e.ref != null ? led.entries.where((x) => x.id == e.ref).firstOrNull : null;
+              cards.add({
+                'id': e.id, 'isEdit': false, 'cap': L()['capNeedConfirm'] as String,
+                'title': _debtTitle(e, led),
+                'amount': (e.kind == EntryKind.debt && e.direction == DebtDir.toMe ? '+' : e.kind == EntryKind.debt ? '−' : '') + fmtAmt(e.amount, e.currency),
+                'sub': [
+                  fmtDate(e.date),
+                  if (e.due != null) Lf('duePfx', {'d': '${_isoDate(e.due)}'}),
+                  if (e.note.isNotEmpty) e.note,
+                  if (refDebt != null) Lf('remainPfx', {'a': '${fmtAmt(led.remainingEff(refDebt), refDebt.currency)}'}),
+                ].join(' · '),
+                'confirm': () => e.kind == EntryKind.debt ? ledgerConfirm_(e.id) : ledgerConfirmOp_(e.id),
+                'reject': () => ledgerReject_(e.id),
+              });
+            }
+          }
+
+          // ---- Review bloki (join, spec 5.1) ----
+          final review = led.reviewDebts();
+          final reviewCards = review.map((d) {
+            final ops = led.relatedOps(d.id);
+            final repaid = ops.where((o) => o.status == EntryStatus.ok).fold<int>(0, (s, o) => s + o.amount);
+            return {
+              'id': d.id, 'title': _debtTitle(d, led),
+              'amount': fmtAmt(d.amount, d.currency),
+              'sub': [fmtDate(d.date), if (d.note.isNotEmpty) d.note, Lf('remainPfx', {'a': '${fmtAmt(d.remaining, d.currency)}'}), if (repaid > 0) '${L()['paidLabel'] as String} ${fmtAmt(repaid, d.currency)}'].join(' · '),
+              'confirm': () => ledgerReviewConfirm_(d.id), 'reject': () => ledgerReviewReject_(d.id),
+            };
+          }).toList();
+
+          // ---- Lenta kartochkalari (barcha yozuvlar, chronologik) ----
+          final feed = led.entries.map((e) {
+            final mine = e.createdBy == '${S['meId']}';
+            final isDebtEntry = e.kind == EntryKind.debt;
+            final signPos = isDebtEntry && e.direction == DebtDir.toMe;
+            final over = led.isOverdue(e);
+            final paidPct = e.amount > 0 ? (e.paid / e.amount * 100).clamp(0, 100).round() : 0;
+            return {
+              'id': e.id,
+              'title': _debtTitle(e, led),
+              'amount': isDebtEntry ? ((signPos ? '+' : '−') + fmtAmt(e.amount, e.currency)) : fmtAmt(e.amount, e.currency),
+              'amountColor': isDebtEntry ? (signPos ? green : red) : mut,
+              'date': fmtDate(e.date),
+              'due': e.due != null ? Lf('duePfx', {'d': '${_isoDate(e.due)}'}) : '',
+              'note': e.note,
+              'stLabel': _stLabel(e.status),
+              'stColor': _stColor(e.status, ink, red, mut),
+              'isActive': e.status == EntryStatus.active,
+              'isClosed': e.status == EntryStatus.closed,
+              'isDead': e.status == EntryStatus.rejected || e.status == EntryStatus.cancelled,
+              'disputed': e.status == EntryStatus.disputed,
+              'oneSided': e.isOneSided,
+              'reviewing': e.underReview,
+              'edited': e.versions.isNotEmpty,
+              'progW': isDebtEntry && e.status == EntryStatus.active ? paidPct : 0,
+              'progText': isDebtEntry && (e.status == EntryStatus.active || e.status == EntryStatus.closed) ? Lf('closedProgress', {'paid': '${fmtAmt(e.paid, e.currency)}', 'amount': '${fmtAmt(e.amount, e.currency)}'}) : '',
+              'forgivenText': e.forgiven > 0 ? Lf('forgivenLine', {'r': '${fmtAmt(e.paid - e.forgiven, e.currency)}', 'f': '${fmtAmt(e.forgiven, e.currency)}'}) : '',
+              'overdue': over ? Lf('overdueDays', {'n': '${DateTime.now().difference(e.due!).inDays}'}) : '',
+              'canCancel': mine && (e.status == EntryStatus.pending || e.status == EntryStatus.disputed),
+              'cancel': () => ledgerCancel_(e.id),
+              'open': () => histOpen_(e.id),
+            };
+          }).toList().reversed.toList();
+
+          // ---- 3 tugma (spec 4.4) ----
+          final btns = [
+            {'key': 'lend', 'label': L()['lendDebt'] as String, 'on': led.canGive, 'off': led.giveDisabledReason(firstName)},
+            {'key': 'borrow', 'label': L()['borrowDebt'] as String, 'on': led.canTake, 'off': led.takeDisabledReason(firstName)},
+            {'key': 'close', 'label': L()['closeDebt'] as String, 'on': led.canClose, 'off': led.closeDisabledReason()},
+          ];
+
+          // ---- Yopish oqimi: tanlanadigan qarz chiplari ----
+          final closeChips = led.closableDebts().map((d) {
+            final locked = led.isLockedByPending(d);
+            return {
+              'id': d.id, 'sel': S['chDebt'] == d.id, 'locked': locked,
+              'label': '${fmtAmt(led.remainingEff(d), d.currency)} · ${fmtDate(d.date)}',
+              'over': led.isOverdue(d),
+              'dir': d.direction == DebtDir.fromMe ? 'out' : 'in',
+              'pick': () {
+                if (locked) return;
+                set({'chDebt': d.id, 'chA': _fmt(led.remainingEff(d)), 'chCur': d.currency});
+              },
+            };
+          }).toList();
+          final selDebt = led.closableDebts().where((d) => d.id == S['chDebt']).firstOrNull;
+          final closeIsMine = selDebt?.direction == DebtDir.fromMe;
+
+          // ---- Yozuv dialogi (versiya tarixi + edit) ----
+          final histEntry = led.entries.where((e) => e.id == S['histId']).firstOrNull;
+
+          return <String, dynamic>{
+            'hasLedger': true,
+            'accepted': accepted,
+            'ledgerLoading': S['ledgerLoading'] == true,
+            'balLines': balLines,
+            'offTrust': !accepted,
+            'ledCards': cards,
+            'ledCardCount': '${cards.length}',
+            'ledReview': reviewCards,
+            'ledReviewCount': '${reviewCards.length}',
+            'revAllOpen': S['revAllOpen'] == true,
+            'revAllAsk': () => set({'revAllOpen': true}),
+            'revAllOk': () => ledgerReviewAll_(),
+            'revAllNo': () => set({'revAllOpen': false}),
+            'revAllText': Lf('revAllText', {'n': '${review.length}', 'sum': '${balParts({for (final d in review) d.currency: (review.where((x) => x.currency == d.currency).fold<int>(0, (s, x) => s + x.remaining))})}'}),
+            'ledFeed': feed,
+            'ledEmpty': feed.isEmpty,
+            'ledBtns': btns,
+            'ledBtnTap': (String key, bool on, String? off) {
+              if (!on) {
+                if (off != null) toast_(off);
+                return;
+              }
+              chOpen_(key);
+            },
+            'chAct': S['chAct'],
+            'chIsLend': S['chAct'] == 'lend',
+            'chIsBorrow': S['chAct'] == 'borrow',
+            'chIsClose': S['chAct'] == 'close',
+            'chA': '${S['chA']}',
+            'chCur': '${S['chCur'] ?? 'UZS'}',
+            'chCurs': (S['myCurs'] as List?)?.cast<String>() ?? ['UZS', 'USD', 'EUR', 'RUB'],
+            'chDate': '${S['chDate']}',
+            'chDue': '${S['chDue']}',
+            'chNote': '${S['chNote']}',
+            'chReason': '${S['chReason']}',
+            'chSetA': (String t) => set({'chA': t}),
+            'chSetCur': (String c) => set({'chCur': c}),
+            'chSetDate': (String d) => set({'chDate': d}),
+            'chSetDue': (String d) => set({'chDue': d}),
+            'chSetNote': (String n) => set({'chNote': n}),
+            'chSetReason': (String r) => set({'chReason': r}),
+            'chCloseChips': closeChips,
+            'chCloseIsMine': closeIsMine,
+            'chClosePanel': () => chClose_(),
+            'chSubmit': () => chSubmit_(),
+            // Yozuv dialogi
+            'histOpen': histEntry != null,
+            'histEditing': S['histEdit'] == true,
+            'histData': histEntry == null ? null : {
+              'title': _debtTitle(histEntry, led),
+              'amount': fmtAmt(histEntry.amount, histEntry.currency),
+              'date': fmtDate(histEntry.date),
+              'due': histEntry.due != null ? _isoDate(histEntry.due) : '',
+              'note': histEntry.note,
+              'stLabel': _stLabel(histEntry.status),
+              'oneSided': histEntry.isOneSided,
+              'canEdit': histEntry.createdBy == '${S['meId']}' && histEntry.isDebt &&
+                  (histEntry.status == EntryStatus.pending || histEntry.status == EntryStatus.active),
+              'versions': histEntry.versions.map((v) => {
+                'amount': fmtAmt(v.amount, histEntry.currency),
+                'due': _isoDate(v.due), 'note': v.note,
+                'time': _isoDate(v.editedAt),
+              }).toList(),
+            },
+            'histClose': () => histClose_(),
+            'histEditStart': () => histEditStart_(),
+            'eA': '${S['eA']}', 'eDue': '${S['eDue']}', 'eNote': '${S['eNote']}',
+            'eSetA': (String t) => set({'eA': t}),
+            'eSetDue': (String t) => set({'eDue': t}),
+            'eSetNote': (String t) => set({'eNote': t}),
+            'histEditSave': () => histEditSave_(),
+          };
+        } catch (err) {
+          debugPrint('ledger vals xatosi: $err');
+          return <String, dynamic>{'hasLedger': false};
+        }
+      })(),
+
       'receiptOpen': rt != null, 'receipt': receipt,
       'molTotals': molTotals, 'bars': bars, 'reminders': reminders, 'profRows': profRows,
       'meName': meLabel(),
@@ -2949,7 +3623,7 @@ class TrustStore extends ChangeNotifier {
           return;
         }
         set({'meName': v, 'meNameEdit': null});
-        toast_('Ism saqlandi — kontragentlarga shu ism ko\'rinadi');
+        toast_(L()['tNameSaved']);
       },
 
       'sheetOpen': S['sheetOpen'],
@@ -2969,8 +3643,8 @@ class TrustStore extends ChangeNotifier {
       },
       'formNote': f['note'],
       'onNote': (String t) => set({'form': {...f, 'note': t}}),
-      'sheetBtnLabel': 'Saqlash',
-      'sheetHint': "Yozuv darhol saqlanadi — tasdiq talab qilinmaydi. Bog'langan kontragent buni o'z ilovasida ko'radi.",
+      'sheetBtnLabel': L()['btnSave'] as String,
+      'sheetHint': L()['sheetHintUnconf'] as String,
       'createTx': () => createTx(),
 
       'isOnbWelcome': stage == 'welcome',
@@ -3049,6 +3723,7 @@ class TrustStore extends ChangeNotifier {
       'pinKeys': makeKeys('pinVal'),
       'logout': () => logout_(),
       'L': L0,
+      'busy': S['busy'], // server javobini kutayotgan tugma kaliti (loading)
 
       'openNotifs': () => set({'notifOpen': true}),
       'closeNotifs': () => set({'notifOpen': false}),
@@ -3110,13 +3785,116 @@ class TrustStore extends ChangeNotifier {
       'pdfOpen': S['pdfOpen'] == true && rt != null,
       'pdf': pdf,
       'closePdf': () => set({'pdfOpen': false}),
-      'pdfDownload': () => toast_('PDF hisobot — tez orada'),
-      'pdfShare': () => toast_('Ulashish — tez orada'),
+      'pdfDownload': () => toast_(L()['tPdfSoon']),
+      'pdfShare': () => toast_(L()['tShareSoon']),
 
       'toastOpen': (S['toast'] as String).isNotEmpty,
       'toast': S['toast'],
     };
   }
+
+  // ============ CIRCLES (guruhli navbatli jamg'arma) — navigatsiya + amallar ============
+  // Domen ma'lumotini ekranlar circlesRepo dan bevosita o'qiydi; bu yerda faqat
+  // overlay bayroqlari, ochish/yopish va mutatsiya callback'lari (repo + set + toast).
+  Map<String, dynamic> circleNav() {
+    final id = S['circleId'] as String?;
+    return {
+      'circleOpen': S['circleOpen'] == true,
+      'circleId': id,
+      'circleCreateOpen': S['circleCreateOpen'] == true,
+      'circleHistoryOpen': S['circleHistoryOpen'] == true,
+      'circleManageOpen': S['circleManageOpen'] == true,
+      'circleJoinOpen': S['circleJoinOpen'] == true,
+      'circlePayOpen': S['circlePayOpen'] == true,
+      'circleConfirmOpen': S['circleConfirmOpen'] == true,
+      'circleInviteOpen': S['circleInviteOpen'] == true,
+      // yuklash holati (backend)
+      'circlesLoading': circlesRepo.loading,
+      'circlesLoaded': circlesRepo.loaded,
+      'circlesError': circlesRepo.error,
+      'reloadCircles': () => loadCircles(force: true),
+      // ochish / yopish
+      'openCircle': (String cid) {
+        set({'circleOpen': true, 'circleId': cid});
+        if (!circlesRepo.loaded) loadCircles();
+      },
+      'closeCircle': () => set({'circleOpen': false}),
+      'openCircleCreate': () => set({'circleCreateOpen': true}),
+      'closeCircleCreate': () => set({'circleCreateOpen': false}),
+      'openCircleHistory': () => set({'circleHistoryOpen': true}),
+      'closeCircleHistory': () => set({'circleHistoryOpen': false}),
+      'openCircleManage': () => set({'circleManageOpen': true}),
+      'closeCircleManage': () => set({'circleManageOpen': false}),
+      'openCircleJoin': (String cid) => set({'circleJoinOpen': true, 'circleId': cid}),
+      'closeCircleJoin': () => set({'circleJoinOpen': false}),
+      'openCirclePay': () => set({'circlePayOpen': true}),
+      'closeCirclePay': () => set({'circlePayOpen': false}),
+      'openCircleConfirm': () => set({'circleConfirmOpen': true}),
+      'closeCircleConfirm': () => set({'circleConfirmOpen': false}),
+      'openCircleInvite': () => set({'circleInviteOpen': true}),
+      'closeCircleInvite': () => set({'circleInviteOpen': false}),
+      // amallar (backend + toast)
+      'circleMarkPaid': () async {
+        if (id == null) return;
+        final ok = await circlesRepo.markPaid(id);
+        set({'circlePayOpen': false});
+        toast_(ok ? cf('toastPaid') : (circlesRepo.errorStatus == 402 ? cf('subExpiredErr') : (circlesRepo.error ?? cf('toastError'))));
+      },
+      'circleConfirmReceipt': () async {
+        if (id == null) return;
+        final ok = await circlesRepo.confirmReceipt(id);
+        set({'circleConfirmOpen': false});
+        toast_(ok ? cf('toastConfirmed') : (circlesRepo.error ?? cf('toastError')));
+      },
+      'circleJoinAccept': () async {
+        if (id == null) return;
+        final ok = await circlesRepo.join(id);
+        set({'circleJoinOpen': false});
+        toast_(ok ? cf('toastJoined') : (circlesRepo.error ?? cf('toastError')));
+      },
+      'circleDecline': () async {
+        if (id != null) await circlesRepo.declineInvite(id);
+        set({'circleJoinOpen': false});
+        toast_(cf('toastDeclined'));
+      },
+      'circleCloseAction': () async {
+        if (id == null) return;
+        final ok = await circlesRepo.closeCircle(id);
+        if (ok) {
+          set({'circleManageOpen': false, 'circleOpen': false, 'circleId': null});
+          toast_(cf('toastClosed'));
+        } else {
+          toast_(circlesRepo.error ?? cf('toastError'));
+        }
+      },
+      'circleInviteAdd': (List<Map<String, dynamic>> members) async {
+        if (id == null || members.isEmpty) return;
+        final ok = await circlesRepo.invite(id, members);
+        set({'circleInviteOpen': false});
+        toast_(ok ? cf('toastInvited') : (circlesRepo.errorStatus == 402 ? cf('subExpiredErr') : (circlesRepo.error ?? cf('toastError'))));
+      },
+      'circleManageRename': (String name) async {
+        if (id == null) return;
+        final ok = await circlesRepo.rename(id, name);
+        toast_(ok ? cf('toastRenamed') : (circlesRepo.error ?? cf('toastError')));
+      },
+    };
+  }
+
+  // Circle'larni serverdan yuklash (tab ochilganda / app boshlanishida).
+  Future<void> loadCircles({bool force = false}) async {
+    if (circlesRepo.loading) return;
+    if (circlesRepo.loaded && !force) {
+      circlesRepo.load().then((_) => set({})); // fon yangilash + UI rebuild
+      return;
+    }
+    circlesRepo.loading = true;
+    set({});
+    await circlesRepo.load();
+    circlesRepo.loading = false;
+    set({});
+  }
+
 }
 
 final TrustStore store = TrustStore();

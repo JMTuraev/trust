@@ -4,6 +4,8 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
+// Obuna read-only qoidasi: yangi yozuv/tahrir — 402; confirm/reject/cancel OCHIQ (qarshi tomon qulflanmasin)
+import { requireActiveSub } from '../lib/subscription.js';
 import { displayName, notifEnabled } from '../lib/links.js';
 import {
   rem, remEff, isLockedByPending, isOverdue, applyRepaySettle, canonicalDir,
@@ -16,6 +18,12 @@ const CURRENCIES = ['UZS', 'USD', 'EUR', 'RUB'];
 const fmt = (n) => Number(n).toLocaleString('ru-RU');
 const nowIso = () => new Date().toISOString();
 const todayStr = () => new Date().toISOString().slice(0, 10);
+// Sana chegaralari — TIMEZONE bardoshi bilan. Server UTC ishlaydi, mijoz mahalliy sana
+// yuboradi (masalan Toshkent UTC+5: mahalliy "bugun" UTC "kecha"/"ertaga" bo'lishi mumkin).
+// Shuning uchun kelajak/o'tmish taqiqlarida ±1 kun bardosh beramiz.
+const dayShift = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const maxActedDate = () => dayShift(1);  // acted_at bundan katta bo'lsa — kelajak
+const minDueDate = () => dayShift(-1);   // due bundan kichik bo'lsa — o'tmish
 
 function validateAmount(a) {
   const n = Number(a);
@@ -114,7 +122,7 @@ router.get('/:partnerId', async (req, res, next) => {
 // ============================================================
 // POST /api/debts/:partnerId — yangi qarz {direction, amount, currency, acted_at, due, note}
 // ============================================================
-router.post('/:partnerId', async (req, res, next) => {
+router.post('/:partnerId', requireActiveSub, async (req, res, next) => {
   try {
     const p = await loadPartnerForUser(req.params.partnerId, req.user.id);
     if (!p) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });
@@ -131,11 +139,11 @@ router.post('/:partnerId', async (req, res, next) => {
     const today = todayStr();
     const act = acted_at || today;
     if (!isDate(act)) return res.status(400).json({ success: false, error: 'acted_at noto\'g\'ri sana' });
-    if (act > today) return res.status(400).json({ success: false, error: 'amal sanasi kelajakda bo\'lmaydi' });
+    if (act > maxActedDate()) return res.status(400).json({ success: false, error: 'amal sanasi kelajakda bo\'lmaydi' });
     let dueVal = null;
     if (due !== undefined && due !== null && due !== '') {
       if (!isDate(due)) return res.status(400).json({ success: false, error: 'due noto\'g\'ri sana' });
-      if (due < today) return res.status(400).json({ success: false, error: 'muddat o\'tmishda bo\'lmaydi' });
+      if (due < minDueDate()) return res.status(400).json({ success: false, error: 'muddat o\'tmishda bo\'lmaydi' });
       dueVal = due;
     }
 
@@ -304,8 +312,8 @@ async function createRepaySettle(req, res, next, kind) {
     `${fmt(amount)} ${ref.currency} — tasdiqlaysizmi?`, p.id);
   res.status(201).json({ success: true, data: rec });
 }
-router.post('/:partnerId/repay', (req, res, next) => createRepaySettle(req, res, next, 'repay').catch(next));
-router.post('/:partnerId/settle', (req, res, next) => createRepaySettle(req, res, next, 'settle').catch(next));
+router.post('/:partnerId/repay', requireActiveSub, (req, res, next) => createRepaySettle(req, res, next, 'repay').catch(next));
+router.post('/:partnerId/settle', requireActiveSub, (req, res, next) => createRepaySettle(req, res, next, 'settle').catch(next));
 
 // POST /api/debts/:id/confirm-op — repay/settle pendingni tasdiqlash -> ok + ref qarzga qo'llash
 router.post('/:id/confirm-op', async (req, res, next) => {
@@ -318,8 +326,7 @@ router.post('/:id/confirm-op', async (req, res, next) => {
     if (op.status !== 'pending') return res.status(400).json({ success: false, error: 'Faqat tasdiqlanmagan amal tasdiqlanadi' });
     if (op.created_by === req.user.id) return res.status(403).json({ success: false, error: 'O\'z amalingizni tasdiqlay olmaysiz' });
 
-    const { data: ref } = await supabaseAdmin.from('debts').select('*').eq('id', op.ref_id).maybeSingle();
-    if (!ref) return res.status(404).json({ success: false, error: 'Bog\'liq qarz topilmadi' });
+    if (!op.ref_id) return res.status(404).json({ success: false, error: 'Bog\'liq qarz topilmadi' });
 
     // CAS: amalni ok qilamiz (qayta qo'llanishning oldini oladi). Faqat pending'dan.
     const { data: okRow, error: e1 } = await supabaseAdmin.from('debts')
@@ -327,6 +334,10 @@ router.post('/:id/confirm-op', async (req, res, next) => {
       .eq('id', op.id).eq('status', 'pending').select().maybeSingle();
     if (e1) throw new Error(e1.message);
     if (!okRow) return res.status(409).json({ success: false, error: 'Amal allaqachon qayta ishlangan' });
+
+    // Ref qarz CAS'dan KEYIN o'qiladi — parallel tasdiq eskirgan paid ustiga yozmasin.
+    const { data: ref } = await supabaseAdmin.from('debts').select('*').eq('id', op.ref_id).maybeSingle();
+    if (!ref) return res.status(404).json({ success: false, error: 'Bog\'liq qarz topilmadi' });
 
     // Endi ref qarzga qo'llaymiz (op ok bo'lgani uchun ikki marta qo'llanmaydi).
     const applied = applyRepaySettle(ref, { kind: op.kind, amount: Number(op.amount), reason: op.reason });
@@ -348,7 +359,7 @@ router.post('/:id/confirm-op', async (req, res, next) => {
 //   pending yoki oneSided: to'g'ridan-to'g'ri + versions'ga eski
 //   active twoSided: pending_edit qatlamiga (qarshi tomonga edit_req)
 // ============================================================
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requireActiveSub, async (req, res, next) => {
   try {
     const ctx = await loadDebtWithPartner(req.params.id, req.user.id);
     if (!ctx) return res.status(404).json({ success: false, error: 'Topilmadi' });
@@ -359,7 +370,6 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Bu holatdagi yozuv tahrirlanmaydi' });
 
     // O'zgarishlarni yig'ish (faqat berilgan va haqiqatan farqli maydonlar)
-    const today = todayStr();
     const changes = {};
     if (req.body?.amount !== undefined) {
       const amtErr = validateAmount(req.body.amount);
@@ -370,10 +380,16 @@ router.patch('/:id', async (req, res, next) => {
       let dueVal = null;
       if (req.body.due !== null && req.body.due !== '') {
         if (!isDate(req.body.due)) return res.status(400).json({ success: false, error: 'due noto\'g\'ri sana' });
-        if (req.body.due < today) return res.status(400).json({ success: false, error: 'muddat o\'tmishda bo\'lmaydi' });
         dueVal = req.body.due;
       }
-      if (dueVal !== (debt.due || null)) changes.due = dueVal;
+      if (dueVal !== (debt.due || null)) {
+        // O'tmish taqiqi faqat HAQIQATAN o'zgargan muddatga qo'llanadi — mobil tahrirda
+        // eski due'ni o'zgarmagan holda qaytarib yuboradi; muddati o'tgan qarzning
+        // summasini tuzatish shu tekshiruv tufayli bloklanib qolmasin.
+        if (dueVal !== null && dueVal < minDueDate())
+          return res.status(400).json({ success: false, error: 'muddat o\'tmishda bo\'lmaydi' });
+        changes.due = dueVal;
+      }
     }
     if (req.body?.note !== undefined) {
       const noteVal = req.body.note || null;

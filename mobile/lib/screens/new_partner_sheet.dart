@@ -12,6 +12,7 @@ class NewPartnerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = store.vals();
     final Pal p = curPal();
+    final L0 = v['L'] as Map<String, dynamic>;
 
     return SheetShell(
       onClose: () => v['npClose'](),
@@ -19,9 +20,9 @@ class NewPartnerSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Tx('Yangi hamkor', size: 18, w: FontWeight.w700, color: p.ink),
+          Tx(L0['newPartnerTitle'] as String, size: 18, w: FontWeight.w700, color: p.ink),
           const SizedBox(height: 20),
-          const Cap('ISM'),
+          Cap(L0['capName'] as String),
           const SizedBox(height: 10),
           Container(
             height: 46,
@@ -34,12 +35,12 @@ class NewPartnerSheet extends StatelessWidget {
             child: StoreField(
               value: v['npName'],
               onChanged: (t) => v['onNpName'](t),
-              hint: 'Ism yozing',
+              hint: L0['namePh'] as String,
               style: GoogleFonts.inter(fontSize: 14.5, color: p.ink),
             ),
           ),
           const SizedBox(height: 20),
-          const Cap('TELEFON'),
+          Cap(L0['capPhone'] as String),
           const SizedBox(height: 10),
           Container(
             height: 46,
@@ -100,7 +101,7 @@ class NewPartnerSheet extends StatelessWidget {
           const SizedBox(height: 14),
           Tx(v['npHint'], size: 11, color: p.t3, lh: 16.5),
           const SizedBox(height: 24),
-          InkBtn(label: "Qo'shish", onTap: () => v['npCreate']()),
+          InkBtn(label: L0['btnAdd'] as String, onTap: () => v['npCreate'](), loading: v['busy'] == 'npCreate'),
         ],
       ),
     );

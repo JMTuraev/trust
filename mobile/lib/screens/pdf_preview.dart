@@ -54,6 +54,7 @@ class PdfPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     final pdf = (v['pdf'] as Map?) ?? {};
     return Column(
@@ -69,7 +70,7 @@ class PdfPreviewScreen extends StatelessWidget {
             children: [
               BackBtn(onTap: () => v['closePdf']()),
               const SizedBox(width: 10),
-              Tx('PDF dalil', size: 16, w: FontWeight.w700, color: p.ink),
+              Tx(L0['pdfProofTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
               const Spacer(),
               Tx((pdf['docId'] ?? '') as String, size: 11, color: p.t3, tab: true, maxLines: 1),
             ],
@@ -135,7 +136,7 @@ class PdfPreviewScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                const Tx('DALIL', size: 6.5, w: FontWeight.w700, color: _stamp, ls: 1.4),
+                                Tx(L0['proofStamp'] as String, size: 6.5, w: FontWeight.w700, color: _stamp, ls: 1.4),
                               ],
                             ),
                           ),
@@ -147,12 +148,12 @@ class PdfPreviewScreen extends StatelessWidget {
                         children: [
                           const Tx('TRUST', size: 10, w: FontWeight.w600, color: _gray, ls: 2.2),
                           const SizedBox(height: 6),
-                          const Tx('Hisob-kitob dalili', size: 17, w: FontWeight.w700, color: _dark, ls: -0.2),
+                          Tx(L0['settlementProof'] as String, size: 17, w: FontWeight.w700, color: _dark, ls: -0.2),
                           const SizedBox(height: 4),
-                          Tx('Hujjat ID: ${pdf['docId'] ?? ''}', size: 11, color: _gray, tab: true, maxLines: 1),
+                          Tx(store.Lf('docIdLabel', {'id': '${pdf['docId'] ?? ''}'}), size: 11, color: _gray, tab: true, maxLines: 1),
                           Container(height: 1, color: _hairF, margin: const EdgeInsets.only(top: 16)),
-                          _party('Kimdan', (pdf['fromName'] ?? '') as String, (pdf['fromPhone'] ?? '') as String),
-                          _party('Kimga', (pdf['toName'] ?? '') as String, (pdf['toPhone'] ?? '') as String),
+                          _party(L0['from'] as String, (pdf['fromName'] ?? '') as String, (pdf['fromPhone'] ?? '') as String),
+                          _party(L0['to'] as String, (pdf['toName'] ?? '') as String, (pdf['toPhone'] ?? '') as String),
                           // SUMMA
                           Container(
                             width: double.infinity,
@@ -160,7 +161,7 @@ class PdfPreviewScreen extends StatelessWidget {
                             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _hair2F))),
                             child: Column(
                               children: [
-                                const Tx('SUMMA', size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.8),
+                                Tx(L0['capAmount'] as String, size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.8),
                                 const SizedBox(height: 6),
                                 Tx((pdf['amount'] ?? '') as String, size: 28, w: FontWeight.w700, color: _dark, tab: true, maxLines: 1),
                                 const SizedBox(height: 4),
@@ -173,7 +174,7 @@ class PdfPreviewScreen extends StatelessWidget {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Tx('Sana va vaqt', size: 11.5, color: _gray),
+                                Tx(L0['dateTimeLabel'] as String, size: 11.5, color: _gray),
                                 Tx((pdf['dateTime'] ?? '') as String, size: 12.5, w: FontWeight.w600, color: _dark, maxLines: 1),
                               ],
                             ),
@@ -190,8 +191,8 @@ class PdfPreviewScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Tx('YOZUV MA\'LUMOTI', size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
-                                _confRow('Yaratilgan vaqt', Tx((pdf['madeAt'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, maxLines: 1), 10),
+                                Tx(L0['entryInfoCap'] as String, size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
+                                _confRow(L0['createdAt'] as String, Tx((pdf['madeAt'] ?? '') as String, size: 12, w: FontWeight.w600, color: _dark, maxLines: 1), 10),
                               ],
                             ),
                           ),
@@ -207,7 +208,7 @@ class PdfPreviewScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Tx("O'ZGARISHLAR TARIXI", size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
+                                  Tx(L0['capHistory'] as String, size: 10.5, w: FontWeight.w600, color: _gray, ls: 1.6),
                                   ...((pdf['histRows'] as List?) ?? []).map(
                                     (h) => Padding(
                                       padding: const EdgeInsets.only(top: 8),
@@ -218,8 +219,8 @@ class PdfPreviewScreen extends StatelessWidget {
                               ),
                             ),
                           const SizedBox(height: 16),
-                          const Tx(
-                            "Ushbu hujjat Trust daftaridagi yozuv asosida yaratildi. Barcha o'zgarishlar tarixi saqlanadi.",
+                          Tx(
+                            L0['pdfFooter'] as String,
                             size: 10.5, color: _lightC, lh: 16.8,
                           ),
                         ],
@@ -240,9 +241,9 @@ class PdfPreviewScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              InkBtn(label: 'PDF yuklab olish', onTap: () => v['pdfDownload']()),
+              InkBtn(label: L0['pdfDownloadBtn'] as String, onTap: () => v['pdfDownload']()),
               const SizedBox(height: 10),
-              GhostBtn(label: 'Ulashish', onTap: () => v['pdfShare'](), h: 46, fs: 14),
+              GhostBtn(label: L0['share'] as String, onTap: () => v['pdfShare'](), h: 46, fs: 14),
             ],
           ),
         ),

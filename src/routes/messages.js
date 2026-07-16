@@ -6,6 +6,8 @@ import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
+// Obuna read-only qoidasi: xabar YUBORISH — 402; o'qish va read-belgilash OCHIQ
+import { requireActiveSub } from '../lib/subscription.js';
 import { displayName, notifEnabled } from '../lib/links.js';
 
 const router = Router();
@@ -115,7 +117,7 @@ router.get('/:partnerId', async (req, res, next) => {
 });
 
 // POST /api/messages/:partnerId  { kind:'text', body } — matn xabari
-router.post('/:partnerId', async (req, res, next) => {
+router.post('/:partnerId', requireActiveSub, async (req, res, next) => {
   try {
     const p = await chatPartner(req, req.params.partnerId);
     if (!p) return res.status(404).json({ success: false, error: 'Topilmadi' });
@@ -144,6 +146,7 @@ router.post('/:partnerId', async (req, res, next) => {
 // Body: xom audio baytlar (Content-Type: audio/*), route darajasida raw parser
 router.post(
   '/:partnerId/audio',
+  requireActiveSub, // raw parserdan OLDIN — bloklangan foydalanuvchi uchun 5MB tana o'qilmaydi
   express.raw({ type: 'audio/*', limit: '5mb' }),
   async (req, res, next) => {
     try {

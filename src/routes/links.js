@@ -25,22 +25,59 @@ async function opsSummary(partnerId) {
 }
 
 // Ko'p link uchun ops xulosasi BITTA so'rovda — ro'yxatdagi N+1 o'rniga.
+// Eski 'operations' daftari + YANGI qarz daftari ('debts') birga hisoblanadi —
+// sotuvchi ledger'da yozsa ham mijoz previewda haqiqiy son/summani ko'rsin.
 // Natija: Map<partnerId, {ops_count, total (UZS), totals: {UZS: -x, USD: y, ...}}>
 async function opsSummaryFor(partnerIds) {
   const map = new Map(partnerIds.map((id) => [id, { ops_count: 0, total: 0, totals: {} }]));
   if (!partnerIds.length) return map;
-  const { data } = await supabaseAdmin
-    .from('operations')
-    .select('partner_id, delta, currency, status')
-    .in('partner_id', partnerIds)
-    .in('status', ['active', 'archived']);
-  for (const o of data || []) {
+  const [ops, debts] = await Promise.all([
+    supabaseAdmin
+      .from('operations')
+      .select('partner_id, delta, currency, status')
+      .in('partner_id', partnerIds)
+      .in('status', ['active', 'archived']),
+    supabaseAdmin
+      .from('debts')
+      .select('partner_id, kind, status, direction, created_by, amount, paid, currency')
+      .in('partner_id', partnerIds)
+      .not('status', 'in', '(cancelled,rejected)'),
+  ]);
+  for (const o of ops.data || []) {
     const e = map.get(o.partner_id) || { ops_count: 0, total: 0, totals: {} };
     const cur = o.currency || 'UZS';
     e.ops_count += 1;
     // Mijoz nuqtai nazari: sotuvchi deltasining teskarisi (+ = sotuvchi mijozga qarzdor)
     e.totals[cur] = (e.totals[cur] || 0) - Number(o.delta);
     map.set(o.partner_id, e);
+  }
+  // Qarz daftari: ko'rinadigan yozuvlar soni + FAOL qarzlar qoldig'i (mijoz nuqtai nazari).
+  // direction created_by nuqtai nazarida saqlanadi; mijoz uchun sotuvchi (owner)
+  // yo'nalishining teskarisi kerak. Bu funksiya mijoz (counterparty) uchun ishlaydi,
+  // shuning uchun created_by === mijoz bo'lsa yo'nalish o'z holicha, aks holda flip.
+  const ownerOf = new Map(); // partner_id -> owner_id (debts.created_by bilan solishtirish uchun)
+  if ((debts.data || []).length) {
+    const { data: prows } = await supabaseAdmin
+      .from('partners').select('id, owner_id').in('id', partnerIds);
+    for (const p of prows || []) ownerOf.set(p.id, p.owner_id);
+  }
+  for (const d of debts.data || []) {
+    const e = map.get(d.partner_id) || { ops_count: 0, total: 0, totals: {} };
+    e.ops_count += 1;
+    if (d.kind === 'debt' && d.status === 'active') {
+      const remaining = Math.max(0, Number(d.amount) - Number(d.paid || 0));
+      if (remaining > 0) {
+        const cur = d.currency || 'UZS';
+        // Owner nuqtai nazarida: created_by === owner bo'lsa direction o'z holicha
+        const ownerDir = d.created_by === ownerOf.get(d.partner_id)
+          ? d.direction
+          : (d.direction === 'toMe' ? 'fromMe' : 'toMe');
+        // Mijoz nuqtai nazari — teskarisi: owner 'toMe' => mijoz qarzdor (manfiy)
+        const signed = ownerDir === 'toMe' ? -remaining : remaining;
+        e.totals[cur] = (e.totals[cur] || 0) + signed;
+      }
+    }
+    map.set(d.partner_id, e);
   }
   // total (UZS) — orqaga moslik; yopilgan (nolga teng) valyutalar olib tashlanadi
   for (const e of map.values()) {
@@ -69,7 +106,9 @@ router.get('/', async (req, res, next) => {
         id: p.id,
         status: p.link_status,
         seller_name: (seller?.full_name || '').trim() || null,
-        seller_phone: seller?.phone || p.counterparty_phone,
+        // Fallback OLIB TASHLANDI: counterparty_phone mijozning O'Z raqami edi —
+        // sotuvchi profili topilmasa (o'chirilgan) telefon ko'rsatilmaydi.
+        seller_phone: seller?.phone || null,
         seller_label: displayName(seller),
         my_alias: p.client_alias,
         ops_count: sum.ops_count,

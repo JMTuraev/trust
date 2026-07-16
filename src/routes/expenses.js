@@ -2,18 +2,23 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { parseText, learnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
+import { parseText, previewKinds, learnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
 import { ensureCategories } from '../lib/categories.js';
+import { requireActiveSub } from '../lib/subscription.js';
 
 const router = Router();
 router.use(requireAuth);
 
-// GET /api/expenses?from=ISO&to=ISO
+// GET /api/expenses?from=ISO&to=ISO&category=Nomi&limit=N
+// category/limit — ixtiyoriy (papka ichi so'rovlari va sahifalash uchun; default o'zgarmagan)
 router.get('/', async (req, res, next) => {
   try {
     let q = supabaseAdmin.from('expenses').select('*').eq('user_id', req.user.id).order('occurred_at', { ascending: false });
     if (req.query.from) q = q.gte('occurred_at', req.query.from);
     if (req.query.to) q = q.lte('occurred_at', req.query.to);
+    if (req.query.category) q = q.eq('category', String(req.query.category));
+    const lim = parseInt(req.query.limit, 10);
+    if (Number.isFinite(lim) && lim > 0) q = q.limit(Math.min(lim, 1000));
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     res.json({ success: true, data });
@@ -21,12 +26,14 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/expenses  { income, amount, category?, note? }
-router.post('/', async (req, res, next) => {
+// Obuna: expired user yangi yozuv yarata olmaydi (402 SUB_EXPIRED) — o'qish ochiq qoladi.
+router.post('/', requireActiveSub, async (req, res, next) => {
   try {
     const { income, amount, category, note } = req.body || {};
-    if (!amount || Number(amount) <= 0) return res.status(400).json({ success: false, error: 'amount kerak' });
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ success: false, error: 'amount musbat son bo\'lishi kerak' });
     const { data, error } = await supabaseAdmin.from('expenses').insert({
-      user_id: req.user.id, income: !!income, amount: Number(amount), category: category || null, note: note || null,
+      user_id: req.user.id, income: !!income, amount: amt, category: category || null, note: note || null,
     }).select().single();
     if (error) throw new Error(error.message);
     res.status(201).json({ success: true, data });
@@ -36,16 +43,31 @@ router.post('/', async (req, res, next) => {
 // POST /api/expenses/parse  { text, source? }
 // Uch signal (LLM + qoida + lug'at) -> { actions[], needs_confirm, provider }
 // Hech narsa saqlanmaydi — saqlash /confirm orqali (tasdiqlash kartasi oqimi).
-router.post('/parse', rateLimit({ windowMs: 60_000, max: 30 }), async (req, res, next) => {
+router.post('/parse', requireActiveSub, rateLimit({ windowMs: 60_000, max: 30 }), async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     if (text.length < 2 || text.length > 300) {
       return res.status(400).json({ success: false, error: "Matn 2–300 belgi bo'lsin" });
     }
     const r = await parseText(text, req.user.id);
-    console.log(`[parse] provider=${r.provider} | "${text}" -> ${r.actions.length} amal`);
+    console.log(`[parse] provider=${r.provider} | ${text.length} belgi -> ${r.actions.length} amal`);
     if (r.errors?.length) console.warn('parse fallback:', r.errors.join(' | '));
     res.json({ success: true, data: { actions: r.actions, needs_confirm: r.needs_confirm, provider: r.provider } });
+  } catch (e) { next(e); }
+});
+
+// POST /api/expenses/preview  { text }
+// Jonli input rangi (summa yashil "in" / qizil "out") — DB'ga YOZILMAYDI, javob tez.
+// Mobil 550ms debounce bilan chaqiradi (xarajat.dart _HlController); natija kesh
+// bilan qaytadi. Limit /parse'dan yuqori — yozish jarayonida bir necha so'rov normal.
+router.post('/preview', rateLimit({ windowMs: 60_000, max: 60 }), async (req, res, next) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text || text.length > 300) {
+      return res.status(400).json({ success: false, error: "Matn 1–300 belgi bo'lsin" });
+    }
+    const r = await previewKinds(text);
+    res.json({ success: true, data: r });
   } catch (e) { next(e); }
 });
 
@@ -53,7 +75,7 @@ router.post('/parse', rateLimit({ windowMs: 60_000, max: 30 }), async (req, res,
 // actions — user tasdiqlagan yakuniy holat (kartada tahrirlangan bo'lishi mumkin).
 // daromad/xarajat -> expenses'ga yoziladi; qarz_* -> saqlanmaydi, `routed` bo'lib qaytadi
 // (mobil Hamkorlar oqimiga yo'naltiradi). O'rganish: lug'at + tuzatishlar (few-shot).
-router.post('/confirm', async (req, res, next) => {
+router.post('/confirm', requireActiveSub, async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     const source = req.body?.source === 'voice' ? 'voice' : 'text';
@@ -104,7 +126,7 @@ router.post('/confirm', async (req, res, next) => {
 
 // PATCH /api/expenses/:id  { amount?, income?, category?, note? }
 // Chatdagi yozuvni inline tahrirlash. Toifa faqat mavjud ro'yxatdan (yangi jimgina yaratilmaydi).
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requireActiveSub, async (req, res, next) => {
   try {
     const { data: e } = await supabaseAdmin.from('expenses').select('*').eq('id', req.params.id).maybeSingle();
     if (!e || e.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
@@ -127,6 +149,11 @@ router.patch('/:id', async (req, res, next) => {
       }
     } else if (patch.income === true) {
       patch.category = 'Daromad';
+    } else if (patch.income === false && e.income && e.category === 'Daromad') {
+      // Kirim -> chiqimga o'girildi, toifa berilmadi: 'Daromad' nomli CHIQIM yozuvi
+      // qolsa papka rangi/yig'indisi aralashib ketardi (kirim+chiqim bitta papkada) —
+      // zaxira 'Boshqa'ga tushiramiz.
+      patch.category = 'Boshqa';
     }
     if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     const { data, error } = await supabaseAdmin.from('expenses').update(patch).eq('id', e.id).select().single();

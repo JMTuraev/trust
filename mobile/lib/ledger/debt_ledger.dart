@@ -30,7 +30,8 @@ class EntryVersion {
         'edited_at': editedAt.toIso8601String(),
       };
   factory EntryVersion.fromJson(Map<String, dynamic> j) => EntryVersion(
-        amount: (j['amount'] as num).toInt(),
+        // amount DB'da nullable (debt_versions) — himoyalangan parse, crash bo'lmasin
+        amount: (j['amount'] as num?)?.toInt() ?? 0,
         due: _parseDate(j['due']),
         note: (j['note'] as String?) ?? '',
         editedAt: DateTime.tryParse('${j['edited_at']}') ?? DateTime.now(),
@@ -50,10 +51,19 @@ class PendingEdit {
         'note': note,
         'requested_at': requestedAt.toIso8601String(),
       };
-  factory PendingEdit.fromJson(Map<String, dynamic> j) => PendingEdit(
-        amount: (j['amount'] as num).toInt(),
-        due: _parseDate(j['due']),
-        note: (j['note'] as String?) ?? '',
+  /// Server pending_edit'da FAQAT o'zgargan maydonlarni saqlaydi (debts.js PATCH).
+  /// Yo'q kalit = "o'zgarmagan" — qarzning joriy qiymati bilan to'ldiriladi (fallback).
+  /// due uchun kalit bor-yo'qligi farqlanadi: present-null = muddat olib tashlangan.
+  factory PendingEdit.fromJson(
+    Map<String, dynamic> j, {
+    int? amountFallback,
+    DateTime? dueFallback,
+    String noteFallback = '',
+  }) =>
+      PendingEdit(
+        amount: (j['amount'] as num?)?.toInt() ?? amountFallback ?? 0,
+        due: j.containsKey('due') ? _parseDate(j['due']) : dueFallback,
+        note: j.containsKey('note') ? ((j['note'] as String?) ?? '') : noteFallback,
         requestedAt: DateTime.tryParse('${j['requested_at']}') ?? DateTime.now(),
       );
 }
@@ -125,6 +135,80 @@ class DebtEntry {
 
   // ---- Hisoblanadigan qiymatlar (spec 3-bo'lim) ----
   int get remaining => isDebt ? _max0(amount - paid) : 0;
+
+  // ---- Server bilan moslash ----
+  // MUHIM: backend `direction`ni created_by nuqtai nazaridan saqlaydi (toMe = created_by
+  // qarzdorga ega). Mobil DebtLedger direction'ni VIEWER (meId) nuqtai nazarida ishlatadi.
+  // Shuning uchun created_by != meId bo'lsa direction FLIP qilinadi.
+  factory DebtEntry.fromServer(Map<String, dynamic> j, String meId) {
+    final kind = _kindFrom('${j['kind']}');
+    DebtDir? dir;
+    final rawDir = j['direction'] as String?;
+    if (rawDir == 'toMe') dir = DebtDir.toMe;
+    if (rawDir == 'fromMe') dir = DebtDir.fromMe;
+    final createdBy = '${j['created_by']}';
+    // Viewer perspektivasiga o'tkazish
+    if (dir != null && createdBy != meId) {
+      dir = dir == DebtDir.toMe ? DebtDir.fromMe : DebtDir.toMe;
+    }
+    // Joriy qiymatlar — pending_edit'dagi YO'Q maydonlarga fallback bo'ladi
+    // (server faqat o'zgargan maydonlarni saqlaydi; aks holda amount'da crash
+    // va due/note'da soxta diff chiqardi).
+    final amountV = (j['amount'] as num?)?.toInt() ?? 0;
+    final dueV = _parseDate(j['due']);
+    final noteV = (j['note'] as String?) ?? '';
+    return DebtEntry(
+      id: '${j['id']}',
+      kind: kind,
+      direction: dir,
+      createdBy: createdBy,
+      amount: amountV,
+      currency: (j['currency'] as String?) ?? 'UZS',
+      date: _parseDate(j['acted_at']) ?? DateTime.now(),
+      due: dueV,
+      note: noteV,
+      status: _statusFrom('${j['status']}'),
+      paid: (j['paid'] as num?)?.toInt() ?? 0,
+      forgiven: (j['forgiven'] as num?)?.toInt() ?? 0,
+      reason: j['reason'] == 'returned'
+          ? CloseReason.returned
+          : j['reason'] == 'forgiven'
+              ? CloseReason.forgiven
+              : null,
+      ref: j['ref_id'] as String?,
+      prov: j['prov'] == 'oneSided' ? Provenance.oneSided : Provenance.twoSided,
+      pendingEdit: j['pending_edit'] is Map
+          ? PendingEdit.fromJson(
+              (j['pending_edit'] as Map).cast<String, dynamic>(),
+              amountFallback: amountV,
+              dueFallback: dueV,
+              noteFallback: noteV,
+            )
+          : null,
+      underReview: j['under_review'] == true,
+      versions: (j['versions'] as List?)
+              ?.map((v) => EntryVersion.fromJson((v as Map).cast<String, dynamic>()))
+              .toList() ??
+          [],
+    );
+  }
+
+  static EntryKind _kindFrom(String s) => s == 'repay'
+      ? EntryKind.repay
+      : s == 'settle'
+          ? EntryKind.settle
+          : EntryKind.debt;
+
+  static EntryStatus _statusFrom(String s) => {
+        'pending': EntryStatus.pending,
+        'active': EntryStatus.active,
+        'closed': EntryStatus.closed,
+        'rejected': EntryStatus.rejected,
+        'cancelled': EntryStatus.cancelled,
+        'ok': EntryStatus.ok,
+        'disputed': EntryStatus.disputed,
+      }[s] ??
+      EntryStatus.pending;
 }
 
 int _max0(int v) => v < 0 ? 0 : v;

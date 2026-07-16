@@ -10,6 +10,7 @@ class EditFormSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     return SheetShell(
       onClose: () => v['closeEditForm'](),
@@ -17,14 +18,14 @@ class EditFormSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Tx("O'zgartirish so'rovi", size: 18, w: FontWeight.w700, color: p.ink),
+          Tx(L0['editReqTitle'] as String, size: 18, w: FontWeight.w700, color: p.ink),
           const SizedBox(height: 6),
           Tx(
-            "O'zgarish faqat ikkinchi tomon tasdiqlagandan keyin kuchga kiradi. Asl yozuv o'chirilmaydi.",
+            L0['editReqSub'] as String,
             size: 12.5, color: p.t3, lh: 18.75,
           ),
           const SizedBox(height: 20),
-          const Cap('ESKI SUMMA'),
+          Cap(L0['capOldAmount'] as String),
           const SizedBox(height: 8),
           Text(
             v['editOld'] as String,
@@ -37,7 +38,7 @@ class EditFormSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Cap('YANGI SUMMA'),
+          Cap(L0['capNewAmount'] as String),
           const SizedBox(height: 10),
           Container(
             height: 52,
@@ -61,7 +62,7 @@ class EditFormSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Cap('YANGI IZOH'),
+          Cap(L0['capNewNote'] as String),
           const SizedBox(height: 10),
           Container(
             height: 44,
@@ -74,12 +75,12 @@ class EditFormSheet extends StatelessWidget {
             child: StoreField(
               value: v['editNote'] as String,
               onChanged: (t) => v['onEditNote'](t),
-              hint: 'Izoh (ixtiyoriy)',
+              hint: L0['noteHintOptional'] as String,
               style: GoogleFonts.inter(fontSize: 14, color: p.ink),
             ),
           ),
           const SizedBox(height: 22),
-          InkBtn(label: "So'rov yuborish", onTap: () => v['submitEdit']()),
+          InkBtn(label: L0['sendRequest'] as String, onTap: () => v['submitEdit'](), loading: v['busy'] == 'submitEdit'),
         ],
       ),
     );

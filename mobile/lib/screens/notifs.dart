@@ -1,5 +1,6 @@
 // Bildirishnomalar ekrani — prototype/template.html 1048–1096 bilan 1:1
 import 'package:flutter/material.dart';
+import '../flags.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
@@ -10,6 +11,7 @@ class NotifsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     final rows = (v['notifRows'] as List).cast<Map<String, dynamic>>();
 
@@ -35,7 +37,7 @@ class NotifsScreen extends StatelessWidget {
                       border: Border.all(color: p.bd),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: Tx("Barchasini o'qish", size: 11.5, w: FontWeight.w600, color: p.t1),
+                    child: Tx(L0['markAllRead'] as String, size: 11.5, w: FontWeight.w600, color: p.t1),
                   ),
                 ),
             ],
@@ -56,10 +58,10 @@ class NotifsScreen extends StatelessWidget {
                       child: Tx('🔔', size: 22, color: p.ink),
                     ),
                     const SizedBox(height: 14),
-                    Tx("Hozircha bildirishnoma yo'q", size: 14, w: FontWeight.w600, color: p.t1,
+                    Tx(L0['notifEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
                         align: TextAlign.center),
                     const SizedBox(height: 6),
-                    Tx("Yangi yozuvlar, bog'lanishlar va eslatmalar shu yerda ko'rinadi",
+                    Tx(L0['notifEmptySub'] as String,
                         size: 12, color: p.t4, align: TextAlign.center),
                   ],
                 ),
@@ -136,6 +138,12 @@ class NotifsScreen extends StatelessWidget {
   }
 
   Widget _icon(Map<String, dynamic> n, Pal p) {
+    // Xabar (chat) bildirishnomasi: chat UI yashirin bo'lsa neytral "i" (info) —
+    // bosilganda faqat o'qilgan deb belgilanadi (store.dart), hech qayerga olib bormaydi.
+    // Chat qaytarilganda (kChatEnabled=true) yana so'rov belgisi "?" ko'rinadi.
+    if (n['isMsg'] == true) {
+      return Tx(kChatEnabled ? '?' : 'i', size: kChatEnabled ? 14.0 : 13.0, w: FontWeight.w700, color: p.ink);
+    }
     if (n['isReq'] == true) {
       return Tx('?', size: 14, w: FontWeight.w700, color: p.ink);
     }

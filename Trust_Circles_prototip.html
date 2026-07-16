@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust — Circles (prototip)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--hair2:#F2F2F0;--card2:#F3F3F1;
+  --field:#F4F4F2;--hov:#F7F7F5;--bd:#E0E0DC;--bd2:#E4E4E0;--barbg:#E6E6E2;
+  --t1:#7A7A76;--t2:#9C9C98;--t3:#A2A29E;--t5:#B8B8B4;
+  --green:#2F7A54;--red:#A94438;--dim:rgba(17,17,17,0.34);
+  --page:#EDEDEA;--label:#8A8A86;
+}
+body.dark{
+  --bg:#0F0F10;--ink:#F5F5F5;--hair:#262626;--hair2:#202021;--card2:#232324;
+  --field:#1C1C1E;--hov:#1E1E1F;--bd:#2E2E2F;--bd2:#2A2A2B;--barbg:#2E2E2F;
+  --t1:#A0A0A5;--t2:#8A8A8E;--t3:#86868A;--t5:#66666B;
+  --green:#4CAF82;--red:#D2695B;--dim:rgba(0,0,0,0.55);
+  --page:#08080A;--label:#6E6E73;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);
+  -webkit-font-smoothing:antialiased;transition:background .2s}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;max-width:1180px;margin:0 auto}
+.bar h1{font-size:15px;font-weight:600;letter-spacing:-0.2px;margin:0;color:var(--ink)}
+.bar .sub{font-size:12.5px;color:var(--label)}
+.toggle{border:1px solid var(--bd);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px;font-weight:500;
+  padding:7px 14px;border-radius:20px;cursor:pointer}
+.board{display:flex;flex-wrap:wrap;gap:34px 30px;justify-content:center;padding:14px 22px 60px;max-width:1180px;margin:0 auto}
+.frame{display:flex;flex-direction:column;align-items:center;gap:11px}
+.frame .lbl{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--label);font-weight:600}
+
+.phone{width:300px;height:620px;background:var(--bg);border:1px solid var(--bd2);border-radius:30px;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+.status{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 4px;font-size:12px;font-weight:600;color:var(--ink)}
+.status .dots{display:flex;gap:5px;align-items:center}
+.status .dots span{width:5px;height:5px;border-radius:50%;background:var(--ink);opacity:.85}
+.status .bat{width:22px;height:11px;border:1.4px solid var(--ink);border-radius:3px;position:relative;opacity:.85}
+.status .bat::after{content:"";position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:12px;background:var(--ink);border-radius:1px}
+
+.body{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.cap{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);font-weight:600}
+.title{font-size:20px;font-weight:700;letter-spacing:-0.3px}
+.hair-t{border-top:1px solid var(--hair2)}
+
+.crow{padding:12px 20px}
+.crow .l1{display:flex;justify-content:space-between;align-items:baseline}
+.crow .name{font-size:14.5px;font-weight:600}
+.crow .amt{font-size:14px;font-weight:600}
+.crow .l2{display:flex;justify-content:space-between;margin-top:3px}
+.crow .meta{font-size:12px;color:var(--t2)}
+.crow .round{font-size:11.5px;color:var(--t3)}
+.crow .l3{display:flex;justify-content:space-between;align-items:center;margin-top:9px}
+
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none;line-height:1}
+.stack{display:flex}.stack .av+.av{margin-left:-7px}
+.a-warm{background:#EDE7DE;color:#8A7F6B}
+.a-green{background:#E4ECE6;color:#5E7A68}
+.a-blue{background:#E7E9EE;color:#6E7480}
+.a-me{background:var(--ink);color:var(--bg)}
+.a-more{background:var(--field);color:var(--t2)}
+body.dark .a-warm{background:#2A2622;color:#B9AE9A}
+body.dark .a-green{background:#1E2A24;color:#7FA890}
+body.dark .a-blue{background:#20242B;color:#9098A6}
+
+.turn{font-size:11.5px;color:var(--t1)}
+.turn.you{color:var(--green);font-weight:600}
+.turn.done{color:var(--t3)}
+
+.fabwrap{display:flex;justify-content:flex-end;padding:0 18px;margin-top:-14px}
+.fab{width:50px;height:50px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center}
+.nav{display:flex;padding:10px 6px 4px;border-top:1px solid var(--hair)}
+.tab{flex:1;text-align:center}
+.tab .ic{height:20px;display:flex;align-items:center;justify-content:center;color:var(--t3)}
+.tab .tl{font-size:11px;color:var(--t3);margin-top:2px}
+.tab.on .ic{color:var(--ink)}.tab.on .tl{color:var(--ink);font-weight:600}
+.homebar{display:flex;justify-content:center;padding:8px 0 9px}
+.homebar span{width:110px;height:4px;border-radius:2px;background:var(--ink)}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 10px}
+.hdr .h{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600}
+.chev{color:var(--t2);font-size:20px;line-height:1}
+.hero{padding:6px 20px 14px}
+.hero .big{font-size:30px;font-weight:700;letter-spacing:-0.8px;margin-top:6px}
+.hero .sub{font-size:12px;color:var(--t2);margin-top:2px}
+
+.recip{margin:0 20px 4px;padding:11px 13px;background:var(--field);border-radius:12px;display:flex;align-items:center;justify-content:space-between}
+.recip .who{display:flex;align-items:center;gap:9px}
+.banner{margin:10px 20px 2px;padding:9px 12px;background:var(--field);border-radius:10px;font-size:11.5px;color:var(--t1);display:flex;gap:7px;align-items:center;line-height:1.4}
+.mrow{padding:9px 20px;display:flex;align-items:center;justify-content:space-between}
+.mrow .who{display:flex;align-items:center;gap:9px}
+.mrow .nm{font-size:13.5px}
+.st{font-size:11.5px}
+.st.paid{color:var(--green);font-weight:600}
+.st.pend{color:var(--t3)}
+.chip{font-size:11.5px;color:var(--t1);background:var(--field);padding:3px 9px;border-radius:20px}
+
+.actions{padding:12px 18px 8px;border-top:1px solid var(--hair)}
+.btn{height:46px;border-radius:23px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.link{text-align:center;font-size:12.5px;color:var(--t2);margin-top:10px}
+
+.fld{background:var(--field);border:1px solid var(--hair2);border-radius:12px;padding:11px 13px;font-size:14px}
+.seg{display:flex;background:var(--field);border-radius:20px;padding:3px}
+.sg{flex:1;text-align:center;padding:6px 0;font-size:12.5px;color:var(--t2);border-radius:16px}
+.sgA{background:var(--bg);border:1px solid var(--bd);color:var(--ink);font-weight:600}
+.sec{padding-top:16px}
+.dash{background:var(--bg);border:1.5px dashed var(--bd);color:var(--t3)}
+.summ{margin-top:18px;padding:12px 13px;background:var(--field);border-radius:12px}
+.summ .a{font-size:13.5px;font-weight:600}
+.summ .b{font-size:11.5px;color:var(--t2);margin-top:3px}
+
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 26px;text-align:center}
+.steps{margin-top:6px;text-align:left;width:100%}
+.step{display:flex;gap:11px;align-items:flex-start;margin-top:13px}
+.step .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.step .tx{font-size:12.5px;color:var(--t1);line-height:1.5}
+.proof{display:flex;gap:7px;align-items:flex-start;margin-top:16px;font-size:11.5px;color:var(--t2);line-height:1.45}
+.i{display:inline-flex;vertical-align:middle}
+svg{display:block}
+.glyph{font-size:13px;line-height:1}
+
+.sect{flex-basis:100%;max-width:100%;margin:14px 0 -4px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--label);font-weight:600;text-align:center}
+.sheetfill{flex:1;background:var(--dim)}
+.sheet{background:var(--bg);border-top-left-radius:22px;border-top-right-radius:22px;padding:8px 20px 14px;border-top:1px solid var(--hair)}
+.sheet h3{font-size:16px;font-weight:600;margin:2px 0 4px}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--bd);margin:2px auto 12px}
+.bignum{font-size:34px;font-weight:700;letter-spacing:-0.8px;text-align:center}
+.btn2{height:46px;border-radius:23px;background:var(--bg);border:1px solid var(--bd);color:var(--ink);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+.pillbtn{font-size:12.5px;font-weight:600;color:var(--ink);border:1px solid var(--bd);border-radius:16px;padding:5px 13px}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-top:1px solid var(--hair2);font-size:13.5px}
+.srow .rv{color:var(--t2);font-size:13px;display:flex;align-items:center;gap:6px}
+.tl{padding:2px 20px}
+.tli{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--hair2)}
+.tli:first-child{border-top:none}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--green);margin-top:3px;flex:none}
+.dot.now{background:var(--ink)}
+.dot.next{background:var(--bd)}
+.nrow{display:flex;gap:11px;align-items:flex-start;padding:12px 20px;border-top:1px solid var(--hair2)}
+.ic2{width:30px;height:30px;border-radius:50%;background:var(--field);display:flex;align-items:center;justify-content:center;flex:none}
+.nt{font-size:12.5px;line-height:1.4}
+.nd{font-size:11.5px;color:var(--t3);margin-top:2px}
+.unread{width:7px;height:7px;border-radius:50%;background:var(--green);flex:none;margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gcell{background:var(--field);border-radius:12px;padding:11px 13px}
+.gcell .k{font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--t3);font-weight:600}
+.gcell .v{font-size:15px;font-weight:600;margin-top:4px}
+.cdone{width:66px;height:66px;border-radius:50%;background:var(--field);display:flex;align-items:center;justify-content:center;margin:0 auto}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div>
+    <h1>Trust — Circles</h1>
+    <div class="sub">Yangi bo'lim (Moliya o'rniga) · UI prototip</div>
+  </div>
+  <button class="toggle" onclick="document.body.classList.toggle('dark')">Light / Dark</button>
+</div>
+
+<div class="board">
+
+  <!-- ============ 1. CIRCLES LIST ============ -->
+  <div class="frame">
+    <div class="lbl">Circles — ro'yxat</div>
+    <div class="phone">
+      <div class="status">9:41
+        <div class="dots"><span></span><span></span><span></span><span class="bat"></span></div>
+      </div>
+      <div class="body">
+        <div style="padding:8px 20px 12px">
+          <div class="title">Circles</div>
+          <div style="font-size:12.5px;color:var(--t2);margin-top:3px">3 active · you're saving $150 / mo</div>
+        </div>
+
+        <div class="crow hair-t">
+          <div class="l1"><span class="name">Family Fund</span><span class="amt">$400</span></div>
+          <div class="l2"><span class="meta">8 members · $50 / mo</span><span class="round">round 3 of 8</span></div>
+          <div class="l3">
+            <div class="stack"><span class="av a-warm" style="width:24px;height:24px">MR</span><span class="av a-green" style="width:24px;height:24px">AK</span><span class="av a-blue" style="width:24px;height:24px">DC</span><span class="av a-more" style="width:24px;height:24px">+5</span></div>
+            <span class="turn">Maya receives next</span>
+          </div>
+        </div>
+
+        <div class="crow hair-t">
+          <div class="l1"><span class="name">Work Circle</span><span class="amt">$600</span></div>
+          <div class="l2"><span class="meta">6 members · $100 / mo</span><span class="round">round 2 of 6</span></div>
+          <div class="l3">
+            <div class="stack"><span class="av a-blue" style="width:24px;height:24px">LO</span><span class="av a-warm" style="width:24px;height:24px">TP</span><span class="av a-more" style="width:24px;height:24px">+4</span></div>
+            <span class="turn you">Your turn next</span>
+          </div>
+        </div>
+
+        <div class="crow hair-t">
+          <div class="l1"><span class="name">Trip 2026</span><span class="amt">$400</span></div>
+          <div class="l2"><span class="meta">5 members · $80 / mo</span><span class="round">round 5 of 5</span></div>
+          <div class="l3">
+            <div class="stack"><span class="av a-green" style="width:24px;height:24px">PS</span><span class="av a-blue" style="width:24px;height:24px">OM</span><span class="av a-more" style="width:24px;height:24px">+3</span></div>
+            <span class="turn done">Complete</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fabwrap"><div class="fab">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div></div>
+
+      <div class="nav">
+        <div class="tab"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M17.5 14.5c2 .5 3.5 2.2 3.5 4.5"/></svg></div><div class="tl">Partners</div></div>
+        <div class="tab"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="13.5" r="1.1" fill="currentColor" stroke="none"/></svg></div><div class="tl">Expenses</div></div>
+        <div class="tab on"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5V8h-4.5"/></svg></div><div class="tl">Circles</div></div>
+        <div class="tab"><div class="ic"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg></div><div class="tl">Profile</div></div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 2. CIRCLE DETAIL ============ -->
+  <div class="frame">
+    <div class="lbl">Circle ichi</div>
+    <div class="phone">
+      <div class="status">9:41
+        <div class="dots"><span></span><span></span><span></span><span class="bat"></span></div>
+      </div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)">
+          <span class="h"><span class="chev glyph">&#8249;</span>Family Fund</span>
+          <span style="font-size:11.5px;color:var(--t3)">8 members</span>
+        </div>
+
+        <div class="hero">
+          <div class="cap">Pool this round</div>
+          <div class="big">$400</div>
+          <div class="sub">round 3 of 8 · collected by Jul 20</div>
+        </div>
+
+        <div class="recip">
+          <span class="who"><span class="av a-warm" style="width:30px;height:30px">MR</span>
+            <span><span style="font-size:13.5px;font-weight:600;display:block">Maya Rodriguez</span>
+            <span style="font-size:11.5px;color:var(--t2)">receives this round</span></span></span>
+          <span style="font-size:14px;font-weight:600;color:var(--green)">$400</span>
+        </div>
+
+        <div class="banner">
+          <span class="i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>
+          3 of 8 paid · Maya confirms receipt when the pool is complete
+        </div>
+
+        <div style="padding:12px 20px 6px"><span class="cap">Members</span></div>
+
+        <div class="mrow hair-t"><span class="who"><span class="av a-warm" style="width:26px;height:26px">MR</span><span class="nm">Maya Rodriguez</span></span><span class="chip">This round</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-green" style="width:26px;height:26px">AK</span><span class="nm">Aisha Karimova</span></span><span class="st paid">&#10003; Paid · got round 1</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-blue" style="width:26px;height:26px">DC</span><span class="nm">Diego Costa</span></span><span class="st pend">Pending · round 5</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-me" style="width:26px;height:26px">You</span><span class="nm">You</span></span><span class="st paid">&#10003; Paid · round 7</span></div>
+      </div>
+
+      <div class="actions">
+        <div class="btn">&#10003;&nbsp; Mark my payment · $50</div>
+        <div class="link">Invite member</div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 3. NEW CIRCLE ============ -->
+  <div class="frame">
+    <div class="lbl">Yangi Circle (yaratish)</div>
+    <div class="phone">
+      <div class="status">9:41
+        <div class="dots"><span></span><span></span><span></span><span class="bat"></span></div>
+      </div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)">
+          <span class="glyph" style="font-size:18px;color:var(--t2)">&#10005;</span>
+          <span style="font-size:15px;font-weight:600">New Circle</span>
+          <span style="font-size:13.5px;font-weight:600;color:var(--t3)">Create</span>
+        </div>
+
+        <div style="padding:4px 20px;flex:1">
+          <div class="sec"><div class="cap">Name</div><div class="fld" style="margin-top:8px">Family Fund</div></div>
+
+          <div class="sec"><div class="cap">Contribution</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <div class="fld" style="width:96px;font-weight:600">$ 50</div>
+              <div class="seg" style="flex:1"><div class="sg">Weekly</div><div class="sg sgA">Monthly</div></div>
+            </div>
+          </div>
+
+          <div class="sec"><div class="cap">Members</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+              <div class="stack">
+                <span class="av a-me" style="width:28px;height:28px">You</span>
+                <span class="av a-green" style="width:28px;height:28px">AK</span>
+                <span class="av a-blue" style="width:28px;height:28px">DC</span>
+                <span class="av a-warm" style="width:28px;height:28px">MR</span>
+                <span class="av dash" style="width:28px;height:28px"><span class="glyph" style="font-size:15px">+</span></span>
+              </div>
+              <span style="font-size:12.5px;color:var(--t2)">8 people</span>
+            </div>
+          </div>
+
+          <div class="sec"><div class="cap">Payout order</div>
+            <div class="seg" style="margin-top:8px"><div class="sg sgA">In turn</div><div class="sg">Random</div><div class="sg">I pick</div></div>
+            <div style="font-size:11.5px;color:var(--t2);margin-top:8px;line-height:1.5">1 You · 2 Aisha · 3 Diego · 4 Maya · +4 more</div>
+          </div>
+
+          <div class="summ">
+            <div class="a">$50 × 8 = $400 each round</div>
+            <div class="b">8 rounds · about 8 months · you receive in round 3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions"><div class="btn">Create Circle</div></div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 4. WHAT IS A CIRCLE (empty state) ============ -->
+  <div class="frame">
+    <div class="lbl">Circle nima? (bo'sh holat)</div>
+    <div class="phone">
+      <div class="status">9:41
+        <div class="dots"><span></span><span></span><span></span><span class="bat"></span></div>
+      </div>
+      <div class="body">
+        <div class="empty">
+          <svg width="128" height="112" viewBox="0 0 128 112" fill="none">
+            <circle cx="64" cy="56" r="21" fill="var(--field)"/>
+            <text x="64" y="62" text-anchor="middle" font-family="Inter" font-size="19" font-weight="700" fill="var(--ink)">$</text>
+            <path d="M64 15 a41 41 0 0 1 39 28" stroke="var(--bd)" stroke-width="1.6" fill="none" stroke-dasharray="3 4" stroke-linecap="round"/>
+            <path d="M103 43 l0 -6 M103 43 l5 -1" stroke="var(--bd)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            <circle cx="64" cy="15" r="11" fill="#EDE7DE"/><text x="64" y="19" text-anchor="middle" font-size="9" font-weight="600" fill="#8A7F6B">MR</text>
+            <circle cx="105" cy="72" r="11" fill="#E4ECE6"/><text x="105" y="76" text-anchor="middle" font-size="9" font-weight="600" fill="#5E7A68">AK</text>
+            <circle cx="64" cy="97" r="11" fill="#E7E9EE"/><text x="64" y="101" text-anchor="middle" font-size="9" font-weight="600" fill="#6E7480">DC</text>
+            <circle cx="23" cy="72" r="11" fill="var(--ink)"/><text x="23" y="76" text-anchor="middle" font-size="8" font-weight="600" fill="var(--bg)">You</text>
+          </svg>
+
+          <div style="font-size:18px;font-weight:700;letter-spacing:-0.3px;margin-top:16px">What is a Circle?</div>
+          <div style="font-size:13px;color:var(--t1);margin-top:6px;line-height:1.55">A group who save together and take turns receiving the pot — no bank, no interest, just trust.</div>
+
+          <div class="steps">
+            <div class="step"><span class="n">1</span><span class="tx">Everyone chips in the same amount each round.</span></div>
+            <div class="step"><span class="n">2</span><span class="tx">Each round, one member receives the whole pool.</span></div>
+            <div class="step"><span class="n">3</span><span class="tx">Rotation continues until everyone has had a turn.</span></div>
+          </div>
+
+          <div class="proof">
+            <span class="i"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>
+            Every payment is confirmed by both sides — the record becomes proof, not just a claim.
+          </div>
+        </div>
+      </div>
+
+      <div class="actions"><div class="btn">Create your first Circle</div></div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <div class="sect">To'lov va tasdiq oqimi</div>
+
+  <!-- ============ 5. DETAIL — YOUR TURN (RECEIVE) ============ -->
+  <div class="frame">
+    <div class="lbl">Circle ichi — sizning navbatingiz</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)"><span class="h"><span class="chev glyph">&#8249;</span>Work Circle</span><span style="font-size:11.5px;color:var(--t3)">6 members</span></div>
+        <div class="hero">
+          <div class="cap" style="color:var(--green)">You receive this round</div>
+          <div class="big">$600</div>
+          <div class="sub">round 2 of 6 · collected by Aug 20</div>
+        </div>
+        <div class="recip" style="border:1px solid var(--green)">
+          <span class="who"><span class="av a-me" style="width:30px;height:30px">You</span><span><span style="font-size:13.5px;font-weight:600;display:block">Your turn</span><span style="font-size:11.5px;color:var(--t2)">the pool is yours this round</span></span></span>
+          <span style="font-size:14px;font-weight:600;color:var(--green)">$600</span>
+        </div>
+        <div class="banner"><span class="i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>5 of 6 paid · confirm receipt once everyone has paid</div>
+        <div style="padding:12px 20px 6px"><span class="cap">Members</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-blue" style="width:26px;height:26px">LO</span><span class="nm">Lena Orlova</span></span><span class="st paid">&#10003; Paid</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-warm" style="width:26px;height:26px">TP</span><span class="nm">Tomas Pereira</span></span><span class="st paid">&#10003; Paid</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-green" style="width:26px;height:26px">DC</span><span class="nm">Diego Costa</span></span><span class="st pend">Pending</span></div>
+      </div>
+      <div class="actions"><div class="btn">&#10003;&nbsp; Confirm receipt · $600</div><div class="link">Remind unpaid (1)</div></div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 6. PAY SHEET ============ -->
+  <div class="frame">
+    <div class="lbl">To'lov (sheet)</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="sheetfill"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h3>Pay this round</h3>
+          <div style="font-size:12.5px;color:var(--t2)">Family Fund · round 3 of 8</div>
+          <div class="bignum" style="margin:18px 0 6px">$50</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px"><span class="av a-warm" style="width:22px;height:22px">MR</span><span style="font-size:12.5px;color:var(--t1)">to Maya Rodriguez · this round</span></div>
+          <div class="banner" style="margin:0 0 14px"><span class="i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>Maya confirms when she receives the full pool — that becomes your proof.</div>
+          <div class="btn">Confirm payment · $50</div>
+          <div class="link">Cancel</div>
+        </div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 7. CONFIRM RECEIPT SHEET ============ -->
+  <div class="frame">
+    <div class="lbl">Qabulni tasdiqlash (sheet)</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="sheetfill"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h3>Confirm you received the pool</h3>
+          <div style="font-size:12.5px;color:var(--t2)">Family Fund · round 3 of 8</div>
+          <div class="bignum" style="margin:18px 0 4px;color:var(--green)">$400</div>
+          <div style="text-align:center;font-size:12px;color:var(--t2);margin-bottom:16px">from all 8 members</div>
+          <div class="banner" style="margin:0 0 14px"><span class="i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>Confirming closes the round and verifies every member's payment as proof.</div>
+          <div class="btn">Confirm receipt of $400</div>
+          <div class="link">Not yet</div>
+        </div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <div class="sect">A'zolar va qo'shilish</div>
+
+  <!-- ============ 8. INVITE MEMBERS SHEET ============ -->
+  <div class="frame">
+    <div class="lbl">A'zo taklif qilish (sheet)</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="sheetfill" style="flex:0 0 64px"></div>
+        <div class="sheet" style="flex:1">
+          <div class="grab"></div>
+          <h3>Invite members</h3>
+          <div class="fld" style="display:flex;align-items:center;gap:9px;color:var(--t3);margin:8px 0 10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span style="font-size:13.5px">Search contacts</span></div>
+          <div class="srow" style="border-top:none;padding:11px 0"><span style="display:flex;align-items:center;gap:10px"><span class="ic2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg></span><span style="font-size:13.5px">Share invite link</span></span><span class="rv">Copy</span></div>
+          <div class="srow" style="padding:11px 0"><span style="display:flex;align-items:center;gap:10px"><span class="av a-blue" style="width:30px;height:30px">OM</span><span><span style="font-size:13.5px;font-weight:500;display:block">Omar Malik</span><span style="font-size:11.5px;color:var(--t3)">+998 90 123 45 67</span></span></span><span class="pillbtn">Add</span></div>
+          <div class="srow" style="padding:11px 0"><span style="display:flex;align-items:center;gap:10px"><span class="av a-warm" style="width:30px;height:30px">LK</span><span><span style="font-size:13.5px;font-weight:500;display:block">Lena Kim</span><span style="font-size:11.5px;color:var(--t3)">+998 91 555 00 22</span></span></span><span class="pillbtn">Add</span></div>
+          <div class="srow" style="padding:11px 0"><span style="display:flex;align-items:center;gap:10px"><span class="av a-green" style="width:30px;height:30px">PS</span><span><span style="font-size:13.5px;font-weight:500;display:block">Priya Sharma</span><span style="font-size:11.5px;color:var(--t3)">Selected</span></span></span><span class="st paid" style="font-size:12.5px">&#10003; Added</span></div>
+          <div class="btn" style="margin-top:14px">Add 3 members</div>
+        </div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 9. JOIN A CIRCLE ============ -->
+  <div class="frame">
+    <div class="lbl">Circle'ga qo'shilish (taklif)</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)"><span class="glyph" style="font-size:18px;color:var(--t2)">&#10005;</span><span style="font-size:15px;font-weight:600">Join Circle</span><span style="width:16px"></span></div>
+        <div style="padding:18px 20px 8px;text-align:center">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--field);display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5V8h-4.5"/></svg></div>
+          <div style="font-size:19px;font-weight:700;letter-spacing:-0.3px">Family Fund</div>
+          <div style="font-size:12.5px;color:var(--t2);margin-top:3px">Invited by Maya Rodriguez</div>
+        </div>
+        <div style="padding:8px 20px 0"><div class="grid2">
+          <div class="gcell"><div class="k">Members</div><div class="v">8 people</div></div>
+          <div class="gcell"><div class="k">Contribution</div><div class="v">$50 / mo</div></div>
+          <div class="gcell"><div class="k">Duration</div><div class="v">8 rounds</div></div>
+          <div class="gcell"><div class="k">Your turn</div><div class="v">round 6</div></div>
+        </div></div>
+        <div class="tl" style="margin-top:16px">
+          <div class="tli"><span class="dot"></span><span style="font-size:12.5px;color:var(--t1);line-height:1.4">Everyone pays $50 each month.</span></div>
+          <div class="tli"><span class="dot"></span><span style="font-size:12.5px;color:var(--t1);line-height:1.4">One member receives $400 each round.</span></div>
+          <div class="tli"><span class="dot"></span><span style="font-size:12.5px;color:var(--t1);line-height:1.4">You receive the pool in round 6.</span></div>
+        </div>
+      </div>
+      <div class="actions"><div class="btn">Join Circle</div><div class="link">Decline</div></div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <div class="sect">Tarix, boshqaruv, holatlar</div>
+
+  <!-- ============ 10. ROUND HISTORY ============ -->
+  <div class="frame">
+    <div class="lbl">Roundlar tarixi</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)"><span class="h"><span class="chev glyph">&#8249;</span>Family Fund</span><span style="font-size:11.5px;color:var(--t3)">History</span></div>
+        <div class="tl" style="padding-top:8px">
+          <div class="tli"><span class="dot"></span><div><div style="font-size:13.5px;font-weight:600">Round 1 · Aisha Karimova</div><div class="nd">received $400 · Jan 20 · <span style="color:var(--green)">&#10003; confirmed</span></div></div></div>
+          <div class="tli"><span class="dot"></span><div><div style="font-size:13.5px;font-weight:600">Round 2 · Diego Costa</div><div class="nd">received $400 · Feb 20 · <span style="color:var(--green)">&#10003; confirmed</span></div></div></div>
+          <div class="tli"><span class="dot now"></span><div><div style="font-size:13.5px;font-weight:600">Round 3 · Maya Rodriguez</div><div class="nd">in progress · 3 of 8 paid</div></div></div>
+          <div class="tli"><span class="dot next"></span><div><div style="font-size:13.5px;font-weight:600;color:var(--t2)">Round 4 · Priya Sharma</div><div class="nd">upcoming · Apr 20</div></div></div>
+          <div class="tli"><span class="dot next"></span><div><div style="font-size:13.5px;font-weight:600;color:var(--t2)">Round 5 · Omar Malik</div><div class="nd">upcoming · May 20</div></div></div>
+          <div class="tli"><span class="dot next"></span><div><div style="font-size:13.5px;font-weight:600;color:var(--t2)">Round 6 · You</div><div class="nd">upcoming · Jun 20</div></div></div>
+        </div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 11. MANAGE CIRCLE ============ -->
+  <div class="frame">
+    <div class="lbl">Circle boshqaruvi</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)"><span class="h"><span class="chev glyph">&#8249;</span>Manage</span><span style="font-size:11.5px;color:var(--t3)">Family Fund</span></div>
+        <div style="padding:4px 0">
+          <div class="srow"><span>Name</span><span class="rv">Family Fund <span class="chev glyph" style="font-size:16px">&#8250;</span></span></div>
+          <div class="srow"><span>Contribution</span><span class="rv">$50 / month <span class="chev glyph" style="font-size:16px">&#8250;</span></span></div>
+          <div class="srow"><span>Payout order</span><span class="rv">In turn <span class="chev glyph" style="font-size:16px">&#8250;</span></span></div>
+          <div class="srow"><span>Members</span><span class="rv">8 people <span class="chev glyph" style="font-size:16px">&#8250;</span></span></div>
+          <div class="srow"><span>Reminders</span><span class="rv">2 days before <span class="chev glyph" style="font-size:16px">&#8250;</span></span></div>
+        </div>
+        <div class="banner" style="margin:10px 20px"><span class="i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span>Only you can edit. Changes to amount or order need every member's approval.</div>
+        <div style="flex:1"></div>
+        <div class="srow" style="border-top:1px solid var(--hair)"><span style="color:var(--red);font-weight:600">Close Circle</span><span class="chev glyph" style="font-size:16px;color:var(--red)">&#8250;</span></div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 12. NOTIFICATIONS ============ -->
+  <div class="frame">
+    <div class="lbl">Bildirishnomalar</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div style="padding:8px 20px 12px"><div class="title">Notifications</div></div>
+        <div class="nrow hair-t"><span class="ic2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5V8h-4.5"/></svg></span><div style="flex:1"><div class="nt"><span style="font-weight:600">Your turn is next</span> in Work Circle — you receive $600</div><div class="nd">in 2 days</div></div><span class="unread"></span></div>
+        <div class="nrow hair-t"><span class="ic2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></span><div style="flex:1"><div class="nt">Diego paid $50 to Family Fund</div><div class="nd">5 hours ago</div></div><span class="unread"></span></div>
+        <div class="nrow hair-t"><span class="ic2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--t1)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><div style="flex:1"><div class="nt"><span style="font-weight:600">Payment due</span> — Family Fund $50</div><div class="nd">tomorrow</div></div></div>
+        <div class="nrow hair-t"><span class="ic2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg></span><div style="flex:1"><div class="nt">Maya confirmed receipt — round 2 closed</div><div class="nd">yesterday</div></div></div>
+      </div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+  <!-- ============ 13. CIRCLE COMPLETED ============ -->
+  <div class="frame">
+    <div class="lbl">Circle yakunlandi</div>
+    <div class="phone">
+      <div class="status">9:41<div class="dots"><span></span><span></span><span></span><span class="bat"></span></div></div>
+      <div class="body">
+        <div class="hdr" style="border-bottom:1px solid var(--hair)"><span class="h"><span class="chev glyph">&#8249;</span>Trip 2026</span><span style="font-size:11.5px;color:var(--t3)">Complete</span></div>
+        <div style="padding:22px 20px 10px;text-align:center">
+          <div class="cdone"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></div>
+          <div style="font-size:18px;font-weight:700;margin-top:14px">Circle complete</div>
+          <div style="font-size:12.5px;color:var(--t2);margin-top:4px">Everyone received their turn</div>
+        </div>
+        <div style="padding:4px 20px"><div class="grid2">
+          <div class="gcell"><div class="k">Total pooled</div><div class="v">$2,000</div></div>
+          <div class="gcell"><div class="k">Rounds</div><div class="v">5 of 5</div></div>
+          <div class="gcell"><div class="k">Members</div><div class="v">5 people</div></div>
+          <div class="gcell"><div class="k">Period</div><div class="v">Jan–May</div></div>
+        </div></div>
+        <div style="padding:16px 20px 4px"><span class="cap">Everyone got their turn</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-green" style="width:26px;height:26px">PS</span><span class="nm">Priya Sharma</span></span><span class="st paid">&#10003; round 1</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-blue" style="width:26px;height:26px">OM</span><span class="nm">Omar Malik</span></span><span class="st paid">&#10003; round 2</span></div>
+        <div class="mrow hair-t"><span class="who"><span class="av a-me" style="width:26px;height:26px">You</span><span class="nm">You</span></span><span class="st paid">&#10003; round 4</span></div>
+      </div>
+      <div class="actions"><div class="btn">Start a new Circle</div><div class="link">View history</div></div>
+      <div class="homebar"><span></span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

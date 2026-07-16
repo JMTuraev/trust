@@ -18,6 +18,7 @@ const norm = (s) => String(s || '').toLowerCase().replace(/[’'`ʼ]/g, "'").tri
 
 const STOP = new Set([
   'ming', 'mln', 'million', 'milion', "so'm", 'som', 'sum', 'dollar', 'uzs',
+  'минг', 'млн', 'миллион', 'милион', 'тыс', 'тысяч', 'сум', 'сўм',
   'uchun', 'bilan', 'dan', 'ga', 'da', 'ni', 'va', 'ham', 'esa', 'edi',
   'bugun', 'kecha', 'ertaga', 'oldim', 'berdim', 'qarz', "to'ladim", 'toladim',
   'ketdi', 'tushdi', 'keldi', 'qildim', 'boldi', "bo'ldi", 'menga', 'unga',
@@ -36,20 +37,29 @@ export function meaningfulWords(text) {
 
 // ---------- 2-signal: QOIDA-PARSER (validator roli) ----------
 // Matndagi barcha summalarni POZITSIYASI bilan topadi: "25 ming"->25000, "5 mln"->5000000,
-// "120 000"->120000 (bo'shliq/nuqta bilan guruhlangan minglar ham).
+// "120 000"->120000 (bo'shliq/nuqta/vergul bilan guruhlangan minglar ham).
+// Multiplikator KO'P TILLI (mobil _amtRe bilan sinxron — xarajat.dart):
+// ming/минг/тыс/k/к -> x1000; mln/million/млн/миллион/m/м -> x1000000.
+// Qisqa k|к|m|м faqat alohida turganda multiplikator ("5000 kofe"dagi "k" emas).
+const MULT_SRC = String.raw`(ming[a-z'’]*|минг[а-яё]*|тыс[а-яё]*\.?|mln[a-z]*|million[a-z]*|milion[a-z]*|млн\.?|миллион[а-яё]*|милион[а-яё]*|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9]))`;
+const isThousandMult = (w) => /^(ming|минг|тыс|k|к)/i.test(w);
 export function amountSpans(text) {
   const t = norm(text);
   const out = [];
-  const re = /(\d{1,3}(?:[  ]\d{3})+|\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?)\s*(mln|million|milion|ming)?/g;
+  // [  ] — oddiy bo'shliq YOKI nbsp (mobil _NumGroupFmt guruh belgisi)
+  const re = new RegExp(
+    String.raw`(\d{1,3}(?:[  ]\d{3})+|\d{1,3}(?:\.\d{3})+|\d{1,3}(?:,\d{3})+|\d+(?:[.,]\d+)?)\s*` + MULT_SRC + '?',
+    'gi',
+  );
   for (const m of t.matchAll(re)) {
     const raw = m[1];
     let a;
-    if (/^\d{1,3}(?:[  ]\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/[  ]/g, ""));
+    if (/^\d{1,3}(?:[  ]\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/[  ]/g, ''));
     else if (/^\d{1,3}(?:\.\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/\./g, ''));
+    else if (/^\d{1,3}(?:,\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/,/g, ''));
     else a = parseFloat(raw.replace(',', '.'));
     if (!a) continue;
-    if (m[2] && m[2] !== 'ming') a *= 1_000_000;
-    else if (m[2] === 'ming') a *= 1_000;
+    if (m[2]) a *= isThousandMult(m[2]) ? 1_000 : 1_000_000;
     out.push({ amount: Math.round(a), start: m.index, end: m.index + m[0].length });
   }
   return out;
@@ -63,10 +73,10 @@ export function amountsFromText(text) {
 // bog'lanadi: OT (oylik, kredit...) odatda summadan OLDIN keladi -> KEYINGI summaga,
 // FE'L (oldim, berdim...) summadan KEYIN keladi -> OLDINGI summaga. Masofada teng
 // bo'lsa chiqim ustun. Mobil inputdagi rang mantiqi bilan bir xil (xarajat.dart _amtKinds).
-const INC_NOUN = /\b(oylik|maosh|avans|daromad|bonus|kirim|foyda)\b|mijoz\w*|sotuv\w*/g;
-const INC_VERB = /\boldim\b|\bsotdim\b|keldi|tushdi/g;
-const EXP_NOUN = /kredit\w*|xarid\w*/g;
-const EXP_VERB = /berdim|sarfladim|ishlatdim|to'ladim|toladim|ketdi|sotib\s+oldim/g;
+const INC_NOUN = /\b(oylik|maosh|avans|daromad|bonus|kirim|foyda|salary|income|profit|revenue)\b|mijoz\w*|sotuv\w*|ойлик|маош|даромад|кирим|фойда|аванс|бонус|зарплат[а-яё]*|доход[а-яё]*|мижоз[а-яё]*|сотув[а-яё]*/g;
+const INC_VERB = /\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi\b|qaytardi\b|\breceived\b|\bearned\b|\bgot\b|\bsold\b|олдим|сотдим|келди|тушди|қайтди|получил[а-яё]*|заработал[а-яё]*|пришл[а-яё]*|поступил[а-яё]*|продал[а-яё]*/g;
+const EXP_NOUN = /kredit\w*|xarid\w*|\bqarzga\b|\brent\b|кредит[а-яё]*|аренд[а-яё]*|харид[а-яё]*/g;
+const EXP_VERB = /berdim|sarfladim|ishlatdim|to'ladim|toladim|ketdi|sotib\s+oldim|qaytardim|qaytarib\s+berdim|\bspent\b|\bpaid\b|\bbought\b|\bgave\b|бердим|сарфладим|тўладим|туладим|кетди|сотиб\s+олдим|потратил[а-яё]*|купил[а-яё]*|заплатил[а-яё]*|оплатил[а-яё]*|отдал[а-яё]*/g;
 
 export function amountKinds(text) {
   const t = norm(text);
@@ -107,6 +117,81 @@ export function amountKinds(text) {
     }
   }
   return kind;
+}
+
+// ---------- JONLI PREVIEW: input rangi (summa yashil "in" / qizil "out") ----------
+// Mobil debounce bilan chaqiradi (xarajat.dart _HlController) — DB'ga TEGMAYDI.
+// Yengil LLM chaqiruvi: faqat yo'nalish (kategoriya/lug'at/few-shot YO'Q) — javob tez.
+// Til cheklovi yo'q: istalgan tildagi matn tasniflanadi. Rang endi saqlashdagi
+// parser bilan BIR MANBADAN — input hech qachon yakuniy natijaga zid ko'rsatmaydi.
+const PREVIEW_SYS = `You classify money amounts in a short personal-finance note. The note may be in ANY language (Uzbek Latin or Cyrillic, Russian, English, mixed, informal).
+For EACH listed amount decide the WRITER'S cash-flow direction:
+"in" — writer's money INCREASES: salary, income, revenue, bonus, sale, gift received, debt paid back to the writer, money borrowed/received.
+"out" — writer's money DECREASES: purchase, expense, bill, rent, payment, gave or lent money, repaid own debt.
+If context is ambiguous or absent, answer "out". Reply ONLY with JSON: {"kinds":["in"|"out",...]} — exactly one entry per amount, same order as listed.`;
+
+async function previewLlm({ url, key, model, text, amounts, timeoutMs }) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model, temperature: 0, max_tokens: 80, response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: PREVIEW_SYS },
+        { role: 'user', content: `Note: "${String(text).slice(0, 300)}"\nAmounts (${amounts.length}): ${amounts.map((a, i) => `${i + 1}) ${a}`).join('  ')}` },
+      ],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+  const kinds = parsed.kinds;
+  if (!Array.isArray(kinds) || kinds.length !== amounts.length
+      || kinds.some((k) => k !== 'in' && k !== 'out')) throw new Error('kinds formati xato');
+  return kinds;
+}
+
+// Multiplikator/valyuta so'zlari kontekst EMAS ("400 ming so'm"da yo'nalish so'zi yo'q)
+const NOCTX = /^(ming|mln|million|milion|минг|млн|миллион|милион|тыс|тысяч|so'm|som|sum|сум|сўм|uzs|k|к|m|м)/i;
+
+const previewCache = new Map(); // norm(matn) -> natija (user ma'lumotisiz — global kesh)
+export async function previewKinds(text) {
+  const spans = amountSpans(text);
+  if (!spans.length) return { amounts: [], provider: 'none' };
+  const key = norm(text);
+  const hit = previewCache.get(key);
+  if (hit) return hit;
+
+  // Yo'nalish so'zisiz matnga ("5000" yoki "400 ming so'm") LLM chaqirilmaydi
+  const hasContext = key.split(/[\s.,!?;:()"«»]+/)
+    .some((w) => w.length >= 2 && !/\d/.test(w) && !NOCTX.test(w));
+
+  const amounts = spans.map((s) => s.amount);
+  let kinds = null; let provider = 'rules';
+  if (hasContext && config.stt.groqKey) {
+    try {
+      kinds = await previewLlm({ url: 'https://api.groq.com/openai/v1/chat/completions',
+        key: config.stt.groqKey, model: config.llm.groqModel, text, amounts, timeoutMs: 3500 });
+      provider = 'groq';
+    } catch { /* zaxiraga o'tamiz */ }
+  }
+  if (hasContext && !kinds && config.stt.openaiKey) {
+    try {
+      kinds = await previewLlm({ url: 'https://api.openai.com/v1/chat/completions',
+        key: config.stt.openaiKey, model: config.llm.openaiModel, text, amounts, timeoutMs: 4500 });
+      provider = 'openai';
+    } catch { /* rules zaxirasi */ }
+  }
+  if (!kinds) kinds = amountKinds(text).map((b) => (b ? 'in' : 'out'));
+
+  const out = { amounts: spans.map((s, i) => ({ amount: s.amount, kind: kinds[i] })), provider };
+  // Faqat LLM javobi keshlanadi — rules zaxirasi LLM tiklanganda yangilanishi kerak
+  if (provider !== 'rules') {
+    previewCache.set(key, out);
+    if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value);
+  }
+  return out;
 }
 
 const CAT_RULES = [
@@ -182,18 +267,30 @@ async function dictLookup(userId, words) {
 }
 
 // ---------- 1-signal: LLM (Groq asosiy, OpenAI zaxira) ----------
+// Baza toifalarga qisqa tavsif — noto'g'ri "Boshqa"ga tushishni kamaytiradi
+// (user o'zi ochgan papkalar tavsifsiz, nomi bilan qoladi)
+const CAT_HINTS = {
+  'Oziq-ovqat': "bozor, oziq-ovqat do'koni, restoran, kafe, tushlik, mahsulotlar",
+  'Transport': 'taksi, benzin, metro, avtobus, mashina xizmati, parkovka',
+  'Kommunal': 'svet, gaz, suv, internet, telefon, kvartira ijarasi',
+  "Ko'ngilochar": "kino, konsert, o'yin, sayohat, dam olish, obunalar",
+  'Kiyim': 'kiyim-kechak, poyabzal, aksessuar',
+  'Salomatlik': 'dori, apteka, shifokor, klinika, sport zali',
+  'Boshqa': 'yuqoridagilarning hech biriga mos kelmasa',
+};
+
 function llmSystemPrompt(categories, fewshots) {
   const shots = fewshots.map((f) =>
     `Matn: "${f.text}"\nJavob: ${JSON.stringify({ actions: f.final })}`).join('\n');
-  return `Sen moliyaviy yozuvlar tahlilchisisan. Foydalanuvchi o'zbek tilida (lotin/kiril, sheva bo'lishi mumkin) daromad, xarajat yoki qarz haqida gapiradi. Faqat JSON qaytar:
+  return `Sen moliyaviy yozuvlar tahlilchisisan. Foydalanuvchi ISTALGAN tilda (o'zbek lotin/kiril, rus, ingliz, aralash, sheva) daromad, xarajat yoki qarz haqida gapiradi. Faqat JSON qaytar:
 {"actions":[{"direction":"daromad|xarajat|qarz_berdim|qarz_oldim|qaytardim|menga_qaytarildi","amount":<butun son, so'mda>,"currency":"UZS","category":<string|null>,"note":<qisqa izoh>,"person":<ism yoki null>,"new_category_suggestion":<string|null>,"confidence":<0..1>}]}
 
 QOIDALAR:
 1. Bitta gapda bir nechta amal bo'lishi mumkin ("bozorga 200 ming, taksiga 30") — har birini alohida qaytar.
-2. Summa: "25 ming"=25000, "5 mln"=5000000. Summa aniq aytilmagan bo'lsa amount=0 va confidence past.
+2. Summa: "25 ming"=25000, "5 mln"=5000000, "200k"/"200к"/"200 тыс"=200000, "4m"/"4 млн"=4000000. Summa aniq aytilmagan bo'lsa amount=0 va confidence past.
 3. Qarz iboralari ("qarz berdim/oldim", "qaytardi/qaytardim") — direction qarz_*, person maydoniga ismni yoz, category=null.
-4. Xarajat uchun category FAQAT shu ro'yxatdan: ${categories.join(', ')}. Daromad uchun category="Daromad".
-5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, yangisini taklif QILMA — mavjudini tanla.
+4. Xarajat uchun category FAQAT shu ro'yxatdan (qavsda — nimalar kiradi): ${categories.map((c) => (CAT_HINTS[c] ? `${c} (${CAT_HINTS[c]})` : c)).join('; ')}. Daromad uchun category="Daromad".
+5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Nom uslubi: o'zbekcha, 1-2 so'z, bosh harf bilan, birlikda; juda tor EMAS ("Lavash" emas — "Fastfud"), juda keng EMAS ("Xarajat" emas). Yaxshi misollar: "Ta'lim", "Sovg'a", "Remont", "Sport", "Uy-ro'zg'or", "Go'zallik". Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, taklif QILMA — mavjudini tanla.
 6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.
 7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
 }
@@ -218,11 +315,20 @@ async function callLlm({ url, key, model, text, categories, fewshots, timeoutMs 
   return parsed.actions;
 }
 
+// Qarz uchun DETERMINISTIK guard: LLM qarz_berdim/qarz_oldim desa ham, matnda ANIQ
+// qarz-signal so'zi bo'lmasa oddiy xarajat/daromadga tushiriladi ("anvarga 200 ming
+// berdim" — xarajat, Hamkorlar oqimiga sakramaydi). qaytardim/menga_qaytarildi
+// yo'nalishlari signalning o'zi ("qaytar...") bilan keladi — ularga tegilmaydi.
+const QARZ_SIGNAL = /qarz|карз|қарз|долг|взайм|в долг|одолжил|занял|debt|\blent\b|\bloan\b|borrow|iou/i;
+
 function sanitizeAction(a, categories, text) {
   if (!a || typeof a !== 'object') return null;
   const amount = Math.round(Number(a.amount) || 0);
   if (amount <= 0) return null;
   let direction = DIRECTIONS.includes(a.direction) ? a.direction : 'xarajat';
+  if ((direction === 'qarz_berdim' || direction === 'qarz_oldim') && !QARZ_SIGNAL.test(String(text || ''))) {
+    direction = direction === 'qarz_berdim' ? 'xarajat' : 'daromad';
+  }
   let category = a.category ? String(a.category).trim() : null;
   let suggestion = a.new_category_suggestion ? String(a.new_category_suggestion).trim() : null;
   if (direction === 'daromad') { category = 'Daromad'; suggestion = null; }

@@ -3,15 +3,23 @@
 // Dinamika (dizayn kabi): input ichida rangli belgilash (summa yashil/qizil, toifa/buyruq/sana
 // fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
 // yangisida siljiydi), yangi papka "pop", tray "shake", toastlar "Bekor qilish" bilan.
+import 'dart:async' show Timer;
+import 'dart:convert' show jsonDecode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import '../api.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
+
+// RANG QOIDASI (dizayn: Xarajatlar Trust / Trust_STT-off — redC/greenC):
+// summa raqamlari HAR DOIM brend rangda — chiqim = p.red, kirim = p.green.
+// Hech qayerda p.ink yoki Colors.red/green ishlatilmaydi (rang bugi tuzatildi).
 
 class XarajatScreen extends StatefulWidget {
   const XarajatScreen({super.key});
@@ -26,7 +34,231 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   final GlobalKey _inputKey = GlobalKey();
   final Map<String, int> _pulse = {};
 
+  // ---- Papka tahriri (rename/arxiv) va yozuvni ko'chirish holati ----
+  // Ekran-lokal holat: store'ga tegilmaydi (store faqat public API orqali yangilanadi)
+  Map<String, dynamic>? _fEdit; // {name, inc, renaming: bool}
+  Map<String, dynamic>? _mv; // {id, desc, amtTxt, a, cat}
+  List<Map<String, dynamic>>? _cats; // server toifalari (?all=1: id/name/is_base/archived)
+  bool _fBusy = false; // server so'rovi ketmoqda (ikkilangan bosishdan himoya)
+  String _fName = ''; // rename buferi
+
   GlobalKey _keyFor(String name) => _fk.putIfAbsent(name, () => GlobalKey());
+
+  // Rename maydoni — barqaror controller (poll-rebuild matnni o'chirmasin)
+  final TextEditingController _fCtl = TextEditingController();
+
+  @override
+  void dispose() {
+    _fCtl.dispose();
+    super.dispose();
+  }
+
+  // ---- l10n zaxira: kalit hali qo'shilmagan bo'lsa o'zbekcha matn ----
+  String _t(String key, String fb) => (store.L()[key] as String?) ?? fb;
+  String _tf(String key, Map<String, String> vars, String fb) {
+    var s = (store.L()[key] as String?) ?? fb;
+    vars.forEach((k, val) => s = s.replaceAll('{$k}', val));
+    return s;
+  }
+
+  // 1234567 -> "1 234 567" (store._fx bilan bir xil format)
+  static String _fx(num v) {
+    final s = v.abs().round().toString();
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
+  static String _norm(String s) => s.toLowerCase()
+      .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
+
+  // Sessiya jurnaliga yozish — store._xfLogAdd shakli bilan 1:1 (public set orqali)
+  void _log(String type,
+      {required String cat, required String desc, required int amount, required bool income, String? eid}) {
+    final log = List<Map<String, dynamic>>.from(store.S['xfLog'] as List);
+    final now = DateTime.now();
+    log.insert(0, {
+      'id': 'l${now.microsecondsSinceEpoch}', 'type': type,
+      'cat': cat, 'desc': desc, 'a': amount, 'income': income, 'eid': eid,
+      't': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+    });
+    store.set({'xfLog': log.take(12).toList(), if (store.S['xfLogOpen'] != true) 'xfLogDot': true});
+  }
+
+  // Toifalar ro'yxati (?all=1 — arxivlangan holati bilan). Eski backend all'ni
+  // bilmasa ham xuddi shu shakldagi faol ro'yxat qaytadi — UI buzilmaydi.
+  Future<List<Map<String, dynamic>>?> _loadCats({bool all = true}) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$apiUrl/api/categories${all ? '?all=1' : ''}'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (Api.token != null) 'Authorization': 'Bearer ${Api.token}',
+        },
+      ).timeout(const Duration(seconds: 12));
+      final map = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      if (res.statusCode >= 400 || map['success'] == false) return null;
+      return ((map['data'] as List?) ?? []).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return null; // oflayn — karta ichida xabar ko'rsatiladi
+    }
+  }
+
+  Map<String, dynamic>? _catByName(String name) {
+    for (final c in _cats ?? const <Map<String, dynamic>>[]) {
+      if (_norm('${c['name']}') == _norm(name)) return c;
+    }
+    return null;
+  }
+
+  // ---- PAPKA TAHRIRI: uzoq bosishdan ochiladi ----
+  void _openFolderEdit(Map<String, dynamic> f) {
+    if (f['inc'] == true) {
+      // Kirim papkasi ('Daromad') — server uni o'zi boshqaradi, qo'lda tahrir yo'q
+      store.toast_(_t('tIncomeFolderFixed', "Kirim papkasi tizim tomonidan boshqariladi"));
+      return;
+    }
+    setState(() {
+      _mv = null;
+      _fEdit = {'name': f['name'], 'inc': f['inc'] == true, 'renaming': false};
+      _fName = '${f['name']}';
+      _cats = null;
+    });
+    _loadCats().then((cs) {
+      if (mounted && _fEdit != null) setState(() => _cats = cs ?? []);
+    });
+  }
+
+  Future<void> _renameFolder(String oldName) async {
+    final newName = _fName.trim();
+    if (newName.length < 2) {
+      store.toast_(store.L()['tNameMin2'] as String);
+      return;
+    }
+    if (newName == oldName) {
+      setState(() => _fEdit = null);
+      return;
+    }
+    final cat = _catByName(oldName);
+    if (cat == null || _fBusy) {
+      if (cat == null) store.toast_(_t('tFolderNoCat', 'Papka toifasi serverda topilmadi'));
+      return;
+    }
+    setState(() => _fBusy = true);
+    final r = await Api.patchCategory('${cat['id']}', name: newName);
+    if (!mounted) return;
+    setState(() => _fBusy = false);
+    if (!r.ok) {
+      store.toast_(r.error);
+      return;
+    }
+    final saved = ((r.data as Map?)?['name'] as String?) ?? newName;
+    // Lokal holat: yozuvlar toifasi, "Yangi" belgisi, ochiq tafsilot nomi — hammasi ko'chadi
+    final entries = (store.S['xarEntries'] as List).cast<Map<String, dynamic>>()
+        .map((e) => '${e['cat']}' == oldName ? {...e, 'cat': saved} : e).toList();
+    final newCats = (store.S['xfNewCats'] as List).cast<String>()
+        .map((c) => c == oldName ? saved : c).toList();
+    var total = 0;
+    for (final e in entries) {
+      if ('${e['cat']}' == saved && e['kind'] == 'x') total += e['a'] as int;
+    }
+    store.set({
+      'xarEntries': entries,
+      'xfNewCats': newCats,
+      'xcCats': <String>[], // tahrir chiplari keyingi ochilishda qayta yuklanadi
+      if (store.S['xfDetail'] == oldName) 'xfDetail': saved,
+    });
+    _log('edit', cat: saved, desc: '$oldName → $saved', amount: total, income: false);
+    store.toast_(_t('tFolderRenamed', 'Papka nomi yangilandi — yozuvlar birga ko\'chdi'));
+    setState(() => _fEdit = null);
+    store.hydrate(full: false); // server haqiqati bilan sinxron
+  }
+
+  Future<void> _archiveFolder(String name, bool archive) async {
+    final cat = _catByName(name);
+    if (cat == null || _fBusy) {
+      if (cat == null) store.toast_(_t('tFolderNoCat', 'Papka toifasi serverda topilmadi'));
+      return;
+    }
+    setState(() => _fBusy = true);
+    final r = await Api.patchCategory('${cat['id']}', archived: archive);
+    if (!mounted) return;
+    setState(() => _fBusy = false);
+    if (!r.ok) {
+      store.toast_(r.error);
+      return;
+    }
+    store.set({'xcCats': <String>[]});
+    _log('edit', cat: name, desc: archive
+        ? '$name — ${_t('logArchived', 'arxivga')}'
+        : '$name — ${_t('logUnarchived', 'arxivdan')}', amount: 0, income: false);
+    store.toast_(archive
+        ? _t('tFolderArchived', "Arxivlandi — AI endi bu papkani taklif qilmaydi, tarix saqlanadi")
+        : _t('tFolderUnarchived', 'Arxivdan qaytarildi — papka yana taklif qilinadi'));
+    setState(() => _fEdit = null);
+  }
+
+  // ---- YOZUVNI KO'CHIRISH: tafsilot qatori bosilganda ----
+  void _openMove(Map<String, dynamic> r, String folderName) {
+    // Qator id'si store'dan kelsa — bevosita; kelmasa oy yozuvlari ichidan
+    // desc+vaqt+summa bo'yicha topamiz (bir xil egizaklarda natija farqsiz)
+    var id = r['id'] as String?;
+    var amount = r['a'] as int?;
+    if (id == null) {
+      final now = DateTime.now();
+      final ym = '${now.year}-${now.month}';
+      for (final e in (store.S['xarEntries'] as List).cast<Map<String, dynamic>>()) {
+        if ('${e['ym']}' != ym || '${e['cat']}' != folderName || e['kind'] == 'd') continue;
+        final amtTxt = '−${_fx(e['a'] as int)}';
+        final desc = (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'];
+        if (amtTxt == '${r['amtTxt']}' && '${e['t']}' == '${r['time']}' && '$desc' == '${r['desc']}') {
+          id = e['id'] as String?;
+          amount = e['a'] as int?;
+          break;
+        }
+      }
+    }
+    if (id == null) {
+      store.toast_(_t('tEntryNotFound', 'Yozuv topilmadi — yangilab qayta urinib ko\'ring'));
+      return;
+    }
+    setState(() {
+      _fEdit = null;
+      _mv = {'id': id, 'desc': r['desc'], 'amtTxt': r['amtTxt'], 'a': amount ?? 0, 'cat': folderName};
+      _cats = null;
+    });
+    _loadCats().then((cs) {
+      if (mounted && _mv != null) setState(() => _cats = cs ?? []);
+    });
+  }
+
+  Future<void> _moveTo(String cat) async {
+    final mv = _mv;
+    if (mv == null || _fBusy) return;
+    setState(() => _fBusy = true);
+    final r = await Api.patchExpense('${mv['id']}', category: cat);
+    if (!mounted) return;
+    setState(() => _fBusy = false);
+    if (!r.ok) {
+      store.toast_(r.error);
+      return;
+    }
+    // Server yakuniy toifani qaytaradi (ro'yxatda bo'lmasa 'Boshqa'ga tushadi)
+    final srvCat = ((r.data as Map?)?['category'] as String?) ?? cat;
+    final entries = (store.S['xarEntries'] as List).cast<Map<String, dynamic>>()
+        .map((e) => e['id'] == mv['id'] ? {...e, 'cat': srvCat} : e).toList();
+    store.set({'xarEntries': entries});
+    _log('edit', cat: srvCat, desc: '${mv['desc']}', amount: mv['a'] as int? ?? 0,
+        income: false, eid: '${mv['id']}');
+    store.toast_(_tf('tMovedTo', {'cat': srvCat}, 'Ko\'chirildi: $srvCat'));
+    setState(() {
+      _mv = null;
+      _pulse[srvCat] = (_pulse[srvCat] ?? 0) + 1; // nishon papka "yutish" pulsi
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +291,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     // (foydalanuvchi so'rovi: alohida bo'limlarga ajratilmaydi)
                     if ((v['xfInFolders'] as List).isNotEmpty ||
                         (v['xfOutFolders'] as List).isNotEmpty) ...[
-                      _cap('PAPKALAR', p),
+                      _cap(store.L()['capFolders'] as String, p),
                       const SizedBox(height: 10),
                       _grid([
                         ...(v['xfInFolders'] as List).cast<Map<String, dynamic>>(),
@@ -92,8 +324,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   // (papka + balans raqamlari SANAB ko'tariladi) -> sanash tugagach KEYINGI chip.
   // Bir inputdagi 2-3 summa "kapalakday" birdan uchmaydi — birma-bir.
   Future<void> _launchFly(List<Map<String, dynamic>> events) async {
-    FocusManager.instance.primaryFocus?.unfocus(); // klaviatura yopiladi
-    await Future.delayed(const Duration(milliseconds: 240));
+    // Klaviatura odatda SEND bosilganda yopilgan (store.xfSend_) — bu zaxira;
+    // parse davomida (~1-2s) layout kengayib ulgurgan, qisqa pauza yetadi
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future.delayed(const Duration(milliseconds: 120));
     if (!mounted) return;
     for (var i = 0; i < events.length; i++) {
       final cat = events[i]['cat'] as String;
@@ -123,15 +357,28 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     final folderBox = _fk[e['cat']]?.currentContext?.findRenderObject() as RenderBox?;
     if (inputBox == null) return;
     final start = inputBox.localToGlobal(const Offset(20, -46));
-    // Nishon: papka kartasi markazi; karta hali ko'rinmasa — biroz yuqoriga uchib so'nadi
+    // Nishon: papka kartasi markazi. Yangi toifada ham karta bor (ghost) — store
+    // uni uchishdan OLDIN chiqaradi; baribir topilmasa yuqoriga uchib so'nadi.
     final end = folderBox != null
         ? folderBox.localToGlobal(Offset.zero) +
             Offset(folderBox.size.width / 2 - 56, folderBox.size.height / 2 - 16)
         : start - const Offset(0, 220);
 
-    // Sekinroq (900ms) — kichik ekranda ham harakat ko'rinadi
-    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    final curve = CurvedAnimation(parent: ctrl, curve: const Cubic(.3, .7, .3, 1));
+    // Kvadratik Bezier "swoop": nazorat nuqtasi yon+yuqoriga surilgan — chip
+    // to'g'ri chiziqda emas, burilib uchadi (zamonaviy his)
+    final side = end.dx >= start.dx ? 1.0 : -1.0;
+    final ctl = Offset(
+      (start.dx + end.dx) / 2 + side * 90,
+      math.min(start.dy, end.dy) - 110,
+    );
+    Offset bezier(double t) {
+      final u = 1 - t;
+      return start * (u * u) + ctl * (2 * u * t) + end * (t * t);
+    }
+
+    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
+    // M3 emphasized easing — shiddat bilan ko'tarilib, nishonga yumshoq qo'nadi
+    final curve = CurvedAnimation(parent: ctrl, curve: Curves.easeInOutCubicEmphasized);
     final inc = e['inc'] == true;
     final glow = inc ? p.green : p.red;
     late OverlayEntry entry;
@@ -140,44 +387,68 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         animation: curve,
         builder: (_, __) {
           final t = curve.value;
-          // Yoy (arc) traektoriya — to'g'ri chiziq emas, ko'tarilib tushadi (ko'zga tashlanadi)
-          final lift = math.sin(t * math.pi) * 56;
-          final pos = Offset.lerp(start, end, t)! - Offset(0, lift);
-          final op = t < .08 ? t / .08 : (t > .88 ? (1 - t) / .12 : 1.0);
-          // Yo'l-yo'lakay KATTALASHIB ko'rinadi (cho'qqi 1.3x), so'ng KICHRAYIB
-          // papkaga "kirib ketadi" (0.4x) — foydalanuvchi so'ragan his
-          final sc = t < .45
-              ? lerpDouble(.75, 1.3, Curves.easeOut.transform(t / .45))!
-              : lerpDouble(1.3, .4, Curves.easeIn.transform((t - .45) / .55))!;
-          return Positioned(
-            left: pos.dx,
-            top: pos.dy,
+          final pos = bezier(t);
+          // Harakat yo'nalishi bo'yicha engil QIYALIK (banking) — uchayotgan his
+          final dv = bezier(math.min(1.0, t + .02)) - pos;
+          final ang = dv.distance == 0 ? 0.0 : (dv.dx / dv.distance) * .22;
+          // Nafas oluvchi glow — parvoz cho'qqisida eng yorqin
+          final breathe = math.sin(t * math.pi);
+          final op = t < .06 ? t / .06 : (t > .9 ? (1 - t) / .1 : 1.0);
+          // Ko'tarilishda KATTALASHADI (1.18x), so'ng kichrayib papkaga "singib ketadi"
+          final sc = t < .35
+              ? lerpDouble(.7, 1.18, Curves.easeOutCubic.transform(t / .35))!
+              : lerpDouble(1.18, .3, Curves.easeInCubic.transform((t - .35) / .65))!;
+          // Zarracha izi — chip markazi ortida so'nib boruvchi glow nuqtalari
+          final trail = <List<double>>[];
+          for (var k = 1; k <= 6; k++) {
+            final tp = t - k * .05;
+            if (tp <= 0) break;
+            final dp = bezier(tp) + const Offset(56, 16); // chip markaziga moslash
+            trail.add([dp.dx, dp.dy, (1 - k / 7) * .45 * op.clamp(0.0, 1.0), 4.2 - k * .5]);
+          }
+          return Positioned.fill(
             child: IgnorePointer(
-              child: Opacity(
-                opacity: op.clamp(0.0, 1.0),
-                child: Transform.scale(
-                  scale: sc,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: p.card2,
-                      border: Border.all(color: p.bd2),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 32, offset: const Offset(0, 14)),
-                        BoxShadow(color: glow.withValues(alpha: inc ? .40 : .22), blurRadius: 22),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Tx('${e['emoji']} ${e['cat']}', size: 13, w: FontWeight.w500, color: p.ink),
-                        const SizedBox(width: 8),
-                        Tx('${e['amtTxt']}', size: 13, w: FontWeight.w600, color: inc ? p.green : p.red),
-                      ],
+              child: Stack(
+                children: [
+                  Positioned.fill(child: CustomPaint(painter: _TrailPaint(trail, glow))),
+                  Positioned(
+                    left: pos.dx,
+                    top: pos.dy,
+                    child: Opacity(
+                      opacity: op.clamp(0.0, 1.0),
+                      child: Transform.rotate(
+                        angle: ang,
+                        child: Transform.scale(
+                          scale: sc,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: p.card2,
+                              border: Border.all(color: p.bd2),
+                              borderRadius: BorderRadius.circular(13),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 32, offset: const Offset(0, 14)),
+                                // Parvoz cho'qqisida glow kuchayadi, qo'nishga so'nadi
+                                BoxShadow(
+                                  color: glow.withValues(alpha: (inc ? .42 : .30) * breathe + .10),
+                                  blurRadius: 22 + 12 * breathe,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Tx('${e['emoji']} ${e['cat']}', size: 13, w: FontWeight.w500, color: p.ink),
+                                const SizedBox(width: 8),
+                                Tx('${e['amtTxt']}', size: 13, w: FontWeight.w600, color: inc ? p.green : p.red),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           );
@@ -205,7 +476,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx('Xarajatlar', size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2),
+                Tx(store.L()['xarTitle'] as String, size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2),
                 const SizedBox(height: 1),
                 Tx('${v['xfMonth']}', size: 11.5, color: p.t3),
               ],
@@ -262,18 +533,18 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               const SizedBox(width: 7),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Tx("so'm", size: 13, color: p.t3),
+                child: Tx(store.L()['som'] as String, size: 13, color: p.t3),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Tx('Kirim ', size: 12, color: p.t2),
+              Tx(store.L()['income'] as String, size: 12, color: p.t2),
               _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
                   size: 12, weight: FontWeight.w600, color: p.green),
               const SizedBox(width: 18),
-              Tx('Chiqim ', size: 12, color: p.t2),
+              Tx(store.L()['expense'] as String, size: 12, color: p.t2),
               _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
                   size: 12, weight: FontWeight.w600, color: p.red),
             ],
@@ -309,9 +580,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     final inc = f['inc'] == true;
     final accent = inc ? p.green : p.red;
     final name = '${f['name']}';
+    // Ghost: chip hali uchmoqda — karta nishon sifatida xira turadi, summa o'rnida "···"
+    final ghost = f['ghost'] == true;
 
-    Widget card = Tap(
-      onTap: f['open'],
+    // Uzoq bosish — papkani TAHRIRLASH (nomlash/arxivlash, XOTIRA §4 CRUD).
+    // Ghost karta hali serverda yo'q; kirim papkasi ('Daromad') tizim boshqaruvida.
+    Widget card = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: f['open'] as VoidCallback?,
+      onLongPress: ghost ? null : () => _openFolderEdit(f),
       child: Container(
         key: _keyFor(name),
         clipBehavior: Clip.antiAlias,
@@ -355,7 +632,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                             border: Border.all(color: p.bd2),
                             borderRadius: BorderRadius.circular(999),
                           ),
-                          child: Tx('Yangi ✨', size: 10, w: FontWeight.w600, color: p.t1),
+                          child: Tx(store.L()['newBadge'] as String, size: 10, w: FontWeight.w600, color: p.t1),
                         ),
                     ],
                   ),
@@ -365,12 +642,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   Row(
                     children: [
                       Flexible(
-                        child: _AnimNum(
-                          value: f['totalVal'] as int? ?? 0,
-                          prefix: inc ? '+' : '−',
-                          size: 15, weight: FontWeight.w600,
-                          color: inc ? p.green : p.red,
-                        ),
+                        child: ghost
+                            ? Tx('· · ·', size: 15, w: FontWeight.w600, color: p.t4)
+                            : _AnimNum(
+                                value: f['totalVal'] as int? ?? 0,
+                                prefix: inc ? '+' : '−',
+                                size: 15, weight: FontWeight.w600,
+                                color: inc ? p.green : p.red,
+                                fromZero: true, // yangi papka 0 dan sanab chiqadi
+                              ),
                       ),
                       if (inc) ...[
                         const SizedBox(width: 5),
@@ -401,6 +681,13 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       ),
     );
 
+    // Ghost — xira nishon (chip qo'nganda AnimatedOpacity bilan to'liq yonadi)
+    card = AnimatedOpacity(
+      opacity: ghost ? .5 : 1.0,
+      duration: const Duration(milliseconds: 300),
+      child: card,
+    );
+
     // Yangi papka "pop" (dizayn: xkPop scale-bounce)
     if (f['isNew'] == true) {
       card = TweenAnimationBuilder<double>(
@@ -413,15 +700,24 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       );
     }
 
-    // Fly qo'nganda puls (scale 1.06 -> 1)
+    // Fly qo'nganda "YUTISH" squash-stretch: karta eniga cho'zilib, bo'yiga
+    // bosiladi, so'ng prujinali (elasticOut) holiga qaytadi — chip singib ketgan his
     final pc = _pulse[name] ?? 0;
     if (pc > 0) {
       card = TweenAnimationBuilder<double>(
         key: ValueKey('pulse-$name-$pc'),
-        tween: Tween(begin: 1.06, end: 1.0),
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutBack,
-        builder: (_, s, child) => Transform.scale(scale: s, child: child),
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 560),
+        curve: Curves.elasticOut,
+        builder: (_, t, child) => Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.diagonal3Values(
+            lerpDouble(1.12, 1.0, t)!, // eni: cho'zilgan -> normal (overshoot bilan)
+            lerpDouble(0.86, 1.0, t)!, // bo'yi: bosilgan -> normal
+            1,
+          ),
+          child: child,
+        ),
         child: card,
       );
     }
@@ -440,10 +736,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       ),
       child: Column(
         children: [
-          Tx('Hozircha yozuvlar yo\'q', size: 14, w: FontWeight.w600, color: p.t1,
+          Tx(store.L()['xarEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
               align: TextAlign.center),
           const SizedBox(height: 6),
-          Tx('Pastdagi maydonga yozing — AI o\'zi papkalarga saralaydi', size: 12,
+          Tx(store.L()['xarEmptySub'] as String, size: 12,
               color: p.t4, align: TextAlign.center),
         ],
       ),
@@ -459,7 +755,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           padding: const EdgeInsets.only(left: 4),
           child: Row(
             children: [
-              Tx('ANIQLANMAGAN', size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+              Tx(store.L()['unidentifiedCap'] as String, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -497,31 +793,74 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                             child: Tx('${t['text']}', size: 13, color: p.t1, maxLines: 1),
                           ),
                           const SizedBox(width: 8),
-                          Tx('papka tanlang ↓', size: 11, color: p.t4),
+                          Tx(store.L()['pickFolderRow'] as String, size: 11, color: p.t4),
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Tx('${t['amtTxt']} so\'m', size: 13, w: FontWeight.w600, color: p.red),
+                      Tx('${t['amtTxt']} ${store.L()['som'] as String}', size: 13, w: FontWeight.w600, color: p.red),
                       if (t['open'] == true) ...[
                         const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 6, runSpacing: 6,
-                          children: [
-                            for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
-                              Tap(
-                                onTap: c['pick'],
+                        if (t['naming'] == true)
+                          // Qo'lda yangi papka nomi
+                          Row(
+                            children: [
+                              Expanded(
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
                                   decoration: BoxDecoration(
                                     color: p.card2,
                                     border: Border.all(color: p.bd),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
-                                  child: Tx('${c['label']}', size: 12, w: FontWeight.w500, color: p.ink),
+                                  child: Center(
+                                    child: TextField(
+                                      autofocus: true,
+                                      onChanged: t['nameSet'],
+                                      onSubmitted: (_) => (t['nameOk'] as Function)(),
+                                      style: GoogleFonts.inter(fontSize: 13, color: p.ink),
+                                      cursorColor: p.ink,
+                                      decoration: InputDecoration(
+                                        isDense: true, isCollapsed: true, border: InputBorder.none,
+                                        hintText: store.L()['newFolderHint'] as String,
+                                        hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                          ],
-                        ),
+                              const SizedBox(width: 8),
+                              Tap(
+                                onTap: t['nameOk'],
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
+                                  child: Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Wrap(
+                            spacing: 6, runSpacing: 6,
+                            children: [
+                              for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
+                                Tap(
+                                  onTap: c['pick'],
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      // AI taklifi (✨ yangi) — ajralib turadigan urg'u
+                                      color: c['isNew'] == true ? p.ink.withValues(alpha: .08) : p.card2,
+                                      border: Border.all(color: c['isNew'] == true ? p.ink : p.bd),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Tx('${c['label']}', size: 12,
+                                        w: c['isNew'] == true ? FontWeight.w600 : FontWeight.w500, color: p.ink),
+                                  ),
+                                ),
+                            ],
+                          ),
                       ],
                     ],
                   ),
@@ -592,17 +931,18 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                       value: v['xfDTotalVal'] as int? ?? 0,
                       prefix: v['xfDInc'] == true ? '+' : '−',
                       size: 28, weight: FontWeight.w700,
-                      color: v['xfDInc'] == true ? p.green : p.ink, ls: -0.5,
+                      // RANG BUGI TUZATILDI: chiqim jami p.ink emas — brend qizil
+                      color: v['xfDInc'] == true ? p.green : p.red, ls: -0.5,
                     ),
                     const SizedBox(width: 7),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: Tx("so'm", size: 13, color: p.t3),
+                      child: Tx(store.L()['som'] as String, size: 13, color: p.t3),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Tx('✎ tahrirlash · ✕ o\'chirish', size: 11, color: p.t4),
+                Tx(store.L()['folderDetailHint'] as String, size: 11, color: p.t4),
               ],
             ),
           ),
@@ -612,10 +952,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
                       children: [
-                        Tx('Hozircha yozuvlar yo\'q', size: 14, w: FontWeight.w600, color: p.t1,
+                        Tx(store.L()['xarEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
                             align: TextAlign.center),
                         const SizedBox(height: 6),
-                        Tx('Pastdagi maydonga yozing — AI shu papkaga o\'zi qo\'shadi', size: 12,
+                        Tx(store.L()['folderEmptySub'] as String, size: 12,
                             color: p.t4, align: TextAlign.center),
                       ],
                     ),
@@ -632,7 +972,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                         for (final r in (g['rows'] as List).cast<Map<String, dynamic>>())
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: _entryRow(r, p),
+                            child: _entryRow(r, '${v['xfDName']}', p),
                           ),
                       ],
                     ],
@@ -643,33 +983,39 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  Widget _entryRow(Map<String, dynamic> r, Pal p) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: p.hov2,
-        border: Border.all(color: p.hair2),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Tx('${r['desc']}', size: 13.5, w: FontWeight.w500, color: p.ink, maxLines: 1),
-                const SizedBox(height: 2),
-                Tx('${r['time']}', size: 11, color: p.t4),
-              ],
+  Widget _entryRow(Map<String, dynamic> r, String folderName, Pal p) {
+    return Tap(
+      // Qator bosilsa — yozuvni boshqa papkaga KO'CHIRISH kartasi (XOTIRA §4:
+      // saqlangan yozuv toifasini qo'lda o'zgartirish). Kirim yozuvlari ko'chmaydi.
+      onTap: r['inc'] == true ? null : () => _openMove(r, folderName),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: p.hov2,
+          border: Border.all(color: p.hair2),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tx('${r['desc']}', size: 13.5, w: FontWeight.w500, color: p.ink, maxLines: 1),
+                  const SizedBox(height: 2),
+                  Tx('${r['time']}', size: 11, color: p.t4),
+                ],
+              ),
             ),
-          ),
-          Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600,
-              color: r['inc'] == true ? p.green : p.ink),
-          const SizedBox(width: 8),
-          _roundBtn('✎', r['edit'], p),
-          const SizedBox(width: 6),
-          _roundBtn('✕', r['del'], p),
-        ],
+            Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600,
+                // RANG BUGI TUZATILDI: chiqim raqamlari brend qizil (p.ink emas)
+                color: r['inc'] == true ? p.green : p.red),
+            const SizedBox(width: 8),
+            _roundBtn('✎', r['edit'], p),
+            const SizedBox(width: 6),
+            _roundBtn('✕', r['del'], p),
+          ],
+        ),
       ),
     );
   }
@@ -700,9 +1046,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Tx('Oxirgi o\'zgarishlar', size: 16, w: FontWeight.w700, color: p.ink),
+                      Tx(store.L()['logTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
                       const SizedBox(height: 1),
-                      Tx('Yangi yozuvlar, tahrir va o\'chirishlar', size: 11.5, color: p.t3),
+                      Tx(store.L()['logSub'] as String, size: 11.5, color: p.t3),
                     ],
                   ),
                 ),
@@ -716,10 +1062,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
                       children: [
-                        Tx('Hozircha o\'zgarishlar yo\'q', size: 14, w: FontWeight.w600, color: p.t1,
+                        Tx(store.L()['logEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
                             align: TextAlign.center),
                         const SizedBox(height: 6),
-                        Tx('Yozuv qo\'shsangiz, tahrirlasangiz yoki o\'chirsangiz shu yerda ko\'rinadi',
+                        Tx(store.L()['logEmptySub'] as String,
                             size: 12, color: p.t4, align: TextAlign.center),
                       ],
                     ),
@@ -795,7 +1141,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             '${o['amtTxt']}',
             style: GoogleFonts.inter(
               fontSize: 13.5, fontWeight: FontWeight.w600,
-              color: isDel ? p.t3 : (o['inc'] == true ? p.green : p.ink),
+              // RANG BUGI TUZATILDI: jurnalda ham chiqim brend qizil (p.ink emas);
+              // o'chirilgan qator xira (t3) qoladi — dizayndagi lineThrough holati
+              color: isDel ? p.t3 : (o['inc'] == true ? p.green : p.red),
               decoration: isDel ? TextDecoration.lineThrough : TextDecoration.none,
             ),
           ),
@@ -838,7 +1186,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Tx('Tahrirlanmoqda: ', size: 12, color: p.t2),
+                    Tx(store.L()['editingLabel'] as String, size: 12, color: p.t2),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 150),
                       child: Tx('${v['xfEditLabel']}', size: 12, w: FontWeight.w600,
@@ -878,7 +1226,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     Tap(
                       onTap: v['xfUndo'],
                       child: Text(
-                        'Bekor qilish',
+                        '${v['xfToastBtn'] ?? (store.L()['btnCancelFull'] as String)}',
                         style: GoogleFonts.inter(
                           fontSize: 13, fontWeight: FontWeight.w600, color: p.ink,
                           decoration: TextDecoration.underline,
@@ -897,9 +1245,20 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             const SizedBox(height: 10),
           ],
 
+          // Papka tahriri (uzoq bosish) — rename / arxivlash kartasi
+          if (_fEdit != null) ...[
+            _SlideIn(key: ValueKey('fedit-${_fEdit!['name']}'), child: _folderEditCard(p)),
+            const SizedBox(height: 10),
+          ],
+          // Yozuvni papkaga ko'chirish kartasi (tafsilot qatori bosilganda)
+          if (_mv != null) ...[
+            _SlideIn(key: ValueKey('mv-${_mv!['id']}'), child: _moveCard(p)),
+            const SizedBox(height: 10),
+          ],
+
           // Yo'riqnoma — inputdan yuqorida
           Center(
-            child: Tx('Yozing — AI o\'zi papkalarga saralaydi', size: 11, color: p.t4),
+            child: Tx(store.L()['xarInputHint'] as String, size: 11, color: p.t4),
           ),
           const SizedBox(height: 8),
           // Matn input (rangli highlight bilan) + yuborish
@@ -920,7 +1279,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     child: _HlField(
                       value: '${v['xarTextVal'] ?? ''}',
                       onChanged: (t) => v['xarTextSet'](t),
-                      hint: 'Oziq-ovqatga 120 000 sarfladim...',
+                      hint: store.L()['xarInputHintEx'] as String,
                       onSubmit: v['xfSend'],
                     ),
                   ),
@@ -962,7 +1321,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Tx(isMerge ? 'BIRLASHTIRISHNI TASDIQLANG' : 'O\'CHIRISHNI TASDIQLANG',
+          Tx(isMerge ? (store.L()['confirmMergeCap'] as String) : (store.L()['confirmDeleteCap'] as String),
               size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
           const SizedBox(height: 12),
           if (isMerge)
@@ -1021,7 +1380,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Tx('${v['xfCfFromTxt']}', size: 13, w: FontWeight.w500, color: p.ink),
-                      Tx('o\'chiriladi', size: 11, color: p.red),
+                      Tx(store.L()['willDelete'] as String, size: 11, color: p.red),
                     ],
                   ),
                 ),
@@ -1040,7 +1399,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                       color: isMerge ? p.ink : p.red,
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: Tx('Tasdiqlash', size: 13, w: FontWeight.w700,
+                    child: Tx(store.L()['btnConfirm'] as String, size: 13, w: FontWeight.w700,
                         color: isMerge ? p.bg : const Color(0xFF140807)),
                   ),
                 ),
@@ -1056,7 +1415,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                       border: Border.all(color: p.bd),
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: Tx('Bekor', size: 13, w: FontWeight.w600, color: p.t1),
+                    child: Tx(store.L()['btnCancelShort'] as String, size: 13, w: FontWeight.w600, color: p.t1),
                   ),
                 ),
               ),
@@ -1066,13 +1425,265 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       ),
     );
   }
+
+  // Kartalar uchun umumiy qobiq (confirm karta bilan bir xil ko'rinish)
+  BoxDecoration _cardDeco(Pal p) => BoxDecoration(
+        color: p.field,
+        border: Border.all(color: p.bd2),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 40, offset: const Offset(0, 16)),
+        ],
+      );
+
+  // ============ PAPKA TAHRIRI KARTASI (uzoq bosish: rename / arxiv) ============
+  Widget _folderEditCard(Pal p) {
+    final f = _fEdit!;
+    final name = '${f['name']}';
+    final cat = _catByName(name);
+    final archived = cat?['archived'] == true;
+    final renaming = f['renaming'] == true;
+    final loading = _cats == null;
+    final missing = !loading && cat == null;
+    // 'Boshqa' — zaxira papka (parser fallback'i): nomi va arxiv holati qat'iy
+    final isBoshqa = _norm(name) == 'boshqa';
+
+    Widget btn(String label, VoidCallback? onTap, {bool primary = false}) => Expanded(
+          child: Tap(
+            onTap: _fBusy ? null : onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: primary ? p.ink : null,
+                border: primary ? null : Border.all(color: p.bd),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Tx(label, size: 13, w: primary ? FontWeight.w700 : FontWeight.w600,
+                  color: primary ? p.bg : p.t1, maxLines: 1),
+            ),
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDeco(p),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Tx(_t('xfEditFolderCap', 'PAPKANI TAHRIRLASH'),
+                    size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+              ),
+              _roundBtn('✕', () => setState(() => _fEdit = null), p),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 31, height: 31, alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: p.red.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: CatIcon(cat: name, size: 17.5, color: p.red),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Tx(name, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1)),
+              if (archived)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: p.card2,
+                    border: Border.all(color: p.bd2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Tx(_t('xfArchivedBadge', 'Arxivda'), size: 10, w: FontWeight.w600, color: p.t1),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Center(child: _PulseDots(color: p.t2)),
+            )
+          else if (isBoshqa)
+            Tx(_t('xfBoshqaFixedHint', "«Boshqa» — zaxira papka: aniqlanmagan yozuvlar shu yerga tushadi, tahrirlanmaydi"),
+                size: 12, color: p.t3)
+          else if (missing)
+            Tx(_t('xfFolderNoCatHint', "Bu papka toifalar ro'yxatida topilmadi — tahrirlash uchun internetni tekshiring"),
+                size: 12, color: p.t3)
+          else if (renaming)
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      border: Border.all(color: p.bd),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Center(
+                      child: TextField(
+                        autofocus: true,
+                        controller: _fCtl,
+                        onChanged: (t) => _fName = t,
+                        onSubmitted: (_) => _renameFolder(name),
+                        style: GoogleFonts.inter(fontSize: 13, color: p.ink),
+                        cursorColor: p.ink,
+                        decoration: InputDecoration(
+                          isDense: true, isCollapsed: true, border: InputBorder.none,
+                          hintText: _t('newFolderHint', 'Yangi papka nomi…'),
+                          hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Tap(
+                  onTap: _fBusy ? null : () => _renameFolder(name),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
+                    child: _fBusy
+                        ? _PulseDots(color: p.bg)
+                        : Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            Row(
+              children: [
+                btn(_t('xfRename', "Nomini o'zgartirish"), () {
+                  setState(() {
+                    _fEdit = {...f, 'renaming': true};
+                    _fCtl.text = _fName;
+                    _fCtl.selection = TextSelection.collapsed(offset: _fName.length);
+                  });
+                }, primary: true),
+                const SizedBox(width: 8),
+                btn(
+                  archived ? _t('xfUnarchive', 'Arxivdan qaytarish') : _t('xfArchive', 'Arxivlash'),
+                  () => _archiveFolder(name, !archived),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Tx(
+              archived
+                  ? _t('xfArchivedHint', 'Arxivda: AI taklif qilmaydi, eski yozuvlar saqlanadi')
+                  : _t('xfArchiveHint', "Arxivlash — o'chirish emas: tarix saqlanadi, AI taklif qilmaydi"),
+              size: 11, color: p.t4,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============ YOZUVNI KO'CHIRISH KARTASI (papkadan papkaga) ============
+  Widget _moveCard(Pal p) {
+    final mv = _mv!;
+    final cur = '${mv['cat']}';
+    final loading = _cats == null;
+    final chips = (_cats ?? const <Map<String, dynamic>>[])
+        .where((c) => c['archived'] != true && _norm('${c['name']}') != _norm(cur))
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDeco(p),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Tx(_t('xfMoveCap', "PAPKAGA KO'CHIRISH"),
+                    size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+              ),
+              _roundBtn('✕', () => setState(() => _mv = null), p),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _Dashed(
+            color: p.t5, radius: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(child: Tx('${mv['desc']}', size: 13, w: FontWeight.w500, color: p.ink, maxLines: 1)),
+                  const SizedBox(width: 8),
+                  Tx('${mv['amtTxt']}', size: 13, w: FontWeight.w600, color: p.red),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Tx(_tf('xfMoveFrom', {'cat': cur}, "Hozir: {cat} — qaysi papkaga o'tsin?".replaceAll('{cat}', cur)),
+              size: 11, color: p.t4),
+          const SizedBox(height: 10),
+          if (loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Center(child: _PulseDots(color: p.t2)),
+            )
+          else if (chips.isEmpty)
+            Tx(_t('xfMoveNoCats', "Boshqa faol papka yo'q — internetni tekshiring yoki yangi toifa oching"),
+                size: 12, color: p.t3)
+          else
+            Wrap(
+              spacing: 6, runSpacing: 6,
+              children: [
+                for (final c in chips)
+                  Tap(
+                    onTap: _fBusy ? null : () => _moveTo('${c['name']}'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: p.card2,
+                        border: Border.all(color: p.bd),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Tx('${store.xfEmoji('${c['name']}')} ${c['name']}',
+                          size: 12, w: FontWeight.w500, color: p.ink),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ================= RANGLI INPUT (dizayn: highlight) =================
 // Summa — yashil/qizil (+13% fon), toifa so'zi — card2 fon, buyruq/sana — hair2 fon.
+// RANG IKKI QATLAMDA: (1) lokal kalit so'z heuristikasi — DARHOL taxmin;
+// (2) server /api/expenses/preview (LLM, istalgan til) — 550ms debounce bilan
+// kelib rangni tasdiqlaydi/tuzatadi. Server saqlashda ishlaydigan parser bilan
+// BIR MANBA — input rangi endi yakuniy natijaga zid ko'rsatmaydi.
 class _HlController extends TextEditingController {
+  _HlController() {
+    addListener(_onEdit);
+  }
+
+  // ---- SUMMA: tilga bog'liq EMAS — raqam + ko'p tilli multiplikator + valyuta ----
+  // (server parse.js amountSpans bilan sinxron: ming/минг/тыс/k/к = x1000,
+  // mln/million/млн/миллион/m/м = x1000000). Qisqa k|к|m|м faqat alohida
+  // turganda multiplikator ("5000 kofe"dagi "k" emas — lookahead bilan).
   static final _amtRe = RegExp(
-      r"(\d{1,3}(?:[  .]\d{3})+|\d+)(\s*(?:ming|mln|million))?(\s*so['’ʻ`]?m)?",
+      r"(\d{1,3}(?:[  .]\d{3})+|\d{1,3}(?:,\d{3})+|\d+(?:[.,]\d+)?)"
+      r"(\s*(?:ming[a-z]*|минг[а-яё]*|тыс[а-яё]*|mln[a-z]*|million[a-z]*|milion[a-z]*|млн|миллион[а-яё]*|милион[а-яё]*|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9])))?"
+      r"(\s*(?:so['’ʻ`]?m|сум[а-яё]*|сўм[а-яё]*|uzs))?",
       caseSensitive: false);
   static final _catRe = RegExp(
       r"oziq-ovqat|oziq|tushlik|nonushta|ovqat|bozor|market|taksi|avtobus|metro|benzin|transport|kofe|qahva|kommunal|svet|gaz|internet|telefon|kiyim|xarid\w*|do['’ʻ`]?kon|dori\w*|shifokor|apteka|kino|konsert|sport|zal|fitnes|kitob\w*|papka\w*|oylik|maosh|avans|mijoz\w*|sotuv\w*|biznes|daromad|bonus",
@@ -1085,17 +1696,113 @@ class _HlController extends TextEditingController {
   // (summadan KEYIN keladi — "4 mln oldim", "200 ming berdim" -> OLDINGI summaga).
   // Har summa uchun eng yaqin da'vogar kalit so'z g'olib — shu bilan
   // "oylik oldim 4 mln kreditga 200 ming berdim" da 1-summa yashil, 2-si qizil.
+  // Bu faqat DARHOL taxmin (rus/ingliz/kirill tez-tez uchraydigan so'zlar bilan);
+  // yakuniy rang server LLM preview'idan keladi — lug'atni cheksiz kengaytirish shart emas.
   static final _incNounRe = RegExp(
-      r"\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*",
+      // 'foyda' server INC_NOUN bilan sinxronlandi (rang bugi: lokal taxmin qizil,
+      // server esa kirim derdi — endi ikkala qatlam bir xil)
+      r"\b(oylik|maosh|avans|daromad|bonus|kirim|foyda|salary|income|profit|revenue)\b"
+      r"|mijoz\w*|sotuv\w*|ойлик|маош|даромад|кирим|фойда|аванс|бонус|зарплат[а-яё]*|доход[а-яё]*|мижоз[а-яё]*|сотув[а-яё]*",
       caseSensitive: false);
   static final _incVerbRe = RegExp(
-      r"\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi",
+      // \b anchor: "qaytardi" (u menga qaytardi = kirim) ichida "qaytardim"
+      // (men qaytardim = chiqim) yutilib ketmasin — 1-shaxs endi chiqim ro'yxatida
+      r"\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi\b|qaytardi\b"
+      r"|\breceived\b|\bearned\b|\bgot\b|\bsold\b"
+      r"|олдим|сотдим|келди|тушди|қайтди|получил[а-яё]*|заработал[а-яё]*|пришл[а-яё]*|поступил[а-яё]*|продал[а-яё]*",
       caseSensitive: false);
-  static final _expNounRe = RegExp(r"kredit\w*|xarid\w*|\bqarzga\b",
+  static final _expNounRe = RegExp(
+      r"kredit\w*|xarid\w*|\bqarzga\b|\brent\b|кредит[а-яё]*|аренд[а-яё]*|харид[а-яё]*",
       caseSensitive: false);
   static final _expVerbRe = RegExp(
-      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim",
+      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim|qaytardim|qaytarib\s+berdim"
+      r"|\bspent\b|\bpaid\b|\bbought\b|\bgave\b"
+      r"|бердим|сарфладим|тўладим|туладим|кетди|сотиб\s+олдим|потратил[а-яё]*|купил[а-яё]*|заплатил[а-яё]*|оплатил[а-яё]*|отдал[а-яё]*",
       caseSensitive: false);
+
+  // ---- SERVER PREVIEW: yakuniy rang manbai (saqlashdagi parser bilan bir xil) ----
+  Timer? _debTimer;
+  int _seq = 0;
+  String _lastKey = '';
+  bool _disposed = false;
+  // Kesh statik — field qayta qurilsa ham saqlanadi; qiymat: [[amount, 'in'|'out'], ...]
+  static final Map<String, List<List<dynamic>>> _srvCache = {};
+  List<List<dynamic>>? _srv;
+  String _srvKey = '';
+
+  static final _gapRe = RegExp(r"(\d)[  ](?=\d)");
+  static final _digitRe = RegExp(r"\d");
+
+  // Ko'rinishdagi "400 000" guruh bo'shliqlari tozalanadi (xfSend_ bilan bir xil) —
+  // server so'rovi va kesh kaliti shu.
+  String get _cleanKey =>
+      text.replaceAllMapped(_gapRe, (m) => m[1]!).trim().toLowerCase();
+
+  void _onEdit() {
+    final k = _cleanKey;
+    if (k == _lastKey) return; // selection/composing o'zgarishi — matn o'sha
+    _lastKey = k;
+    _debTimer?.cancel();
+    final hit = _srvCache[k];
+    if (hit != null) {
+      // Kesh — darhol (repaint shu notifikatsiya tsiklining o'zida bo'ladi)
+      _srv = hit;
+      _srvKey = k;
+      return;
+    }
+    if (k.isEmpty || !_digitRe.hasMatch(k)) return; // summasiz matnga so'rov yo'q
+    _debTimer = Timer(const Duration(milliseconds: 550), () => _fetchPreview(k));
+  }
+
+  Future<void> _fetchPreview(String k) async {
+    final id = ++_seq;
+    try {
+      final r = await Api.previewExpense(k);
+      if (!r.ok) return;
+      final list = [
+        for (final e in ((r.data?['amounts'] as List?) ?? const []))
+          [((e as Map)['amount'] as num).round(), '${e['kind']}'],
+      ];
+      _srvCache[k] = list;
+      if (_srvCache.length > 80) _srvCache.remove(_srvCache.keys.first);
+      if (_disposed || id != _seq || _cleanKey != k) return; // eskirgan javob
+      _srv = list;
+      _srvKey = k;
+      notifyListeners(); // rang yangilansin
+    } catch (_) {
+      // oflayn/server xatosi — lokal heuristika rangi qolaveradi
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _debTimer?.cancel();
+    super.dispose();
+  }
+
+  // Match qiymati so'mda — server previewdagi amount bilan solishtirish uchun
+  static final _grpNumRe = RegExp(r"^\d{1,3}(?:[  .]\d{3})+$");
+  static final _grpSepRe = RegExp(r"[  .]");
+  static final _commaNumRe = RegExp(r"^\d{1,3}(?:,\d{3})+$");
+  static int _amtValue(RegExpMatch m) {
+    final raw = m.group(1)!;
+    double v;
+    if (_grpNumRe.hasMatch(raw)) {
+      v = double.parse(raw.replaceAll(_grpSepRe, ''));
+    } else if (_commaNumRe.hasMatch(raw)) {
+      v = double.parse(raw.replaceAll(',', ''));
+    } else {
+      v = double.parse(raw.replaceAll(',', '.'));
+    }
+    final mul = (m.group(2) ?? '').trim().toLowerCase();
+    if (mul.isNotEmpty) {
+      final thousand = mul.startsWith('ming') || mul.startsWith('минг') ||
+          mul.startsWith('тыс') || mul == 'k' || mul == 'к';
+      v *= thousand ? 1000 : 1000000;
+    }
+    return v.round();
+  }
 
   /// Har bir summa (amts — [s, e, 'amt'] ro'yxati) kirimmi? Kalit so'zlar o'z
   /// yo'nalishidagi eng yaqin summaga da'vo qiladi; masofada teng bo'lsa chiqim ustun.
@@ -1173,20 +1880,48 @@ class _HlController extends TextEditingController {
     return kind;
   }
 
+  // Rang qarori: server preview javobi AYNAN shu matnga tegishli bo'lsa — u ustun
+  // (summalar qiymat bo'yicha moslanadi), aks holda lokal heuristika (darhol taxmin).
+  List<bool> _resolveKinds(String t, List<List<dynamic>> amts) {
+    final local = _amtKinds(t, amts);
+    final srv = (_srv != null && _srvKey == _cleanKey) ? _srv! : null;
+    if (srv == null) return local;
+    final used = List<bool>.filled(srv.length, false);
+    return List<bool>.generate(amts.length, (i) {
+      final v = amts[i][3] as int;
+      // 1) tartib bo'yicha to'g'ridan-to'g'ri moslik
+      if (i < srv.length && !used[i] && srv[i][0] == v) {
+        used[i] = true;
+        return srv[i][1] == 'in';
+      }
+      // 2) qiymati teng birinchi ishlatilmagan server yozuvi
+      for (var j = 0; j < srv.length; j++) {
+        if (!used[j] && srv[j][0] == v) {
+          used[j] = true;
+          return srv[j][1] == 'in';
+        }
+      }
+      // 3) mos kelmadi (sanoq farqi) — lokal taxmin
+      return local[i];
+    });
+  }
+
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final p = curPal();
     final t = text;
     if (t.isEmpty) return TextSpan(style: style);
 
-    final ranges = <List<dynamic>>[]; // [s, e, type]
+    final ranges = <List<dynamic>>[]; // [s, e, type, (amt uchun) so'mdagi qiymat]
+    for (final m in _amtRe.allMatches(t)) {
+      if (m.end > m.start) ranges.add([m.start, m.end, 'amt', _amtValue(m)]);
+    }
     void push(RegExp re, String type) {
       for (final m in re.allMatches(t)) {
         if (m.end > m.start) ranges.add([m.start, m.end, type]);
       }
     }
 
-    push(_amtRe, 'amt');
     push(_catRe, 'cat');
     push(_cmdRe, 'cmd');
     push(_dateRe, 'date');
@@ -1202,9 +1937,9 @@ class _HlController extends TextEditingController {
       }
     }
 
-    // Har summa rangi: kalit so'zlar yo'nalish bo'yicha eng yaqin summaga bog'lanadi
+    // Har summa rangi: server preview (shu matnga kelgan bo'lsa) yoki lokal heuristika
     final amts = kept.where((r) => r[2] == 'amt').toList();
-    final amtKinds = _amtKinds(t, amts);
+    final amtKinds = _resolveKinds(t, amts);
 
     final spans = <TextSpan>[];
     var pos = 0;
@@ -1373,6 +2108,9 @@ class _AnimNum extends StatefulWidget {
   final FontWeight weight;
   final Color color;
   final double ls;
+  // true: widget YARATILGANDA ham 0 dan sanab chiqadi (yangi papka summasi) —
+  // false: birinchi ko'rinishda darhol, faqat O'ZGARISHDA sanaydi (balans)
+  final bool fromZero;
   const _AnimNum({
     required this.value,
     required this.prefix,
@@ -1380,6 +2118,7 @@ class _AnimNum extends StatefulWidget {
     required this.weight,
     required this.color,
     this.ls = 0,
+    this.fromZero = false,
   });
 
   @override
@@ -1389,8 +2128,14 @@ class _AnimNum extends StatefulWidget {
 class _AnimNumState extends State<_AnimNum> with SingleTickerProviderStateMixin {
   late final AnimationController _c =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 900), value: 1);
-  late int _from = widget.value;
+  late int _from = widget.fromZero ? 0 : widget.value;
   late int _to = widget.value;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fromZero && widget.value != 0) _c.forward(from: 0);
+  }
 
   // Sekin boshlanib TEZLASHADI (foydalanuvchi so'ragan his) — easeIn
   int _now() {
@@ -1444,7 +2189,9 @@ class _AnimNumState extends State<_AnimNum> with SingleTickerProviderStateMixin 
   }
 }
 
-/// Jonli sparkline — nuqtalar o'zgarганда eski holatdan yangисига silliq o'tadi
+/// Jonli sparkline — har o'zgarishda YANGI shakl boshlanish nuqtasidan oxirgi
+/// nuqtagacha CHIZILIB boradi (draw-on, trim-path), uchida yorqin nuqta yuradi
+/// va oxirgi nuqtada to'xtaydi.
 class _AnimSpark extends StatefulWidget {
   final List<double> pts;
   final Color color;
@@ -1456,25 +2203,13 @@ class _AnimSpark extends StatefulWidget {
 
 class _AnimSparkState extends State<_AnimSpark> with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 550), value: 1);
-  late List<double> _from = widget.pts;
-  late List<double> _to = widget.pts;
-
-  List<double> _now() {
-    final t = Curves.easeOutCubic.transform(_c.value);
-    return [
-      for (var i = 0; i < _to.length; i++)
-        lerpDouble(i < _from.length ? _from[i] : 0, _to[i], t) ?? _to[i],
-    ];
-  }
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 750), value: 1);
 
   @override
   void didUpdateWidget(covariant _AnimSpark old) {
     super.didUpdateWidget(old);
     if (!listEquals(old.pts, widget.pts)) {
-      _from = _now();
-      _to = widget.pts;
-      _c.forward(from: 0);
+      _c.forward(from: 0); // yangi shakl boshidan chizilib boradi
     }
   }
 
@@ -1488,7 +2223,10 @@ class _AnimSparkState extends State<_AnimSpark> with SingleTickerProviderStateMi
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _c,
-      builder: (_, __) => CustomPaint(painter: _Spark(_now(), widget.color)),
+      builder: (_, __) => CustomPaint(
+        painter: _Spark(widget.pts, widget.color,
+            progress: Curves.easeInOutCubic.transform(_c.value)),
+      ),
     );
   }
 }
@@ -1498,11 +2236,12 @@ class _AnimSparkState extends State<_AnimSpark> with SingleTickerProviderStateMi
 class _Spark extends CustomPainter {
   final List<double> pts;
   final Color color;
-  _Spark(this.pts, this.color);
+  final double progress; // 0..1 — chiziq boshidan shu ulushigacha chizilgan
+  _Spark(this.pts, this.color, {this.progress = 1});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (pts.isEmpty) return;
+    if (pts.isEmpty || progress <= 0) return;
     final w = size.width, h = size.height;
     Offset pt(int i) {
       final x = pts.length == 1 ? 0.0 : i / (pts.length - 1) * w;
@@ -1519,9 +2258,23 @@ class _Spark extends CustomPainter {
       if (i == pts.length - 1) line.quadraticBezierTo(b.dx, b.dy, b.dx, b.dy);
     }
 
-    // Chiziq ostidagi maydon — pastga shaffoflashib ketadigan gradient
-    final area = Path.from(line)
-      ..lineTo(w, h)
+    // Draw-on: chiziq boshidan progress ulushigacha kesib olinadi, yorqin
+    // nuqta uchida yuradi va oxirgi nuqtada to'xtaydi
+    var draw = line;
+    var tip = pt(pts.length - 1);
+    if (progress < 1) {
+      final ms = line.computeMetrics().toList();
+      if (ms.isNotEmpty) {
+        final m = ms.first;
+        final len = m.length * progress;
+        draw = m.extractPath(0, len);
+        tip = m.getTangentForOffset(len)?.position ?? tip;
+      }
+    }
+
+    // Chizilgan qism ostidagi maydon — pastga shaffoflashib ketadigan gradient
+    final area = Path.from(draw)
+      ..lineTo(tip.dx, h)
       ..lineTo(0, h)
       ..close();
     canvas.drawPath(
@@ -1536,7 +2289,7 @@ class _Spark extends CustomPainter {
 
     // Chiziqning o'zi — chapdan o'ngga quyuqlashadigan gradient stroke
     canvas.drawPath(
-      line,
+      draw,
       Paint()
         ..shader = LinearGradient(
           colors: [color.withValues(alpha: .25), color.withValues(alpha: .85)],
@@ -1547,14 +2300,39 @@ class _Spark extends CustomPainter {
         ..strokeJoin = StrokeJoin.round,
     );
 
-    // Oxirgi nuqta — kichik yorqin doira (jonli his)
-    final endPt = pt(pts.length - 1);
-    canvas.drawCircle(endPt, 2.2, Paint()..color = color.withValues(alpha: .9));
-    canvas.drawCircle(endPt, 4.2, Paint()..color = color.withValues(alpha: .18));
+    // Uch nuqtasi — kichik yorqin doira (chizilish davomida birga yuradi)
+    canvas.drawCircle(tip, 2.2, Paint()..color = color.withValues(alpha: .9));
+    canvas.drawCircle(tip, 4.2, Paint()..color = color.withValues(alpha: .18));
   }
 
   @override
-  bool shouldRepaint(_Spark old) => old.pts != pts || old.color != color;
+  bool shouldRepaint(_Spark old) =>
+      old.pts != pts || old.color != color || old.progress != progress;
+}
+
+/// Fly-chip ortidagi zarracha izi — so'nib boruvchi glow nuqtalari
+class _TrailPaint extends CustomPainter {
+  final List<List<double>> dots; // [x, y, alpha, radius]
+  final Color color;
+  _TrailPaint(this.dots, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final d in dots) {
+      canvas.drawCircle(
+        Offset(d[0], d[1]), d[3],
+        Paint()..color = color.withValues(alpha: d[2].clamp(0.0, 1.0)),
+      );
+      // Yumshoq halo
+      canvas.drawCircle(
+        Offset(d[0], d[1]), d[3] * 2.2,
+        Paint()..color = color.withValues(alpha: (d[2] * .35).clamp(0.0, 1.0)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TrailPaint old) => true;
 }
 
 /// Shtrixli (dashed) ramka — dizayndagi 1.5px dashed

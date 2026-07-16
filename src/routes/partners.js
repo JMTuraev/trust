@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
+// Obuna read-only qoidasi: muddati tugagan foydalanuvchi YANGI qiymat yaratolmaydi (402 SUB_EXPIRED)
+import { requireActiveSub } from '../lib/subscription.js';
 import { normalizePhone } from '../lib/phone.js';
 import { config } from '../config.js';
 import { logLinkEvent, displayName, notifEnabled } from '../lib/links.js';
+import { canonicalDir } from '../lib/ledger.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -19,21 +22,42 @@ async function balanceOf(partnerId) {
 }
 
 // Ko'p hamkor balansini BITTA so'rovda — ro'yxat uchun N+1 o'rniga.
-// Barcha operatsiyalar bir marta olinadi, kodda partner_id + VALYUTA bo'yicha yig'iladi.
+// IKKI daftar birga: eski 'operations' (delta yig'indisi) + yangi qarz daftari
+// 'debts' (FAOL qarzlar qoldig'i, owner nuqtai nazarida). Ledger'da yozilgan qarz
+// hamkor balansida (ro'yxat, eslatma matni) ko'rinmay qolmasin.
 // Natija: Map<partnerId, {UZS: sum, USD: sum, ...}> — faqat nolga teng bo'lmagan valyutalar.
 async function balancesFor(partnerIds) {
   const map = new Map(partnerIds.map((id) => [id, {}]));
   if (!partnerIds.length) return map;
-  const { data } = await supabaseAdmin
-    .from('operations')
-    .select('partner_id, delta, currency, status')
-    .in('partner_id', partnerIds)
-    .in('status', ['active', 'archived']);
-  for (const o of data || []) {
+  const [ops, debts, prs] = await Promise.all([
+    supabaseAdmin
+      .from('operations')
+      .select('partner_id, delta, currency, status')
+      .in('partner_id', partnerIds)
+      .in('status', ['active', 'archived']),
+    supabaseAdmin
+      .from('debts')
+      .select('partner_id, direction, created_by, amount, paid, currency')
+      .in('partner_id', partnerIds)
+      .eq('kind', 'debt').eq('status', 'active'),
+    supabaseAdmin.from('partners').select('id, owner_id').in('id', partnerIds),
+  ]);
+  for (const o of ops.data || []) {
     const cur = o.currency || 'UZS';
     const b = map.get(o.partner_id) || {};
     b[cur] = (b[cur] || 0) + Number(o.delta);
     map.set(o.partner_id, b);
+  }
+  const ownerOf = new Map((prs.data || []).map((p) => [p.id, p.owner_id]));
+  for (const d of debts.data || []) {
+    const remaining = Math.max(0, Number(d.amount) - Number(d.paid || 0));
+    if (!remaining) continue;
+    const cur = d.currency || 'UZS';
+    // direction created_by nuqtai nazarida — owner nuqtai nazariga normallashtiramiz
+    const dir = canonicalDir(d, ownerOf.get(d.partner_id));
+    const b = map.get(d.partner_id) || {};
+    b[cur] = (b[cur] || 0) + (dir === 'toMe' ? remaining : -remaining);
+    map.set(d.partner_id, b);
   }
   // Yopilgan (nolga teng) valyutalarni olib tashlaymiz — javob toza bo'lsin
   for (const b of map.values()) {
@@ -157,11 +181,12 @@ async function notifyLinkNew(sellerId, cpId, partnerId) {
 }
 
 // POST /api/partners  { name, counterparty_phone }
-router.post('/', async (req, res, next) => {
+router.post('/', requireActiveSub, async (req, res, next) => {
   try {
-    const { name, counterparty_phone } = req.body || {};
-    const phone = normalizePhone(counterparty_phone);
+    const name = String(req.body?.name || '').trim();
+    const phone = normalizePhone(req.body?.counterparty_phone);
     if (!name || !phone) return res.status(400).json({ success: false, error: 'name va telefon kerak' });
+    if (name.length > 80) return res.status(400).json({ success: false, error: 'Ism juda uzun (maks. 80 belgi)' });
 
     // Shu raqam bilan link bormi? Rad etilganini sotuvchi qayta so'rov bilan tiklay olmaydi.
     const { data: existing } = await supabaseAdmin
@@ -218,7 +243,7 @@ router.get('/:id', async (req, res, next) => {
 
 // POST /api/partners/:id/move  { new_phone } — xato kiritilgan raqamni to'g'rilash:
 // yozuvlar yangi raqamga ko'chadi (yangi bog'lanish, yangi notification), eski qator arxivlanadi
-router.post('/:id/move', async (req, res, next) => {
+router.post('/:id/move', requireActiveSub, async (req, res, next) => {
   try {
     const phone = normalizePhone(req.body?.new_phone);
     if (!phone) return res.status(400).json({ success: false, error: 'new_phone kerak' });
@@ -259,6 +284,15 @@ router.post('/:id/move', async (req, res, next) => {
       .update({ partner_id: fresh.id, counterparty_id: guard.cp?.id ?? null, updated_at: new Date().toISOString() })
       .eq('partner_id', old.id);
 
+    // Qarz daftari (debts) va chat tarixi (messages) ham yangi raqamga ko'chadi —
+    // aks holda yozuvlar arxivlangan eski qatorda "yo'qolib" qolardi.
+    await supabaseAdmin.from('debts')
+      .update({ partner_id: fresh.id, updated_at: new Date().toISOString() })
+      .eq('partner_id', old.id);
+    await supabaseAdmin.from('messages')
+      .update({ partner_id: fresh.id })
+      .eq('partner_id', old.id);
+
     // Eski qator arxivlanadi (ma'lumot o'chirilmaydi)
     await supabaseAdmin.from('partners')
       .update({ archived: true, updated_at: new Date().toISOString() }).eq('id', old.id);
@@ -270,7 +304,7 @@ router.post('/:id/move', async (req, res, next) => {
 });
 
 // POST /api/partners/:id/remind — eslatma (faqat qabul qilingan bog'lanishda, 3 soat cooldown)
-router.post('/:id/remind', async (req, res, next) => {
+router.post('/:id/remind', requireActiveSub, async (req, res, next) => {
   try {
     const { data: p } = await supabaseAdmin.from('partners').select('*').eq('id', req.params.id).maybeSingle();
     if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });

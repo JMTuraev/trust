@@ -10,6 +10,7 @@ class RejectedLinksScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     final rows = (v['rejRows'] as List).cast<Map<String, dynamic>>();
 
@@ -22,15 +23,15 @@ class RejectedLinksScreen extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
-          child: Tx("Rad etilgan bog'lanishlar", size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
+          child: Tx(L0['rejLinksTitle'] as String, size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-          child: Tx("Tiklasangiz — yozuvlar va balans qayta ochiladi", size: 12.5, color: p.t3),
+          child: Tx(L0['rejLinksSub'] as String, size: 12.5, color: p.t3),
         ),
         Expanded(
           child: rows.isEmpty
-              ? Center(child: Tx("Rad etilgan bog'lanish yo'q", size: 13.5, color: p.t3))
+              ? Center(child: Tx(L0['rejLinksEmpty'] as String, size: 13.5, color: p.t3))
               : ListView(
                   padding: const EdgeInsets.only(top: 6, bottom: 24),
                   children: [
@@ -69,7 +70,7 @@ class RejectedLinksScreen extends StatelessWidget {
                                   color: p.ink,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: Tx('Tiklash', size: 12.5, w: FontWeight.w600, color: p.bg),
+                                child: Tx(L0['btnRestore'] as String, size: 12.5, w: FontWeight.w600, color: p.bg),
                               ),
                             ),
                           ],

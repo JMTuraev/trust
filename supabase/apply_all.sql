@@ -1,4 +1,10 @@
--- apply_all.sql = 001+002+003+004 (bitta paste uchun, idempotent)
+-- apply_all.sql = 001..010 birlashtirilgan (avtomatik generatsiya).
+-- Supabase Dashboard -> SQL Editor'da bir marta ishga tushiring.
+
+
+-- ============================================================
+-- 001_init.sql
+-- ============================================================
 -- trust (oldi-berdi) — boshlang'ich sxema
 -- Supabase Dashboard -> SQL Editor'da ishga tushiring
 
@@ -118,6 +124,11 @@ create policy "own payments read" on public.payments
       where d.id = debt_id and (auth.uid() = d.lender_id or auth.uid() = d.borrower_id)
     )
   );
+
+
+-- ============================================================
+-- 002_trust_model.sql
+-- ============================================================
 -- Trust — prototipга mos ma'lumot modeli
 -- profiles allaqachon 001_init.sql da yaratilgan (id, phone, full_name, avatar_url)
 
@@ -243,6 +254,11 @@ create policy "own limits" on public.limits for select using (auth.uid() = user_
 
 drop policy if exists "own notifs" on public.notifications;
 create policy "own notifs" on public.notifications for select using (auth.uid() = user_id);
+
+
+-- ============================================================
+-- 003_v2_fixes.sql
+-- ============================================================
 -- 003 — v2 tuzatishlar: statuslar, hamkor bog'lash trigger, eslatma sender,
 -- eski (v1) jadvallarni olib tashlash. Supabase SQL Editor'da ishga tushiring.
 
@@ -307,6 +323,9 @@ drop table if exists public.debts cascade;
 create index if not exists otp_expires_idx on public.otp_codes(expires_at);
 
 
+-- ============================================================
+-- 004_link_model.sql
+-- ============================================================
 -- 004 — Bog'lanish (Link) modeli: operatsiya darajasidagi tasdiq olib tashlanadi,
 -- o'rniga bir martalik bog'lanish tasdig'i (pending/accepted/rejected) kiritiladi.
 -- Idempotent. Supabase SQL Editor'da ishga tushiring.
@@ -490,3 +509,358 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+
+-- ============================================================
+-- 005_xarajat_ai.sql
+-- ============================================================
+-- 005: Xarajat AI qatlami — XOTIRA-ovoz-va-kategoriya.md 2-bosqich
+-- Toifa CRUD + o'z-o'zini to'ldiruvchi kalit so'z lug'ati + tuzatishlar (few-shot).
+-- Idempotent — qayta yurgizish xavfsiz.
+
+-- 1. TOIFALAR (per-user; baza 7 tasi birinchi so'rovda backend tomonidan seed qilinadi)
+create table if not exists public.categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  is_base boolean not null default false,    -- baza toifa (seed) — belgilash uchun
+  archived boolean not null default false,   -- o'chirish yo'q, arxivlash bor (tarix buzilmasin)
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+create index if not exists cat_user_idx on public.categories(user_id) where not archived;
+
+-- 2. KALIT SO'Z LUG'ATI (o'z-o'zini to'ldiruvchi): so'z -> toifa, per-user
+-- Har tasdiqlangan yozuvdan to'ldiriladi. "Korzinka" bir marta to'g'irlandi ->
+-- keyingi safar LLM'siz to'g'ri tushadi. Global foyda: barcha userlar bo'yicha agregat.
+create table if not exists public.word_map (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  word text not null,                        -- kichik harfda, normalizatsiya qilingan
+  category text not null,
+  hits int not null default 1,               -- necha marta shu juftlik tasdiqlangan
+  updated_at timestamptz not null default now(),
+  primary key (user_id, word, category)
+);
+create index if not exists wm_word_idx on public.word_map(word);
+
+-- 3. TUZATISHLAR (few-shot xotira): user LLM natijasini o'zgartirgan holatlar.
+-- LLM promptiga oxirgi N ta misol bo'lib qaytadi — tizim foydalanuvchiga moslashadi.
+create table if not exists public.corrections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  text text not null,                        -- asl aytilgan/yozilgan gap
+  parsed jsonb not null,                     -- AI taklifi
+  final jsonb not null,                      -- user tasdiqlagan yakuniy holat
+  created_at timestamptz not null default now()
+);
+create index if not exists corr_user_idx on public.corrections(user_id, created_at desc);
+
+-- 4. expenses'ga AI meta ustunlari
+alter table public.expenses add column if not exists source text not null default 'text'
+  check (source in ('text','voice'));
+alter table public.expenses add column if not exists confidence numeric(3,2);
+alter table public.expenses add column if not exists raw_text text;  -- asl gap (audit/o'rganish)
+
+-- RLS
+alter table public.categories enable row level security;
+alter table public.word_map enable row level security;
+alter table public.corrections enable row level security;
+
+drop policy if exists "own categories" on public.categories;
+create policy "own categories" on public.categories for select using (auth.uid() = user_id);
+
+drop policy if exists "own word_map" on public.word_map;
+create policy "own word_map" on public.word_map for select using (auth.uid() = user_id);
+
+drop policy if exists "own corrections" on public.corrections;
+create policy "own corrections" on public.corrections for select using (auth.uid() = user_id);
+
+
+-- ============================================================
+-- 006_indexes_fk_ondelete.sql
+-- ============================================================
+-- 006: telefon qidiruv indeksi + FK ON DELETE
+-- Maqsad:
+--   1) Ro'yxatdan o'tmagan kontragentni telefon bo'yicha qidirish (otp.js linkPartners,
+--      004 trigger, POST /partners dublikat tekshiruvi) — full-scan o'rniga indeks.
+--   2) Profil/akkaunt o'chirilganda bog'liq yozuvlar o'chishni BLOKLAMASIN (RESTRICT o'rniga
+--      SET NULL): bog'lanish/audit maydonlari NULL bo'ladi, tarix (operatsiya/xarajat) saqlanadi.
+-- Idempotent: qayta ishga tushirilsa xato bermaydi (drop ... if exists / create ... if not exists).
+
+-- 1) Qisman indeks: aynan so'rov predikatiga mos (counterparty_id is null bo'lgan pending qatorlar)
+create index if not exists partners_cp_phone_idx
+  on public.partners (counterparty_phone)
+  where counterparty_id is null;
+
+-- 2) FK'larni ON DELETE SET NULL ga o'tkazish -------------------------------------------------
+
+-- partners.counterparty_id (nullable) — bog'lanish uziladi, sotuvchi daftari qoladi
+alter table public.partners drop constraint if exists partners_counterparty_id_fkey;
+alter table public.partners
+  add constraint partners_counterparty_id_fkey
+  foreign key (counterparty_id) references public.profiles(id) on delete set null;
+
+-- operations.counterparty_id (nullable)
+alter table public.operations drop constraint if exists operations_counterparty_id_fkey;
+alter table public.operations
+  add constraint operations_counterparty_id_fkey
+  foreign key (counterparty_id) references public.profiles(id) on delete set null;
+
+-- operations.created_by (002'da NOT NULL) — SET NULL uchun avval nullable qilamiz.
+-- Muallif o'chsa ham operatsiya yozuvi (dalil) saqlanishi kerak.
+alter table public.operations alter column created_by drop not null;
+alter table public.operations drop constraint if exists operations_created_by_fkey;
+alter table public.operations
+  add constraint operations_created_by_fkey
+  foreign key (created_by) references public.profiles(id) on delete set null;
+
+-- op_history.changed_by (nullable) — audit maydoni
+alter table public.op_history drop constraint if exists op_history_changed_by_fkey;
+alter table public.op_history
+  add constraint op_history_changed_by_fkey
+  foreign key (changed_by) references public.profiles(id) on delete set null;
+
+-- edit_requests.requested_by (002'da NOT NULL) — nullable + SET NULL
+alter table public.edit_requests alter column requested_by drop not null;
+alter table public.edit_requests drop constraint if exists edit_requests_requested_by_fkey;
+alter table public.edit_requests
+  add constraint edit_requests_requested_by_fkey
+  foreign key (requested_by) references public.profiles(id) on delete set null;
+
+
+-- ============================================================
+-- 007_messages.sql
+-- ============================================================
+-- 007 — REAL chat: matn va ovozli xabarlar (messages jadvali + voice storage bucket).
+-- Huquq KODDA tekshiriladi (service_role RLS chetlab o'tadi): owner yoki accepted counterparty.
+-- Idempotent. Supabase SQL Editor'da ishga tushiring.
+
+-- ============================================================
+-- 1. MESSAGES: hamkor (partner/link) doirasidagi yozishmalar
+-- ============================================================
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  partner_id uuid not null references public.partners(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id),
+  kind text not null check (kind in ('text','audio')),
+  body text,                -- matn xabari (kind='text')
+  audio_path text,          -- storage'dagi yo'l: <partnerId>/<uuid>.m4a (kind='audio')
+  duration_sec int,         -- ovozli xabar davomiyligi (soniya)
+  created_at timestamptz default now(),
+  read_at timestamptz       -- qarshi tomon o'qigan payt (null = o'qilmagan)
+);
+
+-- Polling (after=<iso>) va tarix uchun
+create index if not exists messages_partner_created_idx
+  on public.messages(partner_id, created_at);
+-- O'qilmagan hisoblagich uchun qisman indeks
+create index if not exists messages_unread_idx
+  on public.messages(partner_id) where read_at is null;
+
+alter table public.messages enable row level security;
+
+-- ============================================================
+-- 2. STORAGE: ovozli xabarlar uchun yopiq bucket (signed URL bilan o'qiladi)
+-- ============================================================
+insert into storage.buckets (id, name, public) values ('voice','voice', false) on conflict do nothing;
+
+-- ============================================================
+-- 3. NOTIFICATIONS: yangi 'msg' turi (004 dagi ro'yxatga qo'shiladi)
+-- ============================================================
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in ('req','ok','rem','edit','rej','link_new','link_acc','link_rej','op_new','msg'));
+
+
+-- ============================================================
+-- 008_profile_lifecycle.sql
+-- ============================================================
+-- 008: profil hayot sikli — soft-delete + trial/premium maydonlari
+-- Maqsad:
+--   1) deleted_at — App Store/Play "akkauntni o'chirish" talabi uchun SOFT delete.
+--      Ma'lumotlar O'CHIRILMAYDI (link modeli — qarshi tomonda daftar saqlanib qoladi),
+--      qayta kirishda (OTP tasdig'ida, src/services/otp.js) deleted_at=null bilan tiklanadi.
+--   2) premium_until — pullik obuna tugash vaqti (to'lov integratsiyasi keyinroq ulanadi).
+--   Eslatma: trial uchun alohida ustun YO'Q — trial_ends_at = created_at + 7 kun,
+--   API javobida hisoblanadi (profiles.created_at 001 migratsiyada default now() bilan mavjud).
+-- Idempotent: qayta ishga tushirilsa xato bermaydi.
+
+alter table public.profiles add column if not exists deleted_at timestamptz;
+alter table public.profiles add column if not exists premium_until timestamptz;
+
+
+-- ============================================================
+-- 009_debts.sql
+-- ============================================================
+-- 009 — Qarz daftari (ledger) modeli.
+-- Har qarz/qaytarish/hisob-kitob ALOHIDA yozuv (netting yo'q), ikki tomonlama tasdiq
+-- (istisno: oneSided = off-Trust, tasdiqsiz darhol kuchga kiradi).
+-- YANGI 'debts' jadval — eski 'operations' jadvaliga TEGILMAYDI (u link-model uchun ishlatiladi).
+-- Eski v1 'debts' jadvali 003 migratsiyada drop qilingan — nom bo'sh.
+-- Idempotent. Supabase SQL Editor'da ishga tushiring.
+
+-- ============================================================
+-- 1. DEBTS: qarz daftari yozuvlari
+--    kind: debt (qarz) | repay (qaytarish) | settle (hisob-kitob)
+--    direction (faqat debt): 'toMe' (u menga qarzdor) | 'fromMe' (men unga) — created_by nuqtai nazaridan
+--    prov: twoSided (ikki tomonlama tasdiq) | oneSided (off-Trust, tasdiqsiz)
+-- ============================================================
+create table if not exists public.debts (
+  id uuid primary key default gen_random_uuid(),
+  partner_id uuid not null references public.partners(id) on delete cascade,
+  kind text not null check (kind in ('debt','repay','settle')),
+  direction text check (direction in ('toMe','fromMe')),
+  created_by uuid not null references public.profiles(id),
+  amount bigint not null check (amount > 0),
+  currency text not null default 'UZS' check (currency in ('UZS','USD','EUR','RUB')),
+  acted_at date not null default current_date,     -- amal sanasi (backdating mumkin, kelajak taqiq)
+  due date,                                         -- faqat debt (o'tmish taqiq)
+  note text,
+  status text not null check (status in ('pending','active','closed','rejected','cancelled','ok','disputed')),
+  paid bigint not null default 0,                   -- faqat debt: jami yopilgan (<= amount)
+  forgiven bigint not null default 0,               -- faqat debt: shundan kechilgani
+  reason text check (reason in ('returned','forgiven')),   -- yopilishda
+  ref_id uuid references public.debts(id) on delete set null,  -- repay/settle -> tegishli debt.id
+  prov text not null default 'twoSided' check (prov in ('twoSided','oneSided')),
+  pending_edit jsonb,                               -- faol qarzning tasdiqlanmagan taxriri {amount,due,note,requested_at}
+  under_review boolean not null default false,      -- join'dan keyin ko'rib chiqish navbatida
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Tahrir tarixi (versions) — alohida jadval
+create table if not exists public.debt_versions (
+  id uuid primary key default gen_random_uuid(),
+  debt_id uuid not null references public.debts(id) on delete cascade,
+  amount bigint,
+  due date,
+  note text,
+  edited_at timestamptz default now()
+);
+
+-- Indekslar
+create index if not exists debts_partner_created_idx on public.debts(partner_id, created_at);
+create index if not exists debts_partner_open_idx on public.debts(partner_id) where status in ('active','pending');
+create index if not exists debts_ref_idx on public.debts(ref_id);
+create index if not exists debt_versions_debt_idx on public.debt_versions(debt_id, edited_at);
+
+-- RLS yoqiladi (backend service_role bilan ishlaydi — RLS chetlab o'tadi; huquq KODDA tekshiriladi,
+-- klientlar to'g'ridan-to'g'ri kira olmasin). Policy'lar yo'q — boshqa jadvallardagi naqsh bilan bir xil.
+alter table public.debts enable row level security;
+alter table public.debt_versions enable row level security;
+
+-- ============================================================
+-- 2. NOTIFICATIONS: qarz daftari turlari (mavjud ro'yxatni BUZMASDAN kengaytirish)
+--    Mavjud (004+007): req,ok,rem,edit,rej,link_new,link_acc,link_rej,op_new,msg
+--    Qo'shiladi: debt_new,debt_confirm,debt_reject,repay_new,settle_new,edit_req,review_req
+-- ============================================================
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in (
+    'req','ok','rem','edit','rej','link_new','link_acc','link_rej','op_new','msg',
+    'debt_new','debt_confirm','debt_reject','repay_new','settle_new','edit_req','review_req'
+  ));
+
+
+-- ============================================================
+-- 010_circles.sql
+-- ============================================================
+-- 010 — Circles (guruhli navbatli jamg'arma / ROSCA) modeli.
+-- Ko'p foydalanuvchili, server-avtoritar. Har a'zoning har round'dagi to'lovi ALOHIDA yozuv;
+-- ikki tomonlama: to'lovchi 'to'ladim' → oluvchi 'oldim' → round yopiladi (dalil).
+-- RLS yoqiladi, policy YO'Q — backend service_role bilan ishlaydi, huquq KODDA tekshiriladi
+-- (debts modeli bilan bir xil naqsh). Idempotent. Supabase SQL Editor'da ishga tushiring.
+
+-- ============================================================
+-- 1. CIRCLES — doira
+-- ============================================================
+create table if not exists public.circles (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles(id),      -- yaratuvchi/admin
+  name text not null,
+  amount bigint not null check (amount > 0),                  -- har round bir a'zo badali
+  currency text not null default 'UZS' check (currency in ('UZS','USD','EUR','RUB','GBP','KZT')),
+  frequency text not null default 'monthly' check (frequency in ('monthly','custom')),
+  payout_order text not null default 'inTurn' check (payout_order in ('inTurn','random','iPick')),
+  status text not null default 'active' check (status in ('active','complete')),
+  current_round int not null default 1,                       -- 1-based joriy round
+  period text,                                                -- yakunlangan ko'rinish uchun ("Jan–May")
+  join_token text unique default encode(gen_random_bytes(9), 'hex'),  -- ulashiladigan taklif havolasi
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- ============================================================
+-- 2. CIRCLE_MEMBERS — a'zolar (real user yoki telefon bo'yicha taklif)
+--    status: active (qo'shilgan) | invited (kutilmoqda) | declined
+-- ============================================================
+create table if not exists public.circle_members (
+  id uuid primary key default gen_random_uuid(),
+  circle_id uuid not null references public.circles(id) on delete cascade,
+  user_id uuid references public.profiles(id),                -- qo'shilganda to'ldiriladi
+  invited_phone text,                                         -- telefon bo'yicha taklif (raqamsiz)
+  display_name text not null,
+  payout_position int not null,                              -- 1-based: qaysi round'da oladi
+  is_admin boolean not null default false,
+  status text not null default 'active' check (status in ('active','invited','declined')),
+  joined_at timestamptz default now(),
+  unique (circle_id, payout_position)
+);
+create index if not exists circle_members_circle_idx on public.circle_members(circle_id);
+create index if not exists circle_members_user_idx on public.circle_members(user_id) where user_id is not null;
+create index if not exists circle_members_phone_idx on public.circle_members(invited_phone) where invited_phone is not null;
+
+-- ============================================================
+-- 3. CIRCLE_ROUNDS — roundlar
+--    status: done | current | upcoming
+-- ============================================================
+create table if not exists public.circle_rounds (
+  id uuid primary key default gen_random_uuid(),
+  circle_id uuid not null references public.circles(id) on delete cascade,
+  idx int not null,                                          -- 1-based
+  recipient_member_id uuid not null references public.circle_members(id) on delete cascade,
+  due_date text,                                            -- "Jul 20" ko'rinishida (yoki ISO)
+  status text not null default 'upcoming' check (status in ('done','current','upcoming')),
+  receipt_confirmed boolean not null default false,
+  created_at timestamptz default now(),
+  unique (circle_id, idx)
+);
+create index if not exists circle_rounds_circle_idx on public.circle_rounds(circle_id, idx);
+
+-- ============================================================
+-- 4. CIRCLE_PAYMENTS — har round, har a'zoning to'lovi (ikki tomonlama)
+--    status: pending (kutilmoqda) | paid (to'lovchi belgiladi) | confirmed (oluvchi tasdiqladi)
+-- ============================================================
+create table if not exists public.circle_payments (
+  id uuid primary key default gen_random_uuid(),
+  round_id uuid not null references public.circle_rounds(id) on delete cascade,
+  member_id uuid not null references public.circle_members(id) on delete cascade,
+  amount bigint not null check (amount > 0),
+  status text not null default 'pending' check (status in ('pending','paid','confirmed')),
+  paid_at timestamptz,
+  confirmed_at timestamptz,
+  created_at timestamptz default now(),
+  unique (round_id, member_id)
+);
+create index if not exists circle_payments_round_idx on public.circle_payments(round_id);
+
+-- ============================================================
+-- RLS (policy yo'q — service_role backend, huquq kodda)
+-- ============================================================
+alter table public.circles enable row level security;
+alter table public.circle_members enable row level security;
+alter table public.circle_rounds enable row level security;
+alter table public.circle_payments enable row level security;
+
+-- ============================================================
+-- 5. NOTIFICATIONS — circle turlari + circle_id (tap manzili uchun)
+-- ============================================================
+alter table public.notifications add column if not exists circle_id uuid references public.circles(id) on delete cascade;
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in (
+    'req','ok','rem','edit','rej','link_new','link_acc','link_rej','op_new','msg',
+    'debt_new','debt_confirm','debt_reject','repay_new','settle_new','edit_req','review_req',
+    'circle_invite','circle_turn','circle_paid','circle_confirm','circle_due','circle_joined'
+  ));
+

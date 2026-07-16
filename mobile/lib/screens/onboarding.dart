@@ -159,7 +159,7 @@ class OnboardingScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              InkBtn(label: L0['cont'] as String, h: 52, onTap: () => v['phoneNext']()),
+              InkBtn(label: L0['cont'] as String, h: 52, onTap: () => v['phoneNext'](), loading: v['busy'] == 'phone'),
             ],
           ),
         ),
@@ -169,6 +169,9 @@ class OnboardingScreen extends StatelessWidget {
 
   // 0c · Tasdiqlash kodi
   Widget _otp(Map<String, dynamic> v, Pal p, Map<String, dynamic> L0) {
+    // Prototip (template 1357): "{{ otpPhone }} raqamiga yuborildi".
+    // 'otpSentTo' l10n kaliti hali qo'shilmagan bo'lsa — faqat raqam (regressiyasiz fallback).
+    final sentTo = (L0['otpSentTo'] as String?)?.replaceAll('{p}', '${v['otpPhone']}') ?? '${v['otpPhone']}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -185,7 +188,7 @@ class OnboardingScreen extends StatelessWidget {
               children: [
                 Tx(L0['otpTitle'] as String, size: 24, w: FontWeight.w700, color: p.ink, ls: -0.4),
                 const SizedBox(height: 8),
-                Tx('${v['otpPhone']}', size: 13.5, w: FontWeight.w600, color: p.t2, maxLines: 1, tab: true),
+                Tx(sentTo, size: 13.5, w: FontWeight.w600, color: p.t2, maxLines: 1, tab: true),
                 const SizedBox(height: 28),
                 Center(
                   child: CodeBoxes(
@@ -200,7 +203,7 @@ class OnboardingScreen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Tx(v['L']['otpDemo'] as String, size: 12, color: p.t4),
                 const SizedBox(height: 24),
-                InkBtn(label: L0['confirm'] as String, h: 52, onTap: () => v['otpConfirm']()),
+                InkBtn(label: L0['confirm'] as String, h: 52, onTap: () => v['otpConfirm'](), loading: v['busy'] == 'otp'),
               ],
             ),
           ),

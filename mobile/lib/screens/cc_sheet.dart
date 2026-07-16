@@ -10,6 +10,7 @@ class CcSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     return SheetShell(
       onClose: () => v['ccClose'](),
@@ -20,7 +21,7 @@ class CcSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Tx('Davlat kodi', size: 18, w: FontWeight.w700, color: p.ink),
+            child: Tx(L0['countryCode'] as String, size: 18, w: FontWeight.w700, color: p.ink),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
@@ -35,7 +36,7 @@ class CcSheet extends StatelessWidget {
               child: StoreField(
                 value: v['ccSearch'],
                 onChanged: (t) => v['onCcSearch'](t),
-                hint: 'Qidirish',
+                hint: L0['searchPh'] as String,
                 style: GoogleFonts.inter(fontSize: 14, color: p.ink),
               ),
             ),

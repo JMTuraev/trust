@@ -11,6 +11,7 @@ class NewTxSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final Pal p = curPal();
     final types = (v['types'] as List).cast<Map<String, dynamic>>();
     final curs = (v['curs'] as List).cast<Map<String, dynamic>>();
@@ -42,13 +43,13 @@ class NewTxSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 7),
-                  Tx('${v['sheetFixedName']} uchun', size: 12.5, w: FontWeight.w600, color: p.ink),
+                  Tx(store.Lf('forX', {'name': '${v['sheetFixedName']}'}), size: 12.5, w: FontWeight.w600, color: p.ink),
                 ],
               ),
             ),
           if (v['sheetClientMode'] == true) ...[
             const SizedBox(height: 20),
-            const Cap('HAMKOR'),
+            Cap(L0['capPartner'] as String),
             const SizedBox(height: 10),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -63,7 +64,7 @@ class NewTxSheet extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
-          const Cap('TURI'),
+          Cap(L0['capType'] as String),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _typeBtn(types[0])),
@@ -77,7 +78,7 @@ class NewTxSheet extends StatelessWidget {
             Expanded(child: _typeBtn(types[3])),
           ]),
           const SizedBox(height: 20),
-          const Cap('SUMMA'),
+          Cap(L0['capAmount'] as String),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -134,7 +135,7 @@ class NewTxSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          const Cap('IZOH'),
+          Cap(L0['capNote'] as String),
           const SizedBox(height: 10),
           Container(
             height: 44,
@@ -147,7 +148,7 @@ class NewTxSheet extends StatelessWidget {
             child: StoreField(
               value: v['formNote'],
               onChanged: (t) => v['onNote'](t),
-              hint: 'Masalan: mol savdosi uchun',
+              hint: L0['notePh'] as String,
               style: GoogleFonts.inter(fontSize: 14, color: p.ink),
             ),
           ),
@@ -168,7 +169,7 @@ class NewTxSheet extends StatelessWidget {
                 const SizedBox(width: 7),
                 Expanded(
                   child: Tx(
-                    "Tanlangan valyuta yozuvning ikkala tomonida ham bir xil ko'rinadi",
+                    L0['twoSidedCur'] as String,
                     size: 11,
                     color: p.t3,
                     lh: 15.4,
@@ -178,7 +179,7 @@ class NewTxSheet extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 24),
-          InkBtn(label: v['sheetBtnLabel'], onTap: () => v['createTx']()),
+          InkBtn(label: v['sheetBtnLabel'], onTap: () => v['createTx'](), loading: v['busy'] == 'createTx'),
           const SizedBox(height: 12),
           Center(
             child: Tx(v['sheetHint'], size: 11.5, color: p.t4, lh: 17.25, align: TextAlign.center),

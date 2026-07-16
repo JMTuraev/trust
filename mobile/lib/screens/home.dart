@@ -2,6 +2,7 @@
 // Arxiv endi headerdagi tugma orqali alohida ekranda (screens/archive.dart).
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../flags.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
@@ -402,8 +403,8 @@ class _SwipeRowState extends State<_SwipeRow> {
             ),
           ),
           const SizedBox(width: 14),
-          // O'qilmagan xabarlar badge (sms kelsa ko'rinadi)
-          if ((r['unread'] as int? ?? 0) > 0) ...[
+          // O'qilmagan xabarlar badge — chat UI yashirilganda KO'RSATILMAYDI (flags.dart)
+          if (kChatEnabled && (r['unread'] as int? ?? 0) > 0) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(color: p.green, borderRadius: BorderRadius.circular(999)),

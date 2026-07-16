@@ -1,5 +1,6 @@
 // Trust — umumiy UI primitivlari (prototip elementlari bilan 1:1)
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:google_fonts/google_fonts.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -399,18 +400,27 @@ class InkBtn extends StatelessWidget {
   final VoidCallback onTap;
   final double h;
   final double fs;
-  const InkBtn({super.key, required this.label, required this.onTap, this.h = 50, this.fs = 15});
+  // loading — server javobi kutilayotganda: spinner ko'rsatiladi, bosish bloklanadi.
+  final bool loading;
+  const InkBtn(
+      {super.key, required this.label, required this.onTap, this.h = 50, this.fs = 15, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
     final p = curPal();
     return Tap(
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       child: Container(
         height: h,
         alignment: Alignment.center,
         decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(12)),
-        child: Tx(label, size: fs, w: FontWeight.w600, color: p.bg),
+        child: loading
+            ? SizedBox(
+                width: fs + 4,
+                height: fs + 4,
+                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(p.bg)),
+              )
+            : Tx(label, size: fs, w: FontWeight.w600, color: p.bg),
       ),
     );
   }
@@ -423,18 +433,26 @@ class GhostBtn extends StatelessWidget {
   final double h;
   final double fs;
   final double r;
-  const GhostBtn({super.key, required this.label, required this.onTap, this.h = 50, this.fs = 15, this.r = 12});
+  final bool loading;
+  const GhostBtn(
+      {super.key, required this.label, required this.onTap, this.h = 50, this.fs = 15, this.r = 12, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
     final p = curPal();
     return Tap(
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       child: Container(
         height: h,
         alignment: Alignment.center,
         decoration: BoxDecoration(border: Border.all(color: p.bd), borderRadius: BorderRadius.circular(r)),
-        child: Tx(label, size: fs, w: FontWeight.w600, color: p.ink),
+        child: loading
+            ? SizedBox(
+                width: fs + 4,
+                height: fs + 4,
+                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(p.ink)),
+              )
+            : Tx(label, size: fs, w: FontWeight.w600, color: p.ink),
       ),
     );
   }
@@ -500,6 +518,7 @@ class StoreField extends StatefulWidget {
   final bool autofocus;
   final int maxLines;
   final int minLines;
+  final List<TextInputFormatter>? inputFormatters;
   const StoreField({
     super.key,
     required this.value,
@@ -513,6 +532,7 @@ class StoreField extends StatefulWidget {
     this.autofocus = false,
     this.maxLines = 1,
     this.minLines = 1,
+    this.inputFormatters,
   });
 
   @override
@@ -548,6 +568,7 @@ class _StoreFieldState extends State<StoreField> {
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
       keyboardType: widget.maxLines > 1 ? TextInputType.multiline : widget.keyboardType,
+      inputFormatters: widget.inputFormatters,
       textAlign: widget.textAlign,
       autofocus: widget.autofocus,
       maxLines: widget.maxLines,

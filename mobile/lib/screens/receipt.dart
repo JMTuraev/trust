@@ -9,6 +9,7 @@ class ReceiptScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = store.vals();
+    final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     final receipt = (v['receipt'] as Map).cast<String, dynamic>();
 
@@ -42,7 +43,7 @@ class ReceiptScreen extends StatelessWidget {
             children: [
               BackBtn(onTap: () => receipt['close']()),
               const SizedBox(width: 10),
-              Tx('Dalil', size: 16, w: FontWeight.w700, color: p.ink),
+              Tx(L0['receiptTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
               const Spacer(),
               Tx(receipt['id'] as String, size: 12, color: p.t3, tab: true),
             ],
@@ -83,7 +84,7 @@ class ReceiptScreen extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Tx('QULFLANGAN YOZUV', size: 10.5, w: FontWeight.w600, color: p.t2, ls: 1.8),
+                        Tx(L0['lockedCap'] as String, size: 10.5, w: FontWeight.w600, color: p.t2, ls: 1.8),
                         if (receipt['corrected'] == true) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -92,7 +93,7 @@ class ReceiptScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            child: Tx('TUZATILDI', size: 9.5, w: FontWeight.w700, color: p.ink, ls: 1.2),
+                            child: Tx(L0['correctedBadge'] as String, size: 9.5, w: FontWeight.w700, color: p.ink, ls: 1.2),
                           ),
                         ],
                       ],
@@ -115,7 +116,7 @@ class ReceiptScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
-                        child: Tx("O'zgartirish kutilmoqda · ${receipt['editLine']}", size: 12, color: p.t1),
+                        child: Tx(store.Lf('editPending', {'info': '${receipt['editLine']}'}), size: 12, color: p.t1),
                       ),
                     ),
                 ],
@@ -124,10 +125,10 @@ class ReceiptScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 24, bottom: 6),
                 child: CustomPaint(size: const Size(double.infinity, 1), painter: _DashedLinePainter(color: p.bd)),
               ),
-              detailRow('Kimdan', Tx(receipt['from'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow('Kimga', Tx(receipt['to'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow('Sana', Tx(receipt['date'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow('Holat', Tx('Daftar yozuvi — tarixi saqlanadi', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1), border: false),
+              detailRow(L0['from'] as String, Tx(receipt['from'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
+              detailRow(L0['to'] as String, Tx(receipt['to'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
+              detailRow(L0['date'] as String, Tx(receipt['date'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
+              detailRow(L0['lblStatus'] as String, Tx(L0['ledgerEntryKept'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1), border: false),
               if (receipt['corrected'] == true) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -138,7 +139,7 @@ class ReceiptScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Cap("O'ZGARISHLAR TARIXI", ls: 1.6),
+                      Cap(L0['capHistory'] as String, ls: 1.6),
                       for (final h in (receipt['histRows'] as List).cast<Map<String, dynamic>>())
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
@@ -151,7 +152,7 @@ class ReceiptScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Tx(
-                  "Ushbu yozuv o'chirib bo'lmaydi. O'zgartirish faqat ikki tomon roziligi bilan amalga oshiriladi.",
+                  L0['receiptNote'] as String,
                   size: 11.5,
                   color: p.t4,
                   lh: 18.4,
@@ -162,16 +163,16 @@ class ReceiptScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 22),
                 child: Column(
                   children: [
-                    InkBtn(label: 'Ulashish (PDF)', onTap: () => receipt['share'](), h: 48, fs: 14.5),
+                    InkBtn(label: L0['share'] as String, onTap: () => receipt['share'](), h: 48, fs: 14.5),
                     const SizedBox(height: 10),
-                    GhostBtn(label: "O'zgartirish so'rovi", onTap: () => receipt['change'](), h: 48, fs: 14.5),
+                    GhostBtn(label: L0['changeReq'] as String, onTap: () => receipt['change'](), h: 48, fs: 14.5),
                     const SizedBox(height: 10),
                     Tap(
                       onTap: () => receipt['archive'](),
                       child: Container(
                         height: 44,
                         alignment: Alignment.center,
-                        child: Tx('Arxivlash', size: 13.5, w: FontWeight.w500, color: p.t2),
+                        child: Tx(L0['archive'] as String, size: 13.5, w: FontWeight.w500, color: p.t2),
                       ),
                     ),
                   ],

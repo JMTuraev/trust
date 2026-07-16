@@ -22,6 +22,8 @@ class Api {
   static String? token;
   // Sessiya davomida token muddati o'tsa (401) — store shu callback orqali logout qiladi.
   static void Function()? onUnauthorized;
+  // 402 SUB_EXPIRED — obuna tugagan: store lokal holatni yangilab bannerni darhol ko'rsatadi.
+  static void Function()? onPaymentRequired;
 
   static Future<void> loadToken() async {
     token = await SecureStore.readToken();
@@ -68,6 +70,10 @@ class Api {
         // Token muddati o'tgan/yaroqsiz — markazlashgan logout (har ekran alohida ishlamasin)
         if (res.statusCode == 401 && token != null) {
           onUnauthorized?.call();
+        }
+        // Obuna tugagan (402 SUB_EXPIRED) — banner darhol ko'rinsin (S.subStatus='expired')
+        if (res.statusCode == 402) {
+          onPaymentRequired?.call();
         }
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
       }
@@ -146,8 +152,12 @@ class Api {
 
   // ---- AI parse (Xarajat: matn -> daromad/xarajat/qarz) ----
   // parse hech narsa saqlamaydi; saqlash confirmExpense orqali (tasdiqlash kartasi oqimi).
-  static Future<ApiRes> parseExpense(String text, String source) =>
-      _req('POST', '/api/expenses/parse', body: {'text': text, 'source': source}, timeoutSec: 20);
+  static Future<ApiRes> parseExpense(String text) =>
+      _req('POST', '/api/expenses/parse', body: {'text': text}, timeoutSec: 20);
+  // Jonli input rangi (summa yashil/qizil) — hech narsa saqlanmaydi, javob tez.
+  // xarajat.dart _HlController debounce bilan chaqiradi.
+  static Future<ApiRes> previewExpense(String text) =>
+      _req('POST', '/api/expenses/preview', body: {'text': text}, timeoutSec: 8);
   static Future<ApiRes> confirmExpense(String text, String source,
           List<Map<String, dynamic>> actions, {List<Map<String, dynamic>>? parsed}) =>
       _req('POST', '/api/expenses/confirm', body: {
@@ -157,6 +167,8 @@ class Api {
 
   // ---- Toifalar (CRUD: qo'shish/qayta nomlash/arxivlash — o'chirish yo'q) ----
   static Future<ApiRes> categories() => _req('GET', '/api/categories');
+  // Papka tahriri: arxivlanganlar ham (archived flag bilan)
+  static Future<ApiRes> categoriesAll() => _req('GET', '/api/categories?all=1');
   static Future<ApiRes> addCategory(String name) => _req('POST', '/api/categories', body: {'name': name});
   static Future<ApiRes> patchCategory(String id, {String? name, bool? archived}) =>
       _req('PATCH', '/api/categories/$id',
@@ -197,6 +209,47 @@ class Api {
       return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
     }
   }
+
+  // ---- Qarz daftari (ledger) — /api/debts ----
+  static Future<ApiRes> debts(String partnerId) => _req('GET', '/api/debts/$partnerId');
+  static Future<ApiRes> openDebt(String partnerId,
+          {required String direction, required num amount, required String currency,
+          required String actedAt, String? due, String note = ''}) =>
+      _req('POST', '/api/debts/$partnerId', body: {
+        'direction': direction, 'amount': amount, 'currency': currency, 'acted_at': actedAt,
+        if (due != null && due.isNotEmpty) 'due': due, if (note.isNotEmpty) 'note': note,
+      });
+  static Future<ApiRes> debtConfirm(String id) => _req('POST', '/api/debts/$id/confirm');
+  static Future<ApiRes> debtReject(String id) => _req('POST', '/api/debts/$id/reject');
+  static Future<ApiRes> debtCancel(String id) => _req('POST', '/api/debts/$id/cancel');
+  static Future<ApiRes> repay(String partnerId, String refId, num amount, {String note = ''}) =>
+      _req('POST', '/api/debts/$partnerId/repay', body: {'ref_id': refId, 'amount': amount, if (note.isNotEmpty) 'note': note});
+  static Future<ApiRes> settle(String partnerId, String refId, num amount, String reason, {String note = ''}) =>
+      _req('POST', '/api/debts/$partnerId/settle', body: {'ref_id': refId, 'amount': amount, 'reason': reason, if (note.isNotEmpty) 'note': note});
+  static Future<ApiRes> debtConfirmOp(String id) => _req('POST', '/api/debts/$id/confirm-op');
+  static Future<ApiRes> debtEdit(String id, {num? amount, String? due, String? note}) =>
+      _req('PATCH', '/api/debts/$id', body: {
+        if (amount != null) 'amount': amount, if (due != null) 'due': due, if (note != null) 'note': note,
+      });
+  static Future<ApiRes> debtEditConfirm(String id) => _req('POST', '/api/debts/$id/edit-confirm');
+  static Future<ApiRes> debtEditReject(String id) => _req('POST', '/api/debts/$id/edit-reject');
+  static Future<ApiRes> reviewConfirm(String partnerId, String debtId) =>
+      _req('POST', '/api/debts/$partnerId/review-confirm', body: {'debt_id': debtId});
+  static Future<ApiRes> reviewReject(String id) => _req('POST', '/api/debts/$id/review-reject');
+
+  // ---- Circles (guruhli navbatli jamg'arma) ----
+  static Future<ApiRes> circles() => _req('GET', '/api/circles');
+  static Future<ApiRes> circleDetail(String id) => _req('GET', '/api/circles/$id');
+  static Future<ApiRes> createCircle(Map<String, dynamic> body) => _req('POST', '/api/circles', body: body);
+  static Future<ApiRes> circlePay(String id) => _req('POST', '/api/circles/$id/pay');
+  static Future<ApiRes> circleConfirm(String id) => _req('POST', '/api/circles/$id/confirm');
+  static Future<ApiRes> circleAccept(String id) => _req('POST', '/api/circles/$id/accept');
+  static Future<ApiRes> circleDecline(String id) => _req('POST', '/api/circles/$id/decline');
+  static Future<ApiRes> circleInvite(String id, List<Map<String, dynamic>> members) =>
+      _req('POST', '/api/circles/$id/invite', body: {'members': members});
+  static Future<ApiRes> circlePatch(String id, {String? name}) =>
+      _req('PATCH', '/api/circles/$id', body: {if (name != null) 'name': name});
+  static Future<ApiRes> circleClose(String id) => _req('DELETE', '/api/circles/$id');
 
   // ---- Profil hayoti (soft-delete) ----
   static Future<ApiRes> deleteProfile() => _req('DELETE', '/api/profile/me');
