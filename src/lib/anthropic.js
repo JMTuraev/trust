@@ -196,6 +196,9 @@ async function callAnthropic({ contextText, history, message }) {
   return {
     provider: 'anthropic',
     model: data.model || config.ai.model,
+    // stop_reason='max_tokens' = javob KESILGAN (tool input chala/bo'sh bo'lishi mumkin) —
+    // diagnostika uchun yuqoriga uzatiladi va [ai] logida ko'rinadi.
+    stop: data.stop_reason,
     blocks,
     usage: {
       input_tokens: u.input_tokens || 0,

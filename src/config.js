@@ -41,9 +41,11 @@ export const config = {
     enabled: process.env.AI_ENABLED !== 'false',
     anthropicKey: process.env.ANTHROPIC_API_KEY,
     model: process.env.AI_MODEL || 'claude-opus-4-8',
-    // Xarakter suhbatli, lekin mavzu talab qilsa boy javob (insight + vizual bloklar) beradi;
-    // output narxi input'dan ~5x qimmat, shuning uchun 800 — boylik uchun yetarli, isrofsiz.
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '800', 10),
+    // Xarakter suhbatli, lekin mavzu talab qilsa boy javob (insight + vizual bloklar) beradi.
+    // 1200 sababi (2026-07-17): "hammasini birma-bir" tipidagi qarz javoblari (uzun matn +
+    // bir nechta debt_card + chips) 800 da KESILIB, tool-JSON chala qolar edi -> bloklar
+    // bo'sh -> fallback (qurilmada 4x takrorlangan). stop_reason=max_tokens logda ko'rinadi.
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1200', 10),
     // Suhbat tarixi: oxirgi N ta xabar (user+assistant) promptga qo'shiladi
     historyMessages: parseInt(process.env.AI_HISTORY_MESSAGES || '12', 10),
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),

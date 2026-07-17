@@ -195,7 +195,8 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
 
       // Log: kalit/xabar mazmuni EMAS — faqat o'lchov
       console.log(`[ai] ${r.provider}/${r.model} in=${r.usage.input_tokens} cached=${r.usage.cached_input_tokens} `
-        + `write=${r.usage.cache_write_tokens} out=${r.usage.output_tokens} $${cost} blocks=${safeBlocks.length}`);
+        + `write=${r.usage.cache_write_tokens} out=${r.usage.output_tokens} $${cost} blocks=${safeBlocks.length}`
+        + (r.stop && r.stop !== 'tool_use' ? ` stop=${r.stop}` : ''));
       if (r.errors?.length) console.warn('[ai] fallback:', r.errors.join(' | '));
 
       res.status(201).json({
