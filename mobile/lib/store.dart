@@ -3160,9 +3160,23 @@ class TrustStore extends ChangeNotifier {
         loadCircles();
       },
       'goAi': () {
-        set({'screen': 'ai', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+        // Back "qayerdan kelgan bo'lsa o'shanga qaytadi": AI'ga o'tishdan OLDIN joriy
+        // asosiy tabni saqlaymiz (faqat home/xarajat/profil/circles — aks holda 'home').
+        final from = S['screen'];
+        final mainTab =
+            from == 'home' || from == 'xarajat' || from == 'profil' || from == 'circles';
+        set({
+          'screen': 'ai',
+          'aiFrom': mainTab ? from : 'home',
+          'clientId': null,
+          'receiptId': null,
+          'inLinkId': null,
+        });
         loadAiMsgs(); // tarix bir marta yuklanadi (aiLoaded)
       },
+      // AI header'idagi orqaga tugmasi — kelib chiqqan tabga qaytadi (bottom nav AI'da yashirin).
+      'goAiBack': () => set(
+          {'screen': S['aiFrom'] ?? 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goProfil': () => set({'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goXarajat': () => set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'cMij': S['screen'] == 'home' ? active : idle,

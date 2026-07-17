@@ -107,7 +107,10 @@ class Root extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (v['clientOpen'] != true) TrustTabBar(),
+                        // AI ekrani to'liq balandlik chat: bottom nav yashiriladi
+                        // (foydalanuvchi so'rovi). Boshqa tablarda "Trust AI" tugmasi
+                        // qoladi — u orqali kiriladi, header'dagi orqaga bilan chiqiladi.
+                        if (v['clientOpen'] != true && v['isAi'] != true) TrustTabBar(),
                       ],
                     ),
                   ),

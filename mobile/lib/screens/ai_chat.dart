@@ -81,9 +81,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // ================= SARLAVHA =================
   Widget _header(Pal p, Map<String, dynamic> L0) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+      padding: const EdgeInsets.fromLTRB(10, 16, 20, 10),
       child: Row(
         children: [
+          // Orqaga — kelib chiqqan tabga qaytadi (bottom nav AI'da yashirin, shuning
+          // uchun bu yagona chiqish yo'li). store.goAi() saqlagan 'aiFrom'ga boradi.
+          Tap(
+            onTap: () => store.vals()['goAiBack'](),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 6, 8, 6),
+              child: Icon(Icons.arrow_back_ios_new, size: 20, color: p.ink),
+            ),
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,7 +146,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       ));
     }
     if (sending) {
-      items.add(Padding(padding: const EdgeInsets.only(bottom: 14), child: _typing(p, L0)));
+      items.add(Padding(padding: const EdgeInsets.only(bottom: 14), child: _typing(p)));
     } else if (store.S['aiLimited'] == true) {
       items.add(Padding(padding: const EdgeInsets.only(bottom: 14), child: _limitCard(p, L0)));
     } else if (store.S['aiSendErr'] != null) {
@@ -243,7 +252,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Widget _typing(Pal p, Map<String, dynamic> L0) {
+  Widget _typing(Pal p) {
     return Row(
       children: [
         Container(
@@ -258,14 +267,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
               bottomLeft: Radius.circular(4),
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _TypingDots(color: p.t3),
-              const SizedBox(width: 9),
-              Tx(L0['aiTyping'] as String, size: 12.5, color: p.t2),
-            ],
-          ),
+          // "yozmoqda" MATNI o'rniga brend loader: Trust logotipi ohista puls bilan
+          // (mahsulot qarori 2026-07-17). Spinner emas; l10n['aiTyping'] kaliti saqlanadi.
+          child: const _BrandLoader(size: 20),
         ),
       ],
     );
@@ -535,6 +539,44 @@ class _Land extends StatelessWidget {
         child: Transform.translate(offset: Offset(0, (1 - t) * 10), child: ch),
       ),
       child: child,
+    );
+  }
+}
+
+/// Brend "yozmoqda" indikatori — Trust logotipi (TrustMark) ohista nafas oladi
+/// (opaklik + engil masshtab pulsi). Spinner emas: brend uslubi. Doimiy takrorlanadi,
+/// shuning uchun javob necha soniya kutilsa ham "ishlayapman" hissi yo'qolmaydi.
+class _BrandLoader extends StatefulWidget {
+  final double size;
+  const _BrandLoader({required this.size});
+
+  @override
+  State<_BrandLoader> createState() => _BrandLoaderState();
+}
+
+class _BrandLoaderState extends State<_BrandLoader> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        final t = Curves.easeInOut.transform(_c.value);
+        return Opacity(
+          opacity: 0.45 + 0.55 * t,
+          child: Transform.scale(scale: 0.92 + 0.08 * t, child: child),
+        );
+      },
+      child: TrustMark(size: widget.size),
     );
   }
 }

@@ -9,7 +9,8 @@
 //    ai_profile TTL ichida bayt-barqaror)] — ikkalasiga ham cache_control:ephemeral.
 //    DIQQAT: kesh minimumi ~1024 token; PERSONA o'zbekcha ~1.2–1.6k token -> sig'adi.
 //    Sig'masa ham xato bermaydi — shunchaki 2-nuqta (persona+kontekst) keshlanadi.
-// 2) max_tokens: 400 — output input'dan ~5x qimmat, xarakter esa ataylab qisqa (2–4 gap).
+// 2) max_tokens: 800 — output input'dan ~5x qimmat; javob suhbatli, lekin mavzu talab qilsa
+//    insight + vizual bloklar (chart/progress/debt_card) uchun joy qoldiradi (config.ai.maxTokens).
 // 3) STRUCTURED OUTPUT — tool_choice bilan MAJBURIY `render_blocks`. Xom model JSON'iga
 //    ishonilmaydi: validateBlocks() serverda qat'iy tekshiradi (sxema + chegaralar).
 import { config } from '../config.js';
@@ -33,12 +34,12 @@ export const BLOCKS_TOOL = {
     properties: {
       blocks: {
         type: 'array',
-        description: '1–4 blok. Odatiy: text (+ stat/chart) + chips.',
+        description: 'Odatda 2–5 blok, mavzuga qarab. Vizual bloklardan saxiy foydalan: taqqoslash->chart, streak/limit temp->progress, qarz->debt_card, katta raqam->stat; oxirida chips.',
         items: {
           type: 'object',
           properties: {
             type: { type: 'string', enum: BLOCK_TYPES },
-            text: { type: 'string', description: 'type=text uchun: iliq, qisqa javob (2–4 gap).' },
+            text: { type: 'string', description: 'type=text uchun: iliq javob — odatda ixcham, mavzu talab qilsa 3–6 gap.' },
             label: { type: 'string', description: 'stat/progress/budget_set sarlavhasi.' },
             value: { type: 'string', description: 'stat qiymati, masalan "1.2 mln".' },
             delta: { type: 'string', description: 'stat o\'zgarishi, masalan "+25%".' },

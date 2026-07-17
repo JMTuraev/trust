@@ -68,7 +68,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(config.port, () =>
-  console.log(`trust-backend ${config.port}-portda ishga tushdi (v3.0)`)
+  console.log(`trust-backend ${config.port}-portda ishga tushdi (v3.4)`)
 );
 
 // Kechiktirilgan rad signallari (link modeli)

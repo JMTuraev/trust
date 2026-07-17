@@ -289,16 +289,11 @@ class TrustTabBar extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 8),
-            child: Center(
-              child: Container(
-                width: 120,
-                height: 4,
-                decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-          ),
+          // Qora "home-indicator" chizig'i olib tashlandi (foydalanuvchi so'rovi,
+          // 2026-07-17 — prototype 684–720 dan ataylab chetlashish). O'rniga
+          // xotirjam pastki bo'shliq: nav qatori tag gesture-bar bilan urishmasin
+          // (OS inset'ini main.dart'dagi SafeArea allaqachon zaxiralaydi).
+          const SizedBox(height: 12),
         ],
       ),
     );

@@ -23,7 +23,7 @@ import { meaningfulWords } from './parse.js';
 // (aks holda 1-iyul 02:00 dagi xarajat "iyun"ga tushib qolardi).
 const TZ_OFFSET_MS = 5 * 3600_000;
 const DAY_MS = 24 * 3600_000;
-const MAX_SUMMARY_CHARS = 2600; // ~600 token (o'zbekcha ~4 belgi/token)
+const MAX_SUMMARY_CHARS = 3000; // ~700 token (o'zbekcha ~4 belgi/token) — 2b/2c/6b hosila signallarga joy
 
 export const MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul',
   'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
@@ -259,6 +259,20 @@ export function composeContext({ now = new Date(), expenses = [], debtAgg = [], 
       return `${name} ${fmtMoney(amt)} (${pct}%${d !== null ? `, o'tgan oydan ${fmtPct(d)}` : ''})`;
     });
     lines.push(`Top xarajat toifalari (${MONTHS_UZ[cur.m]}): ${parts.join(', ')}.`);
+    // 2b. Top toifaning yillik proyeksiyasi — modelga "oldinga qaragan" ma'no beradi.
+    const [topName, topAmt] = top[0];
+    if (topAmt > 0) {
+      lines.push(`Yillik proyeksiya: ${topName} shu tezlikda yiliga ~${fmtMoney(topAmt * 12)} (joriy oy top toifasi × 12).`);
+    }
+  }
+
+  // 2c. Oyning eng katta bitta xarajati — toifa + summa (+ xom izoh, foydalanuvchining o'z
+  // ma'lumoti, slice(0,30) — 7-bo'limdagi uncategorized konvensiyasi bilan bir xil).
+  const bigExp = curRows.filter((r) => !r.income)
+    .sort((x, y) => (Number(y.amount) || 0) - (Number(x.amount) || 0))[0];
+  if (bigExp && (Number(bigExp.amount) || 0) > 0) {
+    const bnote = String(bigExp.note || '').slice(0, 30);
+    lines.push(`Oyning eng katta bitta xarajati: ${bigExp.category || 'Boshqa'} ${fmtMoney(bigExp.amount)}${bnote ? ` ("${bnote}")` : ''}.`);
   }
 
   // 3. Eng tez o'suvchi + sabab
@@ -306,6 +320,10 @@ export function composeContext({ now = new Date(), expenses = [], debtAgg = [], 
     const daily = Math.round(monthlyLimit / daysInMonth);
     const pct = Math.round((a.expense / monthlyLimit) * 100);
     lines.push(`Oylik chegara: ${fmtMoney(monthlyLimit)}, sarflandi ${fmtMoney(a.expense)} (${pct}%). Kunlik ~${fmtMoney(daily)}.`);
+    // 6b. Oy-temp: vaqt ↔ byudjet tezligini taqqoslaydi ("oyning 55%i, byudjetning 62%i").
+    const monthPct = Math.round((cur.day / daysInMonth) * 100);
+    const pace = pct - monthPct >= 10 ? ' — byudjet vaqtdan oldinda, tez' : '';
+    lines.push(`Oy-temp: oyning ${monthPct}%i o'tdi, byudjetning ${pct}%i sarflandi${pace}.`);
     const s = streakDays(expenses, daily, now);
     if (s >= 1) lines.push(`Streak: ${s} kundan beri kunlik byudjetda.`);
     else lines.push('Streak: uzildi — bugun kunlik byudjetdan oshgan.');
@@ -325,7 +343,12 @@ export function composeContext({ now = new Date(), expenses = [], debtAgg = [], 
 
   if (categories.length) lines.push(`Mavjud toifalar: ${categories.join(', ')}.`);
 
-  let summary = lines.join('\n');
+  // DEFENSE-IN-DEPTH (maxfiylik): xom izohlar (2c "eng katta xarajat", §7 toifasiz
+  // yozuvlar) foydalanuvchining o'z matni — lekin ichida hamkor ISMI bo'lishi mumkin
+  // ("Anvarga berdim"). Yakuniy summary'ni bir marta psevdonimlashtiramiz: xaritadagi
+  // har real ism -> HAMKOR_n. Shu bilan hozirgi va KELAJAKDAGI barcha xom-matn
+  // manbalari bitta joyda yopiladi (routes/ai.js summary'ni boshqa tozalamaydi).
+  let summary = pseudonymizeText(lines.join('\n'), tokens);
   if (summary.length > MAX_SUMMARY_CHARS) summary = `${summary.slice(0, MAX_SUMMARY_CHARS)}…`;
   return { summary, tokens };
 }

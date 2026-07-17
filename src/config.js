@@ -41,8 +41,9 @@ export const config = {
     enabled: process.env.AI_ENABLED !== 'false',
     anthropicKey: process.env.ANTHROPIC_API_KEY,
     model: process.env.AI_MODEL || 'claude-opus-4-8',
-    // Xarakter ataylab qisqa (2–4 gap) + output narxi input'dan 5x qimmat -> 400 yetarli
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '400', 10),
+    // Xarakter suhbatli, lekin mavzu talab qilsa boy javob (insight + vizual bloklar) beradi;
+    // output narxi input'dan ~5x qimmat, shuning uchun 800 — boylik uchun yetarli, isrofsiz.
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '800', 10),
     // Suhbat tarixi: oxirgi N ta xabar (user+assistant) promptga qo'shiladi
     historyMessages: parseInt(process.env.AI_HISTORY_MESSAGES || '12', 10),
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),

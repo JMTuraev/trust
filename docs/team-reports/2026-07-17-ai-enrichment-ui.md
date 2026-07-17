@@ -1,0 +1,57 @@
+# 2026-07-17 — Trust AI javob boyitish + 4 UI tuzatish
+
+PO fikri: "javoblar kuchli emas, oddiy... pul bilan munosabatini boyitib borishimiz kerak" + 4 UI e'tiroz.
+
+## Tashxis
+
+Ma'lumot (agregat) va renderer (ai_blocks.dart, 8 blok turi) boy edi — muammo faqat promptda:
+system prompt qasddan qisqalikka sozlangan ("1–4 blok", "2–4 gap", default text+chips),
+AI proaktiv insight bermasdi, chart/progress/debt_card deyarli chizilmasdi.
+
+## Backend (backend-dev)
+
+- **ai-persona.js** — qisqalik biasi yumshatildi (3–6 gap mumkin); yangi PSIXOLOGIYA-6:
+  har javobda so'ralmagan kamida bitta insight; oldinga qaragan freyming (proyeksiya/temp);
+  JAVOB FORMATI: "odatda 2–5 blok", default naqsh text + (chart/progress/stat/debt_card) + chips,
+  vizual bloklardan saxiy foydalanish. ⛔ Compliance qatorlar (MAXFIYLIK, QAT'IY CHEGARALAR,
+  OLTIN XAVFSIZLIK, ROLDA QOLISH, render_blocks-only, 8 blok turi) — so'zma-so'z saqlandi.
+- **ai-context.js** — 3 hosila signal: (2b) top toifa yillik proyeksiyasi, (2c) oyning eng
+  katta bitta xarajati (+izoh slice 30), (6b) oy-temp (vaqt% ↔ byudjet%, +10% farqda "tez" flagi).
+- **config.js** — AI_MAX_TOKENS default 400 → 800.
+- **anthropic.js** — izoh + BLOCKS_TOOL schema hintlari persona bilan sinxronlandi (lead).
+
+## Reviewer topilmalari (APPROVE, 2 kichik) — ikkalasi tuzatildi (lead)
+
+1. *Maxfiylik doirasi*: 2c xom izohda hamkor ismi bo'lishi mumkin edi → **yakuniy summary
+   endi bir marta pseudonymizeText'dan o'tadi** (composeContext oxirida) — §7 va 2c hamda
+   kelajakdagi barcha xom-matn manbalari bitta joyda yopiladi. Sinov: "Anvarga osh berdim"
+   izohi → "HAMKOR_1ga osh berdim" (maskalandi, leak yo'q).
+2. *Budjet bosimi*: MAX_SUMMARY_CHARS 2600 → 3000 (~700 token) — yangi satrlar oxirgi
+   bo'limlarni (§7, toifalar) kesib qo'ymasin.
+
+## Mobile (flutter-dev)
+
+1. **Back tugma** — ai_chat.dart header chapida chevron; store.dart: goAi() `aiFrom` ni
+   saqlaydi (faqat asosiy tab, aks holda 'home'), yangi goAiBack() o'sha tabga qaytaradi.
+2. **Bottom nav AI'da yashirin** — main.dart: `&& v['isAi'] != true` sharti.
+3. **"yozmoqda" matni o'rniga brend loader** — `_BrandLoader`: TrustMark logotipi ohista
+   puls (opaklik 0.45↔1.0, masshtab 0.92↔1.0, 1000ms repeat-reverse). Controller dispose
+   qilinadi. l10n `aiTyping` kaliti qoldi (ishlatilmaydi).
+4. **Qora chiziq (120×4 home-indicator) olib tashlandi** — tab_bar.dart, o'rniga
+   SizedBox(12). ⚠️ Prototype template.html'dan ataylab chetlashish — PO so'rovi (product
+   override), kodda izoh bilan hujjatlangan.
+
+## Sifat darvozasi
+
+- backend: node --check ×5 OK; node --test ai-context.test.js **19/19**; maxfiylik smoke-sinovi OK.
+- mobile: flutter analyze **No issues found!**; flutter test **10/10**.
+- reviewer: **APPROVE** (2 kichik topilma → tuzatildi).
+
+## Holat / qolganlar
+
+- APK (arm64, 18.5MB) qurilmaga o'rnatildi (ustidan, login saqlangan). Qurilmada UI
+  tekshiruvi PIN qulfi ochilishini kutmoqda.
+- **Backend hali deploy qilinmagan** — boy javoblar prod'da ko'rinishi uchun commit +
+  push (Render autoDeploy) kerak. PO ruxsati kutilmoqda.
+- Kelajak (PO tanlamadi, keyinга): proaktiv ochilish kartasi; function-calling tarix
+  asboblari (get_category_history, get_month, biggest_expenses).
