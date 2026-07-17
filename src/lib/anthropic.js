@@ -264,7 +264,8 @@ export async function askAI({ contextText, history = [], message }) {
     try {
       const r = await callAnthropic({ contextText, history, message });
       if (r.blocks.length) return { ...r, errors };
-      errors.push('anthropic: bloklar bo\'sh yoki sxemaga mos emas');
+      // stop=max_tokens -> javob kesilgan (tool-JSON chala); boshqa stop -> sxema muammosi
+      errors.push(`anthropic: bloklar bo'sh yoki sxemaga mos emas (stop=${r.stop || '?'}, out=${r.usage.output_tokens})`);
     } catch (e) { errors.push(`anthropic: ${e.message}`); }
   } else {
     errors.push('anthropic: ANTHROPIC_API_KEY yo\'q');
