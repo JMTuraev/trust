@@ -49,8 +49,12 @@ export const config = {
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),
     fallbackTimeoutMs: parseInt(process.env.AI_FALLBACK_TIMEOUT_MS || '12000', 10),
     // Limitlar SUIISTE'MOLGA qarshi, ratsion uchun EMAS (PO qarori) — saxiy.
-    dailyLimit: parseInt(process.env.AI_DAILY_LIMIT || '40', 10),
-    monthlyLimit: parseInt(process.env.AI_MONTHLY_LIMIT || '400', 10),
+    // 2026-07-17 PO: kunlik 40 -> 100 ("AI dialog saxiyroq ko'rinsin"). Oylik ham
+    // mutanosib ko'tarildi (10x kunlik), aks holda 100/kun 4 kunda oylik devorga urardi.
+    // Eng yomon holat narxi: 1000 x ~$0.0085 = ~$8.5/oy (obuna $9) — bu CAP, kutilma emas
+    // (tipik foydalanuvchi ~40/oy); kerak bo'lsa Render env bilan qaytariladi.
+    dailyLimit: parseInt(process.env.AI_DAILY_LIMIT || '100', 10),
+    monthlyLimit: parseInt(process.env.AI_MONTHLY_LIMIT || '1000', 10),
     minuteLimit: parseInt(process.env.AI_MINUTE_LIMIT || '5', 10),
     // Agregat kontekst keshi (ai_profile) shu muddatdan eski bo'lsa qayta hisoblanadi
     profileTtlMs: Math.round(parseFloat(process.env.AI_PROFILE_TTL_HOURS || '6') * 3600_000),
