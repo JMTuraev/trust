@@ -149,11 +149,22 @@ export function contextBlock({ name, date, currency = "so'm", summary, knowledge
   const cards = knowledge.length
     ? `\n\nBUGUNGI BILIM KARTALARI (xohlasang foydalanishing mumkin — mavzuga mos kelsa BITTASINI tanla, foydalanuvchi raqamiga bog'lab ayt; mos kelmasa ishlatma):\n${knowledge.map((k) => `- ${k.text}`).join('\n')}`
     : '';
+  // USLUB ESLATMASI — statik dum (bayt-barqaror, kesh omon qoladi).
+  // Sabab: eski suhbat tarixi eski uslubda ("Ism, ..." ochilish, "siz", takror 50/30/20) —
+  // model tarixni uslub namunasi sifatida ko'chiradi va OHANG qoidalarini yengadi.
+  // Bu eslatma tarixdan KEYIN o'qilmasa ham, ziddiyatni aniq hal qilib beradi:
+  // tarix = ma'lumot, uslub manbai EMAS.
   return `FOYDALANUVCHI:
 Ismi: ${name}. Bugun: ${date}. Valyuta: ${currency}.
 
 ${name.toUpperCase()}NING MOLIYAVIY KONTEKSTI:
-${summary}${cards}`;
+${summary}${cards}
+
+USLUB ESLATMASI (tarixdan USTUN):
+Suhbat tarixidagi eski javoblaring eski uslubda bo'lishi mumkin — ularni uslub namunasi
+sifatida OLMA. Qoida: javobni foydalanuvchi ismi bilan BOSHLAMA (ism faqat suhbatning eng
+boshida); HAR DOIM "sen" (hech qachon "siz"); tarixda allaqachon aytilgan metod/faktni
+takrorlama — yangisini tanla; ketma-ket javoblarda bir xil ochilish qolipini ishlatma.`;
 }
 
 /** Model/provayder ishlamaganda — iliq o'zbekcha xato (raqam yo'q, va'da yo'q). */
