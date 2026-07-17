@@ -162,18 +162,27 @@ export function partnerEntry(p, userId) {
   };
 }
 
-export function aggregateDebts(partners, debts, userId, now = new Date()) {
+export function aggregateDebts(partners, debts, userId, now = new Date(), ops = []) {
   const byPartner = new Map();
-  for (const p of partners || []) byPartner.set(p.id, partnerEntry(p, userId));
+  const ownerOf = new Map();
+  for (const p of partners || []) {
+    byPartner.set(p.id, partnerEntry(p, userId));
+    ownerOf.set(p.id, p.owner_id);
+  }
   const today = localParts(now).key;
   for (const d of debts || []) {
     if (d.kind !== 'debt' || d.status !== 'active') continue;
-    if ((d.currency || 'UZS') !== 'UZS') continue;
     const left = rem(d);
     if (left <= 0) continue;
     const e = byPartner.get(d.partner_id);
     if (!e) continue;
     const dir = canonicalDir(d, userId); // 'toMe' = u menga qarzdor
+    if ((d.currency || 'UZS') !== 'UZS') {
+      // Valyuta qarzi (USD va h.k.) — UZS yig'indiga QO'SHILMAYDI, lekin yo'qolmasin:
+      // alohida ro'yxatda modelga aytiladi (aks holda AI "qarz yo'q" deb adashadi).
+      (e.fx ??= []).push({ cur: d.currency, left, dir });
+      continue;
+    }
     if (dir === 'toMe') {
       e.to_me += left;
       const days = Math.max(0, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${d.acted_at}T00:00:00Z`)) / DAY_MS));
@@ -186,7 +195,35 @@ export function aggregateDebts(partners, debts, userId, now = new Date()) {
       }
     }
   }
-  return [...byPartner.values()].filter((e) => e.to_me > 0 || e.from_me > 0);
+  // IKKINCHI daftar: 'operations' (link modeli / eski yozuvlar) — routes/partners.js
+  // balancesFor() bilan bir xil manba. Busiz Yuna +5k / ulangan hamkor -75k kabi
+  // yozuvlar AI kontekstidan BUTUNLAY tushib qolardi (2026-07-17 kuzatildi).
+  // delta EGA (owner) nuqtai nazarida saqlanadi — kontragent uchun ishora ag'dariladi.
+  const opAgg = new Map(); // partner_id -> { sum, last }
+  for (const o of ops || []) {
+    if ((o.currency || 'UZS') !== 'UZS') continue;
+    if (!['active', 'archived'].includes(o.status)) continue;
+    const a = opAgg.get(o.partner_id) || { sum: 0, last: null };
+    a.sum += Number(o.delta) || 0;
+    const ts = o.created_at || null;
+    if (ts && (!a.last || ts > a.last)) a.last = ts;
+    opAgg.set(o.partner_id, a);
+  }
+  for (const [pid, a] of opAgg) {
+    const e = byPartner.get(pid);
+    if (!e || !a.sum) continue;
+    const sum = ownerOf.get(pid) === userId ? a.sum : -a.sum;
+    if (sum > 0) {
+      e.to_me += sum;
+      if (a.last) {
+        const days = Math.max(0, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${String(a.last).slice(0, 10)}T00:00:00Z`)) / DAY_MS));
+        if (e.days === null || days > e.days) e.days = days;
+      }
+    } else {
+      e.from_me += -sum;
+    }
+  }
+  return [...byPartner.values()].filter((e) => e.to_me > 0 || e.from_me > 0 || e.fx?.length);
 }
 
 // ---------- Kontekst matni + belgi xaritasi ----------
@@ -300,6 +337,17 @@ export function composeContext({ now = new Date(), expenses = [], debtAgg = [], 
     }).join(', ')}.`);
   }
 
+  // 4b. Valyuta qarzlari (USD va h.k.) — UZS yig'indidan tashqarida, lekin model bilsin
+  const fxEntries = debtAgg.filter((e) => e.fx?.length);
+  if (fxEntries.length) {
+    const parts = fxEntries.flatMap((e) => e.fx.map((f) => (
+      f.dir === 'toMe'
+        ? `${tokenFor(e)} menga ${f.left} ${f.cur} qarzdor`
+        : `men ${tokenFor(e)}ga ${f.left} ${f.cur} qarzman`
+    )));
+    lines.push(`Valyuta qarzlari (UZS yig'indiga kirmagan): ${parts.join(', ')}.`);
+  }
+
   addOthers(); // qarzli hamkorlar past raqamlarni oldi — qolganlari xaritaga (summary'siz)
 
   // 5. Jamg'arma odati — oxirgi 3 TUGAGAN oy o'rtacha sof balansi
@@ -371,7 +419,11 @@ export function pseudonymizeText(text, tokens) {
     .filter(([k, v]) => k.startsWith('HAMKOR_') && v?.name && String(v.name).trim().length >= 3)
     .sort((x, y) => String(y[1].name).length - String(x[1].name).length); // uzun ism oldin
   for (const [tok, v] of named) {
-    const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(String(v.name).trim())}${AFFIX}(?![\\p{L}\\p{N}])`, 'giu');
+    // Chegaralarda `_` ham bor: hamkor ismi tom ma'noda "Hamkor" bo'lsa (aliassiz link
+    // uchun standart yorliq!), usiz "HAMKOR_1" belgisi ichidagi "HAMKOR" ham moslikka
+    // tushib, belgini "HAMKOR_4_1"ga buzardi — ekranга "Hamkor_1" bo'lib sizib chiqdi
+    // (2026-07-17 qurilmada kuzatildi).
+    const re = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRe(String(v.name).trim())}${AFFIX}(?![\\p{L}\\p{N}_])`, 'giu');
     out = out.replace(re, (match) => {
       const suffix = match.slice(String(v.name).trim().length);
       return tok + suffix; // affiks saqlanadi: "Anvarga" -> "HAMKOR_1ga"
@@ -505,11 +557,21 @@ export async function buildAggregate(userId, now = new Date()) {
   ]);
 
   let debts = [];
+  let ops = [];
   if (partners.length) {
-    const { data } = await supabaseAdmin.from('debts')
-      .select('id, partner_id, kind, direction, created_by, amount, paid, currency, acted_at, due, status')
-      .in('partner_id', partners.map((p) => p.id)).eq('kind', 'debt').eq('status', 'active');
-    debts = data || [];
+    const ids = partners.map((p) => p.id);
+    const [dRes, oRes] = await Promise.all([
+      supabaseAdmin.from('debts')
+        .select('id, partner_id, kind, direction, created_by, amount, paid, currency, acted_at, due, status')
+        .in('partner_id', ids).eq('kind', 'debt').eq('status', 'active'),
+      // IKKINCHI daftar (routes/partners.js balancesFor bilan bir xil manba) —
+      // busiz operations'dagi qarzlar kontekstdan tushib qolardi.
+      supabaseAdmin.from('operations')
+        .select('partner_id, delta, currency, status, created_at')
+        .in('partner_id', ids).in('status', ['active', 'archived']),
+    ]);
+    debts = dRes.data || [];
+    ops = oRes.data || [];
   }
 
   const expenses = expRes.data || [];
@@ -518,7 +580,7 @@ export async function buildAggregate(userId, now = new Date()) {
     (e) => !e.income && (e.category || 'Boshqa') === 'Boshqa' && monthKeyOf(e.occurred_at) === curKey && e.note
   ).slice(0, 4);
 
-  const debtAgg = aggregateDebts(partners, debts, userId, now);
+  const debtAgg = aggregateDebts(partners, debts, userId, now, ops);
   // Qarzsiz hamkorlar: summary'ga tushmaydi, faqat psevdonim xaritasiga (xabarni tozalash uchun)
   const withDebt = new Set(debtAgg.map((e) => e.id));
   const otherPartners = partners.filter((p) => !withDebt.has(p.id)).map((p) => partnerEntry(p, userId));
