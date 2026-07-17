@@ -9,12 +9,12 @@ import operationRoutes from './routes/operations.js';
 import expenseRoutes from './routes/expenses.js';
 import limitRoutes from './routes/limits.js';
 import notifRoutes from './routes/notifications.js';
-import sttRoutes from './routes/stt.js';
 import categoryRoutes from './routes/categories.js';
 import linkRoutes from './routes/links.js';
 import messageRoutes from './routes/messages.js';
 import debtRoutes from './routes/debts.js';
 import circleRoutes from './routes/circles.js';
+import aiRoutes from './routes/ai.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
 
 assertConfig();
@@ -28,7 +28,7 @@ app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.3' }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.4' }));
 
 // So'rov kuzatuvi — health'dan tashqari har so'rov usuli+yo'li (parse/expenses kabi jonli ko'rinadi)
 app.use((req, _res, next) => { if (req.path !== '/health') console.log(`→ ${req.method} ${req.path}`); next(); });
@@ -47,12 +47,15 @@ app.use('/api/operations', operationRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/limits', limitRoutes);
 app.use('/api/notifications', notifRoutes);
-app.use('/api/stt', sttRoutes);
+// /api/stt OLIB TASHLANDI (2026-07-17, docs/ai-character.md §11 — mahsulot qarori: FAQAT MATN).
+// routes/stt.js o'chirildi; mikrofon ruxsati ham olib tashlandi. Groq kaliti parsing
+// uchun QOLADI (services/parse.js) — u STT'ga bog'liq emas.
 app.use('/api/categories', categoryRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/debts', debtRoutes);
 app.use('/api/circles', circleRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {

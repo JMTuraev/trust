@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
+import '../flags.dart';
 import '../circle_ui.dart';
 import '../circles_l10n.dart';
 
@@ -99,7 +100,7 @@ class _SubBannerState extends State<SubBanner> {
     setState(() => _dismissedDay = t);
     SharedPreferences.getInstance()
         .then((sp) => sp.setString(_kDismissKey, t))
-        .catchError((_) {});
+        .catchError((_) => false); // saqlash yiqilsa ham UI holati buzilmaydi
   }
 
   // Profilga o'tish — store.vals()['goProfil'] bilan aynan bir xil patch
@@ -238,16 +239,32 @@ class TrustTabBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                _tab(
-                  onTap: () => v['goCircles'](),
-                  color: v['cCircle'],
-                  label: cl()['navCircle'] as String,
-                  // Circles: aylanma (rotation) ikonka — navbat aylanishi metaforasi
-                  icon: SizedBox(
-                    height: 20,
-                    child: Center(child: CircleGlyph(size: 20, color: v['cCircle'])),
+                // Circles — kCirclesEnabled=false (flags.dart): o'rniga Trust AI keldi.
+                // Kod joyida: bayroqni true qilsang tugma qaytadi.
+                if (kCirclesEnabled)
+                  _tab(
+                    onTap: () => v['goCircles'](),
+                    color: v['cCircle'],
+                    label: cl()['navCircle'] as String,
+                    // Circles: aylanma (rotation) ikonka — navbat aylanishi metaforasi
+                    icon: SizedBox(
+                      height: 20,
+                      child: Center(child: CircleGlyph(size: 20, color: v['cCircle'])),
+                    ),
                   ),
-                ),
+                if (kAiEnabled)
+                  _tab(
+                    onTap: () => v['goAi'](),
+                    color: v['cAi'],
+                    label: L0['navAi'] as String,
+                    // Trust AI: uchqun (sparkle) — mavjud outline ikonka uslubida
+                    icon: SizedBox(
+                      height: 20,
+                      child: Center(
+                        child: Icon(Icons.auto_awesome_outlined, size: 19, color: v['cAi']),
+                      ),
+                    ),
+                  ),
                 _tab(
                   onTap: () => v['goProfil'](),
                   color: v['cProf'],

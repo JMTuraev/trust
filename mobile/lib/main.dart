@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'ui.dart';
+import 'flags.dart';
 
 import 'screens/onboarding.dart';
+import 'screens/ai_chat.dart';
 import 'screens/cc_sheet.dart';
 import 'screens/home.dart';
 import 'screens/circles.dart';
@@ -95,7 +97,12 @@ class Root extends StatelessWidget {
                           child: Stack(
                             children: [
                               if (v['isHome'] == true) Positioned.fill(child: HomeScreen()),
-                              if (v['isCircles'] == true) Positioned.fill(child: CirclesScreen()),
+                              // Circles bayroq ostida (flags.dart) — tabdan olib tashlandi,
+                              // kod va ekran joyida: kCirclesEnabled=true qilsang qaytadi.
+                              if (kCirclesEnabled && v['isCircles'] == true)
+                                Positioned.fill(child: CirclesScreen()),
+                              // Trust AI — Circles o'rnidagi yangi tab (docs/ai-character.md)
+                              if (kAiEnabled && v['isAi'] == true) Positioned.fill(child: AiChatScreen()),
                               if (v['isProfil'] == true) Positioned.fill(child: ProfilScreen()),
                             ],
                           ),

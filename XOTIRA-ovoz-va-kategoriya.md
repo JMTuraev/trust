@@ -1,5 +1,34 @@
 # XOTIRA: Ovozli kiritish va kategoriyalash — qabul qilingan qarorlar
 
+> ## ⛔ 2026-07-17 — OVOZ/STT QISMI ESKIRDI (OBSOLETE)
+>
+> **Mahsulot qarori (PO, 2026-07-17): ilova FAQAT MATN. Ovoz/STT butunlay olib tashlandi.**
+> Manba: `docs/ai-character.md` §11 «FAQAT MATN».
+>
+> **Sabab:** inson pul masalasini ovoz chiqarib aytmaydi — qarz va xarajat maxfiy mavzu,
+> ayniqsa odamlar orasida. Qo'shimcha yutuq: mikrofon ruxsati yo'qoladi (moliyaviy ilova uchun
+> ishonch yutug'i), do'kon tekshiruvi va Data Safety formasi soddalashadi.
+>
+> **Bu hujjatda NIMA eskirdi:**
+> - §1 dagi `audio → Storage → STT` oqimi — ESKIRDI (parsing oqimi matndan boshlanadi).
+> - §2 (STT texnologiyalari: Groq whisper-large-v3 / OpenAI gpt-4o-transcribe) — TO'LIQ ESKIRDI.
+> - §5 roadmap'dagi 3-bosqich (Groq STT + mic UX) va 4-bosqichdagi STT/zaxira-STT bandlari — ESKIRDI.
+> - §6 dagi «MATN INPUT YO'Q — faqat mikrofon» UX qarori — ESKIRDI (allaqachon §7 da bekor qilingan).
+> - §7 «STT VAQTINCHA O'CHIQ» — ESKIRDI: endi vaqtincha emas, **butunlay olib tashlandi**
+>   (kod o'chirildi, flag ham yo'q).
+>
+> **Bu hujjatda NIMA KUCHDA QOLADI:**
+> - **§3 Parsing (matn → daromad/xarajat/qarz)** — KUCHDA. Faqat kirish manbai matn
+>   (ovoz emas); uch signalli orkestr (LLM + qoida-parser + lug'at) o'zgarmadi.
+> - **§4 Kategoriyalash** — TO'LIQ KUCHDA, o'zgarishsiz. Bu bo'lim mahsulotning amaldagi spetsifikatsiyasi.
+> - Groq **qoladi** — u `src/services/parse.js` da matn→JSON parsing va AI zaxirasi uchun ishlatiladi.
+>   Faqat STT (whisper) olib tashlandi, Groq kaliti/config'i emas.
+>
+> Olib tashlangan tarkib: `src/routes/stt.js`, `src/services/stt.js`, `mobile/lib/stt.dart`,
+> `STT_ENABLED`, chat ovozli xabarlari (`POST /api/messages/:id/audio`), `record` paketi,
+> `RECORD_AUDIO`, `NSMicrophoneUsageDescription`.
+> Tafsilot: `docs/team-reports/2026-07-17-cleanup-compliance.md`.
+
 > 2026-07-14. Claude bilan maslahat xulosasi. Xarajat (ovoz → matn → tahlil) qismiga kelganda shu hujjatga tayanamiz.
 > Prototip: https://claude.ai/design/p/1df61b94-2996-4af3-8abe-970664b680b6?file=Trust.dc.html
 
@@ -9,11 +38,19 @@ Har qatlamning zaxirasi bor — biri xato qilsa/yiqilsa ikkinchisi qo'llab-quvva
 Butun backend Supabase ichida (Postgres + Auth + Storage + Edge Functions + Realtime).
 Self-hosted model YO'Q — hammasi tayyor API orqali. Mohir AI ishlatilmaydi (qaror).
 
-Oqim: audio (16kHz mono, 3–10 s, VAD bilan avto-to'xtash)
-→ Supabase Storage → Edge Function → STT → LLM parsing → tasdiqlash → Postgres.
-Kutilgan tezlik: yozuvdan bubble'gacha ~2–2.5 soniya. UX: darhol skelet-bubble ko'rsatiladi.
+> ⛔ **ESKIRGAN (2026-07-17)** — quyidagi audio oqimi endi yo'q. Amaldagi oqim:
+> **matn input → LLM parsing → tasdiqlash → Postgres**.
 
-## 2. STT (audio → matn) — tanlangan texnologiyalar
+~~Oqim: audio (16kHz mono, 3–10 s, VAD bilan avto-to'xtash)
+→ Supabase Storage → Edge Function → STT → LLM parsing → tasdiqlash → Postgres.
+Kutilgan tezlik: yozuvdan bubble'gacha ~2–2.5 soniya. UX: darhol skelet-bubble ko'rsatiladi.~~
+
+## 2. ⛔ ESKIRGAN (2026-07-17) — STT (audio → matn) — tanlangan texnologiyalar
+
+> **Bu bo'lim TO'LIQ ESKIRDI.** Ovoz/STT mahsulotdan olib tashlandi (yuqoridagi sarlavhaga qarang).
+> Quyidagilar faqat **tarixiy qaror yozuvi** sifatida saqlanmoqda — joriy qilinmaydi.
+> Diqqat: Groq bu yerda whisper (STT) uchun tanlangan edi; **Groq kaliti hozir ham kerak**, lekin
+> boshqa maqsadda — §3 dagi matn→JSON parsing va AI zaxirasi uchun.
 
 | Rol | Xizmat | Model | Narx | Link |
 |---|---|---|---|---|
@@ -29,7 +66,9 @@ Kutilgan tezlik: yozuvdan bubble'gacha ~2–2.5 soniya. UX: darhol skelet-bubble
 - Byudjet mo'ljali: 1 000 faol foydalanuvchi (kuniga 10 yozuv × 6 s) ≈ oyiga ~$55 Groq + ~$18 zaxira.
 - STT provayderi almashtiriladigan interfeys orqasida tursin: `transcribe(audio) -> {text, confidence}`.
 
-## 3. Parsing (matn → daromad/xarajat/qarz)
+## 3. Parsing (matn → daromad/xarajat/qarz) — ✅ KUCHDA
+
+> Kirish manbai endi **faqat matn** (ovoz emas). Orkestrning o'zi o'zgarmadi.
 
 Uch mustaqil signal parallel ishlaydi, natijalar solishtiriladi:
 1. LLM (Claude Haiku darajasi) — qat'iy JSON schema:
@@ -42,9 +81,12 @@ Qoidalar:
 - LLM va qoida-parser summasi mos → yuqori ishonch, bubble to'g'ridan-to'g'ri.
 - Mos kelmasa yoki ishonch < 0.8 → tasdiqlash kartasi (summa/tomon/kategoriya bosib o'zgartiriladi).
 - LLM yiqilsa → qoida-parser natijasi majburiy tasdiq bilan.
-- MUHIM: parser qarz iboralarini ("Anvarga 500 ming qarz berdim") Xarajatga emas, Hamkorlar/Oldi-berdi oqimiga yo'naltiradi. Bitta mic — uch natija: daromad, xarajat, qarz. Bu Trust'ning asosiy farqi.
+- MUHIM: parser qarz iboralarini ("Anvarga 500 ming qarz berdim") Xarajatga emas, Hamkorlar/Oldi-berdi oqimiga yo'naltiradi. Bitta **matn qatori** — uch natija: daromad, xarajat, qarz. Bu Trust'ning asosiy farqi.
+  *(2026-07-17: avval «bitta mic» deyilgan edi — endi manba matn.)*
 
-## 4. Kategoriyalash — eng kuchli variant (qabul qilingan)
+## 4. Kategoriyalash — eng kuchli variant (qabul qilingan) — ✅ TO'LIQ KUCHDA
+
+> Bu bo'lim 2026-07-17 ovoz/STT olib tashlanishidan **ta'sirlanmadi** — o'zgarishsiz amalda.
 
 Baza: 7 toifa (Oziq-ovqat, Transport, Kommunal, Ko'ngilochar, Kiyim, Salomatlik, Boshqa) + foydalanuvchi CRUD (qo'shish/qayta nomlash/arxivlash; o'chirish yo'q — tarix buzilmasin).
 
@@ -66,8 +108,12 @@ Yangi toifa yaratish:
 
 1. ✅ Matn kiritish + qoida-parser + tasdiqlash kartasi + toifa CRUD (audio hali yo'q, oqim ishlaydi).
 2. ✅ LLM parsing ustiga; qoida-parser validator roliga o'tadi; lug'at + tuzatishlardan o'rganish.
-3. ✅ Groq STT + mic UX ("Tinglayapman..." reali); matn kiritish fallback bo'lib qoladi.
-4. ⬜ OpenAI zaxira-STT ✅, confidence-marshrutlash ✅, offline navbat ⬜, monitoring (STT xato %, parsing aniqlik %, fallback chastotasi) ⬜. Keyin pgvector ⬜ va kontekst signallari ⬜, "Boshqa"ni haftalik klasterlash (pg_cron) ⬜.
+3. ⛔ ~~Groq STT + mic UX ("Tinglayapman..." reali); matn kiritish fallback bo'lib qoladi.~~
+   **ESKIRDI (2026-07-17)** — qurilgan edi, keyin butunlay olib tashlandi (mahsulot qarori: faqat matn).
+   Matn kiritish endi fallback emas, **yagona** kirish usuli.
+4. ⬜ ~~OpenAI zaxira-STT ✅~~ (⛔ eskirdi), confidence-marshrutlash ✅, offline navbat ⬜,
+   monitoring (~~STT xato %~~, parsing aniqlik %, fallback chastotasi) ⬜. Keyin pgvector ⬜ va
+   kontekst signallari ⬜, "Boshqa"ni haftalik klasterlash (pg_cron) ⬜.
 
 Tamoyil: har bosqichda app to'liq ishlaydi — yangi texnologiya tagida doim tayyor fallback turadi.
 
@@ -86,14 +132,21 @@ Mobil:
 
 Tasdiqlash kartasi qachon chiqadi: ishonch < 0.8 YOKI summa mos kelmasa YOKI yangi toifa taklifi YOKI qarz. Aks holda bubble to'g'ridan-to'g'ri.
 
-UX qarori (2026-07-15): Xarajat chatida MATN INPUT YO'Q — pastda markazda faqat mikrofon
+> ⛔ **ESKIRGAN (2026-07-17).** Quyidagi "faqat mikrofon" UX qarori avval §7 da bekor qilingan,
+> endi esa ovoz butunlay olib tashlandi. Amaldagi holat: **matn input — yagona kirish usuli**.
+
+~~UX qarori (2026-07-15): Xarajat chatida MATN INPUT YO'Q — pastda markazda faqat mikrofon
 (inputsiz, ovoz-birinchi). Klaviatura faqat bitta joyda chiqadi: tasdiqlash kartasida
 STT matni xato eshitilgan bo'lsa, «matn»ni bosib tahrirlash → qayta tahlil (xcEdit oqimi).
-Eski matn-fallback endpointlari o'zgarmagan — faqat UI'dan olib tashlandi.
+Eski matn-fallback endpointlari o'zgarmagan — faqat UI'dan olib tashlandi.~~
 
 Keyingi navbat (4-bosqich qoldiqlari): offline navbat, monitoring metrikalar, pgvector k-NN, kontekst signallari, haftalik "Boshqa" klasterlash, toifa boshiga limit.
 
-## 7. YO'NALISH O'ZGARISHI (2026-07-15 kech) — MATN-BIRINCHI, STT VAQTINCHA O'CHIQ
+## 7. ⛔ ESKIRGAN (2026-07-17) — YO'NALISH O'ZGARISHI (2026-07-15 kech) — MATN-BIRINCHI, STT VAQTINCHA O'CHIQ
+
+> **Bu bo'lim ESKIRDI.** 2026-07-15 da STT "vaqtincha, flag bilan" o'chirilgan edi va kod saqlangan edi.
+> **2026-07-17 da qaror yakuniy bo'ldi: ovoz/STT butunlay olib tashlandi** — flag ham, kod ham yo'q.
+> Quyidagi `STT_ENABLED` / `kSttEnabled` flaglari **endi mavjud emas**.
 
 §6 dagi "faqat mikrofon" UX qarori BEKOR qilindi. Yangi qaror: Xarajat bo'limi matn-birinchi
 ("Xarajatlar Trust" dizayni: AI matn input, papkalar, kirim/chiqim ajratilgan, papka ichi xronologiya,

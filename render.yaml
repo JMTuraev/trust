@@ -34,15 +34,15 @@ services:
       # SMS toll-fraud: butun servis bo'yicha soatlik OTP capi (devsms balansini himoya)
       - key: SMS_GLOBAL_HOURLY_CAP
         value: "200"
-      # STT (ovoz->matn) YONIQ — chat ovozi hold-to-talk (2026-07-15).
-      # O'chirish: "false". LLM parsing bunga bog'liq EMAS, ishlayveradi.
-      - key: STT_ENABLED
-        value: "true"
-      # STT (ovoz->matn) VA LLM parsing (matn->xarajat/qarz) — bitta Groq kaliti.
-      # Majburiy: Xarajat AI shu kalitsiz faqat qoida-parserga tushadi.
+      # 2026-07-17: STT_ENABLED OLIB TASHLANDI — ovoz/STT mahsulotdan chiqarildi
+      # (mahsulot qarori: FAQAT MATN, docs/ai-character.md §11). Mikrofon ruxsati ham yo'q.
+      # LLM parsing (matn->xarajat/qarz) STT'ga BOG'LIQ EMAS — quyidagi kalitlar kerak.
+      #
+      # MAJBURIY: LLM parsing (matn->xarajat/qarz, src/services/parse.js) uchun Groq kaliti.
+      # Bu kalitsiz Xarajat AI faqat qoida-parserga tushadi (ilova ishlaydi, aniqlik pasayadi).
       - key: GROQ_API_KEY
         sync: false
-      # Zaxira LLM/STT (tavsiya) — Groq yiqilganda ishlatiladi
+      # Zaxira LLM (tavsiya) — Groq yiqilganda parsing shunga o'tadi
       - key: OPENAI_API_KEY
         sync: false
       # LLM modellari (ixtiyoriy — defaultlari kodda bor)
@@ -50,6 +50,40 @@ services:
         value: llama-3.3-70b-versatile
       - key: OPENAI_LLM_MODEL
         value: gpt-4o-mini
+      # ---- Trust AI (moliyaviy hamroh chat, docs/ai-character.md) ----
+      # MAJBURIY: Anthropic kaliti (Claude Opus 4.8). Dashboard'da qo'lda kiritiladi.
+      # Kalitsiz /api/ai/chat zaxiraga (Groq) tushadi; ikkalasi ham yo'q bo'lsa 503.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Favqulodda o'chirgich: "false" -> /api/ai/chat 503 (tarix o'qish ochiq qoladi)
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_MODEL
+        value: claude-opus-4-8
+      # Output input'dan ~5x qimmat, xarakter esa ataylab qisqa (2–4 gap)
+      - key: AI_MAX_TOKENS
+        value: "400"
+      # Limitlar SUIISTE'MOLGA qarshi, ratsion uchun EMAS (PO qarori) — saxiy.
+      # ai_usage jadvalidagi real ma'lumot bilan keyin sozlanadi.
+      - key: AI_DAILY_LIMIT
+        value: "40"
+      - key: AI_MONTHLY_LIMIT
+        value: "400"
+      - key: AI_MINUTE_LIMIT
+        value: "5"
+      # Agregat kontekst keshi (ai_profile). Kesh prompt caching'ni ham ushlab turadi.
+      - key: AI_PROFILE_TTL_HOURS
+        value: "6"
+      # Narx ($/1M token) — FAQAT ai_usage.cost_usd auditi uchun. PO Anthropic
+      # tarif sahifasidan tekshirib qo'ysin (noto'g'ri qiymat hisobotni buzadi, xizmatni emas).
+      - key: AI_PRICE_IN
+        value: "5"
+      - key: AI_PRICE_CACHE_WRITE
+        value: "6.25"
+      - key: AI_PRICE_CACHE_READ
+        value: "0.5"
+      - key: AI_PRICE_OUT
+        value: "25"
       # Link modeli sozlamalari (ixtiyoriy — defaultlari kodda bor)
       - key: REJECT_SIGNAL_DELAY_HOURS
         value: "24"

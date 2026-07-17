@@ -15,7 +15,12 @@ class ApiRes {
   final dynamic data;
   final String error;
   final int status;
-  ApiRes(this.ok, this.data, this.error, this.status);
+  // Server xato KODI (masalan 'AI_LIMIT_DAILY', 'AI_RATE_MINUTE', 'SUB_EXPIRED').
+  // Bitta status kodi bir necha sababni anglatishi mumkin (429 = kunlik chegara HAM,
+  // "sekinroq yoz" HAM) — UI to'g'ri xabarni shu kod bo'yicha tanlaydi.
+  // Ixtiyoriy va oxirgi pozitsiyada: eski ApiRes(...) chaqiruvlari o'zgarishsiz ishlaydi.
+  final String code;
+  ApiRes(this.ok, this.data, this.error, this.status, [this.code = '']);
 }
 
 class Api {
@@ -75,7 +80,8 @@ class Api {
         if (res.statusCode == 402) {
           onPaymentRequired?.call();
         }
-        return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
+        return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})',
+            res.statusCode, (map['code'] as String?) ?? '');
       }
       return ApiRes(true, map['data'], '', res.statusCode);
     } on TimeoutException {
@@ -184,31 +190,7 @@ class Api {
   static Future<ApiRes> readMsgs(String partnerId) => _req('POST', '/api/messages/$partnerId/read');
   static Future<ApiRes> unreadCounts() => _req('GET', '/api/messages/unread/counts');
 
-  /// Ovozli xabar yuborish — xom audio (m4a) bayтlari, davomiylik query'da
-  static Future<ApiRes> sendAudio(String partnerId, List<int> bytes, int durationSec) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$apiUrl/api/messages/$partnerId/audio?duration_sec=$durationSec'),
-            headers: {
-              'Content-Type': 'audio/m4a',
-              if (token != null) 'Authorization': 'Bearer $token',
-            },
-            body: bytes,
-          )
-          .timeout(const Duration(seconds: 30));
-      final map = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      if (res.statusCode >= 400 || map['success'] == false) {
-        if (res.statusCode == 401 && token != null) onUnauthorized?.call();
-        return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
-      }
-      return ApiRes(true, map['data'], '', res.statusCode);
-    } on TimeoutException {
-      return ApiRes(false, null, 'Yuborish uzoq cho\'zildi — qayta urinib ko\'ring', 0);
-    } catch (_) {
-      return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
-    }
-  }
+  // 2026-07-17: sendAudio() OLIB TASHLANDI — server /api/messages/:id/audio yo'q (FAQAT MATN).
 
   // ---- Qarz daftari (ledger) — /api/debts ----
   static Future<ApiRes> debts(String partnerId) => _req('GET', '/api/debts/$partnerId');
@@ -254,44 +236,22 @@ class Api {
   // ---- Profil hayoti (soft-delete) ----
   static Future<ApiRes> deleteProfile() => _req('DELETE', '/api/profile/me');
 
+  // ---- Trust AI (moliyaviy hamroh chati — docs/ai-character.md) ----
+  // Javob bloklar bilan keladi (§11): {id, role, text?, blocks:[...], created_at}.
+  // LLM faqat serverda chaqiriladi — kalit mobilga chiqmaydi.
+  // 429 = kunlik xabar chegarasi, 402 = obuna tugagan (read-only) — UI ikkalasini
+  // status kodi bo'yicha ajratadi (ApiRes.status).
+  static Future<ApiRes> aiChat(String message) =>
+      _req('POST', '/api/ai/chat', body: {'message': message}, timeoutSec: 60);
+  static Future<ApiRes> aiMessages() => _req('GET', '/api/ai/messages', timeoutSec: 30);
+  static Future<ApiRes> aiFlag(String messageId, String reason) => _req('POST', '/api/ai/flag',
+      body: {'message_id': messageId, if (reason.isNotEmpty) 'reason': reason});
+
   // ---- Notifications ----
   static Future<ApiRes> notifications() => _req('GET', '/api/notifications');
   static Future<ApiRes> readNotif(String id) => _req('POST', '/api/notifications/$id/read');
   static Future<ApiRes> readAllNotifs() => _req('POST', '/api/notifications/read-all');
 
-  /// Ovoz -> matn (backend: 1-qatlam Groq whisper, 2-qatlam OpenAI zaxira).
-  /// null = ishlamadi — sabab [lastSttError] da (UI aniq toast ko'rsatadi).
-  static String? lastSttError;
-
-  static Future<String?> transcribe(List<int> audioBytes) async {
-    lastSttError = null;
-    try {
-      if (token == null) await loadToken();
-      if (token == null) {
-        lastSttError = "Ovoz uchun avval raqamingiz bilan kiring (demo rejimda ishlamaydi)";
-        return null;
-      }
-      final res = await http
-          .post(
-            Uri.parse('$apiUrl/api/stt/transcribe'),
-            headers: {
-              'Content-Type': 'audio/wav',
-              'Authorization': 'Bearer $token',
-            },
-            body: audioBytes,
-          )
-          .timeout(const Duration(seconds: 25));
-      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      if (res.statusCode >= 400 || data['success'] == false) {
-        // Token muddati o'tgan bo'lsa — boshqa so'rovlar kabi markazlashgan logout.
-        if (res.statusCode == 401 && token != null) onUnauthorized?.call();
-        lastSttError = (data['error'] as String?) ?? 'Server xatosi (${res.statusCode})';
-        return null;
-      }
-      return ((data['data'] as Map?)?['text'] as String?);
-    } catch (_) {
-      lastSttError = "Serverga ulanib bo'lmadi — internet yoki API_URL'ni tekshiring";
-      return null;
-    }
-  }
+  // 2026-07-17: transcribe() / lastSttError OLIB TASHLANDI — /api/stt/transcribe endpointi
+  // o'chirildi (mahsulot qarori: FAQAT MATN — docs/ai-character.md §11).
 }

@@ -174,6 +174,16 @@ router.delete('/me', async (req, res, next) => {
       .update({ deleted_at: nowIso, updated_at: nowIso })
       .eq('id', req.user.id);
     if (error) throw new Error(error.message);
+
+    // 2026-07-17: AI suhbat tarixi soft-delete'da HAQIQATAN o'chiriladi.
+    // Sabab: on-delete-cascade faqat HARD delete'da ishlaydi, biz esa soft qilamiz —
+    // privacy-policy.html §3 shuni va'da qiladi, kod bilan mos bo'lishi SHART (Play Data Safety).
+    // Daftar/qarzlar TEGILMAYDI (qarshi tomonning yozuvi saqlanishi kerak — link modeli).
+    // Qayta kirsa (reactivateIfDeleted) AI suhbati toza boshlanadi — bu kutilgan xatti-harakat.
+    // ai_usage QOLADI: bu moliyaviy/token auditi, shaxsiy suhbat mazmuni emas.
+    await supabaseAdmin.from('ai_messages').delete().eq('user_id', req.user.id);
+    await supabaseAdmin.from('ai_profile').delete().eq('user_id', req.user.id);
+
     res.json({ success: true, data: { deleted_at: nowIso } });
   } catch (e) {
     next(e);

@@ -63,21 +63,24 @@ docker run -d --name trust --env-file .env -p 3000:3000 --restart unless-stopped
 
 Kod 12-factor: barcha sozlama env orqali, holat faqat Supabase'da — shuning uchun Render ↔ VPS ko'chish faqat env fayl ko'chirishdan iborat. Oldida NGINX + Let's Encrypt qo'yish tavsiya etiladi, keyin mobil `API_URL`ni yangi domenga o'zgartirasiz.
 
-## 6. STT (ovoz → matn) — 2 qatlam (XOTIRA-ovoz-va-kategoriya.md)
+## 6. Groq / OpenAI kalitlari (LLM parsing uchun)
 
-1-qatlam: **Groq whisper-large-v3** (asosiy, bepul tarif kuniga 2000 so'rov). 2-qatlam: **OpenAI gpt-4o-transcribe** (zaxira — shovqin/sheva; past ishonch, bo'sh matn yoki timeout'da avtomatik o'tadi).
+> **2026-07-17:** ovoz → matn (STT) mahsulotdan **butunlay olib tashlandi** — ilova faqat matn
+> (sabab: `docs/ai-character.md` §11). `/api/stt/transcribe` endpointi va `STT_ENABLED` yo'q.
+> Groq kaliti esa **kerakligicha qoladi** — u endi 7-bo'limdagi matn→JSON parsing va
+> Trust AI zaxira modeli uchun ishlatiladi.
 
 1. **https://console.groq.com** → API Keys → Create API Key → nusxalang
 2. Render Dashboard → **trust-backend** → **Environment** → Add: `GROQ_API_KEY` = (kalit) → Save (avto qayta deploy bo'ladi)
 3. (Zaxira qatlam uchun, ixtiyoriy-lekin-tavsiya) `OPENAI_API_KEY` ham qo'shing — platform.openai.com
 4. Lokal `.env`ga ham qo'shib qo'ying
-5. Test: ilovada login → Xarajat → mikrofon → gapiring → to'lqinni bosing
+5. Test: ilovada login → Xarajat → matn yozing ("bozorga 50 ming") → yuboring
 
-Kalit qo'shilmaguncha endpoint 503 qaytaradi va ilova demo/matn rejimida ishlayveradi.
+Kalit qo'shilmaguncha parsing qoida-parserga tushadi (ilova ishlayveradi, majburiy tasdiqlash kartasi bilan).
 
 ## 7. AI parsing (matn → daromad/xarajat/qarz) — XOTIRA §3
 
-STT bilan **bir xil kalitlar** ishlatiladi, qo'shimcha sozlash kerak emas:
+6-bo'limdagi **bir xil kalitlar** ishlatiladi, qo'shimcha sozlash kerak emas:
 - Asosiy LLM: Groq `llama-3.3-70b-versatile` (`GROQ_API_KEY`, bepul tarif yetadi)
 - Zaxira: OpenAI `gpt-4o-mini` (`OPENAI_API_KEY`)
 - Ikkalasi yiqilsa: backend qoida-parser bilan javob beradi (majburiy tasdiqlash kartasi)

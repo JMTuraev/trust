@@ -1,9 +1,7 @@
-// REAL chat: hamkor (link) doirasida matn va ovozli xabarlar.
+// REAL chat: hamkor (link) doirasida FAQAT MATN xabarlari.
 // Huquq: partner.owner_id YOKI (partner.counterparty_id va link_status='accepted').
-// Ovozli fayllar yopiq 'voice' bucket'da — o'qish faqat 10 daqiqalik signed URL orqali.
+// 2026-07-17: ovozli xabarlar butunlay olib tashlandi (mahsulot qarori — docs/ai-character.md §11).
 import { Router } from 'express';
-import express from 'express';
-import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 // Obuna read-only qoidasi: xabar YUBORISH — 402; o'qish va read-belgilash OCHIQ
@@ -12,8 +10,6 @@ import { displayName, notifEnabled } from '../lib/links.js';
 
 const router = Router();
 router.use(requireAuth);
-
-const SIGNED_URL_TTL = 600; // 10 daqiqa (soniyada)
 
 // Hamkorni yuklab, so'rovchining chatga huquqini tekshiradi.
 // Ruxsat bo'lsa partner qatorini, bo'lmasa null qaytaradi.
@@ -26,22 +22,14 @@ async function chatPartner(req, partnerId) {
   return isOwner || isAcceptedCp ? p : null;
 }
 
-// Xabar qatorini klient shakliga o'tkazadi (audio bo'lsa signed URL qo'shib).
+// Xabar qatorini klient shakliga o'tkazadi.
 // mine'ni server hisoblamaydi — sender_id qaytariladi, klient o'zi solishtiradi.
-async function toClient(m) {
-  let audio_url = null;
-  if (m.kind === 'audio' && m.audio_path) {
-    const { data } = await supabaseAdmin.storage
-      .from('voice').createSignedUrl(m.audio_path, SIGNED_URL_TTL);
-    audio_url = data?.signedUrl ?? null;
-  }
+function toClient(m) {
   return {
     id: m.id,
     sender_id: m.sender_id,
-    kind: m.kind,
+    kind: 'text',
     body: m.body,
-    audio_url,
-    duration_sec: m.duration_sec,
     created_at: m.created_at,
     read_at: m.read_at,
   };
@@ -111,7 +99,8 @@ router.get('/:partnerId', async (req, res, next) => {
     const { data, error } = await q;
     if (error) throw new Error(error.message);
 
-    const rows = await Promise.all((data || []).map(toClient));
+    // Eski ovozli xabarlar (2026-07-17 gacha) endi ko'rsatilmaydi — ovoz mahsulotdan olib tashlandi.
+    const rows = (data || []).filter((m) => m.kind !== 'audio').map(toClient);
     res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });
@@ -138,47 +127,9 @@ router.post('/:partnerId', requireActiveSub, async (req, res, next) => {
     if (error) throw new Error(error.message);
 
     await notifyMessage(p, req.user.id, text.length > 80 ? `${text.slice(0, 77)}...` : text);
-    res.status(201).json({ success: true, data: await toClient(data) });
+    res.status(201).json({ success: true, data: toClient(data) });
   } catch (e) { next(e); }
 });
-
-// POST /api/messages/:partnerId/audio?duration_sec=N — ovozli xabar
-// Body: xom audio baytlar (Content-Type: audio/*), route darajasida raw parser
-router.post(
-  '/:partnerId/audio',
-  requireActiveSub, // raw parserdan OLDIN — bloklangan foydalanuvchi uchun 5MB tana o'qilmaydi
-  express.raw({ type: 'audio/*', limit: '5mb' }),
-  async (req, res, next) => {
-    try {
-      const p = await chatPartner(req, req.params.partnerId);
-      if (!p) return res.status(404).json({ success: false, error: 'Topilmadi' });
-
-      const bytes = req.body;
-      if (!Buffer.isBuffer(bytes) || bytes.length < 200)
-        return res.status(400).json({ success: false, error: 'Audio kelmadi yoki juda qisqa (Content-Type: audio/* bo\'lsin)' });
-
-      const duration = Number.parseInt(req.query.duration_sec, 10);
-      const contentType = req.headers['content-type'] || 'audio/m4a';
-      const path = `${p.id}/${randomUUID()}.m4a`;
-
-      const { error: upErr } = await supabaseAdmin.storage
-        .from('voice').upload(path, bytes, { contentType });
-      if (upErr) throw new Error(upErr.message);
-
-      const { data, error } = await supabaseAdmin.from('messages').insert({
-        partner_id: p.id,
-        sender_id: req.user.id,
-        kind: 'audio',
-        audio_path: path,
-        duration_sec: Number.isFinite(duration) && duration > 0 ? duration : null,
-      }).select().single();
-      if (error) throw new Error(error.message);
-
-      await notifyMessage(p, req.user.id, 'Ovozli xabar');
-      res.status(201).json({ success: true, data: await toClient(data) });
-    } catch (e) { next(e); }
-  }
-);
 
 // POST /api/messages/:partnerId/read — qarshi tomon yuborganlarini o'qildi deb belgilash
 router.post('/:partnerId/read', async (req, res, next) => {

@@ -12,16 +12,23 @@
   th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; vertical-align: top; }
   th { background: #f7f7f9; }
   .muted { color: #666; font-size: 14px; }
+  .note { background: #f7f7f9; border-left: 3px solid #bbb; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
   hr { border: none; border-top: 1px solid #e5e5e5; margin: 40px 0; }
 </style>
 </head>
 <body>
 
 <h1>Trust — Maxfiylik siyosati</h1>
-<p class="muted">Oxirgi yangilanish: 2026-yil 15-iyul</p>
+<p class="muted">Oxirgi yangilanish: 2026-yil 17-iyul</p>
 
 <p><strong>Trust</strong> — ishonchli ikki tomonlama hisob-kitob ilovasi. Ushbu siyosat ilova qanday
 ma'lumot yig'ishi, ulardan qanday foydalanishi va ularni kim bilan bo'lishishini tushuntiradi.</p>
+
+<div class="note">
+  <strong>Ilova mikrofondan foydalanmaydi.</strong> Trust ovoz yozmaydi va mikrofon ruxsatini
+  so'ramaydi — barcha kiritish faqat matn orqali. (2026-yil 17-iyul qarori: pul masalasi
+  maxfiy mavzu, uni ovoz chiqarib aytish kerak emas.)
+</div>
 
 <h2>1. Biz yig'adigan ma'lumotlar</h2>
 <table>
@@ -30,54 +37,107 @@ ma'lumot yig'ishi, ulardan qanday foydalanishi va ularni kim bilan bo'lishishini
   <tr><td>Ism (ixtiyoriy)</td><td>Profilingiz va kontragentlarga ko'rinadigan nom</td></tr>
   <tr><td>Moliyaviy/tranzaksiya yozuvlari</td><td>Siz kiritgan qarz, hisob-kitob, xarajat va daromad yozuvlari</td></tr>
   <tr><td>Kontragent telefon raqamlari</td><td>Siz bog'lanish yaratgan shaxslarni aniqlash uchun</td></tr>
-  <tr><td>Ovoz yozuvlari (mikrofon)</td><td>Xarajatni ovoz orqali kiritish — ovoz matnga aylantiriladi</td></tr>
+  <tr><td>Trust AI suhbat tarixi</td><td>Siz AI'ga yozgan xabarlar va uning javoblari (§3)</td></tr>
 </table>
 
 <h2>2. Ma'lumotlardan qanday foydalanamiz</h2>
 <ul>
   <li>Hisobingizga xavfsiz kirishingizni ta'minlash;</li>
   <li>Qarz va hisob-kitoblarni yuritish, ikki tomonlama tasdiqlash;</li>
-  <li>Ovozli buyruqlarni matnga aylantirib, xarajat/daromad yozuvini yaratish.</li>
+  <li>Siz yozgan matnni tahlil qilib, xarajat/daromad yozuvini yaratish;</li>
+  <li>Trust AI orqali moliyaviy tahlil va tavsiya berish (§3).</li>
 </ul>
 
-<h2>3. Ma'lumotlarni uchinchi tomonlar bilan bo'lishish</h2>
+<h2>3. Trust AI va uchinchi tomon (Anthropic)</h2>
+<p>Ilovadagi <strong>Trust AI</strong> — moliyaviy hamroh chat. U <strong>Anthropic PBC</strong>
+(AQSH) xizmatidagi <code>claude-opus-4-8</code> modeli yordamida ishlaydi. Bu shuni anglatadiki,
+so'rovingizga javob berish uchun ma'lumotning bir qismi <strong>uchinchi tomon serveriga</strong>
+yuboriladi. Quyida aynan nima yuborilishi ochiq yozilgan.</p>
+
+<h3>3.1. Nima YUBORILADI</h3>
+<ul>
+  <li><strong>Agregat (umumlashtirilgan) moliyaviy xulosa</strong> — oylik daromad/xarajat jami,
+      toifalar bo'yicha summalar va foizlar, trend, qarz summalari va muddatlari, jamg'arma odati.</li>
+  <li>Siz AI'ga yozgan <strong>xabar matni</strong> va shu suhbatning oxirgi bir necha xabari.</li>
+</ul>
+
+<h3>3.2. Nima YUBORILMAYDI</h3>
+<ul>
+  <li><strong>Kontragentlarning haqiqiy ismlari yuborilmaydi.</strong> Ular serverda, tashqariga
+      chiqishdan OLDIN taxallusga almashtiriladi: «Anvar» → <code>HAMKOR_1</code>. Javob qaytgach,
+      taxallus qurilmangizda yana haqiqiy ismga almashtiriladi. Anthropic haqiqiy ismni ko'rmaydi.</li>
+  <li><strong>Xom yozuvlar (har bir tranzaksiya alohida) yuborilmaydi</strong> — faqat agregat.</li>
+  <li>Telefon raqamingiz, parol/token va OTP kodlari — hech qachon.</li>
+</ul>
+
+<h3>3.3. Ruxsat (rozilik)</h3>
+<p>Trust AI'dan <strong>birinchi marta foydalanganingizda</strong> sizdan aniq rozilik so'raladi va
+nima yuborilishi ko'rsatiladi. Rozilik bermasangiz — ilovaning qolgan barcha qismi (qarz, xarajat,
+hisob-kitob) to'liq ishlaydi. AI ixtiyoriy funksiya.</p>
+
+<h3>3.4. Saqlash muddati va nazorat</h3>
+<ul>
+  <li>Suhbat tarixi bizning serverimizda (Supabase) saqlanadi — siz uni ilovada ko'rasiz.</li>
+  <li>Anthropic so'rovni javob berish uchun qayta ishlaydi. Anthropic API orqali yuborilgan
+      ma'lumot <strong>model o'qitish uchun ishlatilmaydi</strong> (Anthropic tijorat shartlariga muvofiq).</li>
+  <li><strong>Hisobingizni o'chirsangiz, Trust AI suhbat tarixingiz ham o'chiriladi.</strong></li>
+  <li>Suhbat tarixini alohida o'chirishni quyidagi email orqali so'rashingiz mumkin.</li>
+</ul>
+
+<h3>3.5. AI javobi noto'g'ri yoki nomaqbul bo'lsa</h3>
+<p>Har bir AI javobi ostida <strong>shikoyat (flag) tugmasi</strong> bor. Uni bossangiz, javob
+bizga tekshirish uchun yuboriladi. AI xato qilishi mumkin — u <strong>litsenziyalangan moliyaviy
+maslahatchi emas</strong> va investitsiya, soliq yoki huquqiy maslahat bermaydi.</p>
+
+<h2>4. Ma'lumotlarni uchinchi tomonlar bilan bo'lishish</h2>
 <p>Biz ma'lumotlaringizni <strong>sotmaymiz</strong>. Ilova ishlashi uchun quyidagi xizmatlardan foydalanamiz:</p>
 <table>
   <tr><th>Xizmat</th><th>Maqsad</th><th>Nima yuboriladi</th></tr>
   <tr><td>Supabase</td><td>Ma'lumotlar bazasi va autentifikatsiya</td><td>Barcha hisob ma'lumotlari (server)</td></tr>
-  <tr><td>Groq (Whisper)</td><td>Ovozni matnga aylantirish (asosiy)</td><td>Ovoz yozuvi</td></tr>
-  <tr><td>OpenAI</td><td>Ovozni matnga aylantirish (zaxira)</td><td>Ovoz yozuvi</td></tr>
+  <tr><td>Anthropic (Claude)</td><td>Trust AI — moliyaviy tahlil va suhbat</td><td>Agregat moliyaviy xulosa + xabar matni; <strong>ismlar taxallusda</strong> (§3)</td></tr>
+  <tr><td>Groq</td><td>Matnni tahlil qilish (xarajat/qarz ajratish), AI zaxirasi</td><td>Siz kiritgan yozuv matni</td></tr>
+  <tr><td>OpenAI</td><td>Matn tahlili zaxirasi</td><td>Siz kiritgan yozuv matni</td></tr>
   <tr><td>devsms.uz</td><td>OTP SMS yuborish</td><td>Telefon raqami</td></tr>
   <tr><td>Render</td><td>Backend server hostingi</td><td>So'rovlar (HTTPS)</td></tr>
 </table>
 
-<h2>4. Ma'lumotlarni uzatish va saqlash</h2>
-<p>Barcha ma'lumotlar qurilma va serverimiz o'rtasida <strong>HTTPS (shifrlangan)</strong> orqali uzatiladi.
-Ma'lumotlar Supabase serverlarida saqlanadi. Ovoz yozuvlari matnga aylantirish uchun yuqoridagi
-xizmatlarga yuboriladi va bizning tomonimizdan doimiy saqlanmaydi.</p>
+<h2>5. Ma'lumotlarni uzatish va saqlash</h2>
+<p>Barcha ma'lumotlar qurilma va serverimiz o'rtasida <strong>HTTPS (shifrlangan)</strong> orqali
+uzatiladi. Asosiy ma'lumotlar Supabase serverlarida saqlanadi.</p>
+<p><strong>Chegaradan tashqari uzatish.</strong> Yuqoridagi xizmatlar (Anthropic, Groq, OpenAI,
+Supabase, Render) serverlari O'zbekistondan tashqarida joylashgan. Ilova <strong>biometrik va
+genetik ma'lumot yig'maydi</strong>. Ilova mikrofondan foydalanmaydi va ovoz yozmaydi.</p>
 
-<h2>5. Sizning huquqlaringiz</h2>
+<h2>6. Sizning huquqlaringiz</h2>
 <ul>
   <li>Hisobingizdagi ma'lumotlarni ko'rish;</li>
-  <li>Hisobingizni va unga bog'liq ma'lumotlarni o'chirishni so'rash — quyidagi email orqali.</li>
+  <li>Trust AI suhbat tarixini o'chirishni so'rash;</li>
+  <li>Hisobingizni va unga bog'liq ma'lumotlarni (AI tarixi bilan birga) o'chirish — ilova ichidan
+      yoki quyidagi email orqali.</li>
 </ul>
 
-<h2>6. Bolalar</h2>
-<p>Ilova 18 yoshdan katta foydalanuvchilar uchun mo'ljallangan (moliyaviy hisob-kitob).</p>
+<h2>7. Bolalar va yosh chegarasi</h2>
+<p>Ilova <strong>18 yoshdan katta</strong> foydalanuvchilar uchun mo'ljallangan (moliyaviy hisob-kitob
+va AI chat).</p>
 
-<h2>7. O'zgarishlar</h2>
+<h2>8. O'zgarishlar</h2>
 <p>Siyosat yangilanishi mumkin. Muhim o'zgarishlar ilova orqali ma'lum qilinadi.</p>
 
-<h2>8. Aloqa</h2>
+<h2>9. Aloqa</h2>
 <p>Savollar bo'yicha: <a href="mailto:jafaralituraev@gmail.com">jafaralituraev@gmail.com</a></p>
 
 <hr>
 
 <h1>Trust — Privacy Policy (English)</h1>
-<p class="muted">Last updated: 15 July 2026</p>
+<p class="muted">Last updated: 17 July 2026</p>
 
 <p><strong>Trust</strong> is a two-sided bookkeeping app. This policy explains what data the app collects,
 how it is used, and who it is shared with.</p>
+
+<div class="note">
+  <strong>The app does not use the microphone.</strong> Trust does not record audio and does not
+  request microphone permission — all input is text only.
+</div>
 
 <h2>1. Data we collect</h2>
 <table>
@@ -86,45 +146,90 @@ how it is used, and who it is shared with.</p>
   <tr><td>Name (optional)</td><td>Your profile name shown to counterparties</td></tr>
   <tr><td>Financial / transaction records</td><td>Debts, settlements, expenses and income you enter</td></tr>
   <tr><td>Counterparty phone numbers</td><td>To identify people you create a link with</td></tr>
-  <tr><td>Audio recordings (microphone)</td><td>Voice entry of expenses — audio is converted to text</td></tr>
+  <tr><td>Trust AI chat history</td><td>Messages you send to the AI and its replies (§3)</td></tr>
 </table>
 
 <h2>2. How we use data</h2>
 <ul>
   <li>Secure access to your account;</li>
   <li>Maintaining debts and settlements with two-sided confirmation;</li>
-  <li>Converting voice commands to text to create an expense/income entry.</li>
+  <li>Parsing the text you type into an expense/income entry;</li>
+  <li>Providing financial analysis and suggestions via Trust AI (§3).</li>
 </ul>
 
-<h2>3. Sharing with third parties</h2>
+<h2>3. Trust AI and a third party (Anthropic)</h2>
+<p><strong>Trust AI</strong> is an in-app financial companion chat powered by the
+<code>claude-opus-4-8</code> model from <strong>Anthropic PBC</strong> (USA). This means part of your
+data is sent to a <strong>third-party server</strong> to answer your question. Exactly what is sent
+is listed below.</p>
+
+<h3>3.1. What IS sent</h3>
+<ul>
+  <li>An <strong>aggregated financial summary</strong> — monthly income/expense totals, per-category
+      sums and percentages, trends, debt amounts and ages, saving habits.</li>
+  <li>The <strong>text of your message</strong> to the AI and the last few messages of that conversation.</li>
+</ul>
+
+<h3>3.2. What is NOT sent</h3>
+<ul>
+  <li><strong>Real counterparty names are never sent.</strong> They are pseudonymized on our server
+      <em>before</em> leaving it: "Anvar" → <code>HAMKOR_1</code>. The real name is restored on your
+      device after the reply comes back. Anthropic never sees the real name.</li>
+  <li><strong>Raw per-transaction rows are not sent</strong> — aggregates only.</li>
+  <li>Your phone number, credentials/tokens and OTP codes — never.</li>
+</ul>
+
+<h3>3.3. Consent</h3>
+<p>The <strong>first time</strong> you use Trust AI you are asked for explicit consent and shown what
+gets sent. If you decline, the rest of the app (debts, expenses, settlements) works fully. AI is optional.</p>
+
+<h3>3.4. Retention and control</h3>
+<ul>
+  <li>Chat history is stored on our server (Supabase) so you can see it in the app.</li>
+  <li>Anthropic processes the request to generate a reply. Data sent via the Anthropic API is
+      <strong>not used to train models</strong> (per Anthropic's commercial terms).</li>
+  <li><strong>If you delete your account, your Trust AI chat history is deleted too.</strong></li>
+  <li>You may request deletion of chat history separately via the email below.</li>
+</ul>
+
+<h3>3.5. If an AI reply is wrong or offensive</h3>
+<p>Every AI reply has a <strong>flag button</strong> beneath it; flagging sends the reply to us for
+review. The AI can make mistakes — it is <strong>not a licensed financial adviser</strong> and does
+not give investment, tax or legal advice.</p>
+
+<h2>4. Sharing with third parties</h2>
 <p>We <strong>do not sell</strong> your data. We use the following services to operate the app:</p>
 <table>
   <tr><th>Service</th><th>Purpose</th><th>Data sent</th></tr>
   <tr><td>Supabase</td><td>Database and authentication</td><td>All account data (server)</td></tr>
-  <tr><td>Groq (Whisper)</td><td>Speech-to-text (primary)</td><td>Audio recording</td></tr>
-  <tr><td>OpenAI</td><td>Speech-to-text (fallback)</td><td>Audio recording</td></tr>
+  <tr><td>Anthropic (Claude)</td><td>Trust AI — financial analysis and chat</td><td>Aggregated financial summary + message text; <strong>names pseudonymized</strong> (§3)</td></tr>
+  <tr><td>Groq</td><td>Text parsing (expense/debt extraction), AI fallback</td><td>The entry text you type</td></tr>
+  <tr><td>OpenAI</td><td>Text parsing fallback</td><td>The entry text you type</td></tr>
   <tr><td>devsms.uz</td><td>Sending OTP SMS</td><td>Phone number</td></tr>
   <tr><td>Render</td><td>Backend server hosting</td><td>Requests (HTTPS)</td></tr>
 </table>
 
-<h2>4. Transfer and storage</h2>
+<h2>5. Transfer and storage</h2>
 <p>All data is transmitted between the device and our server over <strong>HTTPS (encrypted in transit)</strong>.
-Data is stored on Supabase servers. Audio is sent to the services above for transcription and is not
-permanently stored by us.</p>
+Primary data is stored on Supabase servers.</p>
+<p><strong>Cross-border transfer.</strong> The services above (Anthropic, Groq, OpenAI, Supabase,
+Render) operate servers outside Uzbekistan. The app does <strong>not collect biometric or genetic
+data</strong>. The app does not use the microphone and does not record audio.</p>
 
-<h2>5. Your rights</h2>
+<h2>6. Your rights</h2>
 <ul>
   <li>Access the data in your account;</li>
-  <li>Request deletion of your account and related data via the email below.</li>
+  <li>Request deletion of your Trust AI chat history;</li>
+  <li>Delete your account and related data (including AI history) — in the app or via the email below.</li>
 </ul>
 
-<h2>6. Children</h2>
-<p>The app is intended for users aged 18+ (financial bookkeeping).</p>
+<h2>7. Children and age rating</h2>
+<p>The app is intended for users aged <strong>18+</strong> (financial bookkeeping and AI chat).</p>
 
-<h2>7. Changes</h2>
+<h2>8. Changes</h2>
 <p>This policy may be updated. Significant changes will be announced in the app.</p>
 
-<h2>8. Contact</h2>
+<h2>9. Contact</h2>
 <p>For questions: <a href="mailto:jafaralituraev@gmail.com">jafaralituraev@gmail.com</a></p>
 
 </body>

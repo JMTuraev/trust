@@ -59,11 +59,6 @@ Supabase'da `supabase/migrations/*.sql` ni SQL Editor orqali ishga tushiring.
 
 Status modeli: `pending → confirmed → archived`, bir tomonlama yozuvlar `unconfirmed`, bekor qilinganlar `cancelled`. Balans = confirmed + unconfirmed + archived (mobil ilova bilan bir xil).
 
-### STT (ovoz → matn) — 2 qatlamli (XOTIRA-ovoz-va-kategoriya.md)
-| Metod | Yo'l | Tavsif |
-|---|---|---|
-| POST | `/api/stt/transcribe` | Body: xom audio (audio/wav). 1-qatlam: **Groq whisper-large-v3**; past ishonch/bo'sh/timeout'da 2-qatlam: **OpenAI gpt-4o-transcribe**. Javob: `{ text, confidence, provider }`. Ikkalasi yiqilsa audio Storage'ga saqlanadi. Env: `GROQ_API_KEY` (majburiy), `OPENAI_API_KEY` (zaxira uchun). |
-
 ### Xarajat / Limit / Bildirishnoma
 | Metod | Yo'l | Tavsif |
 |---|---|---|

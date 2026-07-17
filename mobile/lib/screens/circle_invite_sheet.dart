@@ -75,7 +75,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
           // (qabul qiluvchi Circles -> "Taklif orqali qo'shilish"ga kiritadi)
           if (c?.joinToken != null)
             Tap(
-              onTap: () => _copyCode(c!),
+              onTap: () => _copyCode(c),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(12)),

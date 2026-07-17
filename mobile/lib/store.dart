@@ -2,7 +2,6 @@
 // Barcha state, hodisalar va hosilaviy qiymatlar (vals) prototip bilan 1:1.
 // vals() Map qaytaradi — kalitlar prototip template placeholderlari bilan bir xil.
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,16 +10,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:collection/collection.dart';
 import 'theme.dart';
 import 'api.dart';
-import 'stt.dart';
 import 'secure.dart';
 import 'l10n.dart';
 import 'ledger/debt_ledger.dart';
 import 'circles_data.dart';
 import 'circles_l10n.dart';
+import 'ai_blocks.dart' show parseAiBlocks;
 
-// Ovozli kiritish (STT) vaqtincha o'chirilgan — matn-birinchi rejim.
-// Qayta yoqish: true qiling (mic UI qaytadi, matn input yo'qoladi).
-const bool kSttEnabled = false;
+// 2026-07-17: ovoz/STT butunlay olib tashlandi — ilova FAQAT MATN (docs/ai-character.md §11).
 
 
 const List<Map<String, dynamic>> ccList = [
@@ -70,7 +67,7 @@ class TrustStore extends ChangeNotifier {
     'receiptId': null, 'search': '', 'chatInput': '', 'toast': '',
     'notifOpen': false, 'archOpen': false, 'langOpen': false,
     'editFormOpen': false, 'editA': '', 'editNote': '', 'pdfOpen': false,
-    'playing': null, 'recOn': false, 'remTimes': <String, int>{},
+    'playing': null, 'remTimes': <String, int>{},
     'pinOn': true, 'notifOn': true,
     'cMenuOpen': false, 'cRen': null, 'pProfOpen': false,
     'skelHome': false, 'skelOps': false, 'homeVis': 6, 'opsVis': 8,
@@ -101,6 +98,16 @@ class TrustStore extends ChangeNotifier {
     'subStatus': 'trial', 'trialEnd': null, 'premUntil': null, // obuna holati (backend /profile/me)
     'delArmAt': 0, // profil o'chirish ikki bosqichli tasdiq vaqti
     'notifs': <Map<String, dynamic>>[],
+    // Trust AI (moliyaviy hamroh chati — docs/ai-character.md)
+    // aiMsgs qatori: {id, role:'user'|'ai', text, blocks:[...], ts, flagged, fresh}
+    'aiMsgs': <Map<String, dynamic>>[],
+    'aiInput': '', // input maydoni matni
+    'aiLoading': false, 'aiLoaded': false, 'aiError': null, // tarix yuklash
+    'aiSending': false, // javob kutilmoqda ("yozmoqda…")
+    'aiSendErr': null, // oxirgi yuborish xatosi (retry uchun)
+    'aiLastText': null, // retry uchun oxirgi savol
+    'aiLimited': false, // 429 — savol chegarasi (sabab: aiLimitKind)
+    'aiLimitKind': null, // 'day' | 'month' | 'slow' — 429 sababi (xabar shu bo'yicha)
     // Bog'lanishlar (meni kontragent qilib qo'shganlar) — link modeli
     'links': <Map<String, dynamic>>[],
     'linkDecisionId': null, // qaror sheet'i ochiq bog'lanish
@@ -880,45 +887,8 @@ class TrustStore extends ChangeNotifier {
     set({'srvMsgs': srv});
   }
 
-  // Chat ovozi — endi AUDIO XABAR (Telegram kabi): bosib turib gapiriladi,
-  // qo'yib yuborilganda audio o'zi yuboriladi (STT/matn EMAS).
-  Future<void> chatMicStart() async {
-    if (_recActive) return;
-    _recActive = true;
-    final ok = await ChatRec.start();
-    if (!ok) {
-      _recActive = false;
-      toast_(ChatRec.lastError ?? L()['tMicFail'] as String);
-      return;
-    }
-    set({'recOn': true});
-  }
-
-  Future<void> chatMicEnd() async {
-    if (!_recActive) return;
-    _recActive = false;
-    set({'recOn': false});
-    final res = await ChatRec.stop();
-    if (res == null) {
-      if (ChatRec.lastError != null) toast_(ChatRec.lastError!);
-      return;
-    }
-    final (path, dur) = res;
-    final pid = S['clientId'] as String?;
-    if (pid == null) return;
-    toast_(L()['tSendingMsg']);
-    final bytes = await File(path).readAsBytes();
-    final r = await Api.sendAudio(pid, bytes, dur);
-    try { File(path).deleteSync(); } catch (_) {}
-    if (!r.ok) {
-      toast_(r.error);
-      return;
-    }
-    final m = _mapMsg(r.data as Map<String, dynamic>);
-    final srv = Map<String, List<Map<String, dynamic>>>.from(S['srvMsgs'] as Map);
-    srv[pid] = [..._srv(pid), m];
-    set({'srvMsgs': srv});
-  }
+  // 2026-07-17: chat ovozli xabar yuborish OLIB TASHLANDI (FAQAT MATN — docs/ai-character.md §11).
+  // ChatRec (stt.dart) va Api.sendAudio o'chirildi; server /api/messages/:id/audio ham yo'q.
 
   /// REAL audio ijro (audioplayers): play/pause, progress S['playing'] orqali UI'ga
   Future<void> togglePlayReal(String key, int dur, String? url) async {
@@ -1347,47 +1317,13 @@ class TrustStore extends ChangeNotifier {
     return {'kind': inc ? 'd' : 'x', 'amount': ai != 0 ? ai.toString() : '', 'cat': cat, 'note': note};
   }
 
-  // Real ovoz — Telegram/Instagram uslubi: mikrofonni BOSIB USHLAB turganda yozadi,
-  // qo'yib yuborganda to'xtaydi va avtomatik chatga chiqadi (alohida ekran/tasdiq yo'q).
-  bool _recActive = false;
-
-  Future<void> voiceHoldStart() async {
-    if (_recActive) return;
-    _recActive = true;
-    set({'voiceStage': 'rec', 'vText': ''});
-    await Stt.start(
-      onStarted: () {},
-      onDone: (text) {
-        _recActive = false;
-        _voiceDone(text);
-      },
-    );
-    if (Stt.lastError != null && S['voiceStage'] == 'rec') {
-      _recActive = false;
-      set({'voiceStage': null, 'vText': ''});
-      toast_(Stt.lastError!);
-    }
-  }
-
-  void voiceHoldEnd() {
-    if (!_recActive) return;
-    Stt.finish(); // STT natijani onDone orqali qaytaradi
-  }
-
-  void _voiceDone(String? text) {
-    if (S['voiceStage'] != 'rec') return;
-    if (text != null && text.trim().isNotEmpty) {
-      xarPick_(text.trim(), source: 'voice');
-    } else {
-      set({'voiceStage': null, 'vText': ''});
-      toast_(Stt.lastError ?? L()['tVoiceFail'] as String);
-    }
-  }
+  // 2026-07-17: ovozli kiritish (STT hold-to-talk) OLIB TASHLANDI — FAQAT MATN.
+  // DIQQAT: 'voiceStage'/'vText' QOLADI — ular endi MATN parsing holati ('parsing' bosqichi,
+  // xarajat.dart ishlatadi). Faqat 'rec' qiymati o'ldi.
 
   // Server parse -> AVTOMATIK saqlash (tasdiqlash kartasi yo'q). Qarz -> Hamkorlar oqimiga.
   // Toifa/summa xato bo'lsa — chatdagi bubble'ni bosib inline tuzatiladi.
   Future<void> xarPick_(String txt, {String source = 'text'}) async {
-    Stt.cancel();
     set({'voiceStage': 'parsing', 'vText': txt});
     final r = await Api.parseExpense(txt);
     if (!r.ok) {
@@ -2025,6 +1961,10 @@ class TrustStore extends ChangeNotifier {
       'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null,
       'subStatus': 'trial', 'trialEnd': null, 'premUntil': null,
       'meAvatar': null, // shu qurilmada boshqa user kirsa avvalgi rasm ko'rinmasin
+      // Trust AI suhbati — shaxsiy ma'lumot: qurilmada boshqa user kirsa ko'rinmasin
+      'aiMsgs': <Map<String, dynamic>>[], 'aiInput': '', 'aiLoaded': false,
+      'aiLoading': false, 'aiError': null, 'aiSending': false, 'aiSendErr': null,
+      'aiLastText': null, 'aiLimited': false, 'aiLimitKind': null,
     });
     SharedPreferences.getInstance().then((sp) => sp.remove('trust_avatar'));
   }
@@ -2258,9 +2198,7 @@ class TrustStore extends ChangeNotifier {
               })
           .toList(),
       'xarCatsEmpty': perCat.isEmpty,
-      // ---- Mikrofon: bosib ushlab yozish (Telegram/Instagram) ----
-      // STT o'chiq bo'lsa (kSttEnabled=false) mic o'rniga matn input ko'rsatiladi.
-      'sttOn': kSttEnabled,
+      // ---- Matn input (yagona kirish usuli — ovoz yo'q, 2026-07-17) ----
       'xarTextVal': S['xarText'] ?? '',
       'xarTextSet': (String t) => set({'xarText': t}),
       'xarTextGo': () {
@@ -2271,15 +2209,6 @@ class TrustStore extends ChangeNotifier {
         FocusManager.instance.primaryFocus?.unfocus();
         xarPick_(t, source: 'text');
       },
-      'micHoldStart': () => voiceHoldStart(),
-      'micHoldEnd': () => voiceHoldEnd(),
-      'micRec': S['voiceStage'] == 'rec',        // yozayapti (pulse)
-      'micParsing': S['voiceStage'] == 'parsing', // tahlil qilinyapti
-      'micHint': S['voiceStage'] == 'rec'
-          ? "Tinglayapman… gapiring, qo'yib yuboring"
-          : S['voiceStage'] == 'parsing'
-              ? 'Tahlil qilinyapti…'
-              : "Bosib ushlab gapiring — AI o'zi yozib toifalaydi",
       // ---- Xarajatlar v2: papka (folder) UI (dizayn: Xarajatlar Trust.html) ----
       // DIQQAT: try/catch bilan himoyalangan — bu blok otilsa vals() butunlay yiqilib,
       // BARCHA ekranlar muzlab qolardi (back ham ishlamasdi). Xato bo'lsa xavfsiz
@@ -3128,6 +3057,7 @@ class TrustStore extends ChangeNotifier {
     return {
       'isHome': S['screen'] == 'home' && noClient,
       'isCircles': S['screen'] == 'circles' && noClient,
+      'isAi': S['screen'] == 'ai' && noClient,
       'isXarajat': S['screen'] == 'xarajat' && noClient,
       'isProfil': S['screen'] == 'profil' && noClient,
       'netText': (net >= 0 ? '+' : '−') + money(net.abs(), 'UZS'),
@@ -3229,10 +3159,15 @@ class TrustStore extends ChangeNotifier {
         set({'screen': 'circles', 'clientId': null, 'receiptId': null, 'inLinkId': null});
         loadCircles();
       },
+      'goAi': () {
+        set({'screen': 'ai', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+        loadAiMsgs(); // tarix bir marta yuklanadi (aiLoaded)
+      },
       'goProfil': () => set({'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goXarajat': () => set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'cMij': S['screen'] == 'home' ? active : idle,
       'cCircle': S['screen'] == 'circles' ? active : idle,
+      'cAi': S['screen'] == 'ai' ? active : idle,
       'cXar': S['screen'] == 'xarajat' ? active : idle,
       'cProf': S['screen'] == 'profil' ? active : idle,
       ...circleNav(),
@@ -3358,11 +3293,6 @@ class TrustStore extends ChangeNotifier {
       },
       'hasText': (S['chatInput'] as String).trim().isNotEmpty,
       'noText': (S['chatInput'] as String).trim().isEmpty,
-      'recOn': S['recOn'],
-      'recOff': S['recOn'] != true,
-      // Chat ovozi: bosib turib gapirish (hold-to-talk) — matn chat maydoniga tushadi
-      'chatMicStart': () => chatMicStart(),
-      'chatMicEnd': () => chatMicEnd(),
 
       // ================= QARZ DAFTARI (ledger) — client_screen UI =================
       ...(() {
@@ -3791,6 +3721,156 @@ class TrustStore extends ChangeNotifier {
       'toastOpen': (S['toast'] as String).isNotEmpty,
       'toast': S['toast'],
     };
+  }
+
+  // ============ TRUST AI (moliyaviy hamroh chati) ============
+  // Server javobi bloklar bilan keladi (docs/ai-character.md §11). AI hech qachon
+  // pul amalini o'zi bajarmaydi — bloklardagi tugmalar mavjud endpointlarni
+  // foydalanuvchi TASDIQLAGANDAN keyin chaqiradi (ai_blocks.dart).
+
+  /// Server xabarini (yoki tarix qatorini) ichki modelga keltiradi.
+  /// Noto'g'ri/bo'sh qator -> null (chat hech qachon yiqilmasin).
+  Map<String, dynamic>? _aiMsg(dynamic m, {bool fresh = false}) {
+    if (m is! Map) return null;
+    final role = (m['role'] ?? m['sender'] ?? 'ai').toString();
+    final blocks = parseAiBlocks(m['blocks']);
+    final text = (m['text'] ?? m['content'] ?? m['body'] ?? '').toString();
+    if (blocks.isEmpty && text.trim().isEmpty) return null;
+    return {
+      'id': (m['id'] ?? 'ai${DateTime.now().microsecondsSinceEpoch}').toString(),
+      'role': role == 'user' ? 'user' : 'ai',
+      'text': text,
+      'blocks': blocks,
+      'ts': (m['created_at'] ?? m['ts'] ?? '').toString(),
+      'flagged': m['flagged'] == true,
+      'fresh': fresh, // true — bloklar ketma-ket "qo'nadi" (birinchi ko'rinish)
+    };
+  }
+
+  /// Javob konverti: {..} yoki {message:{..}} / {reply:{..}} — ikkalasi ham qabul.
+  Map<String, dynamic>? _aiMsgFrom(dynamic data) {
+    var m = data;
+    if (m is Map && m['message'] is Map) {
+      m = m['message'];
+    } else if (m is Map && m['reply'] is Map) {
+      m = m['reply'];
+    }
+    return _aiMsg(m, fresh: true);
+  }
+
+  /// Suhbat tarixi (ekran ochilganda). force — "qayta urinish" tugmasi.
+  Future<void> loadAiMsgs({bool force = false}) async {
+    if (S['aiLoading'] == true) return;
+    if (S['aiLoaded'] == true && !force) return;
+    set({'aiLoading': true, 'aiError': null});
+    final r = await Api.aiMessages();
+    if (!r.ok) {
+      set({'aiLoading': false, 'aiError': r.error});
+      return;
+    }
+    dynamic list = r.data;
+    if (list is Map) list = list['messages'] ?? list['items'] ?? list['data'];
+    final out = <Map<String, dynamic>>[];
+    if (list is List) {
+      for (final m in list) {
+        final x = _aiMsg(m);
+        if (x != null) out.add(x);
+      }
+    }
+    // Eskidan yangiga. Sana bo'lmasa — server tartibiga tegmaymiz.
+    if (out.every((m) => (m['ts'] as String).isNotEmpty)) {
+      out.sort((a, b) => (a['ts'] as String).compareTo(b['ts'] as String));
+    }
+    set({'aiMsgs': out, 'aiLoaded': true, 'aiLoading': false, 'aiError': null});
+  }
+
+  /// Savol yuborish (input yoki chip). Foydalanuvchi pufagi darhol chiqadi.
+  Future<void> aiSend_([String? preset]) async {
+    final text = (preset ?? S['aiInput'] as String? ?? '').trim();
+    if (text.isEmpty || S['aiSending'] == true) return;
+    if (S['subStatus'] == 'expired') {
+      toast_(L()['aiReadOnly'] as String);
+      return;
+    }
+    final msgs = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
+    msgs.add({
+      'id': 'u${DateTime.now().microsecondsSinceEpoch}',
+      'role': 'user',
+      'text': text,
+      'blocks': <Map<String, dynamic>>[],
+      'ts': DateTime.now().toIso8601String(),
+      'flagged': false,
+      'fresh': false,
+    });
+    set({'aiMsgs': msgs, 'aiInput': '', 'aiSendErr': null, 'aiLimited': false, 'aiLimitKind': null});
+    await _aiAsk(text);
+  }
+
+  /// Xatodan keyin qayta urinish — foydalanuvchi pufagi qayta qo'shilmaydi.
+  Future<void> aiRetry_() async {
+    final t = S['aiLastText'] as String?;
+    if (t == null || t.isEmpty || S['aiSending'] == true) return;
+    await _aiAsk(t);
+  }
+
+  /// 429 sababi -> UI xabari uchun tur. Kodsiz 429 (umumiy IP rateLimit) —
+  /// o'tkinchi "sekinroq" holati, kunlik chegara EMAS.
+  String _aiLimitKind(String code) {
+    if (code == 'AI_LIMIT_DAILY') return 'day';
+    if (code == 'AI_LIMIT_MONTHLY') return 'month';
+    return 'slow';
+  }
+
+  Future<void> _aiAsk(String text) async {
+    set({'aiSending': true, 'aiSendErr': null, 'aiLimited': false, 'aiLimitKind': null, 'aiLastText': text});
+    final r = await Api.aiChat(text);
+    if (r.ok) {
+      final m = _aiMsgFrom(r.data);
+      final l = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
+      if (m != null) l.add(m);
+      set({
+        'aiMsgs': l,
+        'aiSending': false,
+        'aiLastText': null,
+        // Javob keldi-yu bo'sh bo'lsa — jim qolmaymiz, aniq xato ko'rsatamiz
+        'aiSendErr': m == null ? L()['aiEmptyErr'] as String : null,
+      });
+      return;
+    }
+    // 402 (obuna) Api.onPaymentRequired orqali allaqachon 'expired' qildi —
+    // input bloklanadi; 429 esa alohida, do'stona chegara xabari bilan.
+    //
+    // DIQQAT: backend 429ni UCH xil sababga qaytaradi (src/routes/ai.js):
+    //   AI_LIMIT_DAILY   — bugungi chegara tugadi (ertaga yangilanadi)
+    //   AI_LIMIT_MONTHLY — oylik chegara tugadi (keyingi oy yangilanadi)
+    //   AI_RATE_MINUTE / kodsiz (IP rateLimit) — "sekinroq yoz", bir ozdan keyin o'tadi.
+    // Hammasiga "ertaga yana suhbatlashamiz" deyish YOLG'ON bo'lardi — kodga qarab
+    // to'g'ri xabarni tanlaymiz ('slow' holatida qayta urinish tugmasi ham chiqadi).
+    set({
+      'aiSending': false,
+      'aiLimited': r.status == 429,
+      'aiLimitKind': r.status == 429 ? _aiLimitKind(r.code) : null,
+      'aiSendErr': r.error,
+    });
+  }
+
+  /// "Noto'g'ri javob" — Google Play 2026 talabi. Optimistik: bosilishi bilan belgilanadi.
+  Future<void> aiFlag_(String id) async {
+    final l = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
+    final i = l.indexWhere((m) => m['id'] == id);
+    if (i < 0 || l[i]['flagged'] == true) return;
+    l[i] = {...l[i], 'flagged': true};
+    set({'aiMsgs': l});
+    final r = await Api.aiFlag(id, '');
+    if (r.ok) {
+      toast_(L()['aiFlagToast'] as String);
+      return;
+    }
+    final l2 = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
+    final j = l2.indexWhere((m) => m['id'] == id);
+    if (j >= 0) l2[j] = {...l2[j], 'flagged': false}; // qaytaramiz — server qabul qilmadi
+    set({'aiMsgs': l2});
+    toast_(r.error);
   }
 
   // ============ CIRCLES (guruhli navbatli jamg'arma) — navigatsiya + amallar ============
