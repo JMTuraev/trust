@@ -130,8 +130,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     for (final m in msgs) {
       final id = '${m['id']}';
       final isUser = m['role'] == 'user';
-      final animate = !isUser && m['fresh'] == true && !_landed.contains(id);
-      if (animate) _landed.add(id);
       items.add(Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: isUser
@@ -139,7 +137,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
             : _AiAnswer(
                 key: ValueKey('ai-$id'),
                 msg: m,
-                animate: animate,
+                // _landed bu yerda TEKSHIRILMAYDI — belgilash initState'da
+                // (Set.add) bo'ladi: ListView elementni uzoq scrolldan keyin
+                // qayta yaratsa animatsiya (va onGrow scroll) TAKRORLANMAYDI.
+                animate: !isUser && m['fresh'] == true,
+                landed: _landed,
                 onChip: (t) => _send(t),
                 onGrow: _scrollToEnd,
               ),
@@ -424,12 +426,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
 class _AiAnswer extends StatefulWidget {
   final Map<String, dynamic> msg;
   final bool animate;
+  final Set<String> landed;
   final ValueChanged<String> onChip;
   final VoidCallback onGrow;
   const _AiAnswer({
     super.key,
     required this.msg,
     required this.animate,
+    required this.landed,
     required this.onChip,
     required this.onGrow,
   });
@@ -442,6 +446,15 @@ class _AiAnswerState extends State<_AiAnswer> {
   late List<Map<String, dynamic>> _blocks = _read();
   int _shown = 0;
   Timer? _t;
+
+  /// initState paytidagi animate — keyingi rebuild'larda widget.animate=false
+  /// bo'lib keladi (_landed), lekin qo'nish davom etayotgan javob o'z
+  /// "yangi"ligini eslab qolishi kerak.
+  bool _fresh = false;
+
+  /// So'z-reveal allaqachon BOSHLANGAN text bloklari (indeks) — ListView
+  /// elementni qayta yaratsa (uzoq scroll) animatsiya takrorlanmasin.
+  final Set<int> _revealed = <int>{};
 
   List<Map<String, dynamic>> _read() {
     final b = widget.msg['blocks'];
@@ -457,23 +470,48 @@ class _AiAnswerState extends State<_AiAnswer> {
   @override
   void initState() {
     super.initState();
-    if (!widget.animate) {
-      _shown = _blocks.length; // tarix — darhol to'liq
+    // Set.add — atomar "birinchi marta"mi tekshiruvi: yangi id'da true, ilgari
+    // qo'ngan (yoki ListView qayta yaratgan) javobda false. Shu bilan uzoq
+    // scrolldan keyingi re-mount animatsiyani va onGrow scrollни TAKRORLAMAYDI.
+    _fresh = widget.animate && widget.landed.add('${widget.msg['id']}');
+    if (!_fresh) {
+      _shown = _blocks.length; // tarix yoki re-mount — darhol to'liq
       return;
     }
     _shown = _blocks.isEmpty ? 0 : 1;
     _tick();
   }
 
-  // Bloklar birma-bir qo'nadi (ilovadagi xoreografiya uslubi)
+  // Bloklar birma-bir qo'nadi (ilovadagi xoreografiya uslubi).
+  // Endigina qo'ngan blok TEXT bo'lsa, uning so'z-reveal'i ("marjon") tugashini
+  // kutamiz: kechikish matn uzunligiga qarab cho'ziladi (aiTextRevealMs bilan
+  // bir xil formula) + ohang uchun kichik pauza; boshqa bloklar — 420ms.
   void _tick() {
     if (_shown >= _blocks.length) return;
-    _t = Timer(const Duration(milliseconds: 420), () {
+    final last = _blocks[_shown - 1];
+    var ms = 420;
+    if ('${last['type']}' == 'text') {
+      final reveal = aiTextRevealMs('${last['text']}');
+      if (reveal + 260 > ms) ms = reveal + 260;
+    }
+    _t = Timer(Duration(milliseconds: ms), () {
       if (!mounted) return;
       setState(() => _shown++);
       widget.onGrow();
       _tick();
     });
+  }
+
+  /// Text bloki uchun so'z-reveal bayrog'i — faqat BIRINCHI qurilishda true
+  /// (Set.add: yangi indeksda true, takrorida false).
+  /// Eslatma: bu build ichidagi ongli mutatsiya. Bir frame'da ikkinchi rebuild
+  /// bo'lsa blok animate=false oladi — xavfsiz degradatsiya (matn darhol
+  /// to'liq ko'rinadi, hech qachon "ko'rinmas matn" emas). AiTextBubble o'z
+  /// animatsiyasini initState'da bir marta boshlaydi, keyingi false'lar uni
+  /// to'xtatmaydi.
+  bool _textAnim(int i) {
+    if (!_fresh || '${_blocks[i]['type']}' != 'text') return false;
+    return _revealed.add(i);
   }
 
   @override
@@ -494,7 +532,13 @@ class _AiAnswerState extends State<_AiAnswer> {
         for (var i = 0; i < _shown && i < _blocks.length; i++)
           Padding(
             padding: EdgeInsets.only(bottom: i == _blocks.length - 1 ? 0 : 9),
-            child: _Land(child: AiBlockView(block: _blocks[i], onChip: widget.onChip)),
+            child: _Land(
+              child: AiBlockView(
+                block: _blocks[i],
+                onChip: widget.onChip,
+                animate: _textAnim(i),
+              ),
+            ),
           ),
         // "Noto'g'ri javob" — HAR AI javobi ostida (Google Play 2026 talabi)
         if (done && _blocks.isNotEmpty)

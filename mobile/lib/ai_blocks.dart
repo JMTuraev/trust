@@ -193,6 +193,37 @@ String _aiInitials(String n) {
 }
 
 // ---------------------------------------------------------------------------
+// "MARJON" MATN — yangi javob matni so'zma-so'z ochiladi (PO so'rovi 2026-07-17)
+// ---------------------------------------------------------------------------
+
+/// Matn so'z bo'laklari — har bo'lak "so'z + ortidagi bo'shliq" (yangi qatorlar
+/// ham bo'shliqqa kiradi), shunda bo'laklar qo'shilsa ASL matn aynan tiklanadi
+/// va TextSpan layouti to'liq matn bilan 1:1 bo'ladi.
+List<String> aiRevealChunks(String text) {
+  final out = <String>[];
+  for (final m in RegExp(r'\S+\s*').allMatches(text)) {
+    out.add(m[0]!);
+  }
+  if (out.isEmpty) return text.isEmpty ? const <String>[] : <String>[text];
+  // Boshidagi bo'shliq (kamdan-kam) — birinchi bo'lakka qo'shib yuboriladi
+  final matched = out.fold<int>(0, (s, c) => s + c.length);
+  if (matched < text.length) out[0] = text.substring(0, text.length - matched) + out[0];
+  return out;
+}
+
+/// So'z-reveal umumiy davomiyligi (ms): ~55ms/so'z, uzun matnda 2.5s bilan
+/// cheklanadi (so'zlar avtomatik tezroq/guruh bo'lib ochiladi). Bir so'z — 0:
+/// blokning o'z "qo'nish" fade'i yetarli. DIQQAT: ai_chat.dart dagi
+/// _AiAnswer._tick ham SHU formuladan foydalanadi — matn ochilib BO'LGACH
+/// keyingi blok qo'nishi uchun ikkalasi sinxron turishi shart.
+int aiTextRevealMs(String text) {
+  final n = aiRevealChunks(text).length;
+  if (n <= 1) return 0;
+  final ms = n * 55;
+  return ms > 2500 ? 2500 : ms;
+}
+
+// ---------------------------------------------------------------------------
 // UMUMIY QISMLAR
 // ---------------------------------------------------------------------------
 
@@ -332,13 +363,23 @@ class _AiCountUpState extends State<AiCountUp> with SingleTickerProviderStateMix
 class AiBlockView extends StatelessWidget {
   final Map<String, dynamic> block;
   final ValueChanged<String> onChip;
-  const AiBlockView({super.key, required this.block, required this.onChip});
+
+  /// FAQAT text bloki uchun: yangi javobda so'z-reveal ("marjon"). Boshqa blok
+  /// turlariga ta'sir qilmaydi.
+  final bool animate;
+
+  const AiBlockView({
+    super.key,
+    required this.block,
+    required this.onChip,
+    this.animate = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     switch ('${block['type'] ?? ''}') {
       case 'text':
-        return AiTextBubble(text: '${block['text']}');
+        return AiTextBubble(text: '${block['text']}', animate: animate);
       case 'stat':
         return _StatBlock(b: block);
       case 'chart':
@@ -359,9 +400,79 @@ class AiBlockView extends StatelessWidget {
 }
 
 /// AI matn pufagi (chapda, iliq).
-class AiTextBubble extends StatelessWidget {
+///
+/// `animate: true` (faqat YANGI javob) — matn so'zma-so'z "marjondek" ochiladi:
+/// butun matn joyini BOSHIDAN egallaydi (ko'rinmagan so'zlar shaffof, layout
+/// sakramaydi — pufak balandligi o'zgarmaydi), so'zlar alpha bilan ohista
+/// paydo bo'ladi. Tarixdan kelgan xabar (`animate: false`) darhol to'liq.
+class AiTextBubble extends StatefulWidget {
   final String text;
-  const AiTextBubble({super.key, required this.text});
+  final bool animate;
+  const AiTextBubble({super.key, required this.text, this.animate = false});
+
+  @override
+  State<AiTextBubble> createState() => _AiTextBubbleState();
+}
+
+class _AiTextBubbleState extends State<AiTextBubble> with SingleTickerProviderStateMixin {
+  /// Fade oynasi (so'z-slotlarda): har so'z ~1.5 slot davomida 0->1 ochiladi —
+  /// qattiq "yonish" emas, marjon donasidek ohista.
+  static const double _fadeW = 1.5;
+
+  late final List<String> _chunks = aiRevealChunks(widget.text);
+  AnimationController? _c;
+
+  @override
+  void initState() {
+    super.initState();
+    // Animatsiya FAQAT birinchi qurilishda boshlanadi — tepadagi setState
+    // widgetni qayta qursa ham takrorlanmaydi (_landed mexanizmiga mos:
+    // keyingi rebuild'larda widget.animate=false keladi, biz e'tibor bermaymiz).
+    // Scroll signali YO'Q: reveal davomida pufak balandligi o'zgarmaydi
+    // (shaffof so'zlar joyni boshidan egallagan), scroll shart emas —
+    // blok qo'nishlarida _AiAnswer._tick o'zi onGrow chaqiradi.
+    final ms = aiTextRevealMs(widget.text);
+    if (widget.animate && ms > 0) {
+      _c = AnimationController(vsync: this, duration: Duration(milliseconds: ms))
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c?.dispose();
+    super.dispose();
+  }
+
+  Widget _text(Pal p) {
+    final c = _c;
+    // Tarix yoki bir so'zli matn: darhol to'liq (mavjud Tx uslubi).
+    if (c == null) return Tx(widget.text, size: 14, color: p.ink, lh: 20);
+    // Tx bilan AYNAN bir xil uslub (Inter 14/20) — reveal tugagach ham shu
+    // Text.rich qoladi, almashtirish/sakrash yo'q.
+    final style = GoogleFonts.inter(fontSize: 14, color: p.ink, height: 20 / 14);
+    return AnimatedBuilder(
+      animation: c,
+      builder: (_, __) {
+        final pw = c.value * (_chunks.length + _fadeW); // progress so'z-slotlarda
+        return Text.rich(
+          TextSpan(
+            style: style,
+            children: [
+              for (var i = 0; i < _chunks.length; i++)
+                TextSpan(
+                  text: _chunks[i],
+                  style: TextStyle(
+                    color: p.ink.withValues(alpha: ((pw - i) / _fadeW).clamp(0.0, 1.0)),
+                  ),
+                ),
+            ],
+          ),
+          textScaler: TextScaler.noScaling,
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +489,7 @@ class AiTextBubble extends StatelessWidget {
           bottomLeft: Radius.circular(4),
         ),
       ),
-      child: Tx(text, size: 14, color: p.ink, lh: 20),
+      child: _text(p),
     );
   }
 }

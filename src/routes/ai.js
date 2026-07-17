@@ -22,6 +22,7 @@ import { ensureCategories } from '../lib/categories.js';
 import { config } from '../config.js';
 import { askAI, costOf, aiReady } from '../lib/anthropic.js';
 import { contextBlock, EMPTY_TEXT } from '../services/ai-persona.js';
+import { pickKnowledge } from '../services/ai-knowledge.js';
 import {
   getProfile, pseudonymizeText, restoreBlocks, localParts, dayStartUtc, monthStartUtc, uzDate,
 } from '../services/ai-context.js';
@@ -130,11 +131,16 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       ]);
 
       const firstName = String(prof.data?.full_name || '').trim().split(/\s+/)[0] || "do'stim";
+      // Bilim kartalari (xilma-xillik): ai_profile keshiga YOZILMAYDI — summary o'zgarmaydi,
+      // kartalar faqat so'rov paytida qo'shiladi. pickKnowledge kun ichida deterministik
+      // (bir user -> bir xil 3 karta), shuning uchun 2-kesh nuqtasi bayt-barqaror qoladi
+      // va Anthropic prompt-cache buzilmaydi; kun almashganda bir marta yangilanadi.
       const contextText = contextBlock({
         name: firstName,
         date: uzDate(now),
         currency: "so'm",
         summary: profile.summary,
+        knowledge: pickKnowledge(req.user.id, now, 3),
       });
 
       // 2. Tarix (eskidan yangiga) — modelga PSEVDONIMLASHGAN holda boradi.
