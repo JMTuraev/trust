@@ -71,3 +71,28 @@ Qurilmada tasdiq (skrinshot 28, 29): o'sha savodxonlik savoli endi 50/30/20 ni P
 real daromadiga hisoblab beradi (11.9 mln -> 5.95/3.57/2.38); "qiziqarli fakt" so'roviga
 latte-faktor. Qolgan kuzatuv: eski suhbat tarixida "siz" ohangi ko'p bo'lgani uchun model
 ba'zan "siz"ga qaytadi — yangi suhbatlarda "sen"ga o'tishi kutiladi.
+
+## Qo'shimcha (3-iteratsiya, commitlar 7a4ecc0 / 243533d / 06d1b9f) — xilma-xillik
+
+PO fikrlari: har javob "Jafar," bilan boshlanmasin; yozuv dinamik terilsin ("marjon");
+faktlar soni o'sib, takrorlanmasin.
+
+- **45 kartalik bilim kutubxonasi** (ai-knowledge.js): 17 metod, 14 xulq-iqtisodiyot
+  fakti, 8 odat, 6 o'zbek konteksti ('gap' ROSCA ehtiyot eslatmasi bilan). pickKnowledge:
+  kun+user bo'yicha deterministik 3 karta (aralash tag), kun ichida bayt-barqaror
+  (prompt-cache omon), 45 kunda to'liq aylanish (1-qadam kunlik siljish — LEN 3 ga
+  karrali bo'lganda ⅓ chiqmay qolish xatosi reviewda topilib tuzatildi). Kontekstga
+  so'rov paytida in'ektsiya (ai_profile keshiga yozilmaydi).
+- **Marjon-effekt** (mobil): yangi javob matni so'zma-so'z ochiladi (~55ms/so'z, 2.5s cap,
+  TextSpan alpha — layout sakramaydi), blok xoreografiya matn ochilishini kutadi.
+  Reviewer topilmalari tuzatildi: ListView qayta yaratishда animatsiya replay/scroll
+  hijack yo'q (landed initState'da), reveal ichida ma'nosiz scroll listener olib tashlandi.
+  Qurilmada kadrma-kadr tasdiqlandi (burst3: yarim ochilgan matn; burst4: count-up 13905).
+- **"Ism," ochilishi — deterministik yechim** (stripNameOpening): prompt qoidasi va uslub
+  eslatmasi eski tarix mirroringini yenga olmadi — server endi suhbat davomida birinchi
+  text blokdan "Ism,/—" prefiksini kesadi (birinchi javobда qoladi; "Jafarova" tegilmaydi).
+
+Ochiq kuzatuvlar: (1) eski suhbatda "siz" ohangi qolyapti — yangi suhbatda kuzatiladi;
+(2) model bir javobda qarz YO'NALISHINI teskari aytdi (server kartasi to'g'ri edi) —
+kontekst satriga "menga qarzdorlar = ULAR SENGA qarzdor" aniqlashtirish nomzodi;
+(3) debt_card remind tugmasi bug'i — alohida task chipda.
