@@ -60,15 +60,17 @@ services:
         value: "true"
       - key: AI_MODEL
         value: claude-opus-4-8
-      # Output input'dan ~5x qimmat, xarakter esa ataylab qisqa (2–4 gap)
+      # 1200: Opus tool-JSON'i 400 da KESILIB bloklar bo'sh -> fallback bo'lardi
+      # (stop=max_tokens, 2026-07-17 diagnostikasi). Bu qiymat config.js defaultini
+      # BEKOR QILADI — o'zgartirganda ikkalasini sinxron tut.
       - key: AI_MAX_TOKENS
-        value: "400"
+        value: "1200"
       # Limitlar SUIISTE'MOLGA qarshi, ratsion uchun EMAS (PO qarori) — saxiy.
-      # ai_usage jadvalidagi real ma'lumot bilan keyin sozlanadi.
+      # 100/kun, 1000/oy (PO 2026-07-17: "AI dialog saxiyroq ko'rinsin").
       - key: AI_DAILY_LIMIT
-        value: "40"
+        value: "100"
       - key: AI_MONTHLY_LIMIT
-        value: "400"
+        value: "1000"
       - key: AI_MINUTE_LIMIT
         value: "5"
       # Agregat kontekst keshi (ai_profile). Kesh prompt caching'ni ham ushlab turadi.
