@@ -21,7 +21,7 @@ import { requireActiveSub } from '../lib/subscription.js';
 import { ensureCategories } from '../lib/categories.js';
 import { config } from '../config.js';
 import { askAI, costOf, aiReady } from '../lib/anthropic.js';
-import { contextBlock, EMPTY_TEXT } from '../services/ai-persona.js';
+import { contextBlock, stripNameOpening, EMPTY_TEXT } from '../services/ai-persona.js';
 import { pickKnowledge } from '../services/ai-knowledge.js';
 import {
   getProfile, pseudonymizeText, restoreBlocks, localParts, dayStartUtc, monthStartUtc, uzDate,
@@ -161,6 +161,9 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       //    Hammasi tushib qolsa XOM bloklar KO'RSATILMAYDI — ular ichida HAMKOR_n belgisi
       //    qolgan bo'lishi mumkin (aynan biz to'sayotgan sizib chiqish).
       const blocks = restoreBlocks(r.blocks, profile.tokens, { categories: cats.map((c) => c.name) });
+      // Suhbat DAVOMIDA "Ism, ..." ochilishini deterministik kesamiz (model eski
+      // tarixga ergashadi — prompt yetarli emas). Birinchi javobda ism qoladi.
+      if (history.length) stripNameOpening(blocks, firstName);
       const safeBlocks = blocks.length ? blocks : [{ type: 'text', text: EMPTY_TEXT }];
       const content = safeBlocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
 

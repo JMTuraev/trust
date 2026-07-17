@@ -167,6 +167,28 @@ boshida); HAR DOIM "sen" (hech qachon "siz"); tarixda allaqachon aytilgan metod/
 takrorlama — yangisini tanla; ketma-ket javoblarda bir xil ochilish qolipini ishlatma.`;
 }
 
+/**
+ * "Ism, ..." ochilishini DETERMINISTIK olib tashlaydi (suhbat davomida).
+ * Model eski tarixga ergashib har javobni "Jafar, ..." bilan boshlayveradi —
+ * persona qoidasi va uslub eslatmasi buni to'liq yenga olmadi (kuzatildi,
+ * 2026-07-17). Shuning uchun suhbat davomida (tarix bo'sh bo'lmaganda)
+ * birinchi text blokning boshidagi "Ism," / "Ism —" prefiksi kesiladi;
+ * suhbatning eng birinchi javobida ism qoladi (OHANG qoidasiga mos).
+ * Bloklar joyida (in-place) o'zgaradi — chaqiruvchi restoreBlocks natijasini beradi.
+ */
+export function stripNameOpening(blocks, firstName) {
+  const name = String(firstName || '').trim();
+  if (!name) return blocks;
+  const first = (blocks || []).find((b) => b?.type === 'text' && typeof b.text === 'string');
+  if (!first) return blocks;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const stripped = first.text.replace(new RegExp(`^\\s*${esc}\\s*[,!—–-]\\s*`, 'iu'), '');
+  if (stripped && stripped !== first.text) {
+    first.text = stripped.charAt(0).toUpperCase() + stripped.slice(1);
+  }
+  return blocks;
+}
+
 /** Model/provayder ishlamaganda — iliq o'zbekcha xato (raqam yo'q, va'da yo'q). */
 export const FALLBACK_TEXT =
   "Kechir, hozir javob bera olmayapman — aloqa uzildi shekilli. Bir ozdan keyin yana urinib ko'r.";
