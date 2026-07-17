@@ -1,9 +1,17 @@
-// Pastki navigatsiya paneli — prototype/template.html 684–720 bilan 1:1
-// Ikonkalar mazmunga moslandi: Hamkorlar — 2 kishilik, Xarajat — hamyon.
+// Bu faylda IKKI mustaqil narsa yashaydi — chalkashmasin:
 //
-// QO'SHIMCHA (obuna): SubBanner + SubInfo shu faylda yashaydi — main.dart bu
-// faylni allaqachon import qilgani uchun global joylashtirish main.dart'da
-// import'siz, bitta qatorlik patch bo'ladi (hisobot §NEW-PATCHES).
+//   1) SubBanner + SubInfo — OBUNA banneri. TIRIK va MAJBURIY: main.dart uni
+//      asosiy Column'ning boshida chizadi, shu sababli BOSH HUB va HAR BIR
+//      bo'lim ekrani (Hamkorlar / Xarajat / Trust AI / Profil) ustida ko'rinadi.
+//      profil.dart ham shu yerdan SubInfo/subTr/subWarnInk import qiladi —
+//      shuning uchun alohida faylga KO'CHIRILMADI (2026-07-17 hub ishi):
+//      ko'chirish profil.dart'ni (READ-ONLY) tahrirlashni talab qilardi.
+//
+//   2) TrustTabBar — pastki navigatsiya paneli (prototype/template.html 684–720
+//      bilan 1:1). 2026-07-17 dan bayroq ostida: flags.kBottomNavEnabled=false —
+//      ildiz ekran BOSH HUB (screens/home_hub.dart) bo'ldi. Kod O'CHIRILMADI:
+//      bayroqni true qilsang panel bir qatorda qaytadi.
+//      Ikonkalar mazmunga moslangan: Hamkorlar — 2 kishilik, Xarajat — hamyon.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../store.dart';

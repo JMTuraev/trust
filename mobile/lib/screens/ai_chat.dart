@@ -10,6 +10,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../ai_blocks.dart';
 import '../store.dart';
@@ -31,6 +32,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   int _lastCount = 0;
   bool _lastSending = false;
 
+  /// Birinchi ochilishda suhbat pastidan (eng so'nggi xabardan) boshlanganmi.
+  bool _openedAtEnd = false;
+
   @override
   void dispose() {
     _sc.dispose();
@@ -48,6 +52,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
+  /// Birinchi ochilishdagi "pastdan boshla" — animateTo EMAS: birinchi frame'da
+  /// maxScrollExtent hali taxminiy (ListView lazy, bloklar/chartlar keyin
+  /// joylashadi), animatsiya o'rtada to'xtab qolardi. Shuning uchun post-frame
+  /// jumpTo (bu yangi elementlarni qurdirib extentni aniqlashtiradi) + layout
+  /// tinchlangach yana bir jumpTo.
+  void _jumpToEnd() {
+    void jump() {
+      if (!mounted || !_sc.hasClients) return;
+      _sc.jumpTo(_sc.position.maxScrollExtent);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      jump();
+      Future.delayed(const Duration(milliseconds: 120), jump);
+    });
+  }
+
   void _send([String? preset]) {
     if (preset != null) FocusManager.instance.primaryFocus?.unfocus(); // chip: klaviatura kerak emas
     store.aiSend_(preset);
@@ -62,11 +83,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final sending = store.S['aiSending'] == true;
     final expired = store.S['subStatus'] == 'expired';
 
-    // Yangi xabar / "yozmoqda" holati o'zgardi -> pastga suramiz
+    // Yangi xabar / "yozmoqda" holati o'zgardi -> pastga suramiz.
+    // Birinchi to'ldirilish (ochilish yoki tarix endi yuklandi) — sakrash bilan:
+    // ekran darhol eng so'nggi xabardan boshlanadi; keyingilari — silliq animatsiya.
     if (msgs.length != _lastCount || sending != _lastSending) {
+      final firstFill = !_openedAtEnd && msgs.isNotEmpty;
       _lastCount = msgs.length;
       _lastSending = sending;
-      _scrollToEnd();
+      if (firstFill) {
+        _openedAtEnd = true;
+        _jumpToEnd();
+      } else {
+        _scrollToEnd();
+      }
     }
 
     return Column(
@@ -374,29 +403,38 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
       child: Container(
-        height: 46,
+        // 46px pill'ning o'suvchan varianti (PO 2026-07-17): 1 qator = 46
+        // (20px satr + 12+12 padding + 1+1 border), matn ko'paygach 3 qatorgacha
+        // kengayadi, undan keyin TextField o'z ichida scroll (maxLines:3).
+        constraints: const BoxConstraints(minHeight: 46),
         decoration: BoxDecoration(
           color: p.field.withValues(alpha: .95),
           border: Border.all(color: p.bd),
           borderRadius: BorderRadius.circular(23),
         ),
-        child: Stack(
+        child: Row(
+          // Yuborish tugmasi pastki-o'ngda qoladi (ko'p qatorda ham)
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Positioned.fill(
-              left: 16,
-              right: 52,
-              child: Center(
+            const SizedBox(width: 16),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: StoreField(
                   value: val,
                   onChanged: (t) => store.set({'aiInput': t}),
                   hint: L0['aiInputPh'] as String,
                   onSubmit: () => _send(),
+                  minLines: 1,
+                  maxLines: 3,
+                  // Satr balandligi qat'iy 20px — konteyner o'sishi bashoratli
+                  style: GoogleFonts.inter(fontSize: 14, color: p.ink, height: 20 / 14),
                 ),
               ),
             ),
-            Positioned(
-              right: 6,
-              top: 6,
+            const SizedBox(width: 6), // matn bilan tugma orasi avvalgidek 12px
+            Padding(
+              padding: const EdgeInsets.all(6),
               child: Tap(
                 onTap: () => _send(),
                 child: Opacity(

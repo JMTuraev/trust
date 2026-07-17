@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0F0F10;--ink:#F5F5F5;--hair:#262626;--hair2:#202021;--card2:#232324;--field:#1C1C1E;--hov:#1E1E1F;--hov2:#161617;--bd:#2E2E2F;--bd2:#2A2A2B;--t1:#A0A0A5;--t2:#8A8A8E;--t3:#86868A;--t4:#6E6E73;--t5:#66666B;--t6:#55555A;--green:#4CAF82;--red:#D2695B}
+html,body{margin:0;padding:0;background:#E9E9E7}
+*{box-sizing:border-box}
+a{color:#F5F5F5}
+a:hover{color:#B8B8B4}
+input{font-family:inherit}
+input:focus{outline:none}
+::-webkit-scrollbar{width:0;height:0}
+div[style*="cursor: pointer"]:active{opacity:0.75}
+@keyframes xkPop{0%{opacity:0;transform:scale(.55) translateY(12px)}62%{opacity:1;transform:scale(1.07) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes xkShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+@keyframes xkToast{from{opacity:0;transform:translateY(16px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes xkSlidein{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes xkRow{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes xkPulse{0%,100%{opacity:.5}50%{opacity:1}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#E9E9E7;padding:30px 0;font-family:'Inter',-apple-system,'SF Pro Text','Helvetica Neue',sans-serif">
+<div data-xk-frame="1" style="width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;position:relative;display:flex;flex-direction:column;flex:none;color:var(--ink)">
+
+  <div style="height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px;flex:none">
+    <div style="font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0.2px">9:41</div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="display:flex;align-items:flex-end;gap:2px">
+        <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+        <div style="width:3px;height:10px;background:var(--t6);border-radius:1px"></div>
+      </div>
+      <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex">
+        <div style="width:70%;background:var(--ink);border-radius:1px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screenarea="1" style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
+
+    <div data-screen-label="Xarajatlar" style="position:absolute;inset:0;display:flex;flex-direction:column">
+
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 20px 0 16px">
+        <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:17px;font-weight:700;color:var(--ink);letter-spacing:-0.2px">Xarajatlar</div>
+          <div style="font-size:11.5px;color:var(--t3);margin-top:1px">Iyul 2026</div>
+        </div>
+        <div onClick="{{ onOpenLog }}" title="Oxirgi o'zgarishlar" style="position:relative;flex:none;width:34px;height:34px;border:1px solid var(--bd2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">
+          <div style="position:relative;width:15px;height:15px;border:1.6px solid var(--ink);border-radius:50%">
+            <div style="position:absolute;left:5.4px;top:2.6px;width:1.6px;height:4.6px;background:var(--ink)"></div>
+            <div style="position:absolute;left:5.4px;top:5.6px;width:4.4px;height:1.6px;background:var(--ink)"></div>
+          </div>
+          <sc-if value="{{ logDot }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--green);border:1.5px solid var(--bg)"></div>
+          </sc-if>
+        </div>
+        <div onClick="{{ onDemo }}" style="flex:none;height:32px;padding:0 14px;border:1px solid var(--bd);border-radius:16px;font-size:12px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px;cursor:pointer" style-hover="background:var(--hov)">▶ Demo</div>
+      </div>
+
+      <div style="flex:none;padding:16px 24px 0">
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">IYUL BALANSI</div>
+        <div style="margin-top:6px;display:flex;align-items:baseline;gap:7px">
+          <span data-sum-bal="1" style="font-size:30px;font-weight:700;letter-spacing:-0.6px;color:{{ balColor }};font-variant-numeric:tabular-nums">{{ balFmt }}</span>
+          <span style="font-size:13px;color:var(--t3)">so'm</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:12px;color:var(--t2)">
+          <div style="display:flex;align-items:baseline;gap:6px;white-space:nowrap">Kirim <span data-sum-in="1" style="font-weight:600;color:var(--green);font-variant-numeric:tabular-nums">{{ inFmt }}</span></div>
+          <div style="display:flex;align-items:baseline;gap:6px;white-space:nowrap">Chiqim <span data-sum-out="1" style="font-weight:600;color:var(--red);font-variant-numeric:tabular-nums">{{ outFmt }}</span></div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow-y:auto;margin-top:14px;padding:2px 20px 200px;display:flex;flex-direction:column;gap:18px">
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2);padding:0 4px">KIRIM</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ incomeFolders }}" as="f" hint-placeholder-count="3">
+              <div data-fid="{{ f.id }}" onClick="{{ f.open }}" style="position:relative;overflow:hidden;background:{{ f.bg }};border:{{ f.border }};border-radius:16px;padding:13px 13px 10px;display:flex;flex-direction:column;gap:5px;cursor:pointer;transition:opacity .35s,border-color .35s;opacity:{{ f.opacity }};animation:{{ f.anim }}">
+                <div style="position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--green)"></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                  <span style="font-size:20px;line-height:1">{{ f.emoji }}</span>
+                  <sc-if value="{{ f.showNew }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:600;color:var(--t1);background:var(--card2);border:1px solid var(--bd2);border-radius:999px;padding:3px 8px;white-space:nowrap">Yangi ✨</span></sc-if>
+                </div>
+                <div style="font-size:12.5px;color:var(--t2);font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <span data-total="{{ f.id }}" style="font-size:15px;font-weight:600;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap">{{ f.totalFmt }}</span>
+                  <span style="width:14px;height:14px;border-radius:50%;background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--green);font-size:9px;display:flex;align-items:center;justify-content:center;flex:none">↑</span>
+                </div>
+                <svg viewBox="0 0 100 22" preserveAspectRatio="none" style="width:100%;height:18px;opacity:.8"><polyline points="{{ f.sparkPts }}" fill="none" stroke="{{ f.sparkStroke }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2);padding:0 4px">CHIQIM</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ expenseFolders }}" as="f" hint-placeholder-count="6">
+              <div data-fid="{{ f.id }}" onClick="{{ f.open }}" style="position:relative;overflow:hidden;background:{{ f.bg }};border:{{ f.border }};border-radius:16px;padding:13px 13px 10px;display:flex;flex-direction:column;gap:5px;cursor:pointer;transition:opacity .35s,border-color .35s;opacity:{{ f.opacity }};animation:{{ f.anim }}">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                  <span style="font-size:20px;line-height:1">{{ f.emoji }}</span>
+                  <sc-if value="{{ f.showNew }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:600;color:var(--t1);background:var(--card2);border:1px solid var(--bd2);border-radius:999px;padding:3px 8px;white-space:nowrap">Yangi ✨</span></sc-if>
+                </div>
+                <div style="font-size:12.5px;color:var(--t2);font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</div>
+                <div data-total="{{ f.id }}" style="font-size:15px;font-weight:600;color:var(--red);font-variant-numeric:tabular-nums;white-space:nowrap">{{ f.totalFmt }}</div>
+                <svg viewBox="0 0 100 22" preserveAspectRatio="none" style="width:100%;height:18px;opacity:.8"><polyline points="{{ f.sparkPts }}" fill="none" stroke="{{ f.sparkStroke }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ showPending }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2);padding:0 4px">ANIQLIK KIRITISH KERAK</div>
+            <sc-for list="{{ pending }}" as="p" hint-placeholder-count="1">
+              <div data-pid="{{ p.id }}" style="display:flex;align-items:center;gap:10px;background:var(--field);border:1.5px dashed var(--t5);border-radius:14px;padding:12px;animation:xkSlidein .4s ease both">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.label }}</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--red);font-variant-numeric:tabular-nums;margin-top:3px">−{{ p.amountFmt }} so'm</div>
+                </div>
+                <div onClick="{{ p.onCycle }}" style="border:1px solid var(--bd);background:var(--card2);color:var(--ink);font-size:12px;font-weight:600;border-radius:999px;padding:8px 12px;display:flex;align-items:center;gap:6px;flex:none;cursor:pointer" style-hover="background:var(--hov)">{{ p.sug }} <span style="color:var(--t3)">↻</span></div>
+                <div onClick="{{ p.onOk }}" style="width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:14px;font-weight:700;flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer">✓</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showTray }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px;padding:0 4px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">ANIQLANMAGAN</span>
+              <span style="font-size:10px;font-weight:600;color:var(--red);background:color-mix(in srgb, var(--red) 14%, transparent);border-radius:999px;padding:2px 8px">{{ trayCount }}</span>
+            </div>
+            <sc-for list="{{ tray }}" as="t" hint-placeholder-count="1">
+              <div data-tid="{{ t.id }}" onClick="{{ t.onToggle }}" style="background:var(--field);border:1.5px dashed color-mix(in srgb, var(--red) 45%, transparent);border-radius:14px;padding:12px;animation:xkShake .5s ease;cursor:pointer">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+                  <span style="font-size:13px;color:var(--t1);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.text }}</span>
+                  <span style="font-size:11px;color:var(--t4);flex:none">papka tanlang ↓</span>
+                </div>
+                <sc-if value="{{ t.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+                    <sc-for list="{{ t.chips }}" as="c" hint-placeholder-count="3"><div onClick="{{ c.onPick }}" style="border:1px solid var(--bd);background:var(--card2);color:var(--ink);font-size:12px;font-weight:500;border-radius:999px;padding:7px 11px;cursor:pointer" style-hover="background:var(--hov)">{{ c.label }}</div></sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+
+    <sc-if value="{{ showDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:30">
+        <div data-detail="1" data-screen-label="Papka tafsiloti" style="position:absolute;inset:0;background:var(--bg);transform-origin:0 0;display:flex;flex-direction:column;overflow:hidden">
+          <div style="flex:none;display:flex;align-items:center;gap:10px;padding:10px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+            <div onClick="{{ onCloseDetail }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+              <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+            </div>
+            <div data-detail-emoji="1" style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none">{{ dEmoji }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dName }}</div>
+              <div style="font-size:11.5px;color:var(--t3);margin-top:1px">Iyul 2026 · {{ dCount }} ta yozuv</div>
+            </div>
+            <svg viewBox="0 0 100 22" preserveAspectRatio="none" style="width:60px;height:20px;opacity:.8;flex:none"><polyline points="{{ dSparkPts }}" fill="none" stroke="{{ dSparkStroke }}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+          </div>
+          <div style="flex:none;display:flex;align-items:baseline;gap:7px;padding:16px 24px 2px">
+            <span data-detail-total="1" style="font-size:28px;font-weight:700;letter-spacing:-0.5px;color:{{ dAmtColor }};font-variant-numeric:tabular-nums">{{ dTotalFmt }}</span>
+            <span style="font-size:13px;color:var(--t3)">so'm</span>
+          </div>
+          <div style="flex:none;padding:2px 24px 6px;font-size:11px;color:var(--t5)">✎ tahrirlash · ✕ yoki bosib turib o'chirish</div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:2px 0 200px">
+            <sc-if value="{{ dEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:60px 40px;text-align:center">
+                <div style="width:44px;height:44px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.7">{{ dEmoji }}</div>
+                <div style="font-size:14px;font-weight:600;color:var(--t1)">Hozircha yozuvlar yo'q</div>
+                <div style="font-size:12px;color:var(--t4);line-height:1.5">Pastdagi maydonga yozing — AI shu papkaga o'zi qo'shadi</div>
+              </div>
+            </sc-if>
+            <sc-for list="{{ dGroups }}" as="g" hint-placeholder-count="2">
+              <div>
+                <div style="position:sticky;top:0;z-index:2;background:var(--bg);padding:14px 24px 6px;font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2);text-transform:uppercase">{{ g.label }}</div>
+                <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                  <div onPointerDown="{{ r.pd }}" onPointerMove="{{ r.pm }}" onPointerUp="{{ r.pu }}" onPointerCancel="{{ r.pu }}" style="display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--hair2);animation:{{ r.anim }};touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:pointer" style-hover="background:var(--hov2)">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:14.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.desc }}</div>
+                      <div style="font-size:11.5px;color:var(--t4);margin-top:2px;font-variant-numeric:tabular-nums">{{ r.time }}</div>
+                    </div>
+                    <div style="flex:none;font-size:15px;font-weight:600;color:{{ r.color }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ r.amt }}</div>
+                    <div style="display:flex;gap:6px;flex:none">
+                      <div onClick="{{ r.onEdit }}" title="Tahrirlash" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--bd);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">✎</div>
+                      <div onClick="{{ r.onDel }}" title="O'chirish" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--bd);color:var(--t2);font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">✕</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLogPanel }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Oxirgi o'zgarishlar" style="position:absolute;inset:0;z-index:32;background:var(--bg);display:flex;flex-direction:column;animation:xkSlidein .25s ease both">
+        <div style="flex:none;display:flex;align-items:center;gap:10px;padding:10px 20px 12px 16px;border-bottom:1px solid var(--hair2)">
+          <div onClick="{{ onCloseLog }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+            <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:16px;font-weight:700;color:var(--ink)">Oxirgi o'zgarishlar</div>
+            <div style="font-size:11.5px;color:var(--t3);margin-top:1px">Yangi yozuvlar, tahrir va o'chirishlar</div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 14px 200px;display:flex;flex-direction:column;gap:8px">
+          <sc-if value="{{ logEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:60px 40px;text-align:center">
+              <div style="font-size:14px;font-weight:600;color:var(--t1)">Hozircha o'zgarishlar yo'q</div>
+              <div style="font-size:12px;color:var(--t4);line-height:1.5">Yozuv qo'shsangiz, tahrirlasangiz yoki o'chirsangiz shu yerda ko'rinadi</div>
+            </div>
+          </sc-if>
+          <sc-for list="{{ recent }}" as="o" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;background:var(--hov2);border:1px solid var(--hair2);border-radius:14px;padding:10px 12px;animation:{{ o.anim }}">
+              <span style="font-size:16px;line-height:1;flex:none">{{ o.emoji }}</span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                  <span style="font-size:13.5px;font-weight:500;color:{{ o.descColor }};text-decoration:{{ o.deco }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.desc }}</span>
+                  <span style="flex:none;font-size:9.5px;font-weight:600;letter-spacing:.04em;color:{{ o.badgeColor }};background:{{ o.badgeBg }};border-radius:999px;padding:2px 7px;white-space:nowrap">{{ o.badge }}</span>
+                </div>
+                <div style="font-size:11px;color:var(--t4);margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.sub }}</div>
+              </div>
+              <span style="flex:none;font-size:13.5px;font-weight:600;color:{{ o.color }};text-decoration:{{ o.deco }};font-variant-numeric:tabular-nums">{{ o.amt }}</span>
+              <sc-if value="{{ o.canAct }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:6px;flex:none">
+                  <div onClick="{{ o.onEdit }}" title="Tahrirlash" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--bd);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">✎</div>
+                  <div onClick="{{ o.onDel }}" title="O'chirish" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--bd);color:var(--t2);font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:var(--hov)">✕</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:40;padding:60px 14px 12px;background:linear-gradient(180deg, rgba(15,15,16,0) 0%, rgba(15,15,16,.88) 46%, #0F0F10 82%);display:flex;flex-direction:column;gap:10px;pointer-events:none">
+
+      <sc-if value="{{ showEditing }}" hint-placeholder-val="{{ false }}">
+        <div style="pointer-events:auto;display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--bd2);border-radius:999px;padding:5px 6px 5px 14px;align-self:flex-start;animation:xkSlidein .25s ease both">
+          <span style="font-size:12px;color:var(--t2)">Tahrirlanmoqda:</span>
+          <span style="font-size:12px;font-weight:600;color:var(--ink);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ editLabel }}</span>
+          <div onClick="{{ onCancelEdit }}" style="width:22px;height:22px;border-radius:50%;background:var(--hair2);color:var(--t1);font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">✕</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showToast }}" hint-placeholder-val="{{ false }}">
+        <div style="pointer-events:auto;display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--bd2);border-radius:13px;padding:11px 14px;animation:xkToast .35s cubic-bezier(.34,1.56,.64,1) both;box-shadow:0 12px 30px rgba(0,0,0,.45)">
+          <span style="flex:1;font-size:13px;color:var(--ink)">{{ toastText }}</span>
+          <sc-if value="{{ toastUndo }}" hint-placeholder-val="{{ false }}"><span onClick="{{ onUndo }}" style="cursor:pointer;color:var(--ink);font-size:13px;font-weight:600;flex:none;text-decoration:underline;text-underline-offset:3px">Bekor qilish</span></sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showPvMerge }}" hint-placeholder-val="{{ false }}">
+        <div style="pointer-events:auto;background:var(--field);border:1px solid var(--bd2);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;animation:xkSlidein .35s ease both;box-shadow:0 16px 40px rgba(0,0,0,.5)">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">BIRLASHTIRISHNI TASDIQLANG</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="flex:1;border:1.5px dashed var(--t5);opacity:.55;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:13px;font-weight:500;color:var(--ink)">{{ pvFromEmoji }} {{ pvFromName }}</span>
+              <span style="font-size:12.5px;color:var(--t2);font-variant-numeric:tabular-nums">{{ pvFromTotal }}</span>
+            </div>
+            <span style="color:var(--t3);font-size:16px;flex:none">→</span>
+            <div style="flex:1;border:1.5px solid var(--ink);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:13px;font-weight:500;color:var(--ink)">{{ pvToEmoji }} {{ pvToName }}</span>
+              <span style="font-size:12.5px;font-weight:600;color:{{ pvToColor }};font-variant-numeric:tabular-nums">{{ pvToTotal }}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div onClick="{{ onPvOk }}" style="flex:1;cursor:pointer;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;border-radius:11px;padding:11px 0;text-align:center">Tasdiqlash</div>
+            <div onClick="{{ onPvNo }}" style="flex:1;border:1px solid var(--bd);cursor:pointer;color:var(--t1);font-size:13px;font-weight:600;border-radius:11px;padding:11px 0;text-align:center" style-hover="background:var(--hov)">Bekor</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showPvDelete }}" hint-placeholder-val="{{ false }}">
+        <div style="pointer-events:auto;background:var(--field);border:1px solid var(--bd2);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;animation:xkSlidein .35s ease both;box-shadow:0 16px 40px rgba(0,0,0,.5)">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">O'CHIRISHNI TASDIQLANG</div>
+          <div style="border:1.5px dashed color-mix(in srgb, var(--red) 55%, transparent);border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;opacity:.8">
+            <span style="font-size:13px;font-weight:500;color:var(--ink)">{{ pvFromEmoji }} {{ pvFromName }}</span>
+            <span style="font-size:11px;color:var(--red)">o'chiriladi</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div onClick="{{ onPvOk }}" style="flex:1;cursor:pointer;background:var(--red);color:#140807;font-size:13px;font-weight:700;border-radius:11px;padding:11px 0;text-align:center">Tasdiqlash</div>
+            <div onClick="{{ onPvNo }}" style="flex:1;border:1px solid var(--bd);cursor:pointer;color:var(--t1);font-size:13px;font-weight:600;border-radius:11px;padding:11px 0;text-align:center" style-hover="background:var(--hov)">Bekor</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div data-inputwrap="1" style="pointer-events:auto;position:relative;height:46px;background:rgba(28,28,30,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--bd);border-radius:23px;box-shadow:0 10px 28px rgba(0,0,0,.4)">
+        <div style="position:absolute;inset:0;padding:0 52px 0 16px;overflow:hidden;display:flex;align-items:center;border-radius:23px;pointer-events:none">
+          <div data-hl-inner="1" style="white-space:pre;font-size:14px;font-weight:400;will-change:transform"><sc-for list="{{ segs }}" as="s" hint-placeholder-count="1"><span style="border-radius:4px;color:{{ s.color }};background:{{ s.bg }};font-variant-numeric:tabular-nums">{{ s.text }}</span></sc-for></div>
+        </div>
+        <sc-if value="{{ showPh }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;inset:0;padding:0 52px 0 16px;display:flex;align-items:center;color:var(--t5);font-size:14px;pointer-events:none;white-space:nowrap;overflow:hidden;transition:opacity .35s;opacity:{{ phO }}">{{ phText }}</div>
+        </sc-if>
+        <input value="{{ inputText }}" onChange="{{ onInput }}" onScroll="{{ onScrollI }}" onKeyDown="{{ onKey }}" spellCheck="false" autoComplete="off" autoCorrect="off" style="position:relative;z-index:2;width:100%;height:100%;background:transparent;border:none;color:transparent;caret-color:var(--ink);font-size:14px;font-weight:400;padding:0 52px 0 16px;border-radius:23px">
+        <div onClick="{{ onSend }}" style="position:absolute;z-index:3;right:6px;top:6px;width:34px;height:34px;border-radius:50%;cursor:pointer;background:var(--ink);color:var(--bg);font-size:15px;display:flex;align-items:center;justify-content:center;transition:opacity .25s;opacity:{{ sendOpacity }};animation:{{ btnAnim }}">{{ btnGlyph }}</div>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--t4)">Yozing — AI o'zi papkalarga saralaydi</div>
+    </div>
+
+  </div>
+
+  <div data-flight="1" style="position:absolute;inset:0;pointer-events:none;z-index:50"></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;privacyMode&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Rejimlar&quot; },
+  &quot;strictMono&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Rejimlar&quot; },
+  &quot;greenColor&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#4CAF82&quot;, &quot;options&quot;: [&quot;#4CAF82&quot;, &quot;#2F7A54&quot;, &quot;#4A7A2F&quot;, &quot;#2F7A72&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Ranglar&quot; },
+  &quot;redColor&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#D2695B&quot;, &quot;options&quot;: [&quot;#D2695B&quot;, &quot;#A94438&quot;, &quot;#A9385E&quot;, &quot;#8F4A2E&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Ranglar&quot; },
+  &quot;speed&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 1, &quot;min&quot;: 0.4, &quot;max&quot;: 2, &quot;step&quot;: 0.2, &quot;unit&quot;: &quot;x&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Animatsiya&quot; }
+}">
+class Component extends DCLogic {
+  state = {
+    folders: [
+      { id: 'oy', name: 'Oylik', emoji: '💼', dir: 'in', total: 4000000, spark: [2, 2, 90, 2, 2, 2, 2, 2], entries: [
+        { id: 's1', desc: 'Iyul oyligi', amount: 4000000, dir: 'in', dayOff: 14, time: '09:00' }] },
+      { id: 'bz', name: 'Biznes', emoji: '📈', dir: 'in', total: 1800000, spark: [20, 40, 25, 60, 30, 45, 70, 55], entries: [
+        { id: 's2', desc: "Mijoz to'lovi", amount: 600000, dir: 'in', dayOff: 1, time: '15:22' },
+        { id: 's3', desc: 'Sotuv tushumi', amount: 1200000, dir: 'in', dayOff: 8, time: '12:40' }] },
+      { id: 'bk', name: 'Boshqa kirim', emoji: '💰', dir: 'in', total: 350000, spark: [5, 5, 60, 5, 5, 5, 5, 5], entries: [
+        { id: 's4', desc: 'Qarz qaytdi', amount: 350000, dir: 'in', dayOff: 12, time: '17:05' }] },
+      { id: 'tr', name: 'Transport', emoji: '🚌', dir: 'out', total: 340000, spark: [40, 55, 30, 70, 45, 60, 52, 68], entries: [
+        { id: 's5', desc: "Yo'l kartasi", amount: 100000, dir: 'out', dayOff: 0, time: '08:15' },
+        { id: 's6', desc: 'Metro', amount: 40000, dir: 'out', dayOff: 1, time: '18:40' },
+        { id: 's7', desc: 'Benzin', amount: 200000, dir: 'out', dayOff: 3, time: '11:20' }] },
+      { id: 'tx', name: 'Taksi', emoji: '🚕', dir: 'out', total: 210000, spark: [20, 35, 50, 25, 60, 40, 55, 45], entries: [
+        { id: 's8', desc: 'Yandex Taksi', amount: 25000, dir: 'out', dayOff: 0, time: '09:12' },
+        { id: 's9', desc: 'Aeroportga', amount: 80000, dir: 'out', dayOff: 1, time: '21:05' },
+        { id: 's10', desc: 'Yandex Taksi', amount: 45000, dir: 'out', dayOff: 1, time: '14:30' },
+        { id: 's11', desc: "Shahar bo'ylab", amount: 60000, dir: 'out', dayOff: 3, time: '19:44' }] },
+      { id: 'oz', name: 'Oziq-ovqat', emoji: '🍜', dir: 'out', total: 1250000, spark: [80, 65, 90, 70, 85, 95, 75, 88], entries: [
+        { id: 's12', desc: 'Nonushta', amount: 30000, dir: 'out', dayOff: 0, time: '08:40' },
+        { id: 's13', desc: 'Bozor', amount: 320000, dir: 'out', dayOff: 1, time: '10:15' },
+        { id: 's14', desc: 'Tushlik', amount: 40000, dir: 'out', dayOff: 1, time: '13:05' },
+        { id: 's15', desc: 'Korzinka', amount: 480000, dir: 'out', dayOff: 3, time: '17:30' },
+        { id: 's16', desc: 'Korzinka', amount: 380000, dir: 'out', dayOff: 5, time: '18:10' }] },
+      { id: 'ko', name: 'Kommunal', emoji: '💡', dir: 'out', total: 480000, spark: [30, 30, 90, 10, 10, 10, 85, 12], entries: [
+        { id: 's17', desc: 'Svet', amount: 210000, dir: 'out', dayOff: 4, time: '09:00' },
+        { id: 's18', desc: 'Gaz', amount: 150000, dir: 'out', dayOff: 4, time: '09:05' },
+        { id: 's19', desc: 'Internet', amount: 120000, dir: 'out', dayOff: 10, time: '12:00' }] },
+      { id: 'xa', name: 'Xaridlar', emoji: '🛍️', dir: 'out', total: 620000, spark: [10, 80, 20, 15, 90, 30, 25, 70], entries: [
+        { id: 's20', desc: "Do'kon", amount: 170000, dir: 'out', dayOff: 1, time: '16:20' },
+        { id: 's21', desc: 'Kiyim', amount: 450000, dir: 'out', dayOff: 6, time: '15:45' }] },
+      { id: 'sa', name: 'Salomatlik', emoji: '💊', dir: 'out', total: 150000, spark: [15, 20, 10, 45, 12, 18, 30, 22], entries: [
+        { id: 's22', desc: 'Vitaminlar', amount: 65000, dir: 'out', dayOff: 1, time: '11:30' },
+        { id: 's23', desc: 'Dorixona', amount: 85000, dir: 'out', dayOff: 7, time: '10:20' }] },
+      { id: 'kn', name: "Ko'ngilochar", emoji: '🎬', dir: 'out', total: 95000, spark: [10, 15, 40, 12, 20, 35, 18, 42], entries: [
+        { id: 's24', desc: 'PlayStation', amount: 35000, dir: 'out', dayOff: 1, time: '20:10' },
+        { id: 's25', desc: 'Kino', amount: 60000, dir: 'out', dayOff: 9, time: '19:00' }] }
+    ],
+    input: '', phI: 0, phO: 1,
+    pending: [], tray: [],
+    toast: null, preview: null,
+    detail: null, editing: null,
+    showLog: false, logDot: false,
+    log: [
+      { id: 'l1', type: 'add', fid: 'tx', eid: 's8', emoji: '🚕', desc: 'Yandex Taksi', amount: 25000, dir: 'out', folderName: 'Taksi', time: '09:12' },
+      { id: 'l2', type: 'add', fid: 'oz', eid: 's12', emoji: '🍜', desc: 'Nonushta', amount: 30000, dir: 'out', folderName: 'Oziq-ovqat', time: '08:40' },
+      { id: 'l3', type: 'add', fid: 'tr', eid: 's5', emoji: '🚌', desc: "Yo'l kartasi", amount: 100000, dir: 'out', folderName: 'Transport', time: '08:15' }
+    ],
+    busy: false, demoI: 0
+  };
+
+  PHS = [
+    "Bugun taksiga 25 000, tushlikka 40 000...",
+    "Oylik keldi 4 000 000...",
+    "Oziq-ovqatga 120 000 sarfladim...",
+    "Taksi xarajatlarini Transportga birlashtir..."
+  ];
+
+  DEMOS = [
+    "Bugun taksiga 25 000, tushlikka 40 000, kofega 18 000 sarfladim",
+    "Oylik keldi 4 000 000 va mijozdan 600 000 tushdi",
+    "Do'stlar sovg'asiga 50 000 berdim",
+    "Taksi xarajatlarini Transportga birlashtir",
+    "Kecha kinoga 45 000, dorixonaga 35 000 to'ladim"
+  ];
+
+  KW = [
+    { re: /taksi/i, name: 'Taksi', emoji: '🚕' },
+    { re: /avtobus|metro|benzin|transport/i, name: 'Transport', emoji: '🚌' },
+    { re: /kofe|qahva/i, name: 'Kofe', emoji: '☕️' },
+    { re: /oziq|tushlik|nonushta|ovqat|bozor|market/i, name: 'Oziq-ovqat', emoji: '🍜' },
+    { re: /kommunal|svet|gaz|suv(?=\b|ga)|internet|telefon/i, name: 'Kommunal', emoji: '💡' },
+    { re: /kiyim|xarid|do['\u2019\u02BB`]?kon/i, name: 'Xaridlar', emoji: '🛍️' },
+    { re: /dori|shifokor|apteka/i, name: 'Salomatlik', emoji: '💊' },
+    { re: /kino|konsert|o['\u2019\u02BB`]?yin/i, name: "Ko'ngilochar", emoji: '🎬' },
+    { re: /sport|zal|fitnes/i, name: 'Sport', emoji: '🏋️' },
+    { re: /kitob/i, name: 'Kitoblar', emoji: '📚' }
+  ];
+
+  INC_RE = /\b(oylik|maosh|avans|daromad|bonus|kirim)\b|mijoz\w*|sotuv\w*|\bsotdim\b|keldi|tushdi|qaytdi|qaytardi/i;
+
+  incomeCat(seg) {
+    if (/oylik|maosh|avans|ish haqi/i.test(seg)) return { name: 'Oylik', emoji: '💼' };
+    if (/mijoz|sotuv|sotdim|biznes|savdo/i.test(seg)) return { name: 'Biznes', emoji: '📈' };
+    return { name: 'Boshqa kirim', emoji: '💰' };
+  }
+
+  componentDidMount() {
+    this.frame = document.querySelector('[data-xk-frame]');
+    this.applyAccent();
+    this.phT = setInterval(() => {
+      if (this.state.input) return;
+      this.setState({ phO: 0 });
+      this.phT2 = setTimeout(() => this.setState(s => ({ phI: (s.phI + 1) % this.PHS.length, phO: 1 })), 380);
+    }, 3600);
+  }
+  componentDidUpdate() { this.applyAccent(); }
+  componentWillUnmount() {
+    clearInterval(this.phT);
+    [this.phT2, this.toastT, this.typeT, this.ambT, this.commitT, this._lp].forEach(t => clearTimeout(t));
+  }
+
+  greenC() { return (this.props.strictMono) ? '#F5F5F5' : (this.props.greenColor ?? '#4CAF82'); }
+  redC() { return (this.props.strictMono) ? '#F5F5F5' : (this.props.redColor ?? '#D2695B'); }
+  priv() { return !!this.props.privacyMode; }
+  applyAccent() {
+    if (!this.frame) return;
+    this.frame.style.setProperty('--green', this.greenC());
+    this.frame.style.setProperty('--red', this.redC());
+  }
+  dur(ms) { return Math.round(ms / (this.props.speed ?? 1)); }
+  fmt(n) { return String(Math.round(Math.abs(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  fmtP(n) { return this.priv() ? '•••' : this.fmt(n); }
+  signed(n, dir) { return this.priv() ? '•••' : (dir === 'in' ? '+' : '−') + this.fmt(n); }
+  balSigned(n) { return this.priv() ? '•••' : (n < 0 ? '−' : '+') + this.fmt(n); }
+  esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  sparkPts(vals) {
+    const m = Math.max(...vals, 1);
+    return vals.map((v, i) => ((i / (vals.length - 1)) * 100).toFixed(1) + ',' + (20 - (v / m) * 16).toFixed(1)).join(' ');
+  }
+  sums() {
+    let tin = 0, tout = 0;
+    for (const f of this.state.folders) { if (f.dir === 'in') tin += f.total; else tout += f.total; }
+    return { tin, tout };
+  }
+  dayLabel(off) { return off === 0 ? 'Bugun' : off === 1 ? 'Kecha' : (15 - off) + '-iyul'; }
+  nowTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  matchAmount(seg) {
+    const m = seg.match(/(\d{1,3}(?:[ \u00A0.]\d{3})+|\d+)(\s*ming)?/i);
+    if (!m) return null;
+    let n = parseInt(m[1].replace(/[^\d]/g, ''), 10);
+    if (m[2]) n *= 1000;
+    return n > 0 ? n : null;
+  }
+
+  labelFor(seg, fallback) {
+    let label = seg.replace(/(\d[\d \u00A0.]*)(\s*ming)?(\s*so['\u2019\u02BB`]?m)?/gi, '')
+      .replace(/\b(sarfladim|ishlatdim|ketdi|to['\u2019\u02BB`]?ladim|berdim|keldi|tushdi|qaytdi|qildim|bugun|kecha|ertalab|kechqurun|va)\b/gi, '')
+      .replace(/\s+/g, ' ').trim();
+    if (!label) return fallback;
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  highlight(text) {
+    if (!text) return [];
+    const green = 'var(--green)', red = 'var(--red)';
+    const cuts = [0];
+    for (const m of text.matchAll(/,|\bva\b/gi)) cuts.push(m.index);
+    cuts.push(text.length);
+    const segDir = (pos) => {
+      let a = 0, b = text.length;
+      for (let i = 0; i < cuts.length - 1; i++) { if (pos >= cuts[i] && pos < cuts[i + 1]) { a = cuts[i]; b = cuts[i + 1]; break; } }
+      return this.INC_RE.test(text.slice(a, b)) ? 'in' : 'out';
+    };
+    const ranges = [];
+    const push = (re, type) => { for (const m of text.matchAll(re)) { if (m[0]) ranges.push({ s: m.index, e: m.index + m[0].length, type }); } };
+    push(/(\d{1,3}(?:[ \u00A0.]\d{3})+|\d+)(\s*ming)?(\s*so['\u2019\u02BB`]?m)?/gi, 'amt');
+    push(/oziq-ovqat|oziq|tushlik|nonushta|ovqat|bozor|market|taksi|avtobus|metro|benzin|transport|kofe|qahva|kommunal|svet|gaz|internet|telefon|kiyim|xarid\w*|do['\u2019\u02BB`]?kon|dori\w*|shifokor|apteka|kino|konsert|sport|zal|fitnes|kitob\w*|papka\w*|oylik|maosh|avans|mijoz\w*|sotuv\w*|biznes|daromad|bonus/gi, 'cat');
+    push(/birlashtir\w*|o['\u2019\u02BB`]?chir\w*|keldi|tushdi|qaytdi/gi, 'cmd');
+    push(/bugun|kechqurun|kecha|ertalab|ertaga/gi, 'date');
+    ranges.sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
+    const kept = [];
+    let lastEnd = 0;
+    for (const r of ranges) { if (r.s >= lastEnd) { kept.push(r); lastEnd = r.e; } }
+    const segs = [];
+    let pos = 0;
+    for (const r of kept) {
+      if (r.s > pos) segs.push({ text: text.slice(pos, r.s), color: 'var(--ink)', bg: 'transparent' });
+      let color = 'var(--ink)', bg = 'transparent';
+      if (r.type === 'amt') {
+        const c = segDir(r.s) === 'in' ? green : red;
+        color = c; bg = 'color-mix(in srgb, ' + c + ' 13%, transparent)';
+      } else if (r.type === 'cat') { color = 'var(--ink)'; bg = 'var(--card2)'; }
+      else if (r.type === 'cmd') { color = 'var(--t1)'; bg = 'var(--hair2)'; }
+      else if (r.type === 'date') { color = 'var(--t2)'; bg = 'var(--hair2)'; }
+      segs.push({ text: text.slice(r.s, r.e), color, bg });
+      pos = r.e;
+    }
+    if (pos < text.length) segs.push({ text: text.slice(pos), color: 'var(--ink)', bg: 'transparent' });
+    return segs;
+  }
+
+  findMentions(low) {
+    const res = [];
+    for (const f of this.state.folders) {
+      const fn = f.name.toLowerCase();
+      let idx = low.indexOf(fn);
+      if (idx < 0) {
+        for (const w of low.split(/[^a-z0-9'\u2019\u02BB`-]+/)) {
+          if (w.length >= 4 && fn.includes(w)) { idx = low.indexOf(w); break; }
+        }
+      }
+      if (idx >= 0) res.push({ f, idx });
+    }
+    res.sort((a, b) => a.idx - b.idx);
+    return res.map(r => r.f);
+  }
+
+  parse(text) {
+    const low = text.toLowerCase();
+    if (/birlashtir/.test(low)) {
+      const m = this.findMentions(low);
+      if (m.length >= 2 && m[0].id !== m[1].id) return { command: 'merge', from: m[0], to: m[1] };
+    }
+    if (/o['\u2019\u02BB`]?chir/.test(low)) {
+      const m = this.findMentions(low);
+      if (m.length) return { command: 'delete', folder: m[0] };
+    }
+    const expenses = [];
+    for (const seg of text.split(/,|\bva\b/i)) {
+      const amount = this.matchAmount(seg);
+      if (!amount) continue;
+      if (this.INC_RE.test(seg)) {
+        const c = this.incomeCat(seg);
+        expenses.push({ cat: c.name, emoji: c.emoji, amount, dir: 'in', desc: this.labelFor(seg, c.name) });
+        continue;
+      }
+      const kw = this.KW.find(k => k.re.test(seg));
+      if (kw) {
+        expenses.push({ cat: kw.name, emoji: kw.emoji, amount, dir: 'out', desc: this.labelFor(seg, kw.name) });
+      } else {
+        const label = this.labelFor(seg, 'Xarajat');
+        const sugg = ["Ko'ngilochar", 'Xaridlar', 'Oziq-ovqat'].filter(n => this.state.folders.some(f => f.name === n));
+        expenses.push({ ambiguous: true, label, amount, dir: 'out', suggestions: sugg.length ? sugg : this.state.folders.filter(f => f.dir === 'out').slice(0, 3).map(f => f.name) });
+      }
+    }
+    return { expenses };
+  }
+
+  snap() {
+    if (this._holdSnap) return;
+    this.snapshot = JSON.parse(JSON.stringify({ folders: this.state.folders, pending: this.state.pending, tray: this.state.tray, log: this.state.log }));
+  }
+
+  removeEntrySilent(fid, eid) {
+    const f = this.state.folders.find(x => x.id === fid);
+    const en = f && f.entries.find(x => x.id === eid);
+    if (!en) return;
+    this.setState(s => ({
+      folders: s.folders.map(x => x.id === fid ? { ...x, total: x.total - en.amount, entries: x.entries.filter(y => y.id !== eid) } : x)
+    }));
+  }
+
+  startEdit(fid, eid) {
+    const f = this.state.folders.find(x => x.id === fid);
+    const en = f && f.entries.find(x => x.id === eid);
+    if (!en) return;
+    const text = en.desc + ' ' + this.fmt(en.amount);
+    this.setState({ editing: { fid, eid, label: en.desc }, input: text, showLog: false });
+    requestAnimationFrame(() => {
+      const inp = this.frame && this.frame.querySelector('input');
+      if (inp) { inp.focus(); this.syncScroll(inp); }
+    });
+  }
+
+  openLog = () => this.setState({ showLog: true, logDot: false });
+  closeLog = () => this.setState({ showLog: false });
+
+  cancelEdit = () => {
+    this.setState({ editing: null, input: '' });
+    const inp = this.frame && this.frame.querySelector('input');
+    if (inp) { inp.scrollLeft = 0; this.syncScroll(inp); }
+  };
+
+  onUndo = () => {
+    if (!this.snapshot) return;
+    clearTimeout(this.ambT);
+    this.setState({ folders: this.snapshot.folders, pending: this.snapshot.pending, tray: this.snapshot.tray, log: this.snapshot.log, toast: null });
+    this.snapshot = null;
+    this.live = {};
+  };
+
+  showToast(text, undoable) {
+    clearTimeout(this.toastT);
+    this.setState({ toast: { text, undoable: !!undoable } });
+    this.toastT = setTimeout(() => this.setState({ toast: null }), 4600);
+  }
+
+  syncScroll(inp) {
+    requestAnimationFrame(() => {
+      const inner = this.frame && this.frame.querySelector('[data-hl-inner]');
+      if (inner && inp) inner.style.transform = 'translateX(' + (-inp.scrollLeft) + 'px)';
+    });
+  }
+
+  onInput = (e) => { this.setState({ input: e.target.value }); this.syncScroll(e.target); };
+  onScrollI = (e) => this.syncScroll(e.target);
+  onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); this.submit(); } };
+
+  submit = () => {
+    const text = this.state.input.trim();
+    if (!text || this.state.busy) return;
+    this.setState({ busy: true });
+    setTimeout(() => {
+      const ed = this.state.editing;
+      this.setState({ busy: false, input: '', editing: null });
+      const inp = this.frame && this.frame.querySelector('input');
+      if (inp) { inp.scrollLeft = 0; this.syncScroll(inp); }
+      if (ed) {
+        const f = this.state.folders.find(x => x.id === ed.fid);
+        const en = f && f.entries.find(x => x.id === ed.eid);
+        if (en) {
+          this.snap();
+          this._holdSnap = true;
+          this._editCat = { name: f.name, emoji: f.emoji, dir: f.dir };
+          this._wasEdit = true;
+          this.removeEntrySilent(ed.fid, ed.eid);
+        }
+      }
+      this.process(text);
+      this._holdSnap = false;
+      this._editCat = null;
+    }, this.dur(300));
+  };
+
+  process(text) {
+    const r = this.parse(text);
+    if (this._editCat && r.expenses) {
+      const ec = this._editCat;
+      r.expenses = r.expenses.map(e => e.ambiguous ? { cat: ec.name, emoji: ec.emoji, amount: e.amount, dir: ec.dir, desc: e.label } : e);
+    }
+    if (r.command === 'merge') { this.setState({ preview: { type: 'merge', fromId: r.from.id, toId: r.to.id } }); return; }
+    if (r.command === 'delete') { this.setState({ preview: { type: 'delete', fromId: r.folder.id } }); return; }
+    if (!r.expenses || !r.expenses.length) {
+      this.setState(s => ({ tray: [...s.tray, { id: 't' + Date.now(), text, open: false }] }));
+      return;
+    }
+    this.snap();
+    const clear = r.expenses.filter(e => !e.ambiguous);
+    const amb = r.expenses.filter(e => e.ambiguous);
+    if (amb.length) {
+      this.ambT = setTimeout(() => {
+        this.setState(s => ({ pending: [...s.pending, ...amb.map((e, i) => ({ id: 'p' + Date.now() + '_' + i, label: e.label, amount: e.amount, si: 0, suggestions: e.suggestions }))] }));
+      }, this.dur(420));
+    }
+    if (!clear.length) return;
+    let folders = this.state.folders.slice();
+    clear.forEach((e, i) => {
+      if (!folders.some(f => f.name === e.cat)) {
+        folders = folders.concat([{ id: 'f' + Date.now() + '_' + i, name: e.cat, emoji: e.emoji, dir: e.dir, total: 0, spark: [2, 2, 2, 2, 2, 2, 2, 2], entries: [], isNew: true, popDelay: this.dur(i * 120 + 260) }]);
+      }
+    });
+    this.setState({ folders });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const wrap = this.frame.querySelector('[data-inputwrap]');
+      const fr = this.frame.getBoundingClientRect();
+      const wr = wrap.getBoundingClientRect();
+      let landed = 0;
+      const total = clear.reduce((a, e) => a + e.amount, 0);
+      clear.forEach((e, i) => {
+        this.flyToFolder(e, { x: wr.left - fr.left + 14 + i * 8, yBottom: wr.top - fr.top }, this.dur(i * 120), () => {
+          landed++;
+          if (landed === clear.length) {
+            this.commitT = setTimeout(() => {
+              this.commitDeltas(clear);
+              this.showToast(clear.length + ' ta yozuv saqlandi · ' + this.fmtP(total) + " so'm", true);
+            }, this.dur(660));
+          }
+        });
+      });
+    }));
+  }
+
+  flyToFolder(e, start, delay, done) {
+    const frame = this.frame;
+    const fr = frame.getBoundingClientRect();
+    const layer = frame.querySelector('[data-flight]');
+    const f = this.state.folders.find(x => x.name === e.cat);
+    let fe = null;
+    if (f && this.state.detail === f.id) fe = frame.querySelector('[data-detail-emoji]');
+    if (!fe && f) fe = frame.querySelector('[data-fid="' + f.id + '"]');
+    if (!fe || !layer) { if (done) done(); return; }
+    const isIn = e.dir === 'in';
+    const glow = isIn ? this.greenC() : this.redC();
+    const amtColor = isIn ? 'var(--green)' : 'var(--red)';
+    const card = document.createElement('div');
+    card.style.cssText = "position:absolute;left:0;top:0;display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--bd2);border-radius:13px;padding:9px 13px;font:500 13px 'Inter',-apple-system,sans-serif;color:var(--ink);box-shadow:0 14px 32px rgba(0,0,0,.5), 0 0 22px color-mix(in srgb, " + glow + " " + (isIn ? '40' : '22') + "%, transparent);white-space:nowrap;will-change:transform;opacity:0;font-variant-numeric:tabular-nums;";
+    card.innerHTML = '<span>' + this.esc(e.emoji + ' ' + e.cat) + '</span><span style="font-weight:600;color:' + amtColor + '">' + (isIn ? '+' : '−') + this.fmtP(e.amount) + '</span>';
+    layer.appendChild(card);
+    const cw = card.offsetWidth, ch = card.offsetHeight;
+    const sx = Math.max(8, Math.min(start.x, fr.width - cw - 10));
+    const sy = start.yBottom - ch - 10;
+    const fer = fe.getBoundingClientRect();
+    const ex = fer.left - fr.left + fer.width / 2 - cw / 2;
+    const ey = fer.top - fr.top + fer.height / 2 - ch / 2;
+    const mx = (sx + ex) / 2 + (ex > sx ? 24 : -24);
+    const my = Math.min(sy, ey) - 84;
+    const t = (x, y, s, r) => 'translate(' + x + 'px,' + y + 'px) scale(' + s + ') rotate(' + r + 'deg)';
+    const a = card.animate([
+      { transform: t(sx, sy, .55, 0), opacity: 0 },
+      { transform: t(sx, sy, 1, 0), opacity: 1, offset: .16 },
+      { transform: t(mx, my, 1.05, ex > sx ? 5 : -5), opacity: 1, offset: .55 },
+      { transform: t(ex, ey, .5, 0), opacity: .85, offset: .93 },
+      { transform: t(ex, ey, .25, 0), opacity: 0 }
+    ], { duration: this.dur(780), delay: delay, easing: 'cubic-bezier(.3,.75,.25,1)', fill: 'both' });
+    a.onfinish = () => { card.remove(); this.landOn(f, e.amount); if (done) done(); };
+  }
+
+  landOn(f, amount) {
+    const isDetail = this.state.detail === f.id;
+    const fe = isDetail ? this.frame.querySelector('[data-detail-emoji]') : this.frame.querySelector('[data-fid="' + f.id + '"]');
+    if (fe) fe.animate([
+      { transform: 'scale(1)' }, { transform: 'scale(1.09)' }, { transform: 'scale(.97)' }, { transform: 'scale(1)' }
+    ], { duration: this.dur(430), easing: 'ease-out' });
+    this.live = this.live || {};
+    const from = (this.live[f.id] != null) ? this.live[f.id] : f.total;
+    const to = from + amount;
+    this.live[f.id] = to;
+    const dirSign = (v) => this.signed(v, f.dir);
+    this.countUp(this.frame.querySelector('[data-total="' + f.id + '"]'), from, to, dirSign);
+    if (isDetail) this.countUp(this.frame.querySelector('[data-detail-total]'), from, to, dirSign);
+    const S = this.sums();
+    if (f.dir === 'in') {
+      const iFrom = (this.live.tin != null) ? this.live.tin : S.tin;
+      this.live.tin = iFrom + amount;
+      this.countUp(this.frame.querySelector('[data-sum-in]'), iFrom, this.live.tin, v => this.signed(v, 'in'));
+    } else {
+      const oFrom = (this.live.tout != null) ? this.live.tout : S.tout;
+      this.live.tout = oFrom + amount;
+      this.countUp(this.frame.querySelector('[data-sum-out]'), oFrom, this.live.tout, v => this.signed(v, 'out'));
+    }
+    const bFrom = (this.live.bal != null) ? this.live.bal : (S.tin - S.tout);
+    this.live.bal = bFrom + (f.dir === 'in' ? amount : -amount);
+    this.countUp(this.frame.querySelector('[data-sum-bal]'), bFrom, this.live.bal, v => this.balSigned(v));
+  }
+
+  countUp(el, from, to, fmtFn) {
+    if (!el) return;
+    if (this.priv()) { el.textContent = '•••'; return; }
+    const d = this.dur(620);
+    const st = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - st) / d);
+      el.textContent = fmtFn(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  commitDeltas(exps) {
+    const time = this.nowTime();
+    const type = this._wasEdit ? 'edit' : 'add';
+    this._wasEdit = false;
+    const logAdds = [];
+    this.setState(s => ({
+      folders: s.folders.map(f => {
+        const mine = exps.filter(e => e.cat === f.name);
+        if (!mine.length) return f;
+        const add = mine.reduce((a, e) => a + e.amount, 0);
+        const newEntries = mine.map((e, i) => {
+          const eid = 'e' + Date.now() + '_' + f.id + '_' + i;
+          const en = { id: eid, desc: e.desc || f.name, amount: e.amount, dir: e.dir || f.dir, dayOff: 0, time };
+          logAdds.push({ id: 'l' + eid, type, fid: f.id, eid, emoji: f.emoji, desc: en.desc, amount: en.amount, dir: en.dir, folderName: f.name, time });
+          return en;
+        });
+        return { ...f, total: f.total + add, entries: f.entries.concat(newEntries), spark: f.spark.slice(1).concat([Math.max(...f.spark, 2) * (f.isNew ? 2.5 : 1.05)]) };
+      }),
+      log: [...logAdds, ...s.log].slice(0, 12),
+      logDot: s.showLog ? s.logDot : true
+    }));
+    this.live = {};
+  }
+
+  onPvOk = () => {
+    const pv = this.state.preview;
+    if (!pv) return;
+    this.snap();
+    if (pv.type === 'merge') {
+      const from = this.state.folders.find(f => f.id === pv.fromId);
+      const to = this.state.folders.find(f => f.id === pv.toId);
+      if (from && to) {
+        this.setState(s => ({
+          preview: null,
+          detail: s.detail === from.id ? null : s.detail,
+          folders: s.folders.filter(f => f.id !== from.id).map(f => f.id === to.id ? { ...f, total: f.total + from.total, entries: f.entries.concat(from.entries), spark: f.spark.map((v, i) => Math.max(v, from.spark[i] || 0)) } : f)
+        }));
+        setTimeout(() => {
+          const fe = this.frame.querySelector('[data-fid="' + to.id + '"]');
+          if (fe) fe.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: this.dur(400), easing: 'ease-out' });
+        }, 60);
+        this.showToast('\u201C' + from.name + '\u201D \u201C' + to.name + '\u201Dga birlashtirildi', true);
+      }
+    } else {
+      const from = this.state.folders.find(f => f.id === pv.fromId);
+      if (from) {
+        this.setState(s => ({ preview: null, detail: s.detail === from.id ? null : s.detail, folders: s.folders.filter(f => f.id !== from.id) }));
+        this.showToast('\u201C' + from.name + '\u201D papkasi o\u2018chirildi', true);
+      }
+    }
+  };
+  onPvNo = () => this.setState({ preview: null });
+
+  cyclePending(id) {
+    this.setState(s => ({ pending: s.pending.map(p => p.id === id ? { ...p, si: (p.si + 1) % p.suggestions.length } : p) }));
+  }
+
+  confirmPending(id) {
+    const p = this.state.pending.find(x => x.id === id);
+    if (!p) return;
+    const catName = p.suggestions[p.si];
+    let folders = this.state.folders;
+    let f = folders.find(x => x.name === catName);
+    if (!f) {
+      const kw = this.KW.find(k => k.name === catName);
+      f = { id: 'f' + Date.now(), name: catName, emoji: kw ? kw.emoji : '📁', dir: 'out', total: 0, spark: [2, 2, 2, 2, 2, 2, 2, 2], entries: [], isNew: true, popDelay: 0 };
+      folders = folders.concat([f]);
+    }
+    const el = this.frame.querySelector('[data-pid="' + id + '"]');
+    const fr = this.frame.getBoundingClientRect();
+    const er = el ? el.getBoundingClientRect() : fr;
+    this.snap();
+    this.setState(s => ({ folders, pending: s.pending.filter(x => x.id !== id) }));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this.flyToFolder({ cat: catName, emoji: f.emoji, amount: p.amount, dir: f.dir, desc: p.label }, { x: er.left - fr.left + 10, yBottom: er.top - fr.top + 52 }, 0, () => {
+        setTimeout(() => {
+          this.commitDeltas([{ cat: catName, amount: p.amount, dir: f.dir, desc: p.label }]);
+          this.showToast("1 ta yozuv saqlandi · " + this.fmtP(p.amount) + " so'm", true);
+        }, this.dur(620));
+      });
+    }));
+  }
+
+  toggleTray(id) {
+    this.setState(s => ({ tray: s.tray.map(t => t.id === id ? { ...t, open: !t.open } : t) }));
+  }
+
+  pickTray(id, folderName, ev) {
+    if (ev) ev.stopPropagation();
+    const t = this.state.tray.find(x => x.id === id);
+    const f = this.state.folders.find(x => x.name === folderName);
+    if (!t || !f) return;
+    const amount = this.matchAmount(t.text) || 0;
+    const el = this.frame.querySelector('[data-tid="' + id + '"]');
+    const fr = this.frame.getBoundingClientRect();
+    const er = el ? el.getBoundingClientRect() : fr;
+    this.snap();
+    this.setState(s => ({ tray: s.tray.filter(x => x.id !== id) }));
+    const desc = this.labelFor(t.text, f.name);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this.flyToFolder({ cat: f.name, emoji: f.emoji, amount, dir: f.dir, desc }, { x: er.left - fr.left + 10, yBottom: er.top - fr.top + 52 }, 0, () => {
+        setTimeout(() => {
+          this.commitDeltas([{ cat: f.name, amount, dir: f.dir, desc }]);
+          this.showToast('Saqlandi · ' + f.name, true);
+        }, this.dur(620));
+      });
+    }));
+  }
+
+  openDetail(fid) {
+    const card = this.frame.querySelector('[data-fid="' + fid + '"]');
+    const scr = this.frame.querySelector('[data-screenarea]');
+    if (card && scr) {
+      const sr = scr.getBoundingClientRect();
+      const cr = card.getBoundingClientRect();
+      this._dFrom = { x: cr.left - sr.left, y: cr.top - sr.top, sx: cr.width / sr.width, sy: cr.height / sr.height };
+    } else this._dFrom = null;
+    this.setState({ detail: fid });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = this.frame.querySelector('[data-detail]');
+      if (!el || !this._dFrom) return;
+      const d = this._dFrom;
+      el.animate([
+        { transform: 'translate(' + d.x + 'px,' + d.y + 'px) scale(' + d.sx + ',' + d.sy + ')', opacity: .35, borderRadius: '16px' },
+        { transform: 'none', opacity: 1, borderRadius: '0px' }
+      ], { duration: this.dur(380), easing: 'cubic-bezier(.3,.75,.25,1)' });
+    }));
+  }
+
+  closeDetail = () => {
+    const el = this.frame.querySelector('[data-detail]');
+    const d = this._dFrom;
+    if (el && d) {
+      const a = el.animate([
+        { transform: 'none', opacity: 1, borderRadius: '0px' },
+        { transform: 'translate(' + d.x + 'px,' + d.y + 'px) scale(' + d.sx + ',' + d.sy + ')', opacity: 0, borderRadius: '16px' }
+      ], { duration: this.dur(320), easing: 'cubic-bezier(.4,.6,.2,1)', fill: 'forwards' });
+      a.onfinish = () => this.setState({ detail: null });
+    } else this.setState({ detail: null });
+  };
+
+  rowPD(fid, eid, e) {
+    this._lpStart = { x: e.clientX, y: e.clientY };
+    clearTimeout(this._lp);
+    this._lp = setTimeout(() => this.deleteEntry(fid, eid), 550);
+  }
+  rowPM(e) {
+    if (!this._lpStart) return;
+    if (Math.abs(e.clientX - this._lpStart.x) > 10 || Math.abs(e.clientY - this._lpStart.y) > 10) clearTimeout(this._lp);
+  }
+  rowPU() { clearTimeout(this._lp); this._lpStart = null; }
+
+  deleteEntry(fid, eid) {
+    const f = this.state.folders.find(x => x.id === fid);
+    const en = f && f.entries.find(x => x.id === eid);
+    if (!en) return;
+    this.snap();
+    const oldT = f.total, newT = f.total - en.amount;
+    const S = this.sums();
+    this.setState(s => ({
+      folders: s.folders.map(x => x.id === fid ? { ...x, total: x.total - en.amount, entries: x.entries.filter(y => y.id !== eid) } : x),
+      log: [{ id: 'ld' + Date.now(), type: 'del', fid, eid, emoji: f.emoji, desc: en.desc, amount: en.amount, dir: en.dir, folderName: f.name, time: this.nowTime() }, ...s.log].slice(0, 12),
+      logDot: s.showLog ? s.logDot : true
+    }));
+    requestAnimationFrame(() => {
+      const dirSign = (v) => this.signed(v, f.dir);
+      this.countUp(this.frame.querySelector('[data-detail-total]'), oldT, newT, dirSign);
+      this.countUp(this.frame.querySelector('[data-total="' + fid + '"]'), oldT, newT, dirSign);
+      if (f.dir === 'in') {
+        this.countUp(this.frame.querySelector('[data-sum-in]'), S.tin, S.tin - en.amount, v => this.signed(v, 'in'));
+        this.countUp(this.frame.querySelector('[data-sum-bal]'), S.tin - S.tout, S.tin - en.amount - S.tout, v => this.balSigned(v));
+      } else {
+        this.countUp(this.frame.querySelector('[data-sum-out]'), S.tout, S.tout - en.amount, v => this.signed(v, 'out'));
+        this.countUp(this.frame.querySelector('[data-sum-bal]'), S.tin - S.tout, S.tin - (S.tout - en.amount), v => this.balSigned(v));
+      }
+    });
+    this.showToast("Yozuv o'chirildi · " + this.signed(en.amount, en.dir) + " so'm", true);
+  }
+
+  runDemo = () => {
+    if (this.state.busy || this._typing) return;
+    const text = this.DEMOS[this.state.demoI % this.DEMOS.length];
+    this.setState(s => ({ demoI: s.demoI + 1, input: '', preview: null }));
+    this._typing = true;
+    let i = 0;
+    const tick = () => {
+      i++;
+      this.setState({ input: text.slice(0, i) });
+      requestAnimationFrame(() => {
+        const inp = this.frame && this.frame.querySelector('input');
+        if (inp) { inp.scrollLeft = inp.scrollWidth; this.syncScroll(inp); }
+      });
+      if (i < text.length) {
+        this.typeT = setTimeout(tick, 24);
+      } else {
+        this._typing = false;
+        this.typeT = setTimeout(() => this.submit(), 480);
+      }
+    };
+    tick();
+  };
+
+  foldRV(f) {
+    const pv = this.state.preview;
+    const isFrom = pv && pv.fromId === f.id;
+    const isTo = pv && pv.type === 'merge' && pv.toId === f.id;
+    const del = pv && pv.type === 'delete' && pv.fromId === f.id;
+    return {
+      id: f.id, emoji: f.emoji, name: f.name,
+      totalFmt: this.signed(f.total, f.dir),
+      sparkPts: this.sparkPts(f.spark),
+      sparkStroke: f.dir === 'in' ? 'color-mix(in srgb, var(--green) 65%, transparent)' : 'var(--t5)',
+      showNew: !!f.isNew,
+      bg: f.dir === 'in' ? 'color-mix(in srgb, var(--green) 5%, var(--hov2))' : 'var(--hov2)',
+      opacity: (isFrom || del) ? 0.38 : 1,
+      border: del ? '1.5px dashed color-mix(in srgb, var(--red) 55%, transparent)' : isFrom ? '1.5px dashed var(--t5)' : isTo ? '1.5px solid var(--ink)' : '1px solid var(--hair2)',
+      anim: f.isNew ? 'xkPop .55s cubic-bezier(.34,1.56,.64,1) ' + (f.popDelay || 0) + 'ms backwards' : 'none',
+      open: () => this.openDetail(f.id)
+    };
+  }
+
+  renderVals() {
+    const S = this.state;
+    const pv = S.preview;
+    const { tin, tout } = this.sums();
+    const bal = tin - tout;
+    let showPvMerge = false, showPvDelete = false;
+    let pvFromEmoji = '', pvFromName = '', pvFromTotal = '', pvToEmoji = '', pvToName = '', pvToTotal = '', pvToColor = 'var(--ink)';
+    if (pv) {
+      const from = S.folders.find(f => f.id === pv.fromId);
+      const to = pv.toId && S.folders.find(f => f.id === pv.toId);
+      if (pv.type === 'merge' && from && to) {
+        showPvMerge = true;
+        pvFromEmoji = from.emoji; pvFromName = from.name; pvFromTotal = this.signed(from.total, from.dir);
+        pvToEmoji = to.emoji; pvToName = to.name; pvToTotal = this.signed(to.total + from.total, to.dir);
+        pvToColor = to.dir === 'in' ? 'var(--green)' : 'var(--red)';
+      }
+      if (pv.type === 'delete' && from) {
+        showPvDelete = true;
+        pvFromEmoji = from.emoji; pvFromName = from.name;
+      }
+    }
+    const dF = S.detail && S.folders.find(f => f.id === S.detail);
+    let dGroups = [];
+    if (dF) {
+      const ents = dF.entries.slice().sort((a, b) => a.dayOff - b.dayOff || (a.time < b.time ? 1 : -1));
+      let gi = 0;
+      const map = [];
+      for (const en of ents) {
+        const label = this.dayLabel(en.dayOff);
+        let g = map.length && map[map.length - 1].label === label ? map[map.length - 1] : null;
+        if (!g) { g = { label, rows: [] }; map.push(g); }
+        g.rows.push({
+          id: en.id, desc: en.desc, time: en.time,
+          amt: this.signed(en.amount, en.dir) + " so'm",
+          color: en.dir === 'in' ? 'var(--green)' : 'var(--ink)',
+          anim: 'xkRow .32s ease both ' + (Math.min(gi, 14) * 26 + 60) + 'ms',
+          pd: (e) => this.rowPD(dF.id, en.id, e),
+          pm: (e) => this.rowPM(e),
+          pu: () => this.rowPU(),
+          onEdit: (ev) => { if (ev) ev.stopPropagation(); this.startEdit(dF.id, en.id); },
+          onDel: (ev) => { if (ev) ev.stopPropagation(); this.deleteEntry(dF.id, en.id); }
+        });
+        gi++;
+      }
+      dGroups = map;
+    }
+    const recent = S.log.map((l, li) => {
+      const f = S.folders.find(x => x.id === l.fid);
+      const exists = l.type !== 'del' && !!(f && f.entries.some(e => e.id === l.eid));
+      const isDel = l.type === 'del';
+      return {
+        id: l.id,
+        emoji: l.emoji,
+        desc: l.desc,
+        deco: isDel ? 'line-through' : 'none',
+        descColor: isDel ? 'var(--t3)' : 'var(--ink)',
+        sub: l.time + ' · ' + l.folderName,
+        badge: l.type === 'add' ? 'yangi' : l.type === 'edit' ? 'tahrir' : "o'chirildi",
+        badgeColor: isDel ? 'var(--red)' : l.type === 'edit' ? 'var(--t1)' : 'var(--green)',
+        badgeBg: isDel ? 'color-mix(in srgb, var(--red) 12%, transparent)' : l.type === 'edit' ? 'var(--card2)' : 'color-mix(in srgb, var(--green) 12%, transparent)',
+        amt: this.signed(l.amount, l.dir),
+        color: isDel ? 'var(--t3)' : (l.dir === 'in' ? 'var(--green)' : 'var(--ink)'),
+        canAct: exists,
+        anim: 'xkRow .3s ease both ' + (Math.min(li, 10) * 24) + 'ms',
+        onEdit: () => this.startEdit(l.fid, l.eid),
+        onDel: () => this.deleteEntry(l.fid, l.eid)
+      };
+    });
+    return {
+      recent,
+      showLogPanel: !!S.showLog,
+      logEmpty: !S.log.length,
+      logDot: !!S.logDot,
+      onOpenLog: this.openLog,
+      onCloseLog: this.closeLog,
+      showEditing: !!S.editing,
+      editLabel: S.editing ? S.editing.label : '',
+      onCancelEdit: this.cancelEdit,
+      incomeFolders: S.folders.filter(f => f.dir === 'in').map(f => this.foldRV(f)),
+      expenseFolders: S.folders.filter(f => f.dir === 'out').map(f => this.foldRV(f)),
+      balFmt: this.balSigned(bal),
+      balColor: this.props.strictMono ? 'var(--ink)' : (bal >= 0 ? 'var(--green)' : 'var(--red)'),
+      inFmt: this.signed(tin, 'in'),
+      outFmt: this.signed(tout, 'out'),
+      segs: this.highlight(S.input),
+      inputText: S.input,
+      showPh: !S.input, phText: this.PHS[S.phI], phO: S.phO,
+      sendOpacity: S.input.trim() ? 1 : 0.4,
+      btnGlyph: S.busy ? '…' : '↑',
+      btnAnim: S.busy ? 'xkPulse .9s ease-in-out infinite' : 'none',
+      showPending: S.pending.length > 0,
+      pending: S.pending.map(p => ({
+        id: p.id, label: p.label,
+        amountFmt: this.fmtP(p.amount),
+        sug: p.suggestions[p.si],
+        onCycle: () => this.cyclePending(p.id),
+        onOk: () => this.confirmPending(p.id)
+      })),
+      showTray: S.tray.length > 0,
+      trayCount: S.tray.length,
+      tray: S.tray.map(t => ({
+        id: t.id, text: t.text, open: !!t.open,
+        onToggle: () => this.toggleTray(t.id),
+        chips: S.folders.map(f => ({ label: f.emoji + ' ' + f.name, onPick: (ev) => this.pickTray(t.id, f.name, ev) }))
+      })),
+      showToast: !!S.toast,
+      toastText: S.toast ? S.toast.text : '',
+      toastUndo: !!(S.toast && S.toast.undoable),
+      showPvMerge, showPvDelete,
+      pvFromEmoji, pvFromName, pvFromTotal, pvToEmoji, pvToName, pvToTotal, pvToColor,
+      showDetail: !!dF,
+      dEmoji: dF ? dF.emoji : '', dName: dF ? dF.name : '',
+      dCount: dF ? dF.entries.length : 0,
+      dTotalFmt: dF ? this.signed(dF.total, dF.dir) : '',
+      dAmtColor: dF ? (dF.dir === 'in' ? 'var(--green)' : 'var(--ink)') : 'var(--ink)',
+      dSparkPts: dF ? this.sparkPts(dF.spark) : '',
+      dSparkStroke: dF ? (dF.dir === 'in' ? 'color-mix(in srgb, var(--green) 65%, transparent)' : 'var(--t5)') : 'var(--t5)',
+      dGroups, dEmpty: !!(dF && !dF.entries.length),
+      onCloseDetail: this.closeDetail,
+      onInput: this.onInput, onScrollI: this.onScrollI, onKey: this.onKey,
+      onSend: this.submit, onDemo: this.runDemo, onUndo: this.onUndo,
+      onPvOk: this.onPvOk, onPvNo: this.onPvNo
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -187,8 +187,14 @@ async function callAnthropic({ contextText, history, message }) {
   });
 
   const data = await res.json().catch(() => ({}));
-  // Kalit/token qiymatlari HECH QACHON loglanmaydi — faqat status va model xabari
-  if (!res.ok) throw new Error(`anthropic HTTP ${res.status}: ${data?.error?.type || 'xato'}`);
+  // Kalit/token qiymatlari HECH QACHON loglanmaydi — faqat status va API validatsiya xabari.
+  // error.message diagnostika uchun SHART (2026-07-17: 400 invalid_request_error'ning
+  // sababi faqat type bilan aniqlanmadi). Bu Anthropic'ning o'z xabari — sir emas.
+  if (!res.ok) {
+    const t = data?.error?.type || 'xato';
+    const m = String(data?.error?.message || '').slice(0, 300);
+    throw new Error(`anthropic HTTP ${res.status}: ${t}${m ? ` — ${m}` : ''}`);
+  }
 
   const toolUse = (data.content || []).find((c) => c.type === 'tool_use' && c.name === BLOCKS_TOOL.name);
   const blocks = validateBlocks(toolUse?.input);

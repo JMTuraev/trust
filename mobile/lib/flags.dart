@@ -30,3 +30,22 @@ const bool kCirclesEnabled = false;
 // kAiEnabled — "Trust AI" moliyaviy hamroh chati (docs/ai-character.md).
 // false bo'lganda: tabda ko'rinmaydi, ekran chizilmaydi (backend tegilmaydi).
 const bool kAiEnabled = true;
+
+// kBottomNavEnabled — pastki navigatsiya paneli (screens/tab_bar.dart: TrustTabBar).
+// Mahsulot qarori (2026-07-17): pastki nav olib tashlandi — ildiz ekran endi
+// BOSH HUB (screens/home_hub.dart). Hub'dan kartalar bosilib bo'limlar TO'LIQ
+// EKRAN ochiladi, header'dagi orqaga (<) hub'ga qaytaradi.
+// Kod O'CHIRILMADI: TrustTabBar joyida qoladi.
+//
+// false bo'lganda:
+//   - main.dart: TrustTabBar chizilmaydi (ildiz 'hub' ekrani ochiladi);
+//   - screens/tab_bar.dart: TrustTabBar kodi tegilmagan holda turadi.
+//
+// DIQQAT: tab_bar.dart'da TrustTabBar bilan bir qatorda OBUNA banneri
+// (SubBanner + SubInfo) ham yashaydi — u bu bayroqqa BOG'LIQ EMAS va
+// main.dart'da hub va barcha bo'lim ekranlari ustida DOIM ko'rinadi.
+//
+// Pastki navni QAYTARISH: shu bayroqni true qiling — TrustTabBar main.dart'da
+// yana chiziladi (hub baribir ildiz bo'lib qoladi; eski tab-oqim kerak bo'lsa
+// store.dart'da 'screen' boshlang'ich qiymatini 'hub' -> 'home' qiling).
+const bool kBottomNavEnabled = false;

@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9E9E7;font-family:'Inter',-apple-system,'SF Pro Text','Helvetica Neue',sans-serif}
+*{box-sizing:border-box}
+a{color:#111111;text-decoration:none}
+a:hover{color:#555555}
+.dark{--bg:#0F0F10 !important;--ink:#F5F5F5 !important;--hair:#262626 !important;--card2:#232324 !important;--field:#1C1C1E !important;--hov:#161617 !important;--bd:#2E2E2F !important;--t2:#A0A0A5 !important;--t3:#8A8A8E !important;--t4:#6E6E73 !important;--gr:#4CAF82 !important;--rd:#D2695B !important;--barbg:#2E2E2F !important}
+@keyframes trPulse{0%,100%{opacity:1}50%{opacity:0.25}}
+@keyframes trShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes trLand{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes trPop{0%{opacity:0;transform:scale(0.7)}60%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
+@keyframes trSkel{0%,100%{opacity:0.45}50%{opacity:1}}
+.dark{--pbg:#0F0F10 !important;--pink:#F5F5F5 !important;--phair:#262626 !important;--phair2:#202021 !important;--pcard2:#232324 !important;--pfield:#1C1C1E !important;--phov:#1E1E1F !important;--pbd:#2E2E2F !important;--pbar:#2E2E2F !important;--pt1:#A0A0A5 !important;--pt2:#8A8A8E !important;--pt3:#86868A !important;--pt4:#6E6E73 !important;--pt6:#55555A !important;--pgr:#4CAF82 !important;--prd:#D2695B !important;--pidle:#6B6B70 !important;--pskel:#55555A !important;--phov2:#161617 !important;--pgrT:rgba(76,175,130,0.14) !important;--prdT:rgba(210,105,91,0.14) !important}
+div[style*="cursor: pointer"]:active{opacity:0.72}
+</style>
+</helmet>
+
+<section style="padding:26px 40px 40px">
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="font-size:16px;font-weight:700;color:#111111;letter-spacing:-0.2px">4-tur · Papkalar uslubi: silliq sparkline, watermark, to'liq raqamlar</div>
+    <div style="display:flex;border:1px solid #E0E0DC;border-radius:999px;overflow:hidden">
+      <div onClick="{{ setLight }}" style="padding:8px 18px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ liBg }};color:{{ liC }}">Kunduz</div>
+      <div onClick="{{ setDark }}" style="padding:8px 18px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ duBg }};color:{{ duC }}">Tun</div>
+    </div>
+    <div style="font-size:12px;color:#9C9C98">Almashtirgich bo'sh holat freymiga ta'sir qiladi</div>
+  </div>
+
+  <div style="display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;margin-top:26px">
+
+    <!-- ══════════ 4a · ASOSIY LIGHT ══════════ -->
+    <div id="4a" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">4a</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Asosiy — Light</div>
+      </div>
+      <div style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;--phov2:#FBFBFA;--pgrT:rgba(47,122,84,0.09);--prdT:rgba(169,68,56,0.09);width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;padding:0 4px">
+            <div>
+              <div style="font-size:20px;font-weight:600;color:var(--pink);letter-spacing:-0.4px">Xayrli tong, Aziz</div>
+              <div style="margin-top:4px;font-size:13px;color:var(--pt2)">Iyul 2026 · payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div></sc-if>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:12px;height:9px;border:1.5px solid var(--pink);border-bottom:none;border-radius:6px 6px 0 0"></div>
+                  <div style="width:16px;height:1.5px;background:var(--pink);border-radius:1px"></div>
+                  <div style="width:4px;height:3px;background:var(--pink);border-radius:0 0 3px 3px;margin-top:1px"></div>
+                </div>
+              </div>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 16px 12px;cursor:pointer">
+              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.06">
+                <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;gap:11px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <div>
+                  <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
+                  <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                </div>
+              </div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
+                  <div style="position:relative;width:14px;height:11px;flex:none">
+                    <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
+                    <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
+              </div>
+              <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                <defs><linearGradient id="g4aR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
+                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4aR)"></path>
+                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
+              </svg>
+            </div>
+            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 10px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-26px;top:-16px;opacity:0.06">
+                <path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;margin-top:10px;font-size:13px;color:var(--pt1)">Sizga qaytishi kerak</div>
+              <div style="position:relative;margin-top:3px;font-size:19px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2 500 000</div>
+              <div style="position:relative;margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
+              <div style="position:relative;display:flex;align-items:center;gap:6px;margin-top:9px">
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+              </div>
+              <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
+                <defs><linearGradient id="g4aG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
+                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4aG)"></path>
+                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+              </svg>
+            </div>
+            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pink)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
+                </div>
+              </div>
+              <div style="margin-top:11px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
+              <div style="margin-top:11px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
+            <div style="flex:1;height:50px;border:1px solid var(--pbd);color:var(--pink);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer">Qarz qo'shish</div>
+          </div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+              <div style="font-size:11px;font-weight:500;color:var(--pt1);font-variant-numeric:tabular-nums">Bugun: <span style="color:var(--prd)">{{ todayFull }}</span></div>
+            </div>
+            <sc-for list="{{ newRows }}" as="nr" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);animation:trPop 0.55s cubic-bezier(0.22,1.6,0.36,1) both">
+                <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">{{ nr.i }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:var(--pink)">{{ nr.n }}</div>
+                  <div style="font-size:11px;color:var(--pt3);margin-top:1px">{{ nr.s }}</div>
+                </div>
+                <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ nr.af }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Taksi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12 000</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">DK</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Kecha · Oldi-berdi</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--pgr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300 000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Papkalar uslubi hub'ga ko'chdi: silliq bezier sparkline (yengil area + oxirgi nuqta, rang = qiymat rangi), tint ikonka-kvadrat + watermark, raqamlar to'liq guruhlangan («−6 200 000 so'm»).</div>
+    </div>
+
+    <!-- ══════════ 4b · ASOSIY DARK ══════════ -->
+    <div id="4b" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">4b</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Asosiy — Dark</div>
+      </div>
+      <div class="dark" style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;--phov2:#FBFBFA;--pgrT:rgba(47,122,84,0.09);--prdT:rgba(169,68,56,0.09);width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #2E2E2F;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;padding:0 4px">
+            <div>
+              <div style="font-size:20px;font-weight:600;color:var(--pink);letter-spacing:-0.4px">Xayrli tong, Aziz</div>
+              <div style="margin-top:4px;font-size:13px;color:var(--pt2)">Iyul 2026 · payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:12px;height:9px;border:1.5px solid var(--pink);border-bottom:none;border-radius:6px 6px 0 0"></div>
+                  <div style="width:16px;height:1.5px;background:var(--pink);border-radius:1px"></div>
+                  <div style="width:4px;height:3px;background:var(--pink);border-radius:0 0 3px 3px;margin-top:1px"></div>
+                </div>
+              </div>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 16px 12px;cursor:pointer">
+              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.07">
+                <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;gap:11px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <div>
+                  <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
+                  <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                </div>
+              </div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
+                  <div style="position:relative;width:14px;height:11px;flex:none">
+                    <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
+                    <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
+              </div>
+              <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                <defs><linearGradient id="g4bR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
+                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4bR)"></path>
+                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
+              </svg>
+            </div>
+            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 10px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-26px;top:-16px;opacity:0.07">
+                <path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;margin-top:10px;font-size:13px;color:var(--pt1)">Sizga qaytishi kerak</div>
+              <div style="position:relative;margin-top:3px;font-size:19px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2 500 000</div>
+              <div style="position:relative;margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
+              <div style="position:relative;display:flex;align-items:center;gap:6px;margin-top:9px">
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+              </div>
+              <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
+                <defs><linearGradient id="g4bG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
+                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4bG)"></path>
+                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+              </svg>
+            </div>
+            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pink)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
+                </div>
+              </div>
+              <div style="margin-top:11px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
+              <div style="margin-top:11px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
+            <div style="flex:1;height:50px;border:1px solid var(--pbd);color:var(--pink);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer">Qarz qo'shish</div>
+          </div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+              <div style="font-size:11px;font-weight:500;color:var(--pt1);font-variant-numeric:tabular-nums">Bugun: <span style="color:var(--prd)">{{ todayFull }}</span></div>
+            </div>
+            <sc-for list="{{ newRows }}" as="nr" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);animation:trPop 0.55s cubic-bezier(0.22,1.6,0.36,1) both">
+                <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">{{ nr.i }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:var(--pink)">{{ nr.n }}</div>
+                  <div style="font-size:11px;color:var(--pt3);margin-top:1px">{{ nr.s }}</div>
+                </div>
+                <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ nr.af }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Taksi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12 000</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">DK</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Kecha · Oldi-berdi</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--pgr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300 000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Dark tokenlar: sparkline va tintlar dark green/red'ga almashadi, watermark opacity biroz ko'tarilgan (0.07) — qora fonda bir xil sezilishi uchun.</div>
+    </div>
+
+    <!-- ══════════ 4c · BO'SH ══════════ -->
+    <div id="4c" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">4c</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Bo'sh holat</div>
+      </div>
+      <div class="{{ dcls }}" style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;--phov2:#FBFBFA;--pgrT:rgba(47,122,84,0.09);--prdT:rgba(169,68,56,0.09);width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;padding:0 4px">
+            <div>
+              <div style="font-size:20px;font-weight:600;color:var(--pink);letter-spacing:-0.4px">Xush kelibsiz, Aziz</div>
+              <div style="margin-top:4px;font-size:13px;color:var(--pt2)">Iyul 2026 · payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px;cursor:pointer">
+              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.05">
+                <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--pink)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;gap:11px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--pt1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <div>
+                  <div style="font-size:13.5px;color:var(--pt1)">Xarajatlaringiz</div>
+                  <div style="margin-top:3px;font-size:17px;font-weight:600;color:var(--pink)">Hali yozuv yo'q</div>
+                </div>
+              </div>
+              <div style="position:relative;margin-top:9px;font-size:12px;color:var(--pt3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda oyning chizig'i paydo bo'ladi</div>
+              <svg width="100%" height="30" viewBox="0 0 320 30" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                <path d="M0,22 C60,21.5 120,21 180,21 C240,21 280,21 320,20.5" fill="none" stroke="var(--pt6)" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 7"></path>
+              </svg>
+            </div>
+            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px;cursor:pointer">
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pt1)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;margin-top:10px;font-size:14px;font-weight:600;color:var(--pink);line-height:1.4">Kimga berdingiz, kimdan oldingiz?</div>
+              <div style="position:relative;margin-top:5px;font-size:11.5px;color:var(--pt3);line-height:1.5;text-wrap:pretty">Yozib qo'ying — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
+              <div style="position:relative;margin-top:13px;font-size:12px;font-weight:600;color:var(--pink)">+ Qarz qo'shish</div>
+            </div>
+            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
+                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pt1)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle)"></div>
+                </div>
+              </div>
+              <div style="margin-top:11px;font-size:13px;color:var(--pt1);line-height:1.55;text-wrap:pretty">Salom! Yozuvlaringiz yig'ilgach, pulingiz qayerga ketayotganini aytib beraman.</div>
+            </div>
+          </div>
+          <div style="height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">+&nbsp; Birinchi xarajatni yozish</div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+            <div style="padding:16px 0;font-size:12.5px;color:var(--pt4)">Harakatlaringiz shu yerda ko'rinadi</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Bo'sh holatda tintlar neytralga tushadi (rang faqat ma'lumot bilan keladi), sparkline o'rnida nuqtali «kutish» chizig'i — struktura tanish qoladi.</div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:26px 40px 40px">
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="font-size:16px;font-weight:700;color:#111111;letter-spacing:-0.2px">3-tur · Haqiqiy UI tizimiga moslandi (theme.dart)</div>
+    <div style="display:flex;border:1px solid #E0E0DC;border-radius:999px;overflow:hidden">
+      <div onClick="{{ setLight }}" style="padding:8px 18px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ liBg }};color:{{ liC }}">Kunduz</div>
+      <div onClick="{{ setDark }}" style="padding:8px 18px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ duBg }};color:{{ duC }}">Tun</div>
+    </div>
+    <div style="font-size:12px;color:#9C9C98">Almashtirgich bo'sh/yuklanish freymlariga ta'sir qiladi · «+ Xarajat yozish» tugmasini bosib ko'ring</div>
+  </div>
+
+  <div style="display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;margin-top:26px">
+
+    <!-- ══════════ 3a · ASOSIY LIGHT ══════════ -->
+    <div id="3a" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">3a</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Asosiy — Light</div>
+      </div>
+      <div style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:600;color:var(--pink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--pt3)">17-iyul, payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div></sc-if>
+              <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--pt4);white-space:nowrap">Premium</div></sc-if>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--pbd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--phair);border-radius:16px;padding:16px;cursor:pointer;background:var(--pbg);animation:trLand 0.3s ease 0.12s both">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">IYULDA SARFLADINGIZ</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+                <div>
+                  <div style="font-size:34px;font-weight:700;color:var(--pink);letter-spacing:-0.6px;font-variant-numeric:tabular-nums">{{ heroBig }} <span style="font-size:15px;font-weight:400;color:var(--pt1);letter-spacing:0">{{ heroUnit }}</span></div>
+                  <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                    <div style="font-size:12.5px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1.8 mln</span></div>
+                    <div style="position:relative;width:15px;height:12px;flex:none">
+                      <div style="position:absolute;left:0;top:1px;width:7px;height:10px;background:var(--pgr);opacity:0.8;border-radius:6px 2px 6px 6px;transform:rotate(-16deg)"></div>
+                      <div style="position:absolute;right:0;top:1px;width:7px;height:10px;background:var(--pgr);opacity:0.45;border-radius:2px 6px 6px 6px;transform:rotate(16deg)"></div>
+                    </div>
+                    <div style="font-size:10px;color:var(--pt3)">jamg'arma o'sdi</div>
+                  </div>
+                </div>
+                <svg width="110" height="40" viewBox="0 0 110 40" style="flex:none;overflow:visible">
+                  <polyline points="2,29 19,23 36,31 53,18 70,25 87,13 104,6" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  <circle cx="104" cy="6" r="2.5" fill="var(--pink)"></circle>
+                </svg>
+              </div>
+              <div style="height:1px;background:var(--phair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+                <div style="width:62px;font-size:11px;color:var(--pt2);flex:none">Transport</div>
+                <div style="flex:1;height:6px;border-radius:3px;background:var(--pbar);overflow:hidden"><div style="width:62%;height:100%;border-radius:3px;background:var(--prd)"></div></div>
+                <div style="font-size:11px;font-weight:500;color:var(--prd);flex:none;font-variant-numeric:tabular-nums">+25%</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+                <div style="font-size:10.5px;color:var(--pt3)">o'tgan oydan ko'p ketdi</div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                  <div style="font-size:10.5px;color:var(--pt3);margin-left:3px;white-space:nowrap;font-variant-numeric:tabular-nums">5/7 kun</div>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--phair);border-radius:16px;padding:16px 14px;cursor:pointer;background:var(--pbg);animation:trLand 0.3s ease 0.3s both">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">OLDI-BERDI</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:10px;font-size:21px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2.5 mln</div>
+              <div style="margin-top:2px;font-size:11.5px;color:var(--pt1)">sizga qaytishi kerak</div>
+              <div style="display:flex;margin-top:12px">
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink)">BA</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink);margin-left:-8px">DK</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink);margin-left:-8px">SN</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pfield);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:var(--pt1);margin-left:-8px">+9</div>
+              </div>
+              <div style="height:1px;background:var(--phair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:11px">
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                <div style="font-size:11px;color:var(--prd);line-height:1.4">Bekzod<br><span style="color:var(--pt3)">47 kun javobsiz</span></div>
+              </div>
+            </div>
+            <div style="background:var(--pfield);border-radius:16px;padding:16px 14px;cursor:pointer;animation:trLand 0.3s ease 0.48s both">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
+              </div>
+              <div style="margin-top:10px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
+              <div style="margin-top:12px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px;animation:trLand 0.3s ease 0.66s both">
+            <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
+            <div style="flex:1;height:50px;border:1px solid var(--pbd);color:var(--pink);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer">Qarz qo'shish</div>
+          </div>
+          <div style="margin-top:18px;padding:0 4px;animation:trLand 0.3s ease 0.84s both">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+              <div style="font-size:11px;font-weight:500;color:var(--pt1);font-variant-numeric:tabular-nums">Bugun: <span style="color:var(--prd)">{{ todayText }}</span></div>
+            </div>
+            <sc-for list="{{ newRows }}" as="nr" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);animation:trPop 0.55s cubic-bezier(0.22,1.6,0.36,1) both">
+                <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">{{ nr.i }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:var(--pink)">{{ nr.n }}</div>
+                  <div style="font-size:11px;color:var(--pt3);margin-top:1px">{{ nr.s }}</div>
+                </div>
+                <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ nr.a }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Taksi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12k</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">DK</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Kecha · Oldi-berdi</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--pgr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300k</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Bitta qahramon raqam jonli yorliq bilan; ochilishda raqam 900ms sanaydi, «+ Xarajat yozish» bosilsa yangi yozuv elastik «qo'nadi» va «Bugun» raqami oldingi qiymatdan sanaydi.</div>
+    </div>
+
+    <!-- ══════════ 3b · ASOSIY DARK ══════════ -->
+    <div id="3b" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">3b</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Asosiy — Dark</div>
+      </div>
+      <div class="dark" style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #2E2E2F;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:600;color:var(--pink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--pt3)">17-iyul, payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div></sc-if>
+              <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--pt4);white-space:nowrap">Premium</div></sc-if>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--pbd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--phair);border-radius:16px;padding:16px;cursor:pointer;background:var(--pbg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">IYULDA SARFLADINGIZ</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+                <div>
+                  <div style="font-size:34px;font-weight:700;color:var(--pink);letter-spacing:-0.6px;font-variant-numeric:tabular-nums">{{ heroBig }} <span style="font-size:15px;font-weight:400;color:var(--pt1);letter-spacing:0">{{ heroUnit }}</span></div>
+                  <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+                    <div style="font-size:12.5px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1.8 mln</span></div>
+                    <div style="position:relative;width:15px;height:12px;flex:none">
+                      <div style="position:absolute;left:0;top:1px;width:7px;height:10px;background:var(--pgr);opacity:0.8;border-radius:6px 2px 6px 6px;transform:rotate(-16deg)"></div>
+                      <div style="position:absolute;right:0;top:1px;width:7px;height:10px;background:var(--pgr);opacity:0.45;border-radius:2px 6px 6px 6px;transform:rotate(16deg)"></div>
+                    </div>
+                    <div style="font-size:10px;color:var(--pt3)">jamg'arma o'sdi</div>
+                  </div>
+                </div>
+                <svg width="110" height="40" viewBox="0 0 110 40" style="flex:none;overflow:visible">
+                  <polyline points="2,29 19,23 36,31 53,18 70,25 87,13 104,6" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  <circle cx="104" cy="6" r="2.5" fill="var(--pink)"></circle>
+                </svg>
+              </div>
+              <div style="height:1px;background:var(--phair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+                <div style="width:62px;font-size:11px;color:var(--pt2);flex:none">Transport</div>
+                <div style="flex:1;height:6px;border-radius:3px;background:var(--pbar);overflow:hidden"><div style="width:62%;height:100%;border-radius:3px;background:var(--prd)"></div></div>
+                <div style="font-size:11px;font-weight:500;color:var(--prd);flex:none;font-variant-numeric:tabular-nums">+25%</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+                <div style="font-size:10.5px;color:var(--pt3)">o'tgan oydan ko'p ketdi</div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;background:var(--pink)"></div>
+                  <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                  <div style="font-size:10.5px;color:var(--pt3);margin-left:3px;white-space:nowrap;font-variant-numeric:tabular-nums">5/7 kun</div>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--phair);border-radius:16px;padding:16px 14px;cursor:pointer;background:var(--pbg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">OLDI-BERDI</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:10px;font-size:21px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2.5 mln</div>
+              <div style="margin-top:2px;font-size:11.5px;color:var(--pt1)">sizga qaytishi kerak</div>
+              <div style="display:flex;margin-top:12px">
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink)">BA</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink);margin-left:-8px">DK</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pcard2);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--pink);margin-left:-8px">SN</div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pfield);border:2px solid var(--pbg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:var(--pt1);margin-left:-8px">+9</div>
+              </div>
+              <div style="height:1px;background:var(--phair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:11px">
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                <div style="font-size:11px;color:var(--prd);line-height:1.4">Bekzod<br><span style="color:var(--pt3)">47 kun javobsiz</span></div>
+              </div>
+            </div>
+            <div style="background:var(--pfield);border-radius:16px;padding:16px 14px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
+              </div>
+              <div style="margin-top:10px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
+              <div style="margin-top:12px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
+            <div style="flex:1;height:50px;border:1px solid var(--pbd);color:var(--pink);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer">Qarz qo'shish</div>
+          </div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+              <div style="font-size:11px;font-weight:500;color:var(--pt1);font-variant-numeric:tabular-nums">Bugun: <span style="color:var(--prd)">{{ todayText }}</span></div>
+            </div>
+            <sc-for list="{{ newRows }}" as="nr" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);animation:trPop 0.55s cubic-bezier(0.22,1.6,0.36,1) both">
+                <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">{{ nr.i }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:var(--pink)">{{ nr.n }}</div>
+                  <div style="font-size:11px;color:var(--pt3);margin-top:1px">{{ nr.s }}</div>
+                </div>
+                <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">{{ nr.a }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Taksi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--prd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12k</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--pink);flex:none">DK</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--pink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--pt3);margin-top:1px">Kecha · Oldi-berdi</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--pgr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300k</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Xuddi shu ierarxiya theme.dart dark tokenlarida — yashil/qizil dark variantlariga almashadi, rang qoidasi va vaznlar o'zgarmaydi.</div>
+    </div>
+
+    <!-- ══════════ 3c · BO'SH ══════════ -->
+    <div id="3c" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">3c</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Bo'sh holat — birinchi kirish</div>
+      </div>
+      <div class="{{ dcls }}" style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:600;color:var(--pink);letter-spacing:-0.3px">Xush kelibsiz, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--pt3)">17-iyul, payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div>
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--pbd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--phair);border-radius:16px;padding:16px;cursor:pointer;background:var(--pbg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">XARAJATLARINGIZ</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:12px;font-size:19px;font-weight:600;color:var(--pink)">Hali yozuv yo'q</div>
+              <div style="margin-top:5px;font-size:12.5px;color:var(--pt3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda oyning surati chiziladi</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:14px">
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="width:5px;height:5px;border-radius:999px;border:1px solid var(--pt6)"></div>
+                <div style="font-size:10.5px;color:var(--pt4);margin-left:3px;font-variant-numeric:tabular-nums">0/7 kun</div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--phair);border-radius:16px;padding:16px 14px;cursor:pointer;background:var(--pbg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">OLDI-BERDI</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--pt4);border-right:1.5px solid var(--pt4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:12px;font-size:14px;font-weight:600;color:var(--pink);line-height:1.4">Kimga berdingiz, kimdan oldingiz?</div>
+              <div style="margin-top:5px;font-size:11.5px;color:var(--pt3);line-height:1.5;text-wrap:pretty">Yozib qo'ying — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
+              <div style="margin-top:14px;font-size:12px;font-weight:600;color:var(--pink)">+ Qarz qo'shish</div>
+            </div>
+            <div style="background:var(--pfield);border-radius:16px;padding:16px 14px">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
+                <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle)"></div>
+              </div>
+              <div style="margin-top:10px;font-size:13px;color:var(--pt1);line-height:1.55;text-wrap:pretty">Salom! Yozuvlaringiz yig'ilgach, pulingiz qayerga ketayotganini aytib beraman.</div>
+            </div>
+          </div>
+          <div style="height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">+&nbsp; Birinchi xarajatni yozish</div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">SO'NGGI</div>
+            <div style="padding:16px 0;font-size:12.5px;color:var(--pt4)">Harakatlaringiz shu yerda ko'rinadi</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Birinchi taassurot: nol raqamlar o'rniga har karta oddiy tilda keyingi qadamni aytadi, bitta aniq asosiy amal.</div>
+    </div>
+
+    <!-- ══════════ 3d · YUKLANISH ══════════ -->
+    <div id="3d" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">3d</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Yuklanish — skelet</div>
+      </div>
+      <div class="{{ dcls }}" style="--pbg:#FFFFFF;--pink:#111111;--phair:#ECECEC;--phair2:#F2F2F0;--pcard2:#F3F3F1;--pfield:#F4F4F2;--pbd:#E0E0DC;--pbar:#E6E6E2;--pt1:#7A7A76;--pt2:#9C9C98;--pt3:#A2A29E;--pt4:#B0B0AC;--pt6:#C4C4C0;--pgr:#2F7A54;--prd:#A94438;--pidle:#B5B5B1;--pskel:#C9C9C5;width:390px;height:844px;background:var(--pbg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--pink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--pink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--pt4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--pink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--pink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:600;color:var(--pink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--pt3)">17-iyul, payshanba</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--pbd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);flex:none">AK</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--phair);border-radius:16px;padding:16px;background:var(--pbg)">
+              <div style="height:9px;width:120px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease infinite"></div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px">
+                <div>
+                  <div style="height:26px;width:140px;border-radius:8px;background:var(--pskel);animation:trSkel 1.4s ease infinite"></div>
+                  <div style="height:9px;width:95px;border-radius:5px;margin-top:10px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite"></div>
+                </div>
+                <div style="height:40px;width:110px;border-radius:10px;background:var(--pskel);animation:trSkel 1.4s ease 0.15s infinite"></div>
+              </div>
+              <div style="height:1px;background:var(--phair);margin-top:14px"></div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:13px">
+                <div style="height:9px;width:62px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.2s infinite;flex:none"></div>
+                <div style="flex:1;height:6px;border-radius:3px;background:var(--pbar)"></div>
+                <div style="height:9px;width:30px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.25s infinite;flex:none"></div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--phair);border-radius:16px;padding:16px 14px;background:var(--pbg)">
+              <div style="height:9px;width:72px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease infinite"></div>
+              <div style="height:18px;width:88px;border-radius:6px;margin-top:14px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite"></div>
+              <div style="height:9px;width:110px;border-radius:5px;margin-top:9px;background:var(--pskel);animation:trSkel 1.4s ease 0.15s infinite"></div>
+              <div style="display:flex;margin-top:14px;gap:4px">
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pskel);animation:trSkel 1.4s ease infinite"></div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite"></div>
+                <div style="width:26px;height:26px;border-radius:999px;background:var(--pskel);animation:trSkel 1.4s ease 0.2s infinite"></div>
+              </div>
+              <div style="height:9px;width:80px;border-radius:5px;margin-top:14px;background:var(--pskel);animation:trSkel 1.4s ease 0.25s infinite"></div>
+            </div>
+            <div style="background:var(--pfield);border-radius:16px;padding:16px 14px">
+              <div style="height:9px;width:58px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease infinite"></div>
+              <div style="height:9px;width:100%;border-radius:5px;margin-top:14px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite"></div>
+              <div style="height:9px;width:85%;border-radius:5px;margin-top:8px;background:var(--pskel);animation:trSkel 1.4s ease 0.15s infinite"></div>
+              <div style="height:9px;width:55%;border-radius:5px;margin-top:8px;background:var(--pskel);animation:trSkel 1.4s ease 0.2s infinite"></div>
+            </div>
+          </div>
+          <div style="height:50px;border-radius:14px;margin-top:12px;background:var(--pskel);animation:trSkel 1.4s ease 0.3s infinite"></div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--phair2)">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pskel);animation:trSkel 1.4s ease infinite;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                <div style="height:9px;width:45%;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite"></div>
+                <div style="height:8px;width:60%;border-radius:4px;background:var(--pskel);animation:trSkel 1.4s ease 0.15s infinite"></div>
+              </div>
+              <div style="height:10px;width:52px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.2s infinite;flex:none"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0">
+              <div style="width:32px;height:32px;border-radius:999px;background:var(--pskel);animation:trSkel 1.4s ease 0.1s infinite;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                <div style="height:9px;width:55%;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.2s infinite"></div>
+                <div style="height:8px;width:40%;border-radius:4px;background:var(--pskel);animation:trSkel 1.4s ease 0.25s infinite"></div>
+              </div>
+              <div style="height:10px;width:52px;border-radius:5px;background:var(--pskel);animation:trSkel 1.4s ease 0.3s infinite;flex:none"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#7A7A76;padding:0 4px;text-wrap:pretty">Skelet tuzilmani aynan takrorlaydi (yuklangach sakrash yo'q), bloklar skelDot rangida pulsatsiyalanadi; salomlashuv keshdan darhol ko'rinadi.</div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:26px 40px 40px">
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="font-size:16px;font-weight:700;color:#111111;letter-spacing:-0.2px">2-tur · Bento — kuchaytirilgan</div>
+    <div style="display:flex;border:1px solid #E0E0DC;border-radius:999px;overflow:hidden">
+      <div onClick="{{ setLight }}" style="padding:8px 18px;font-size:12.5px;font-weight:500;cursor:pointer;background:{{ liBg }};color:{{ liC }}">Kunduz</div>
+      <div onClick="{{ setDark }}" style="padding:8px 18px;font-size:12.5px;font-weight:500;cursor:pointer;background:{{ duBg }};color:{{ duC }}">Tun</div>
+    </div>
+    <div style="font-size:12px;color:#9C9C98">Sinov/Premium — Tweaks panelida</div>
+  </div>
+
+  <div style="display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;margin-top:26px">
+
+    <!-- ══════════ 2a · ASOSIY ══════════ -->
+    <div id="2a" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">2a</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Asosiy ekran</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:500;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:500;color:var(--ink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t3)">17-iyul, payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;font-weight:500;color:var(--t2);background:var(--field);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div></sc-if>
+              <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:var(--t4);white-space:nowrap">Premium</div></sc-if>
+              <div style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--ink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--hair);border-radius:18px;padding:16px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">IYULDA SARFLADINGIZ</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+                <div>
+                  <div style="font-size:34px;font-weight:500;color:var(--ink);letter-spacing:-1px;font-variant-numeric:tabular-nums">6.2 <span style="font-size:16px;font-weight:400;color:var(--t2);letter-spacing:0">mln so'm</span></div>
+                  <div style="margin-top:7px;font-size:12.5px;color:var(--t2)">Qoldi: <span style="color:var(--gr);font-weight:500">+1.8 mln</span></div>
+                </div>
+                <svg width="118" height="42" viewBox="0 0 118 42" style="flex:none;overflow:visible">
+                  <polyline points="2,30 20,24 38,33 56,19 74,26 92,14 110,6" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  <circle cx="110" cy="6" r="3" fill="var(--ink)"></circle>
+                  <circle cx="2" cy="30" r="2" fill="var(--barbg)"></circle>
+                </svg>
+              </div>
+              <div style="height:1px;background:var(--hair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="width:6px;height:6px;border-radius:50%;background:var(--rd);flex:none"></div>
+                  <div style="font-size:12px;color:var(--rd);white-space:nowrap">Transportga +25% ko'p ketdi</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--ink)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--ink)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--ink)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--ink)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--ink)"></div>
+                  <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                  <div style="font-size:10.5px;color:var(--t3);margin-left:3px;white-space:nowrap">5/7 kun</div>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--hair);border-radius:18px;padding:16px 14px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">OLDI-BERDI</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:10px;font-size:23px;font-weight:500;color:var(--gr);letter-spacing:-0.5px">2.5 mln</div>
+              <div style="margin-top:2px;font-size:11.5px;color:var(--t2)">sizga qaytishi kerak</div>
+              <div style="display:flex;margin-top:12px">
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--ink)">BX</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--ink);margin-left:-8px">DA</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--ink);margin-left:-8px">SN</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--field);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:var(--t2);margin-left:-8px">+9</div>
+              </div>
+              <div style="height:1px;background:var(--hair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:11px">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--rd);flex:none"></div>
+                <div style="font-size:11px;color:var(--rd);line-height:1.4">Bekzod<br><span style="color:var(--t3)">47 kun javob bermadi</span></div>
+              </div>
+              <div style="margin-top:12px;font-size:12px;font-weight:500;color:var(--ink)">+ Qarz qo'shish</div>
+            </div>
+            <div style="background:var(--field);border-radius:18px;padding:16px 14px;cursor:pointer">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">TRUST AI</div>
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);animation:trPulse 2.2s ease infinite"></div>
+              </div>
+              <div style="margin-top:10px;font-size:13px;color:var(--ink);line-height:1.55;text-wrap:pretty">«Transport 25% oshdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:8px;font-size:11px;color:var(--t3)">Bugungi kuzatuv · yana 2 ta</div>
+              <div style="margin-top:12px;font-size:12px;font-weight:500;color:var(--ink)">Ko'rish →</div>
+            </div>
+          </div>
+          <div style="height:52px;background:var(--ink);color:var(--bg);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;cursor:pointer;margin-top:12px">+&nbsp; Xarajat yozish</div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">SO'NGGI</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--hair);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--ink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--ink)">Taksi</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--rd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12 000</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--ink);flex:none">DA</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--ink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:1px">Kecha, 19:12 · Oldi-berdi</div>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--gr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300 000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:#7A7A76;padding:0 4px;text-wrap:pretty">
+        · «Iyulda sarfladingiz» — raqam nima ekani 2 soniyada aniq, atama yo'q.<br>
+        · Balans «Qoldi: +1.8 mln» bo'lib ikkinchi darajaga tushdi — bitta g'olib raqam.<br>
+        · Streak Xarajat kartasi ichiga singdi — yozish odati xarajat konteksti.<br>
+        · Profil kartasi olib tashlandi — avatar yagona kirish nuqtasi, obuna holati yonidagi belgi.<br>
+        · Bitta asosiy tugma; «Qarz qo'shish» Hamkorlar kartasi ichiga ko'chdi.<br>
+        · Kapalak olib tashlandi — bu ekranda ma'no tashimasdi.<br>
+        · Faqat 400/500 vazn; yashil faqat «olasiz/qoldi», qizil faqat «chiqim/javobsiz».
+      </div>
+    </div>
+
+    <!-- ══════════ 2b · BO'SH HOLAT ══════════ -->
+    <div id="2b" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">2b</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Bo'sh holat — birinchi kirish</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:500;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:500;color:var(--ink);letter-spacing:-0.3px">Xush kelibsiz, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t3)">17-iyul, payshanba</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:11px;font-weight:500;color:var(--t2);background:var(--field);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div>
+              <div style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--ink);cursor:pointer;flex:none">AK</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--hair);border-radius:18px;padding:16px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">XARAJATLARINGIZ</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:12px;font-size:20px;font-weight:500;color:var(--ink)">Hali yozuv yo'q</div>
+              <div style="margin-top:5px;font-size:12.5px;color:var(--t3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda oyning surati chiziladi</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:14px">
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="font-size:10.5px;color:var(--t4);margin-left:3px">0/7 kun</div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--hair);border-radius:18px;padding:16px 14px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">OLDI-BERDI</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:12px;font-size:14px;font-weight:500;color:var(--ink);line-height:1.4">Kimga berdingiz, kimdan oldingiz?</div>
+              <div style="margin-top:5px;font-size:11.5px;color:var(--t3);line-height:1.5;text-wrap:pretty">Yozib qo'ying — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
+              <div style="margin-top:14px;font-size:12px;font-weight:500;color:var(--ink)">+ Qarz qo'shish</div>
+            </div>
+            <div style="background:var(--field);border-radius:18px;padding:16px 14px">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">TRUST AI</div>
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--t4)"></div>
+              </div>
+              <div style="margin-top:10px;font-size:13px;color:var(--t2);line-height:1.55;text-wrap:pretty">Salom! Yozuvlaringiz yig'ilgach, pulingiz qayerga ketayotganini aytib beraman.</div>
+            </div>
+          </div>
+          <div style="height:52px;background:var(--ink);color:var(--bg);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;cursor:pointer;margin-top:12px">+&nbsp; Birinchi xarajatni yozish</div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">SO'NGGI</div>
+            <div style="padding:16px 0;font-size:12.5px;color:var(--t4)">Harakatlaringiz shu yerda ko'rinadi</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:#7A7A76;padding:0 4px;text-wrap:pretty">Birinchi taassurot: nol raqamlar o'rniga har karta oddiy tilda nima qilishni aytadi, AI o'zini tanishtiradi, bitta aniq keyingi qadam — «Birinchi xarajatni yozish».</div>
+    </div>
+
+    <!-- ══════════ 2c · YUKLANISH ══════════ -->
+    <div id="2c" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">2c</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">Yuklanish — skelet</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:500;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:500;color:var(--ink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t3)">17-iyul, payshanba</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--ink);flex:none">AK</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--hair);border-radius:18px;padding:16px;background:var(--bg)">
+              <div style="height:9px;width:110px;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px">
+                <div>
+                  <div style="height:26px;width:140px;border-radius:8px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                  <div style="height:9px;width:90px;border-radius:5px;margin-top:10px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                </div>
+                <div style="height:40px;width:118px;border-radius:10px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+              <div style="height:1px;background:var(--hair);margin-top:14px"></div>
+              <div style="height:9px;width:170px;border-radius:5px;margin-top:12px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+            </div>
+            <div style="border:1px solid var(--hair);border-radius:18px;padding:16px 14px;background:var(--bg)">
+              <div style="height:9px;width:70px;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:20px;width:90px;border-radius:7px;margin-top:14px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:9px;width:110px;border-radius:5px;margin-top:10px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="display:flex;margin-top:14px;gap:4px">
+                <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+              <div style="height:9px;width:80px;border-radius:5px;margin-top:14px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+            </div>
+            <div style="background:var(--field);border-radius:18px;padding:16px 14px">
+              <div style="height:9px;width:60px;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:9px;width:100%;border-radius:5px;margin-top:14px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:9px;width:85%;border-radius:5px;margin-top:8px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              <div style="height:9px;width:55%;border-radius:5px;margin-top:8px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+            </div>
+          </div>
+          <div style="height:52px;border-radius:18px;margin-top:12px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--hair)">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                <div style="height:9px;width:45%;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="height:8px;width:60%;border-radius:4px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+              <div style="height:10px;width:58px;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                <div style="height:9px;width:55%;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+                <div style="height:8px;width:40%;border-radius:4px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite"></div>
+              </div>
+              <div style="height:10px;width:58px;border-radius:5px;background:linear-gradient(90deg,var(--card2) 25%,var(--hov) 50%,var(--card2) 75%);background-size:200% 100%;animation:trShimmer 1.3s linear infinite;flex:none"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:#7A7A76;padding:0 4px;text-wrap:pretty">Skelet tuzilmani aynan takrorlaydi — yuklangach hech narsa sakramaydi; salomlashuv va avatar keshdan darhol ko'rinadi, shimmer faqat kontent joylarida.</div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:26px 40px 70px">
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="font-size:16px;font-weight:700;color:#111111;letter-spacing:-0.2px">Trust — Bosh ekran · 3 yo'nalish</div>
+    <div style="display:flex;border:1px solid #E0E0DC;border-radius:999px;overflow:hidden">
+      <div onClick="{{ setLight }}" style="padding:8px 18px;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ liBg }};color:{{ liC }}">Kunduz</div>
+      <div onClick="{{ setDark }}" style="padding:8px 18px;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ duBg }};color:{{ duC }}">Tun</div>
+    </div>
+    <div style="font-size:12px;color:#9C9C98">Bo'sh holat va Sinov rejimi — Tweaks panelida</div>
+  </div>
+
+  <div style="display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;margin-top:26px">
+
+    <!-- ══════════ 1a · SOKIN ══════════ -->
+    <div id="1a" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">1a</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">A · Sokin / minimal</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:700;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 24px 28px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:8px">
+            <div>
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t3)">17-IYUL, PAYSHANBA</div>
+              <div style="margin-top:5px;font-size:21px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer">AK</div>
+          </div>
+          <div style="margin-top:28px">
+            <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">OY BALANSI</div>
+            <sc-if value="{{ jonli }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:6px;font-size:42px;font-weight:700;letter-spacing:-1.4px;color:var(--gr);font-variant-numeric:tabular-nums">+1.8 <span style="font-size:19px;font-weight:400;color:var(--t2);letter-spacing:0">mln so'm</span></div>
+              <div style="margin-top:8px;font-size:12.5px;color:var(--t2)">Kirim <span style="color:var(--ink);font-weight:700">8.0 mln</span> &nbsp;·&nbsp; Chiqim <span style="color:var(--ink);font-weight:700">6.2 mln</span></div>
+            </sc-if>
+            <sc-if value="{{ bosh }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:6px;font-size:42px;font-weight:700;letter-spacing:-1.4px;color:var(--t4)">0 <span style="font-size:19px;font-weight:400;letter-spacing:0">so'm</span></div>
+              <div style="margin-top:8px;font-size:12.5px;color:var(--t3)">Hammasi tinch — hali yozuv yo'q</div>
+            </sc-if>
+          </div>
+          <div style="height:1px;background:var(--hair);margin-top:26px"></div>
+          <div style="padding:20px 0;border-bottom:1px solid var(--hair);cursor:pointer">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">XARAJAT · IYUL</div>
+              <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg)"></div>
+            </div>
+            <sc-if value="{{ jonli }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:14px">
+                <div>
+                  <div style="font-size:27px;font-weight:700;color:var(--ink);letter-spacing:-0.6px;font-variant-numeric:tabular-nums">6.2 mln</div>
+                  <div style="margin-top:7px;font-size:12.5px;color:var(--rd)">Transport +25% <span style="color:var(--t3)">— o'tgan oyga nisbatan</span></div>
+                </div>
+                <div style="display:flex;align-items:flex-end;gap:4px;height:40px;flex:none;padding-bottom:3px">
+                  <div style="width:5px;height:14px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:22px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:10px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:26px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:18px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:30px;background:var(--barbg);border-radius:2px"></div>
+                  <div style="width:5px;height:37px;background:var(--ink);border-radius:2px"></div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ bosh }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:14px;font-size:16px;font-weight:700;color:var(--ink)">Bu oyda hali yozuv yo'q</div>
+              <div style="margin-top:5px;font-size:12.5px;color:var(--t3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda trend chiziladi</div>
+            </sc-if>
+          </div>
+          <div style="padding:20px 0;border-bottom:1px solid var(--hair);cursor:pointer">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">HAMKORLAR</div>
+              <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg)"></div>
+            </div>
+            <sc-if value="{{ jonli }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:12px;font-size:20px;font-weight:700;color:var(--gr);letter-spacing:-0.3px">2.5 mln <span style="font-size:13px;font-weight:400;color:var(--t2);letter-spacing:0">olasiz</span></div>
+              <div style="margin-top:6px;font-size:12.5px;color:var(--t2)">3 faol qarz · 12 hamkor</div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:10px">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--rd);flex:none"></div>
+                <div style="font-size:12.5px;color:var(--rd)">Bekzod — 47 kun javobsiz <span style="color:var(--t3)">· eslatma yuborilsinmi?</span></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ bosh }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:12px;font-size:16px;font-weight:700;color:var(--ink)">Hali oldi-berdi yo'q</div>
+              <div style="margin-top:5px;font-size:12.5px;color:var(--t3);text-wrap:pretty">Qarz qo'shing — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
+            </sc-if>
+          </div>
+          <div style="padding:20px 0;border-bottom:1px solid var(--hair);cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">TRUST AI</div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--gr);animation:trPulse 2.2s ease infinite"></div>
+            </div>
+            <sc-if value="{{ jonli }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:11px;font-size:15px;font-weight:400;color:var(--ink);line-height:1.5;text-wrap:pretty">«Transport 25% oshdi — sababini ko'rasanmi?»</div>
+              <div style="margin-top:7px;font-size:12px;color:var(--t3)">Bugungi kuzatuv · yana 2 ta</div>
+            </sc-if>
+            <sc-if value="{{ bosh }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:11px;font-size:15px;color:var(--t3);line-height:1.5;text-wrap:pretty">Ma'lumot yig'ilmoqda — bir necha yozuvdan so'ng birinchi kuzatuvni yozaman</div>
+            </sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:18px 0;cursor:pointer;min-height:56px">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:var(--ink);flex:none">AK</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14.5px;font-weight:700;color:var(--ink)">Aziz Karimov</div>
+              <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;color:var(--t2);margin-top:2px">Premium · 12.08 gacha</div></sc-if>
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--t2);margin-top:2px">Sinov · 5 kun qoldi</div></sc-if>
+            </div>
+            <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.55;color:#7A7A76;padding:0 4px;text-wrap:pretty">Hozirgi uslubga eng yaqin: karta emas — ro'yxat ritmi, hairline'lar, havo. Ierarxiya o'lcham orqali: qahramon — oy balansi, kunlik ish (Xarajat) eng boy qator. Sokinlikni hamma narsadan ustun qo'yganlarga.</div>
+    </div>
+
+    <!-- ══════════ 1b · BENTO ══════════ -->
+    <div id="1b" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">1b</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">B · Bento — ma'lumotga boy</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:700;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 20px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 4px">
+            <div>
+              <div style="font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Xayrli tong, Aziz</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t3)">17-iyul, payshanba</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer">AK</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
+            <div style="grid-column:span 2;border:1px solid var(--hair);border-radius:18px;padding:16px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">XARAJAT · IYUL</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="font-size:11.5px;font-weight:700;color:var(--gr);background:var(--field);border-radius:999px;padding:4px 10px;white-space:nowrap;flex:none">balans +1.8 mln</div>
+                  <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+                <div style="font-size:34px;font-weight:700;color:var(--ink);letter-spacing:-1px;font-variant-numeric:tabular-nums">6.2 <span style="font-size:16px;font-weight:400;color:var(--t2);letter-spacing:0">mln so'm</span></div>
+                <svg width="132" height="46" viewBox="0 0 132 46" style="flex:none;overflow:visible">
+                  <polyline points="2,32 22,25 42,36 62,20 82,28 102,15 124,6" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  <circle cx="124" cy="6" r="3" fill="var(--ink)"></circle>
+                  <circle cx="2" cy="32" r="2" fill="var(--barbg)"></circle>
+                </svg>
+              </div>
+              <div style="height:1px;background:var(--hair);margin-top:12px"></div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:11px">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--rd);flex:none"></div>
+                <div style="font-size:12px;color:var(--rd)">Transport +25% <span style="color:var(--t3)">· eng tez o'sgan turkum</span></div>
+              </div>
+            </div>
+            <div style="border:1px solid var(--hair);border-radius:18px;padding:16px 14px;cursor:pointer;background:var(--bg)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">HAMKORLAR</div>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+              </div>
+              <div style="margin-top:10px;font-size:23px;font-weight:700;color:var(--gr);letter-spacing:-0.5px">2.5 mln</div>
+              <div style="margin-top:2px;font-size:11.5px;color:var(--t2)">olasiz · 3 faol qarz</div>
+              <div style="display:flex;margin-top:12px">
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--ink)">BX</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--ink);margin-left:-8px">DA</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--ink);margin-left:-8px">SN</div>
+                <div style="width:26px;height:26px;border-radius:50%;background:var(--field);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--t2);margin-left:-8px">+9</div>
+              </div>
+              <div style="height:1px;background:var(--hair);margin-top:13px"></div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:11px">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--rd);flex:none"></div>
+                <div style="font-size:11px;color:var(--rd);line-height:1.4">Bekzod<br><span style="color:var(--t3)">47 kun javobsiz</span></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="flex:1;background:var(--field);border-radius:18px;padding:14px;cursor:pointer">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">TRUST AI</div>
+                  <div style="width:6px;height:6px;border-radius:50%;background:var(--gr);animation:trPulse 2.2s ease infinite"></div>
+                </div>
+                <div style="margin-top:9px;font-size:12.5px;color:var(--ink);line-height:1.5;text-wrap:pretty">«Transport 25% oshdi — sababini ko'rasanmi?»</div>
+                <div style="margin-top:9px;font-size:11.5px;font-weight:700;color:var(--ink)">Ko'rish →</div>
+              </div>
+              <div style="border:1px solid var(--hair);border-radius:18px;padding:13px 14px;cursor:pointer;background:var(--bg);min-height:64px;display:flex;align-items:center;gap:10px">
+                <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}">
+                  <div style="position:relative;width:20px;height:16px;flex:none">
+                    <div style="position:absolute;left:0;top:1px;width:9px;height:13px;background:var(--gr);opacity:0.85;border-radius:8px 2px 8px 8px;transform:rotate(-16deg)"></div>
+                    <div style="position:absolute;right:0;top:1px;width:9px;height:13px;background:var(--gr);opacity:0.5;border-radius:2px 8px 8px 8px;transform:rotate(16deg)"></div>
+                  </div>
+                  <div>
+                    <div style="font-size:13px;font-weight:700;color:var(--ink)">Premium</div>
+                    <div style="font-size:11px;color:var(--t3);margin-top:1px">12.08 gacha</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:32px;height:32px;border-radius:50%;background:conic-gradient(var(--ink) 71%, var(--barbg) 0);display:flex;align-items:center;justify-content:center;flex:none">
+                    <div style="width:24px;height:24px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink)">5</div>
+                  </div>
+                  <div>
+                    <div style="font-size:13px;font-weight:700;color:var(--ink)">Sinov</div>
+                    <div style="font-size:11px;color:var(--t3);margin-top:1px">5 kun qoldi</div>
+                  </div>
+                </sc-if>
+                <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none;margin-left:auto"></div>
+              </div>
+            </div>
+            <div style="grid-column:span 2;border:1px solid var(--hair);border-radius:18px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:var(--bg)">
+              <div style="font-size:12px;color:var(--t2)">Yozuv odati · bu hafta <span style="color:var(--ink);font-weight:700">5/7 kun</span></div>
+              <div style="display:flex;gap:6px">
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--barbg)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--barbg)"></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:14px">
+            <div style="flex:1;height:50px;background:var(--ink);color:var(--bg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer">+&nbsp; Xarajat yozish</div>
+            <div style="flex:1;height:50px;border:1px solid var(--bd);color:var(--ink);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer">+&nbsp; Qarz qo'shish</div>
+          </div>
+          <div style="margin-top:18px;padding:0 4px">
+            <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">SO'NGGI</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--hair);cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);flex:none">TX</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:700;color:var(--ink)">Taksi</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:1px">Bugun, 08:40 · Transport</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:var(--rd);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">−12 000</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;cursor:pointer">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);flex:none">DA</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:700;color:var(--ink)">Dilshod qarzni tasdiqladi</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:1px">Kecha, 19:12 · Hamkorlar</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:var(--gr);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none">+300 000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.55;color:#7A7A76;padding:0 4px;text-wrap:pretty">Bir qarashda hammasi: assimetrik bento, har kartada 2–3 qatlam (raqam + kontekst + mikro-vizual). Xarajat — eng katta karta, chunki kunlik ish. Kuniga ko'p ochib, tez skan qiladigan faol foydalanuvchiga.</div>
+    </div>
+
+    <!-- ══════════ 1c · JASUR ══════════ -->
+    <div id="1c" style="width:390px;flex:none;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:#111111;color:#FFFFFF;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px">1c</div>
+        <div style="font-size:13px;font-weight:700;color:#111111">C · Jasur — qahramon raqam</div>
+      </div>
+      <div class="{{ dcls }}" style="--bg:#FFFFFF;--ink:#111111;--hair:#ECECEC;--card2:#F3F3F1;--field:#F4F4F2;--hov:#FBFBFA;--bd:#E0E0DC;--t2:#7A7A76;--t3:#9C9C98;--t4:#B0B0AC;--gr:#2F7A54;--rd:#A94438;--barbg:#E6E6E2;width:390px;height:844px;background:var(--bg);border-radius:36px;border:1px solid #D9D9D5;overflow:hidden;display:flex;flex-direction:column">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px">
+          <div style="font-size:13.5px;font-weight:700;color:var(--ink)">9:41</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:flex-end;gap:2px">
+              <div style="width:3px;height:4px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:6px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:8px;background:var(--ink);border-radius:1px"></div>
+              <div style="width:3px;height:10px;background:var(--t4);border-radius:1px"></div>
+            </div>
+            <div style="width:22px;height:11px;border:1px solid var(--ink);border-radius:3px;padding:1.5px;display:flex"><div style="width:70%;background:var(--ink);border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 24px 28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+            <div style="font-size:13.5px;color:var(--t2)">Xayrli tong, <span style="color:var(--ink);font-weight:700">Aziz</span></div>
+            <div style="font-size:11.5px;color:var(--t3)">17-iyul, payshanba</div>
+          </div>
+          <div style="margin-top:44px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">SOF HOLAT</div>
+              <div style="position:relative;width:18px;height:14px">
+                <div style="position:absolute;left:0;top:1px;width:8px;height:12px;background:var(--gr);opacity:0.8;border-radius:7px 2px 7px 7px;transform:rotate(-16deg)"></div>
+                <div style="position:absolute;right:0;top:1px;width:8px;height:12px;background:var(--gr);opacity:0.45;border-radius:2px 7px 7px 7px;transform:rotate(16deg)"></div>
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;align-items:baseline;gap:10px">
+              <div style="font-size:72px;font-weight:700;letter-spacing:-3.5px;color:var(--gr);font-variant-numeric:tabular-nums;line-height:1">+4.3</div>
+              <div style="font-size:17px;color:var(--t2)">mln so'm</div>
+            </div>
+            <div style="margin-top:14px;font-size:13px;color:var(--t2)">Hamkorlardan <span style="color:var(--gr);font-weight:700">+2.5 mln</span> &nbsp;·&nbsp; Oy balansi <span style="color:var(--gr);font-weight:700">+1.8 mln</span></div>
+            <div style="display:flex;align-items:flex-end;gap:4px;height:26px;margin-top:20px">
+              <div style="width:3px;height:8px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:10px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:9px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:12px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:11px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:14px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:13px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:16px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:15px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:18px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:17px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:20px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:22px;background:var(--barbg);border-radius:1.5px"></div>
+              <div style="width:3px;height:26px;background:var(--ink);border-radius:1.5px"></div>
+              <div style="margin-left:6px;font-size:10.5px;color:var(--t3);align-self:flex-end">14 hafta</div>
+            </div>
+          </div>
+          <div style="margin-top:34px;background:var(--field);border-radius:16px;padding:14px 16px;cursor:pointer">
+            <div style="display:flex;align-items:center;gap:7px">
+              <div style="font-size:10.5px;letter-spacing:1.6px;color:var(--t2)">TRUST AI</div>
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--gr);animation:trPulse 2.2s ease infinite"></div>
+            </div>
+            <div style="margin-top:8px;font-size:13.5px;color:var(--ink);line-height:1.5;text-wrap:pretty">«Transport 25% oshdi — sababini ko'rasanmi?»</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+            <div style="border:1px solid var(--hair);border-radius:16px;padding:14px;cursor:pointer;background:var(--bg)">
+              <div style="font-size:10px;letter-spacing:1.5px;color:var(--t2)">HAMKORLAR</div>
+              <div style="margin-top:8px;font-size:20px;font-weight:700;color:var(--gr);letter-spacing:-0.4px">2.5 mln</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t2)">olasiz · 3 faol qarz</div>
+              <div style="margin-top:9px;font-size:11px;color:var(--rd)">Bekzod · 47 kun jim</div>
+            </div>
+            <div style="border:1px solid var(--hair);border-radius:16px;padding:14px;cursor:pointer;background:var(--bg)">
+              <div style="font-size:10px;letter-spacing:1.5px;color:var(--t2)">XARAJAT · IYUL</div>
+              <div style="margin-top:8px;font-size:20px;font-weight:700;color:var(--ink);letter-spacing:-0.4px">6.2 mln</div>
+              <div style="margin-top:3px;font-size:11.5px;color:var(--t2)">bugun 84 ming</div>
+              <div style="margin-top:9px;font-size:11px;color:var(--rd)">Transport +25%</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;border:1px solid var(--hair);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;min-height:56px;background:var(--bg)">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink);flex:none">AK</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13.5px;font-weight:700;color:var(--ink)">Aziz Karimov</div>
+              <sc-if value="{{ prem }}" hint-placeholder-val="{{ true }}"><div style="font-size:11.5px;color:var(--t2);margin-top:1px">Premium · 12.08 gacha</div></sc-if>
+              <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px;color:var(--t2);margin-top:1px">Sinov · 5 kun qoldi</div></sc-if>
+            </div>
+            <div style="width:7px;height:7px;border-top:1.5px solid var(--t4);border-right:1.5px solid var(--t4);transform:rotate(45deg);flex:none"></div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.55;color:#7A7A76;padding:0 4px;text-wrap:pretty">Bitta qahramon raqam — «men qay ahvoldaman?» savoliga bir soniyada javob; kapalak jamg'arma o'sishi bilan kattalashadi. Qolgan hammasi unga bo'ysunadi. Umumiy holatni his qilish kiritishdan muhim bo'lganlarga.</div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;boshHolat&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Holat&quot;},&quot;sinov&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Profil&quot;}}">
+class Component extends DCLogic {
+  state = { dark: false, heroVal: 0, todayVal: 84000, newRows: [] };
+  componentDidMount() { this.countTo('heroVal', 6200000); }
+  countTo(key, target) {
+    const from = this.state[key], t0 = performance.now(), dur = 900;
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / dur), e = p * p * p;
+      this.setState({ [key]: Math.round(from + (target - from) * e) });
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  group(v) { return String(Math.round(Math.abs(v))).replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009'); }
+  short(v) {
+    const a = Math.abs(v);
+    if (a >= 1e6) { let s = (a / 1e6).toFixed(1); if (s.endsWith('.0')) s = s.slice(0, -2); return s + ' mln'; }
+    if (a >= 1e4) return Math.round(a / 1e3) + 'k';
+    return String(a).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+  renderVals() {
+    const dark = this.state.dark;
+    const bosh = this.props.boshHolat ?? false;
+    const sinov = this.props.sinov ?? false;
+    const hv = this.state.heroVal, hs = this.short(hv);
+    let heroBig, heroUnit;
+    if (hv >= 1e6) { heroBig = hs.replace(' mln', ''); heroUnit = "mln so'm"; } else { heroBig = hs; heroUnit = "so'm"; }
+    return {
+      dcls: dark ? 'dark' : '',
+      setLight: () => this.setState({ dark: false }),
+      setDark: () => this.setState({ dark: true }),
+      liBg: dark ? 'transparent' : '#111111',
+      liC: dark ? '#7A7A76' : '#FFFFFF',
+      duBg: dark ? '#111111' : 'transparent',
+      duC: dark ? '#FFFFFF' : '#7A7A76',
+      bosh, jonli: !bosh,
+      sinov, prem: !sinov,
+      heroBig, heroUnit,
+      heroFull: this.group(hv),
+      todayFull: '\u2212' + this.group(this.state.todayVal),
+      todayText: '\u2212' + this.short(this.state.todayVal),
+      newRows: this.state.newRows,
+      addEntry: () => {
+        const pool = [
+          { n: 'Tushlik', i: 'OV', s: 'Bugun, hozir · Oziq-ovqat', a: '\u221228k', af: '\u221228\u2009000', d: 28000 },
+          { n: 'Taksi', i: 'TX', s: 'Bugun, hozir · Transport', a: '\u221215k', af: '\u221215\u2009000', d: 15000 },
+          { n: 'Bozorlik', i: 'OV', s: 'Bugun, hozir · Oziq-ovqat', a: '\u221247k', af: '\u221247\u2009000', d: 47000 }
+        ];
+        const k = this.state.newRows.length;
+        if (k >= pool.length) return;
+        this.setState({ newRows: [pool[k], ...this.state.newRows] });
+        this.countTo('todayVal', this.state.todayVal + pool[k].d);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

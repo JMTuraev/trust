@@ -9,6 +9,7 @@ import 'screens/onboarding.dart';
 import 'screens/ai_chat.dart';
 import 'screens/cc_sheet.dart';
 import 'screens/home.dart';
+import 'screens/home_hub.dart';
 import 'screens/circles.dart';
 import 'screens/circle_detail.dart';
 import 'screens/circle_create.dart';
@@ -73,10 +74,19 @@ class Root extends StatelessWidget {
       builder: (context, _) {
         final v = store.vals();
         final p = curPal();
-        return Scaffold(
-          backgroundColor: p.bg,
-          resizeToAvoidBottomInset: true,
-          body: SafeArea(
+        return PopScope(
+          // Android apparat "orqaga": bo'lim ekranidan (Hamkorlar / Xarajat / AI /
+          // Profil) hub'ga qaytadi. Ustida overlay/sheet ochiq bo'lsa yoki hub'ning
+          // o'zida bo'lsak — tugma tizim ixtiyorida (avvalgi xatti-harakat).
+          canPop: v['hubBackable'] != true,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            v['hubBack']();
+          },
+          child: Scaffold(
+            backgroundColor: p.bg,
+            resizeToAvoidBottomInset: true,
+            body: SafeArea(
             // Scaffold body'ga bo'sh (min-0) balandlik beradi; Stack faqat Positioned
             // bolalardan iborat bo'lgani uchun 0 balandlikka yig'ilib qolardi — to'liq ekranga majburlaymiz.
             child: SizedBox.expand(
@@ -86,38 +96,54 @@ class Root extends StatelessWidget {
               // o'qiydigan ekranlar muzlab qoladi.
               children: [
                 if (v['isApp'] == true) ...[
-                  // Asosiy tab ekranlari + tab bar
+                  // Ildiz (hub) + bo'lim ekranlari. Pastki nav olib tashlandi:
+                  // flags.kBottomNavEnabled=false (TrustTabBar kodi joyida qoladi).
                   Positioned.fill(
                     child: Column(
                       children: [
                         // Obuna banneri (tugagan / ≤3 kun qoldi) — header hududida,
                         // layout'da joy egallaydi. const EMAS (store'dan o'qiydi).
+                        // MUHIM: Column'ning eng boshida — shu sababli HUB va HAR BIR
+                        // bo'lim ekrani (Hamkorlar / Xarajat / AI / Profil) ustida
+                        // ko'rinadi (avval Xarajat uni to'liq-ekran overlay bilan yopardi).
                         SubBanner(),
                         Expanded(
                           child: Stack(
                             children: [
-                              if (v['isHome'] == true) Positioned.fill(child: HomeScreen()),
+                              // BOSH HUB — ildiz ekran (dizayn: prototype/bosh-ekran.dc.html)
+                              if (v['isHub'] == true) Positioned.fill(child: HomeHubScreen()),
+                              // Hamkorlar — hub'dan ochiladigan TO'LIQ EKRAN bo'lim.
+                              // Orqaga (<) endi home.dart'ning O'Z headerida (PO 2026-07-17:
+                              // ikkita header o'rniga bitta) — HubSection kerak emas.
+                              if (v['isHome'] == true)
+                                Positioned.fill(
+                                  child: Container(color: p.bg, child: HomeScreen()),
+                                ),
+                              // Xarajat — o'z header'ida orqaga bor (xfBack -> hub)
+                              if (v['isXarajat'] == true)
+                                Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
                               // Circles bayroq ostida (flags.dart) — tabdan olib tashlandi,
                               // kod va ekran joyida: kCirclesEnabled=true qilsang qaytadi.
                               if (kCirclesEnabled && v['isCircles'] == true)
                                 Positioned.fill(child: CirclesScreen()),
-                              // Trust AI — Circles o'rnidagi yangi tab (docs/ai-character.md)
+                              // Trust AI — o'z header'ida orqaga bor (goAiBack -> hub)
                               if (kAiEnabled && v['isAi'] == true) Positioned.fill(child: AiChatScreen()),
-                              if (v['isProfil'] == true) Positioned.fill(child: ProfilScreen()),
+                              // Profil — avatar orqali ochiladi; orqaga HubSection'da
+                              if (v['isProfil'] == true)
+                                Positioned.fill(
+                                  child: Container(color: p.bg, child: HubSection(child: ProfilScreen())),
+                                ),
                             ],
                           ),
                         ),
-                        // AI ekrani to'liq balandlik chat: bottom nav yashiriladi
-                        // (foydalanuvchi so'rovi). Boshqa tablarda "Trust AI" tugmasi
-                        // qoladi — u orqali kiriladi, header'dagi orqaga bilan chiqiladi.
-                        if (v['clientOpen'] != true && v['isAi'] != true) TrustTabBar(),
+                        // Pastki nav — kBottomNavEnabled=false (flags.dart): chizilmaydi.
+                        // Bayroqni true qilsang bir qatorda qaytadi.
+                        if (kBottomNavEnabled && v['clientOpen'] != true && v['isAi'] != true)
+                          TrustTabBar(),
                       ],
                     ),
                   ),
-                  // Xarajatlar — TO'LIQ EKRAN (dizayn: bottom navsiz, header'da orqaga) (z:8)
-                  if (v['isXarajat'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
-                  // Circle to'liq-ekran overlaylar (z:9 — tab bar ustida). Manage/History
+                  // Circle to'liq-ekran overlaylar (z:9). Manage/History
                   // detaildan ochilsa uning ustida ko'rinishi uchun detaildan KEYIN keladi.
                   if (v['circleOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: CircleDetailScreen())),
@@ -167,6 +193,7 @@ class Root extends StatelessWidget {
                 ToastView(open: v['toastOpen'] == true, text: v['toast'] as String),
               ],
               ),
+            ),
             ),
           ),
         );

@@ -62,7 +62,9 @@ class TrustStore extends ChangeNotifier {
     'xEditId': null, 'xEditVals': null,
     'xarLimit': 0, 'limEdit': null,
     'xarEntries': <Map<String, dynamic>>[],
-    'screen': 'home', 'clientId': null, 'tab': 'chat',
+    // 'hub' — ildiz ekran (screens/home_hub.dart). Bo'limlar: home (Hamkorlar),
+    // xarajat, ai, profil — hub'dan ochiladi, orqaga hub'ga qaytaradi.
+    'screen': 'hub', 'clientId': null, 'tab': 'chat',
     'sheetOpen': false, 'sheetMode': 'client', 'sheetClient': null,
     'receiptId': null, 'search': '', 'chatInput': '', 'toast': '',
     'notifOpen': false, 'archOpen': false, 'langOpen': false,
@@ -334,6 +336,9 @@ class TrustStore extends ChangeNotifier {
         'a': _numToInt(e['amount']),
         'days': _daysAgo(e['occurred_at']),
         't': _dt(e['occurred_at']) != null ? _hhmm(_dt(e['occurred_at'])!) : '',
+        // Hub «SO'NGGI» tasmasi uchun: xarajat va operatsiyalar bitta vaqt
+        // o'qi bo'yicha aralashtiriladi (operatsiyalarda 'ts' allaqachon bor)
+        'ts': _dt(e['occurred_at'])?.millisecondsSinceEpoch ?? 0,
         // Papka UI uchun: oy kaliti va oy kuni (sparkline savatlari)
         'ym': _dt(e['occurred_at']) != null
             ? '${_dt(e['occurred_at'])!.year}-${_dt(e['occurred_at'])!.month}'
@@ -1602,6 +1607,12 @@ class TrustStore extends ChangeNotifier {
   static const _monFull = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
     'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
 
+  // Hafta kunlari — hub sarlavhasidagi «Iyul 2026 · payshanba» uchun.
+  // DateTime.weekday: 1 = dushanba ... 7 = yakshanba.
+  // _monFull kabi ATAYLAB faqat o'zbekcha (ilovada oy nomlari ham shunday).
+  static const _wdFull = ['dushanba', 'seshanba', 'chorshanba', 'payshanba',
+    'juma', 'shanba', 'yakshanba'];
+
   // Toifa -> emoji (dizayn KW ro'yxati + backend seed toifalari)
   static const _xfEmojiMap = {
     'oylik': '💼', 'biznes': '📈', 'boshqa kirim': '💰', 'daromad': '💰',
@@ -1949,7 +1960,7 @@ class TrustStore extends ChangeNotifier {
     SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
     set({
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
-      'screen': 'home', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
+      'screen': 'hub', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
       'notifOpen': false, 'linkDecisionId': null, 'rejOpen': false,
       'archOpen': false, 'langOpen': false,
       'inLinkId': null, 'inLinkOps': <Map<String, dynamic>>[],
@@ -2057,6 +2068,343 @@ class TrustStore extends ChangeNotifier {
     }
     set({'notifOpen': false});
   }
+
+  // ================= BOSH HUB (ildiz ekran) =================
+  // Dizayn: prototype/bosh-ekran.dc.html «4-tur» (Asosiy Light/Dark, Bo'sh holat).
+  // Barcha qiymat REAL ma'lumotdan hosil qilinadi: xarEntries (xarajat kartasi),
+  // clients + txs + links (oldi-berdi kartasi), aiMsgs (Trust AI kartasi).
+  // Mock raqam YO'Q — bo'sh/yuklanish holatlari ham real holatdan kelib chiqadi.
+
+  /// Hub'ga qaytish — bo'lim ichidagi holatlar ham tozalanadi.
+  void goHub_() => set({
+        'screen': 'hub', 'clientId': null, 'receiptId': null, 'inLinkId': null,
+        'xfDetail': null, 'xfLogOpen': false,
+      });
+
+  /// Android apparat "orqaga": bo'lim ekranidan hub'ga qaytish mumkinmi?
+  /// FAQAT toza holatda ushlaymiz — ustida overlay/sheet/daftar ochiq bo'lsa,
+  /// tugma tizim ixtiyorida qoladi (avvalgi xatti-harakat o'zgarmaydi).
+  bool hubBackable() {
+    if (S['stage'] != 'app') return false;
+    if (S['screen'] == 'hub') return false;
+    final layerOpen = S['ccOpen'] != null ||
+        S['langOpen'] == true ||
+        S['linkDecisionId'] != null ||
+        S['clientId'] != null ||
+        S['inLinkId'] != null ||
+        S['receiptId'] != null ||
+        S['notifOpen'] == true ||
+        S['archOpen'] == true ||
+        S['rejOpen'] == true ||
+        S['pdfOpen'] == true ||
+        S['sheetOpen'] == true ||
+        S['npOpen'] == true ||
+        S['editFormOpen'] == true ||
+        S['xfDetail'] != null ||
+        S['xEditId'] != null ||
+        S['circleOpen'] == true ||
+        S['circleCreateOpen'] == true ||
+        S['circleHistoryOpen'] == true ||
+        S['circleManageOpen'] == true ||
+        S['circleJoinOpen'] == true ||
+        S['circlePayOpen'] == true ||
+        S['circleConfirmOpen'] == true ||
+        S['circleInviteOpen'] == true;
+    return !layerOpen;
+  }
+
+  // Ranglarni ekranning o'zi theme.dart'dan (curPal) oladi — bu yerda faqat
+  // matn/raqam/holat. Summalar UZS'da: hub kartalari bitta valyuta bilan ishlaydi
+  // (ko'p-valyutali ko'rinish Hamkorlar/Xarajat bo'limlarida qoladi).
+  Map<String, dynamic> _hubVals(
+    String Function(String) initials, {
+    required List<Map<String, dynamic>> linksAll,
+    required Map<String, int> Function(String) bal,
+  }) {
+    final L0 = L();
+    final now = DateTime.now();
+    final entries = _xar();
+    final txs = _txs(); // ts bo'yicha o'sish tartibida (hydrate shunday saralaydi)
+    final partners = _clients().where((c) => c['archived'] != true).toList();
+    final accepted = linksAll.where((l) => l['status'] == 'accepted').toList();
+
+    // ---- Salomlashuv + sana («Xayrli tong, Aziz» / «Iyul 2026 · payshanba») ----
+    final full = meLabel().trim();
+    final first = full.isEmpty ? '' : full.split(' ').first;
+    final greetKey = now.hour < 12
+        ? 'hubGreetMorning'
+        : now.hour < 18
+            ? 'hubGreetDay'
+            : now.hour < 22
+                ? 'hubGreetEve'
+                : 'hubGreetNight';
+
+    // ---- Obuna mikro-nishoni (Sinov · N kun / Premium) ----
+    final subSt = S['subStatus'] as String? ?? 'trial';
+    final subEndRaw = subSt == 'premium' ? S['premUntil'] : S['trialEnd'];
+    final subEnd = subEndRaw is String ? DateTime.tryParse(subEndRaw)?.toLocal() : null;
+    var trialDays = -1;
+    if (subEnd != null) {
+      trialDays = subEnd.difference(now).inDays + 1; // SubInfo/profRows bilan bir xil hisob
+      if (trialDays < 0) trialDays = 0;
+      if (subSt == 'trial' && trialDays > 7) trialDays = 7;
+    }
+
+    // ---- XARAJAT kartasi: joriy oy ----
+    final ym = '${now.year}-${now.month}';
+    final pm = DateTime(now.year, now.month - 1, 1); // o'tgan oy (yil chegarasini o'zi hal qiladi)
+    final pym = '${pm.year}-${pm.month}';
+    final monthEx = entries.where((e) => e['ym'] == ym && e['kind'] == 'x').toList();
+    final prevEx = entries.where((e) => e['ym'] == pym && e['kind'] == 'x').toList();
+    final monthOut = monthEx.fold<int>(0, (s, e) => s + (e['a'] as int));
+
+    // Sparkline: joriy oyning har kuni bo'yicha xarajat (1-kundan bugungacha).
+    // Nol kunlar ham qoladi — chiziq oyning haqiqiy shakli bo'lsin.
+    final daily = List<double>.filled(now.day, 0.0);
+    for (final e in monthEx) {
+      final d = (e['dom'] as int?) ?? 1;
+      if (d >= 1 && d <= now.day) daily[d - 1] += (e['a'] as int).toDouble();
+    }
+
+    // Trend qatori («Transport +25%»): joriy oyda eng ko'p ketgan toifa,
+    // o'tgan oyning SHU toifasi bilan solishtiriladi. O'tgan oyda bo'lmasa — yashiriladi.
+    final catNow = <String, int>{};
+    for (final e in monthEx) {
+      final c = (e['cat'] as String?) ?? 'Boshqa';
+      catNow[c] = (catNow[c] ?? 0) + (e['a'] as int);
+    }
+    String topCat = '';
+    var topVal = 0;
+    catNow.forEach((c, v) {
+      if (v > topVal) {
+        topVal = v;
+        topCat = c;
+      }
+    });
+    var trendTxt = '';
+    var trendUp = true;
+    if (topCat.isNotEmpty) {
+      final prevVal = prevEx
+          .where((e) => ((e['cat'] as String?) ?? 'Boshqa') == topCat)
+          .fold<int>(0, (s, e) => s + (e['a'] as int));
+      if (prevVal > 0) {
+        final pct = ((topVal - prevVal) / prevVal * 100).round();
+        trendUp = pct >= 0;
+        trendTxt = '$topCat ${pct >= 0 ? '+' : '−'}${pct.abs()}%';
+      }
+    }
+
+    // «Qoldi: +N» — oylik chegara qoldig'i (chegara qo'yilmagan bo'lsa qator yashirinadi)
+    final lim = S['xarLimit'] as int;
+    final limLeft = lim - monthOut;
+
+    // Bugungi xarajat («Bugun: −12 000»)
+    final todayOut = entries
+        .where((e) => e['kind'] == 'x' && (e['days'] as int) == 0)
+        .fold<int>(0, (s, e) => s + (e['a'] as int));
+
+    // ---- OLDI-BERDI kartasi ----
+    var toMe = 0, activeDebts = 0;
+    for (final c in partners) {
+      final b = bal(c['id'] as String);
+      final u = b['UZS'] ?? 0;
+      if (u != 0) activeDebts++;
+      if (u > 0) toMe += u;
+    }
+    for (final l in accepted) {
+      final t = l['total'] as int;
+      if (t != 0) activeDebts++;
+      if (t > 0) toMe += t;
+    }
+    final partnersCount = partners.length + accepted.length;
+
+    // «Bekzod · 47 kun javobsiz» — menga qarzi bor hamkorlar ichidan oxirgi
+    // harakati eng eski bo'lgani (yozuv ham, tasdiq ham kelmagan kunlar soni).
+    String frozenName = '';
+    var frozenDays = 0;
+    for (final c in partners) {
+      if ((bal(c['id'] as String)['UZS'] ?? 0) <= 0) continue;
+      var lastTs = 0;
+      for (final t in txs) {
+        if (t['c'] == c['id'] && (t['ts'] as int) > lastTs) lastTs = t['ts'] as int;
+      }
+      if (lastTs == 0) continue;
+      final d = now.difference(DateTime.fromMillisecondsSinceEpoch(lastTs)).inDays;
+      if (d > frozenDays) {
+        frozenDays = d;
+        frozenName = c['name'] as String;
+      }
+    }
+
+    // Yashil sparkline: daftar balansining o'sish chizig'i — operatsiyalar
+    // xronologik yig'indisi (oxirgi 12 nuqta). Sarlavha raqami server balansidan
+    // olinadi, chiziq esa TREND ko'rsatadi (aniq mos kelishi shart emas).
+    final run = <double>[];
+    var acc = 0.0;
+    for (final t in txs) {
+      if (t['cur'] != 'UZS' || t['st'] == 'pending') continue;
+      final et = t['type'] as String;
+      final sg = (et == 'Qarz berdim' || et == "To'lov berdim") ? 1 : -1;
+      acc += sg * (t['a'] as int).toDouble();
+      run.add(acc);
+    }
+    final debtSpark = run.length > 12 ? run.sublist(run.length - 12) : run;
+
+    // ---- TRUST AI kartasi ----
+    final aiAll = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
+    final aiOnly = aiAll.where((m) => m['role'] == 'ai').toList();
+    final aiLast = aiOnly.isEmpty ? null : aiOnly.last;
+    var aiText = (aiLast?['text'] as String? ?? '').trim();
+    if (aiText.length > 120) aiText = '${aiText.substring(0, 119).trimRight()}…';
+
+    // ---- «SO'NGGI» tasmasi: xarajat + operatsiyalar bitta vaqt o'qida ----
+    final feed = <Map<String, dynamic>>[];
+    for (final e in entries) {
+      final inc = e['kind'] == 'd';
+      final label = ((e['note'] as String?) ?? '').trim().isNotEmpty
+          ? (e['note'] as String).trim()
+          : ((e['cat'] as String?) ?? '');
+      feed.add({
+        'key': 'x${e['id']}',
+        'ts': (e['ts'] as int?) ?? 0,
+        'ini': _hubIni(label),
+        'name': label,
+        'sub': '${_fmtDay(e['days'] as int)}, ${e['t']} · ${e['cat']}',
+        'amt': (inc ? '+' : '−') + _fmt(e['a'] as int),
+        'inc': inc,
+        'tap': () => goXarajat_(),
+      });
+    }
+    for (final t in txs) {
+      final c = _client(t['c']);
+      if (c == null) continue;
+      final et = t['type'] as String;
+      final pos = et == 'Qarz berdim' || et == "To'lov berdim";
+      final cid = t['c'] as String;
+      feed.add({
+        'key': 'o${t['id']}',
+        'ts': (t['ts'] as int?) ?? 0,
+        'ini': initials(c['name'] as String),
+        'name': c['name'],
+        'sub': '${t['date']} · ${typeLabel(et)}',
+        'amt': (pos ? '+' : '−') + _fmt(t['a'] as int),
+        'inc': pos,
+        'tap': () {
+          set({'screen': 'home', 'clientId': cid, 'inLinkId': null, 'tab': 'chat'});
+          openLedger_(cid);
+        },
+      });
+    }
+    feed.sort((a, b) => (b['ts'] as int).compareTo(a['ts'] as int));
+    final recent = feed.take(4).toList();
+
+    final hasAny = entries.isNotEmpty || partners.isNotEmpty || accepted.isNotEmpty;
+
+    return {
+      // 'isHub' vals() ichida hisoblanadi (isHome/isXarajat bilan bir xil `noClient` sharti)
+      'goHub': () => goHub_(),
+      'hubBackable': hubBackable(),
+      'hubBack': () => goHub_(),
+      // Skelet: boot/hydrate paytida (mavjud skelHome bayrog'i bilan bir xil manba)
+      'hubSkel': S['skelHome'] == true,
+      // Bo'sh holat: hech qanday yozuv/hamkor yo'q («birinchi kirish»)
+      'hubEmpty': !hasAny,
+
+      // Sarlavha
+      'hubGreet': Lf(greetKey, {'name': first}),
+      'hubGreetEmpty': Lf('hubWelcome', {'name': first}),
+      'hubDate': '${_monFull[now.month - 1]} ${now.year} · ${_wdFull[now.weekday - 1]}',
+      'hubIni': initials(full),
+      'hubAvatar': S['meAvatar'],
+      'hubTrial': subSt == 'trial' && trialDays >= 0,
+      'hubTrialTxt': Lf('hubTrialChip', {'n': '$trialDays'}),
+      'hubPrem': subSt == 'premium',
+      'hubPremTxt': L0['hubPremium'] as String,
+      'hubBellDot': _notifs().any((n) => n['unread'] == true),
+      'hubOpenNotifs': () => set({'notifOpen': true}),
+      'hubOpenProfil': () => set(
+          {'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
+
+      // Xarajat kartasi
+      'hubXarSec': L0['hubXarSec'] as String, // bo'lim nomi caption (PO 2026-07-17)
+      'hubXarCap': Lf('hubSpentIn', {'month': _monFull[now.month - 1]}),
+      'hubXarTxt': '−${_fmt(monthOut)}',
+      'hubXarUnit': L0['som'] as String,
+      'hubXarSpark': daily,
+      'hubHasLimit': lim > 0,
+      'hubLeftCap': L0['hubLeft'] as String,
+      'hubLeftTxt': (limLeft >= 0 ? '+' : '−') + _fmt(limLeft.abs()),
+      'hubLeftPos': limLeft >= 0,
+      'hubTrendTxt': trendTxt,
+      'hubTrendUp': trendUp,
+      'hubOpenXar': () => goXarajat_(),
+
+      // Oldi-berdi kartasi
+      'hubDebtSec': L0['hubDebtSec'] as String, // bo'lim nomi caption (PO 2026-07-17)
+      'hubDebtCap': L0['hubToMe'] as String,
+      'hubDebtTxt': '+${_fmt(toMe)}',
+      'hubDebtSub': Lf('hubDebtsPartners', {'d': '$activeDebts', 'p': '$partnersCount'}),
+      'hubDebtSpark': debtSpark,
+      'hubFrozen': frozenName.isNotEmpty && frozenDays > 0,
+      'hubFrozenTxt': Lf('hubNoAnswer', {'name': frozenName, 'n': '$frozenDays'}),
+      'hubOpenDebt': () => goHome_(),
+      'hubAddDebt': () => set({
+            'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null,
+            'npOpen': true, 'npName': '', 'npPhone': '',
+          }),
+
+      // Trust AI kartasi
+      'hubAiTxt': aiText.isEmpty ? (L0['hubAiEmpty'] as String) : '«$aiText»',
+      'hubAiSub': aiOnly.length > 1
+          ? Lf('hubAiSub', {'n': '${aiOnly.length - 1}'})
+          : (L0['hubAiSubOne'] as String),
+      'hubAiSee': L0['hubAiSee'] as String,
+
+      // Tugmalar
+      'hubBtnXar': L0['hubAddExpense'] as String,
+      'hubBtnDebt': L0['hubAddDebt'] as String,
+      'hubBtnFirst': L0['hubEmptyFirst'] as String,
+
+      // «SO'NGGI»
+      'hubRecentCap': L0['hubRecent'] as String,
+      'hubTodayCap': L0['hubToday'] as String,
+      'hubTodayTxt': '−${_fmt(todayOut)}',
+      'hubRecentRows': recent,
+
+      // Bo'sh holat matnlari
+      'hubEmptyXarCap': L0['hubEmptyExpCap'] as String,
+      'hubEmptyXarTitle': L0['hubEmptyExpTitle'] as String,
+      'hubEmptyXarHint': L0['hubEmptyExpHint'] as String,
+      'hubEmptyDebtTitle': L0['hubEmptyDebtTitle'] as String,
+      'hubEmptyDebtHint': L0['hubEmptyDebtHint'] as String,
+      'hubEmptyDebtBtn': L0['hubEmptyDebtBtn'] as String,
+      'hubEmptyRecent': L0['hubEmptyRecent'] as String,
+    };
+  }
+
+  // «Taksi» -> «TX»: SO'NGGI qatoridagi dumaloq nishon (prototipdagi kabi 2 harf)
+  String _hubIni(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return '—';
+    final words = t.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return (t.length >= 2 ? t.substring(0, 2) : t).toUpperCase();
+  }
+
+  // «Bugun» / «Kecha» / «17-iyul» (xarajat yozuvining kun yorlig'i)
+  String _fmtDay(int d) {
+    if (d == 0) return L()['tToday'] as String;
+    if (d == 1) return L()['tYesterday'] as String;
+    final dt = DateTime.now().subtract(Duration(days: d));
+    const mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
+    return '${dt.day}-${mon[dt.month - 1]}';
+  }
+
+  // Hub kartalaridan bo'limga o'tish (vals() ichidagi goHome/goXarajat bilan bir xil patch)
+  void goHome_() =>
+      set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+  void goXarajat_() =>
+      set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null});
 
   Map<String, dynamic> _xarVals(Pal P, String Function(int, String) money) {
     final ink = P.ink, bg = P.bg, bd = P.bd, mut = P.t3, red = P.red, green = P.green;
@@ -2372,8 +2720,8 @@ class TrustStore extends ChangeNotifier {
           'xfUndo': () => xfUndo_(),
           'xfBusy': S['voiceStage'] == 'parsing',
           'xfSend': () => xfSend_(),
-          // To'liq ekran: header'dagi orqaga tugmasi (dizayn: bottom navsiz)
-          'xfBack': () => set({'screen': 'home', 'xfDetail': null, 'xfLogOpen': false}),
+          // To'liq ekran: header'dagi orqaga tugmasi — bosh hub'ga qaytaradi
+          'xfBack': () => goHub_(),
           // Fly-animatsiya hodisalari: UI o'qib, ishga tushirib, xfFlyDone bilan tozalaydi
           'xfFlyEvents': (S['xfFly'] as List).cast<Map<String, dynamic>>().map((ev) => {
                 ...ev,
@@ -2407,7 +2755,7 @@ class TrustStore extends ChangeNotifier {
             'xfCfToTxt': '', 'xfCfToSum': '', 'xfCfOk': () {}, 'xfCfNo': () {},
             'xfToastOpen': false, 'xfToastText': '', 'xfToastBtn': '', 'xfUndo': () {},
             'xfBusy': false, 'xfSend': () {},
-            'xfBack': () => set({'screen': 'home'}),
+            'xfBack': () => goHub_(),
             'xfFlyEvents': <Map<String, dynamic>>[], 'xfFlyDone': () {},
           };
         }
@@ -2866,6 +3214,8 @@ class TrustStore extends ChangeNotifier {
     }).whereType<Map<String, dynamic>>().toList();
 
     final xarV = _xarVals(P, money);
+    // Bosh hub (ildiz ekran) — dizayn: prototype/bosh-ekran.dc.html «4-tur»
+    final hubV = _hubVals(initials, linksAll: linksAll, bal: bal);
 
     // Profil
     Map<String, dynamic> mkSwitch(String label, bool on, VoidCallback tap) => {
@@ -3055,6 +3405,8 @@ class TrustStore extends ChangeNotifier {
     final noClient = S['clientId'] == null && !incoming;
 
     return {
+      // Ildiz ekran — bosh hub (pastki nav olib tashlandi: flags.kBottomNavEnabled)
+      'isHub': S['screen'] == 'hub' && noClient,
       'isHome': S['screen'] == 'home' && noClient,
       'isCircles': S['screen'] == 'circles' && noClient,
       'isAi': S['screen'] == 'ai' && noClient,
@@ -3163,20 +3515,23 @@ class TrustStore extends ChangeNotifier {
         // Back "qayerdan kelgan bo'lsa o'shanga qaytadi": AI'ga o'tishdan OLDIN joriy
         // asosiy tabni saqlaymiz (faqat home/xarajat/profil/circles — aks holda 'home').
         final from = S['screen'];
-        final mainTab =
-            from == 'home' || from == 'xarajat' || from == 'profil' || from == 'circles';
+        final mainTab = from == 'hub' ||
+            from == 'home' ||
+            from == 'xarajat' ||
+            from == 'profil' ||
+            from == 'circles';
         set({
           'screen': 'ai',
-          'aiFrom': mainTab ? from : 'home',
+          'aiFrom': mainTab ? from : 'hub',
           'clientId': null,
           'receiptId': null,
           'inLinkId': null,
         });
         loadAiMsgs(); // tarix bir marta yuklanadi (aiLoaded)
       },
-      // AI header'idagi orqaga tugmasi — kelib chiqqan tabga qaytadi (bottom nav AI'da yashirin).
+      // AI header'idagi orqaga tugmasi — kelib chiqqan ekranga qaytadi (odatda hub).
       'goAiBack': () => set(
-          {'screen': S['aiFrom'] ?? 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
+          {'screen': S['aiFrom'] ?? 'hub', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goProfil': () => set({'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'goXarajat': () => set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
       'cMij': S['screen'] == 'home' ? active : idle,
@@ -3186,6 +3541,7 @@ class TrustStore extends ChangeNotifier {
       'cProf': S['screen'] == 'profil' ? active : idle,
       ...circleNav(),
       ...xarV,
+      ...hubV,
 
       'clientOpen': client != null || incoming,
       'incoming': incoming,

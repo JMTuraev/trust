@@ -33,31 +33,32 @@ class HomeScreen extends StatelessWidget {
       children: [
         Column(
           children: [
+            // Header — orqaga (<) shu qatorning o'zida (PO 2026-07-17: hub'dan
+            // kirilganda alohida back-qator YO'Q, xarajat.dart headeri uslubi:
+            // chap padding 16, chevron + logo bitta qatorda). Orqaga -> hub.
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              padding: const EdgeInsets.fromLTRB(16, 16, 24, 0),
+              child: Row(
+                children: [
+                  BackBtn(onTap: () => v['goHub']()),
+                  const SizedBox(width: 8),
+                  const TrustMark(size: 27, boxed: true),
+                  const SizedBox(width: 9),
+                  Tx('Trust', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
+                  const Spacer(),
+                  _archBtn(v, p),
+                  const SizedBox(width: 10),
+                  _bellBtn(v, p),
+                ],
+              ),
+            ),
+            Padding(
+              // 22 — avvalgi SizedBox(height:22) o'rnida: pastki blok o'lchamlari
+              // pikselma-piksel saqlanadi (chap/o'ng 24 ham o'zgarmagan).
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const TrustMark(size: 27, boxed: true),
-                          const SizedBox(width: 9),
-                          Tx('Trust', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          _archBtn(v, p),
-                          const SizedBox(width: 10),
-                          _bellBtn(v, p),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
                   Cap(L0['netCap'] as String, ls: 1.6),
                   const SizedBox(height: 6),
                   Tx(v['netText'], size: 34, w: FontWeight.w700, color: v['netColor'], ls: -0.8),
