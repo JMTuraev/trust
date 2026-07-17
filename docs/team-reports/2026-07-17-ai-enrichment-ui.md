@@ -55,3 +55,19 @@ AI proaktiv insight bermasdi, chart/progress/debt_card deyarli chizilmasdi.
   push (Render autoDeploy) kerak. PO ruxsati kutilmoqda.
 - Kelajak (PO tanlamadi, keyinга): proaktiv ochilish kartasi; function-calling tarix
   asboblari (get_category_history, get_month, biggest_expenses).
+
+## Qo'shimcha (2-iteratsiya, commit 794c62d) — umumiy bilim + dunyo faktlari
+
+PO fikri: "AI javoblari faqat user ma'lumotlaridan chetga chiqolmayapti". Sabab: "faqat
+kontekstdagi raqamlar" qoidasini model "tashqi bilim taqiq" deb talqin qilgan. Yechim —
+persona'ga "UMUMIY BILIM VA QIZIQARLI FAKTLAR" bo'limi: nomlangan barqaror metodlar
+(50/30/20, kakeibo, qor koptok/ko'chki, xavfsizlik yostig'i, latte-faktor) RUXSAT va
+KERAK, har doim foydalanuvchi raqamiga hisoblab. Himoya: tashqi aniq raqam (kurs/foiz/
+statistika) to'qish taqiq; fakt ilhom uchun (ijtimoiy taqqoslash taqiq); 1 javob = max 1
+fakt; investitsiya taqiqi va compliance o'zgarmagan. + "har doim sen" qat'iylashtirildi,
+abstrakt savolga yomon-vs-yaxshi namuna qo'shildi.
+
+Qurilmada tasdiq (skrinshot 28, 29): o'sha savodxonlik savoli endi 50/30/20 ni PO'ning
+real daromadiga hisoblab beradi (11.9 mln -> 5.95/3.57/2.38); "qiziqarli fakt" so'roviga
+latte-faktor. Qolgan kuzatuv: eski suhbat tarixida "siz" ohangi ko'p bo'lgani uchun model
+ba'zan "siz"ga qaytadi — yangi suhbatlarda "sen"ga o'tishi kutiladi.
