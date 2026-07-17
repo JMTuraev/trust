@@ -172,7 +172,11 @@ async function callAnthropic({ contextText, history, message }) {
     body: JSON.stringify({
       model: config.ai.model,
       max_tokens: config.ai.maxTokens,
-      temperature: 0.7, // hamroh ohangi — 0 quruq chiqadi, 1 esa raqamga beparvo
+      // DIQQAT: `temperature` YUBORILMAYDI — claude-opus-4-8 (Claude 4.5+ avlodi) uchun
+      // deprecated: API 400 invalid_request_error qaytaradi. Aynan shu parametr tufayli
+      // ishga tushirilgandan beri BARCHA Anthropic chaqiruvlar yiqilib, chat Groq'da
+      // ishlab kelgan (2026-07-17 diagnostikasi, ai_usage.model'dagi xato matni).
+      // Model o'z default temperaturasida ishlaydi — ohang persona bilan boshqariladi.
       system: [
         // 1-kesh nuqtasi: statik persona (+ tools) — hamma foydalanuvchi uchun umumiy
         { type: 'text', text: PERSONA, cache_control: { type: 'ephemeral' } },
