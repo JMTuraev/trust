@@ -186,8 +186,13 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       //    o'shanikidir. Groq ~10x arzon va sozlash nishoni emas: tokenlari yoziladi,
       //    xarajati 0 (aks holda audit Opus narxida shishib, tahlilni chalg'itardi).
       const cost = r.provider === 'anthropic' ? costOf(r.usage) : 0;
+      // Fallback'da model='none' o'rniga XATO SABABLARI yoziladi (kalit YO'Q, faqat
+      // status/turi) — monitoring DB'dan ko'rinadi, Render logiga qaramasdan.
+      const modelInfo = r.provider === 'fallback'
+        ? ((r.errors || []).join(' | ').slice(0, 180) || 'none')
+        : r.model;
       await supabaseAdmin.from('ai_usage').insert({
-        user_id: req.user.id, provider: r.provider, model: r.model,
+        user_id: req.user.id, provider: r.provider, model: modelInfo,
         input_tokens: r.usage.input_tokens, cached_input_tokens: r.usage.cached_input_tokens,
         cache_write_tokens: r.usage.cache_write_tokens, output_tokens: r.usage.output_tokens,
         cost_usd: cost,
