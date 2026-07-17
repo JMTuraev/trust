@@ -384,14 +384,17 @@ export function pseudonymizeText(text, tokens) {
 // 1.5 mln qarzing bor") — \b bo'lsa "HAMKOR_2ga" moslikka tushmay, belgi foydalanuvchiga
 // XOM holda chiqib ketardi (aynan biz to'sayotgan sizib chiqish). Boshida lookbehind bor,
 // oxirida esa affiks ataylab erkin qoldiriladi: "HAMKOR_2" -> "Doniyor", "ga" joyida qoladi.
-const TOKEN_RE = /(?<![\p{L}\p{N}_])(HAMKOR|YOZUV)_(\d+)/gu;
+// KATTA-KICHIK HARFGA BEFARQ (i): Opus belgini "Hamkor_1" deb yozgani kuzatildi
+// (2026-07-17, chart labelida XOM chiqib ketdi) — endi har qanday yozilish tiklanadi.
+const TOKEN_RE = /(?<![\p{L}\p{N}_])(HAMKOR|YOZUV)_(\d+)/giu;
 
 /** Matndagi belgilarni real ism/izohga qaytaradi (model javobi -> foydalanuvchi). */
 export function restoreText(text, tokens) {
-  return String(text ?? '').replace(TOKEN_RE, (m, kind) => {
-    const t = tokens?.[m]; // m — to'liq belgi ("HAMKOR_2"), affiksisiz
-    if (!t) return kind === 'HAMKOR' ? 'hamkoring' : 'bu yozuv'; // to'qilgan belgi — yumshoq tushirish
-    if (kind === 'HAMKOR') return t.name || 'hamkoring';
+  return String(text ?? '').replace(TOKEN_RE, (m, kind, num) => {
+    const up = kind.toUpperCase();
+    const t = tokens?.[`${up}_${num}`]; // xaritada belgi doim KATTA harfda
+    if (!t) return up === 'HAMKOR' ? 'hamkoring' : 'bu yozuv'; // to'qilgan belgi — yumshoq tushirish
+    if (up === 'HAMKOR') return t.name || 'hamkoring';
     return t.note ? `"${t.note}"` : 'bu yozuv';
   });
 }

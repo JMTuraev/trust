@@ -116,8 +116,12 @@ export function validateBlocks(raw) {
         break;
       }
       case 'debt_card': {
-        // Faqat belgi qabul qilinadi — real UUID/ismni model bermaydi (restoreBlocks qo'yadi)
-        if (/^HAMKOR_\d+$/.test(s(b.partner_id, 20))) out.push({ type: 'debt_card', partner_id: b.partner_id.trim() });
+        // Faqat belgi qabul qilinadi — real UUID/ismni model bermaydi (restoreBlocks qo'yadi).
+        // Katta-kichik harfga befarq + KATTA harfga normallashtiriladi (model "Hamkor_1"
+        // deb yozishi kuzatildi — xaritada belgi doim katta harfda).
+        if (/^HAMKOR_\d+$/i.test(s(b.partner_id, 20))) {
+          out.push({ type: 'debt_card', partner_id: b.partner_id.trim().toUpperCase() });
+        }
         break;
       }
       case 'budget_set': {
@@ -127,8 +131,8 @@ export function validateBlocks(raw) {
       }
       case 'category_move': {
         const to = s(b.to, 40);
-        if (/^YOZUV_\d+$/.test(s(b.expense_id, 20)) && to) {
-          out.push({ type: 'category_move', expense_id: b.expense_id.trim(), to });
+        if (/^YOZUV_\d+$/i.test(s(b.expense_id, 20)) && to) {
+          out.push({ type: 'category_move', expense_id: b.expense_id.trim().toUpperCase(), to });
         }
         break;
       }
