@@ -290,6 +290,9 @@ class TrustStore extends ChangeNotifier {
         // linkStatus: pending | accepted | rejected (rad — signal ketgach ko'rinadi)
         'linkStatus': p['link_status'] ?? 'pending',
         'onTrust': p['link_status'] == 'accepted',
+        // «in Trust» nishoni: ro'yxatdan o'tganlik = counterparty_id mavjud
+        // (accepted'ni kutmaydi — badge ro'yxatdan o'tishi bilan chiqadi).
+        'inTrust': p['counterparty_id'] != null,
         'archived': p['archived'] == true,
         'srvBal': (p['balances'] is Map)
             ? (p['balances'] as Map).map((k, v) => MapEntry('$k', _numToInt(v)))
@@ -2084,38 +2087,48 @@ class TrustStore extends ChangeNotifier {
   /// Android apparat "orqaga": bo'lim ekranidan hub'ga qaytish mumkinmi?
   /// FAQAT toza holatda ushlaymiz — ustida overlay/sheet/daftar ochiq bo'lsa,
   /// tugma tizim ixtiyorida qoladi (avvalgi xatti-harakat o'zgarmaydi).
+  /// Hub ustida biror overlay/sheet/daftar ochiqmi (apparat "orqaga" ular
+  /// ixtiyorida qoladi — ochiq qatlam avval yopiladi).
+  bool _anyLayerOpen() =>
+      S['ccOpen'] != null ||
+      S['langOpen'] == true ||
+      S['linkDecisionId'] != null ||
+      S['clientId'] != null ||
+      S['inLinkId'] != null ||
+      S['receiptId'] != null ||
+      S['notifOpen'] == true ||
+      S['archOpen'] == true ||
+      S['rejOpen'] == true ||
+      S['pdfOpen'] == true ||
+      S['sheetOpen'] == true ||
+      S['npOpen'] == true ||
+      S['editFormOpen'] == true ||
+      S['xfDetail'] != null ||
+      S['xEditId'] != null ||
+      S['circleOpen'] == true ||
+      S['circleCreateOpen'] == true ||
+      S['circleHistoryOpen'] == true ||
+      S['circleManageOpen'] == true ||
+      S['circleJoinOpen'] == true ||
+      S['circlePayOpen'] == true ||
+      S['circleConfirmOpen'] == true ||
+      S['circleInviteOpen'] == true;
+
   bool hubBackable() {
     if (S['stage'] != 'app') return false;
     if (S['screen'] == 'hub') return false;
-    final layerOpen = S['ccOpen'] != null ||
-        S['langOpen'] == true ||
-        S['linkDecisionId'] != null ||
-        S['clientId'] != null ||
-        S['inLinkId'] != null ||
-        S['receiptId'] != null ||
-        S['notifOpen'] == true ||
-        S['archOpen'] == true ||
-        S['rejOpen'] == true ||
-        S['pdfOpen'] == true ||
-        S['sheetOpen'] == true ||
-        S['npOpen'] == true ||
-        S['editFormOpen'] == true ||
-        S['xfDetail'] != null ||
-        S['xEditId'] != null ||
-        S['circleOpen'] == true ||
-        S['circleCreateOpen'] == true ||
-        S['circleHistoryOpen'] == true ||
-        S['circleManageOpen'] == true ||
-        S['circleJoinOpen'] == true ||
-        S['circlePayOpen'] == true ||
-        S['circleConfirmOpen'] == true ||
-        S['circleInviteOpen'] == true;
-    return !layerOpen;
+    return !_anyLayerOpen();
   }
 
+  /// Hub ildizida (bo'lim/overlay/sheet yo'q) — apparat "orqaga" bu holatda
+  /// darhol chiqarmaydi: 2 soniya ichida yana bosilsagina ilova yopiladi.
+  bool atHubRoot() =>
+      S['stage'] == 'app' && S['screen'] == 'hub' && !_anyLayerOpen();
+
   // Ranglarni ekranning o'zi theme.dart'dan (curPal) oladi — bu yerda faqat
-  // matn/raqam/holat. Summalar UZS'da: hub kartalari bitta valyuta bilan ishlaydi
-  // (ko'p-valyutali ko'rinish Hamkorlar/Xarajat bo'limlarida qoladi).
+  // matn/raqam/holat. Asosiy raqamlar UZS'da; oldi-berdi kartasi qo'shimcha
+  // ravishda chet valyuta netlarini alohida qatorlarda ko'rsatadi (hubDebtFx,
+  // PO 2026-07-17) — to'liq ko'p-valyutali ko'rinish Hamkorlar bo'limida qoladi.
   Map<String, dynamic> _hubVals(
     String Function(String) initials, {
     required List<Map<String, dynamic>> linksAll,
@@ -2127,10 +2140,15 @@ class TrustStore extends ChangeNotifier {
     final txs = _txs(); // ts bo'yicha o'sish tartibida (hydrate shunday saralaydi)
     final partners = _clients().where((c) => c['archived'] != true).toList();
     final accepted = linksAll.where((l) => l['status'] == 'accepted').toList();
+    // Menga kelgan, hali qabul qilinmagan bog'lanish so'rovlari (ikki-tomonlama qabul).
+    final pendingIn = linksAll.where((l) => l['status'] == 'pending').toList();
 
     // ---- Salomlashuv + sana («Xayrli tong, Aziz» / «Iyul 2026 · payshanba») ----
+    // Salomlashuv ismi FAQAT haqiqiy ismdan olinadi — ismsiz foydalanuvchida
+    // telefon raqami ism o'rniga chiqmasligi uchun (meLabel() fallback beradi).
     final full = meLabel().trim();
-    final first = full.isEmpty ? '' : full.split(' ').first;
+    final nameOnly = (S['meName'] as String?)?.trim() ?? '';
+    final first = nameOnly.isEmpty ? '' : nameOnly.split(RegExp(r'\s+')).first;
     final greetKey = now.hour < 12
         ? 'hubGreetMorning'
         : now.hour < 18
@@ -2204,18 +2222,34 @@ class TrustStore extends ChangeNotifier {
         .fold<int>(0, (s, e) => s + (e['a'] as int));
 
     // ---- OLDI-BERDI kartasi ----
+    // Har valyuta bo'yicha net (PO 2026-07-17): asosiy raqam UZS bo'lib qoladi,
+    // nol bo'lmagan chet valyutalar (masalan USD) kartada alohida qator bo'ladi.
+    // «Faol qarz» endi valyutadan qat'i nazar sanaladi — faqat-USD qarz ham faol.
     var toMe = 0, activeDebts = 0;
+    final fxNet = <String, int>{}; // UZS'dan boshqa valyutalar: kod -> net summa
     for (final c in partners) {
-      final b = bal(c['id'] as String);
-      final u = b['UZS'] ?? 0;
-      if (u != 0) activeDebts++;
-      if (u > 0) toMe += u;
+      var any = false;
+      bal(c['id'] as String).forEach((cur, amt) {
+        if (amt == 0) return;
+        any = true;
+        if (cur == 'UZS') {
+          if (amt > 0) toMe += amt;
+        } else {
+          fxNet[cur] = (fxNet[cur] ?? 0) + amt;
+        }
+      });
+      if (any) activeDebts++;
     }
     for (final l in accepted) {
+      // Kiruvchi link totali serverdan valyutasiz (UZS) keladi — vals()dagi
+      // net/toMeUZS hisobi bilan bir xil qamrov.
       final t = l['total'] as int;
       if (t != 0) activeDebts++;
       if (t > 0) toMe += t;
     }
+    // Qarama-qarshi qarzlar bir-birini yopishi mumkin (+2000 va −2000) — 0 qator chiqmasin
+    fxNet.removeWhere((_, v) => v == 0);
+    final fxCurs = fxNet.keys.toList()..sort();
     final partnersCount = partners.length + accepted.length;
 
     // «Bekzod · 47 kun javobsiz» — menga qarzi bor hamkorlar ichidan oxirgi
@@ -2248,7 +2282,13 @@ class TrustStore extends ChangeNotifier {
       acc += sg * (t['a'] as int).toDouble();
       run.add(acc);
     }
-    final debtSpark = run.length > 12 ? run.sublist(run.length - 12) : run;
+    var debtSpark = run.length > 12 ? run.sublist(run.length - 12) : run;
+    // Ko'rinadigan oynada real variatsiya bo'lmasa (<2 nuqta yoki hammasi teng),
+    // sparkline «yolg'iz nuqta» bo'lib chiziladi — bo'sh ro'yxat qaytaramiz,
+    // UI blokni butunlay yashiradi (PO 2026-07-17).
+    if (debtSpark.length < 2 || debtSpark.every((x) => x == debtSpark.first)) {
+      debtSpark = const <double>[];
+    }
 
     // ---- TRUST AI kartasi ----
     final aiAll = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
@@ -2304,15 +2344,30 @@ class TrustStore extends ChangeNotifier {
       // 'isHub' vals() ichida hisoblanadi (isHome/isXarajat bilan bir xil `noClient` sharti)
       'goHub': () => goHub_(),
       'hubBackable': hubBackable(),
+      'hubAtRoot': atHubRoot(),
       'hubBack': () => goHub_(),
+      // Menga kelgan pending bog'lanish so'rovlari (hub bannerida ko'rsatiladi — item 7)
+      'hubPendingReq': pendingIn.length,
+      'hubPendingReqTxt': Lf('hubPendingReq', {'n': '${pendingIn.length}'}),
+      'hubOpenReq': () {
+        // Pending so'rov -> QAROR sheet'i (Accept/Reject), openIncoming EMAS
+        // (openIncoming faqat ACCEPTED daftar uchun — pending'da "avval qabul
+        // qiling" gating chiqib, qabul tugmasi ko'rinmasdi). openFromNotif:2016
+        // bilan bir xil naqsh.
+        if (pendingIn.length == 1) {
+          set({'linkDecisionId': pendingIn.first['id'] as String});
+        } else {
+          goHome_();
+        }
+      },
       // Skelet: boot/hydrate paytida (mavjud skelHome bayrog'i bilan bir xil manba)
       'hubSkel': S['skelHome'] == true,
       // Bo'sh holat: hech qanday yozuv/hamkor yo'q («birinchi kirish»)
       'hubEmpty': !hasAny,
 
       // Sarlavha
-      'hubGreet': Lf(greetKey, {'name': first}),
-      'hubGreetEmpty': Lf('hubWelcome', {'name': first}),
+      'hubGreet': _greet(greetKey, first),
+      'hubGreetEmpty': _greet('hubWelcome', first),
       'hubDate': '${_monFull[now.month - 1]} ${now.year} · ${_wdFull[now.weekday - 1]}',
       'hubIni': initials(full),
       'hubAvatar': S['meAvatar'],
@@ -2344,6 +2399,15 @@ class TrustStore extends ChangeNotifier {
       'hubDebtCap': L0['hubToMe'] as String,
       'hubDebtTxt': '+${_fmt(toMe)}',
       'hubDebtSub': Lf('hubDebtsPartners', {'d': '$activeDebts', 'p': '$partnersCount'}),
+      // Chet valyuta netlari — kod bo'yicha saralangan; pos: musbat = sizga qarz
+      'hubDebtFx': [
+        for (final cur in fxCurs)
+          {
+            'cur': cur,
+            'txt': (fxNet[cur]! > 0 ? '+' : '−') + _fmt(fxNet[cur]!.abs()),
+            'pos': fxNet[cur]! > 0,
+          },
+      ],
       'hubDebtSpark': debtSpark,
       'hubFrozen': frozenName.isNotEmpty && frozenDays > 0,
       'hubFrozenTxt': Lf('hubNoAnswer', {'name': frozenName, 'n': '$frozenDays'}),
@@ -2363,7 +2427,6 @@ class TrustStore extends ChangeNotifier {
       // Tugmalar
       'hubBtnXar': L0['hubAddExpense'] as String,
       'hubBtnDebt': L0['hubAddDebt'] as String,
-      'hubBtnFirst': L0['hubEmptyFirst'] as String,
 
       // «SO'NGGI»
       'hubRecentCap': L0['hubRecent'] as String,
@@ -2381,6 +2444,12 @@ class TrustStore extends ChangeNotifier {
       'hubEmptyRecent': L0['hubEmptyRecent'] as String,
     };
   }
+
+  // Salomlashuv: ism bo'lsa «Xayrli tong, Aziz»; ismsizda oxirgi vergul/probel
+  // olib tashlanadi («Xayrli tong») — telefon raqami ism o'rniga chiqmaydi.
+  String _greet(String key, String name) => name.isNotEmpty
+      ? Lf(key, {'name': name})
+      : Lf(key, {'name': ''}).replaceFirst(RegExp(r'\s*[,，]\s*$'), '').trim();
 
   // «Taksi» -> «TX»: SO'NGGI qatoridagi dumaloq nishon (prototipdagi kabi 2 harf)
   String _hubIni(String s) {
@@ -2812,7 +2881,8 @@ class TrustStore extends ChangeNotifier {
 
     Map<String, dynamic> balMain(Map<String, int> b) {
       if (b['UZS'] == 0 && b['USD'] == 0) {
-        return {'text': L0['zero'], 'color': mut, 'sub': L0['subZero']};
+        // «hisob teng» yozuvi olib tashlandi (PO sinov) — faqat «0 so'm» summa qoladi.
+        return {'text': L0['zero'], 'color': mut, 'sub': ''};
       }
       final v = b['UZS'] != 0 ? b['UZS']! : b['USD']!;
       final cur = b['UZS'] != 0 ? 'UZS' : 'USD';
@@ -2851,6 +2921,8 @@ class TrustStore extends ChangeNotifier {
         'archAct': () => archive_(cid),
         'name': c['name'], 'initials': initials(c['name']),
         'onTrust': c['onTrust'] != false, 'oneSided': c['onTrust'] == false,
+        // Badge «in Trust» — ro'yxatdan o'tganlik (accepted'ni kutmaydi)
+        'inTrust': c['inTrust'] == true,
         'sub': last != null ? '${L0['last']}${last['date']}' : L0['noOps'],
         'bal': b['text'], 'color': b['color'], 'balSub': b['sub'],
         // O'qilmagan xabarlar soni — qatorda badge (sms kelsa ko'rinadi)
@@ -2886,10 +2958,12 @@ class TrustStore extends ChangeNotifier {
               'archTap': () {}, 'archAct': () {},
               'name': l['name'], 'initials': initials(l['name'] as String),
               'onTrust': true, 'oneSided': false,
+              // Kiruvchi (qabul qilingan) bog'lanish — hamkor ro'yxatdan o'tgan
+              'inTrust': true,
               'sub': L0['addedYou'],
               'bal': tot == 0 ? L0['zero'] : (tot > 0 ? '+' : '−') + money(tot.abs(), 'UZS'),
               'color': tot > 0 ? green : (tot < 0 ? red : mut),
-              'balSub': tot > 0 ? L0['subPos'] : (tot < 0 ? L0['subNeg'] : L0['subZero']),
+              'balSub': tot > 0 ? L0['subPos'] : (tot < 0 ? L0['subNeg'] : ''),
               // O'qilmagan xabarlar badge'i (data-qatlam; ko'rsatish ekran qaroriga bog'liq)
               'unread': (S['msgUnread'] as Map)[lid] ?? 0,
               'open': () => openIncoming(lid),
@@ -3485,6 +3559,22 @@ class TrustStore extends ChangeNotifier {
         _busy = false;
         _setBusy(null);
         if (!r.ok) {
+          // RECIPROCAL: raqam egasi SIZNI allaqachon qo'shgan — dublikat yaratilmadi.
+          // Mavjud kiruvchi so'rovga yo'naltiramiz: pending -> qaror sheet, accepted -> daftar.
+          if (r.code == 'RECIPROCAL_LINK' && r.body['link_id'] != null) {
+            final lid = '${r.body['link_id']}';
+            final kr = await Api.links();
+            if (kr.ok && kr.data is List) {
+              set({'links': (kr.data as List).cast<Map<String, dynamic>>().map(_mapLink).toList()});
+            }
+            set({'npOpen': false});
+            if (r.body['link_status'] == 'accepted') {
+              openIncoming(lid);
+            } else {
+              set({'linkDecisionId': lid});
+            }
+            return;
+          }
           toast_(r.error);
           return;
         }
@@ -3550,6 +3640,9 @@ class TrustStore extends ChangeNotifier {
       'canFlip': false,
       'oneSided': client != null && client['onTrust'] == false,
       'cOnTrust': (client != null && client['onTrust'] != false) || incoming,
+      // Badge «in Trust» — ro'yxatdan o'tganlik (accepted'ni kutmaydi). cOnTrust
+      // (accepted) esa ledger/reminder mantig'i uchun o'zgarmasdan qoladi.
+      'cInTrust': (client != null && client['inTrust'] == true) || incoming,
       // Bog'lanish holati banneri (sotuvchi ko'rinishida)
       'linkPending': client != null && client['linkStatus'] == 'pending',
       'linkRejected': client != null && client['linkStatus'] == 'rejected',
@@ -3710,7 +3803,7 @@ class TrustStore extends ChangeNotifier {
           if (outCur.isNotEmpty) {
             balLines.add({'text': Lf('balYouOwe', {'a': '${balParts(outCur)}'}) + unvSfx(false) + (overOut ? (L()['balOverdueSfx'] as String) : ''), 'color': red});
           }
-          if (balLines.isEmpty) balLines.add({'text': L()['balSettledLine'] as String, 'color': mut});
+          // «hisob teng» qatori olib tashlandi (PO sinov) — bo'sh balLines muammosiz render bo'ladi.
 
           // ---- Tasdiqlash cardlari (qarshi tomon pending amallari) ----
           final cards = <Map<String, dynamic>>[];
@@ -3825,7 +3918,13 @@ class TrustStore extends ChangeNotifier {
             'accepted': accepted,
             'ledgerLoading': S['ledgerLoading'] == true,
             'balLines': balLines,
-            'offTrust': !accepted,
+            // Ro'yxatdan o'tgan (counterparty_id bor) lekin qabul qilinmagan hamkorga
+            // "Trust'da emas" DEMA (ziddiyat: badge "in Trust" turadi). offTrust faqat
+            // haqiqatan ro'yxatda YO'Q hamkor uchun; ro'yxatda BOR-u qabul qilinmagan
+            // uchun alohida "qabul qilinmagan" banneri.
+            'offTrust': !accepted && !(inLink != null || client?['inTrust'] == true),
+            'pendingLink': !accepted && (inLink != null || client?['inTrust'] == true),
+            'pendingLinkName': firstName,
             'ledCards': cards,
             'ledCardCount': '${cards.length}',
             'ledReview': reviewCards,

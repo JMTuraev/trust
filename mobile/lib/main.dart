@@ -1,5 +1,6 @@
 // Trust — asosiy kompozitsiya. Prototipdagi ekran/overlay z-tartibi bilan 1:1.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'store.dart';
 import 'theme.dart';
 import 'ui.dart';
@@ -64,8 +65,16 @@ class TrustApp extends StatelessWidget {
   }
 }
 
-class Root extends StatelessWidget {
+class Root extends StatefulWidget {
   const Root({super.key});
+
+  @override
+  State<Root> createState() => _RootState();
+}
+
+class _RootState extends State<Root> {
+  // Apparat "orqaga" hub ildizida: 2 soniya ichida ikkinchi bosishda chiqadi.
+  DateTime? _lastBack;
 
   @override
   Widget build(BuildContext context) {
@@ -74,14 +83,27 @@ class Root extends StatelessWidget {
       builder: (context, _) {
         final v = store.vals();
         final p = curPal();
+        final backToHub = v['hubBackable'] == true;
+        final atRoot = v['hubAtRoot'] == true;
         return PopScope(
           // Android apparat "orqaga": bo'lim ekranidan (Hamkorlar / Xarajat / AI /
-          // Profil) hub'ga qaytadi. Ustida overlay/sheet ochiq bo'lsa yoki hub'ning
-          // o'zida bo'lsak — tugma tizim ixtiyorida (avvalgi xatti-harakat).
-          canPop: v['hubBackable'] != true,
+          // Profil) hub'ga qaytadi. Hub ildizida — 2 marta bosilsa chiqadi (aks
+          // holda "yana bosing" toast). Overlay/sheet ochiq bo'lsa — tizim ixtiyorida.
+          canPop: !backToHub && !atRoot,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
-            v['hubBack']();
+            if (backToHub) {
+              v['hubBack']();
+              return;
+            }
+            final now = DateTime.now();
+            if (_lastBack != null &&
+                now.difference(_lastBack!) <= const Duration(seconds: 2)) {
+              SystemNavigator.pop();
+            } else {
+              _lastBack = now;
+              store.toast_(store.L()['tExitAgain'] as String);
+            }
           },
           child: Scaffold(
             backgroundColor: p.bg,

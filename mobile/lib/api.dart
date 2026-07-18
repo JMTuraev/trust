@@ -20,7 +20,10 @@ class ApiRes {
   // "sekinroq yoz" HAM) — UI to'g'ri xabarni shu kod bo'yicha tanlaydi.
   // Ixtiyoriy va oxirgi pozitsiyada: eski ApiRes(...) chaqiruvlari o'zgarishsiz ishlaydi.
   final String code;
-  ApiRes(this.ok, this.data, this.error, this.status, [this.code = '']);
+  // To'liq javob tanasi (xato holatlarida ham) — masalan RECIPROCAL_LINK'dagi link_id.
+  // Ixtiyoriy, oxirgi pozitsiyada — eski chaqiruvlar o'zgarishsiz ishlaydi.
+  final Map<String, dynamic> body;
+  ApiRes(this.ok, this.data, this.error, this.status, [this.code = '', this.body = const {}]);
 }
 
 class Api {
@@ -81,7 +84,7 @@ class Api {
           onPaymentRequired?.call();
         }
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})',
-            res.statusCode, (map['code'] as String?) ?? '');
+            res.statusCode, (map['code'] as String?) ?? '', map);
       }
       return ApiRes(true, map['data'], '', res.statusCode);
     } on TimeoutException {

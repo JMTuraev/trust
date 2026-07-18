@@ -9,7 +9,6 @@
 // header'dagi orqaga (<) hub'ga qaytaradi (store: goHub_ / hubBack).
 // Barcha raqam store.vals() dan (real ma'lumot) — mock yo'q.
 import 'dart:io' show File;
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -57,6 +56,12 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _header(v, p, empty),
+          // Menga kelgan pending bog'lanish so'rovlari — salomlashuvdan keyin,
+          // kartalardan tepada (ikki-tomonlama qabul, item 7).
+          if (!skel && (v['hubPendingReq'] as int) > 0) ...[
+            const SizedBox(height: 14),
+            _pendingBanner(v, p),
+          ],
           const SizedBox(height: 18), // grid margin-top:18
           // DIQQAT: `const` EMAS — const instance kanonik bo'lgani uchun qayta
           // qurishda Element rebuild'ni o'tkazib yuborardi (main.dart'dagi izoh).
@@ -67,6 +72,31 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           else
             ..._body(v, p, dark),
         ],
+      ),
+    );
+  }
+
+  // Menga kelgan pending bog'lanish so'rovlari banneri (item 7) — brend uslubi:
+  // p.field fon, r14, ink matn; bosilganda hubOpenReq (1 ta bo'lsa to'g'ridan
+  // ochadi, ko'p bo'lsa Qarz Daftar ro'yxatiga o'tadi).
+  Widget _pendingBanner(Map<String, dynamic> v, Pal p) {
+    return Tap(
+      onTap: () => v['hubOpenReq'](),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          children: [
+            _tintBox(p.card2, 15, _G.swap, p.ink, 1.4),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Tx(v['hubPendingReqTxt'] as String,
+                  size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+            ),
+            const SizedBox(width: 10),
+            ChevRight(color: p.t3, size: 8),
+          ],
+        ),
       ),
     );
   }
@@ -323,6 +353,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
+                        // Streak-glif (ikki burilgan tomchi) olib tashlandi
+                        // (PO 2026-07-17: ma'ni ajratmayapti) — raqamdan keyin bo'sh.
                         if (hasLimit) ...[
                           Tx(v['hubLeftCap'] as String, size: 12, color: p.t1),
                           Tx(v['hubLeftTxt'] as String,
@@ -330,8 +362,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                               w: FontWeight.w600,
                               color: v['hubLeftPos'] == true ? p.green : p.red,
                               tab: true),
-                          const SizedBox(width: 7),
-                          _StreakGlyph(color: p.green),
                         ],
                         const Spacer(),
                         if (trend.isNotEmpty)
@@ -367,6 +397,9 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
 
   // OLDI-BERDI kartasi
   Widget _debtCard(Map<String, dynamic> v, Pal p, bool dark) {
+    final spark = (v['hubDebtSpark'] as List).cast<double>();
+    // Chet valyuta netlari (PO 2026-07-17): [{'cur':'USD','txt':'−2 000','pos':false}]
+    final fx = (v['hubDebtFx'] as List).cast<Map<String, dynamic>>();
     return Tap(
       onTap: () => v['hubOpenDebt'](),
       child: Container(
@@ -395,11 +428,11 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _tintBox(_tint(p.green, dark), 16, _G.swap, p.green, 1.4),
-                  const SizedBox(height: 10),
-                  // Bo'lim nomi — «TRUST AI» caption uslubida (hero karta bilan juft)
+                  // Bo'lim nomi — XARAJATLAR/TRUST AI kabi ikonkadan TEPADA (PO sinov 2026-07-17)
                   Tx(v['hubDebtSec'] as String, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
                   const SizedBox(height: 6),
+                  _tintBox(_tint(p.green, dark), 16, _G.swap, p.green, 1.4),
+                  const SizedBox(height: 10),
                   Tx(v['hubDebtCap'] as String, size: 13, color: p.t1, maxLines: 1, ellipsis: true),
                   const SizedBox(height: 3),
                   Tx(v['hubDebtTxt'] as String,
@@ -407,6 +440,26 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                       tab: true, maxLines: 1, ellipsis: true),
                   const SizedBox(height: 2),
                   Tx(v['hubDebtSub'] as String, size: 11, color: p.t2, maxLines: 1, ellipsis: true),
+                  // Chet valyuta bo'yicha net qatorlari (PO 2026-07-17): «USD: −2 000».
+                  // Manfiy = sizning qarzingiz (p.red), musbat = sizga (p.green).
+                  for (final f in fx) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Tx('${f['cur']}:', size: 12, color: p.t1),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Tx(f['txt'] as String,
+                              size: 12,
+                              w: FontWeight.w600,
+                              color: f['pos'] == true ? p.green : p.red,
+                              tab: true,
+                              maxLines: 1,
+                              ellipsis: true),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (v['hubFrozen'] == true) ...[
                     const SizedBox(height: 9),
                     Row(
@@ -424,16 +477,16 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 30,
-                    child: Sparkline(
-                      values: (v['hubDebtSpark'] as List).cast<double>(),
-                      color: p.green,
-                      stroke: 2,
-                      dot: 3,
+                  // Tekis tarix (variatsiya yo'q) «yolg'iz nuqta» bo'lib chizilardi —
+                  // store bunday holda [] beradi, blok butunlay yashirinadi va
+                  // kartada ortiqcha bo'shliq qolmaydi (PO 2026-07-17).
+                  if (spark.length >= 2) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 30,
+                      child: Sparkline(values: spark, color: p.green, stroke: 2, dot: 3),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -630,6 +683,9 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Bo'lim nomi — loaded karta bilan bir xil, ikonkadan TEPADA (PO sinov)
+                        Tx(v['hubDebtSec'] as String, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
+                        const SizedBox(height: 6),
                         _tintBox(p.card2, 16, _G.swap, p.t1, 1.4),
                         const SizedBox(height: 10),
                         Tx(v['hubEmptyDebtTitle'] as String,
@@ -678,11 +734,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               ],
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        _InkBtn14(
-          label: '+  ${v['hubBtnFirst']}',
-          onTap: () => v['hubOpenXar'](),
         ),
         const SizedBox(height: 18),
         Padding(
@@ -740,88 +791,6 @@ class HubSection extends StatelessWidget {
         ),
         Expanded(child: child),
       ],
-    );
-  }
-}
-
-/// Asosiy (qora) tugma — prototip radiusi 14. ui.dart'dagi InkBtn radiusi 12 ga
-/// qotirilgan va ui.dart READ-ONLY: hisobot §NEW-PATCHES'dagi InkBtn `r` patchi
-/// qo'llanilgach, bu klass o'rniga to'g'ridan-to'g'ri InkBtn(..., r: 14) ishlatiladi.
-class _InkBtn14 extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _InkBtn14({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = curPal();
-    return Tap(
-      onTap: onTap,
-      child: Container(
-        height: 50,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(14)),
-        child: Tx(label, size: 14, w: FontWeight.w600, color: p.bg),
-      ),
-    );
-  }
-}
-
-/// «Qoldi» yonidagi nishon — prototipdagi ikki burilgan yumaloq to'rtburchak
-/// (left: opacity .8, right: opacity .45; ±16°).
-class _StreakGlyph extends StatelessWidget {
-  final Color color;
-  const _StreakGlyph({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 14,
-      height: 11,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 1,
-            child: Transform.rotate(
-              angle: -16 * math.pi / 180,
-              child: Container(
-                width: 6.5,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: .8),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(5),
-                    topRight: Radius.circular(2),
-                    bottomRight: Radius.circular(5),
-                    bottomLeft: Radius.circular(5),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: 1,
-            child: Transform.rotate(
-              angle: 16 * math.pi / 180,
-              child: Container(
-                width: 6.5,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: .45),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(2),
-                    topRight: Radius.circular(5),
-                    bottomRight: Radius.circular(5),
-                    bottomLeft: Radius.circular(5),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

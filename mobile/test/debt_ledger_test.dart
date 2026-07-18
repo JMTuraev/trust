@@ -137,20 +137,23 @@ void main() {
     expect(d.paid, 400);
     expect(l.balances()['UZS'], 600); // 1000-400
 
-    // Join: underReview
+    // Join: oneSided -> underReview. FAQAT QARSHI TOMON ko'rib chiqadi — YARATUVCHI emas
+    // (2026-07-18: yaratuvchi o'z da'vosini tasdiqlamasligi kerak).
     for (final e in l.entries) {
       e.underReview = true;
     }
-    expect(l.reviewDebts().length, 1);
-    // Rad -> disputed, balansdan chiqadi
-    l.reviewReject('d1');
+    expect(l.reviewDebts().isEmpty, true); // yaratuvchi (me) o'z da'vosini ko'rmaydi
+    final asThem = DebtLedger(meId: 'them', partnerAccepted: true, entries: l.entries);
+    expect(asThem.reviewDebts().length, 1); // qarshi tomon ko'radi
+    // Rad -> disputed, balansdan chiqadi (qarshi tomon rad etadi)
+    asThem.reviewReject('d1');
     expect(d.status, EntryStatus.disputed);
     expect(l.balances().containsKey('UZS'), false);
 
-    // Bulk confirm
+    // Bulk confirm — ko'ruvchi (me) 'them' yaratgan yozuvlarni tasdiqlaydi
     final l2 = led(accepted: false, e: [
-      debt(id: 'a', prov: Provenance.oneSided, review: true),
-      debt(id: 'b', prov: Provenance.oneSided, review: true),
+      debt(id: 'a', prov: Provenance.oneSided, review: true, by: 'them'),
+      debt(id: 'b', prov: Provenance.oneSided, review: true, by: 'them'),
     ]);
     l2.reviewConfirmAll();
     expect(l2.entries.every((e) => e.prov == Provenance.twoSided), true);

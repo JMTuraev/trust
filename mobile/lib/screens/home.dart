@@ -391,7 +391,7 @@ class _SwipeRowState extends State<_SwipeRow> {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
       child: Row(
         children: [
-          TrustAvatar(initials: r['initials'] as String, size: 46, onTrust: r['onTrust'] == true),
+          TrustAvatar(initials: r['initials'] as String, size: 46, onTrust: r['inTrust'] == true),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -417,8 +417,10 @@ class _SwipeRowState extends State<_SwipeRow> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Tx(r['bal'], size: 15, w: FontWeight.w600, color: r['color'], tab: true),
-              const SizedBox(height: 2),
-              Tx(r['balSub'], size: 11, color: p.t5),
+              if ((r['balSub'] as String).isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Tx(r['balSub'], size: 11, color: p.t5),
+              ],
             ],
           ),
         ],

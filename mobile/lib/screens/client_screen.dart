@@ -774,7 +774,7 @@ class _ClientScreenState extends State<ClientScreen> {
       child: Row(children: [
         BackBtn(onTap: () => v['back']()),
         const SizedBox(width: 12),
-        TrustAvatar(initials: v['cInitials'] as String, size: 40, onTrust: v['cOnTrust'] == true),
+        TrustAvatar(initials: v['cInitials'] as String, size: 40, onTrust: v['cInTrust'] == true),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -831,16 +831,20 @@ class _ClientScreenState extends State<ClientScreen> {
       ]),
     );
 
-    // -------- Off-Trust banner --------
-    final offTrustBanner = v['offTrust'] == true
+    // -------- Off-Trust / kutilayotgan bog'lanish banneri --------
+    // offTrust: hamkor Trust'da YO'Q (ro'yxatdan o'tmagan). pendingLink: Trust'da BOR,
+    // lekin bog'lanish hali qabul qilinmagan — bularni ARALASHTIRMA (badge bilan ziddiyat).
+    final _bannerText = v['pendingLink'] == true
+        ? store.Lf('pendingLinkBanner', {'name': v['pendingLinkName'] as String? ?? ''})
+        : (v['offTrust'] == true ? L0['offTrustBanner'] as String : null);
+    final offTrustBanner = _bannerText != null
         ? Container(
             padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
             decoration: BoxDecoration(color: _amber.withValues(alpha: .1), border: Border(bottom: BorderSide(color: p.hair2))),
             child: Row(children: [
               Icon(Icons.info_outline_rounded, size: 15, color: _amber),
               const SizedBox(width: 8),
-              Expanded(child: Tx(L0['offTrustBanner'] as String,
-                  size: 11.5, color: p.t1, lh: 16)),
+              Expanded(child: Tx(_bannerText, size: 11.5, color: p.t1, lh: 16)),
             ]),
           )
         : const SizedBox.shrink();
@@ -953,7 +957,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(18)),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      TrustAvatar(initials: v['cInitials'] as String, size: 60, onTrust: v['cOnTrust'] == true),
+                      TrustAvatar(initials: v['cInitials'] as String, size: 60, onTrust: v['cInTrust'] == true),
                       const SizedBox(height: 12),
                       Tx(v['cName'] as String, size: 17, w: FontWeight.w700, color: p.ink),
                       const SizedBox(height: 3),

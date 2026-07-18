@@ -467,9 +467,13 @@ class DebtLedger {
 
   // ---------- Join / review oqimi (spec 5.1) ----------
 
-  /// Ko'rib chiqilayotgan oneSided qarzlar (join'dan keyin)
+  /// Ko'rib chiqilayotgan oneSided qarzlar (join'dan keyin).
+  /// FAQAT qarshi tomon tasdiqlaydi — yozuv EGASI (yaratuvchi) o'z da'vosini
+  /// tasdiqlamaydi (2026-07-18: egada Rad/Tasdiqlash tugmalari xato chiqardi).
+  /// Header'dagi "tasdiqsiz" qoldig'i unverifiedBalances() dan — u o'zgarmaydi
+  /// (egada ham "X tasdiqsiz" ma'lumot qoladi, faqat TUGMA yo'q).
   List<DebtEntry> reviewDebts() =>
-      entries.where((e) => e.isDebt && e.underReview && e.isOneSided).toList();
+      entries.where((e) => e.isDebt && e.underReview && e.isOneSided && e.createdBy != meId).toList();
 
   /// Bog'liq yozuvlar (repay/settle) shu debtga
   List<DebtEntry> relatedOps(String debtId) =>
