@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust — store screenshots</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  :root{
+    --ink:#111111;--bg:#FFFFFF;--hair:#ECECEC;--hair2:#F2F2F0;--card2:#F3F3F1;
+    --field:#F4F4F2;--bd:#E0E0DC;--t1:#7A7A76;--t2:#9C9C98;--t3:#A2A29E;--t4:#B0B0AC;
+    --gr:#2F7A54;--rd:#A94438;--bar:#E6E6E2;--grT:rgba(47,122,84,.10);--rdT:rgba(169,68,56,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  /* Har panel = bitta store skrinshot, 1080x1920 (9:16) */
+  .panel{width:1080px;height:1920px;display:none;flex-direction:column;align-items:center;
+    background:linear-gradient(180deg,#F6F4EF 0%,#EFEBE3 100%);position:relative;overflow:hidden}
+  .panel.on{display:flex}
+  .brandrow{margin-top:78px;display:flex;align-items:center;gap:16px}
+  .logo{width:56px;height:56px;border-radius:15px;background:var(--ink);display:flex;align-items:center;justify-content:center}
+  .logo b{display:block;width:26px;height:4px;background:#fff;border-radius:2px;box-shadow:0 8px 0 #fff,0 -8px 0 rgba(255,255,255,.55);position:relative;left:0}
+  .logo span{color:#fff;font-weight:800;font-size:30px}
+  .brandrow .nm{font-size:34px;font-weight:800;color:var(--ink);letter-spacing:-.5px}
+  .cap{margin:40px 90px 0;text-align:center}
+  .cap h2{font-size:52px;line-height:1.12;font-weight:800;color:var(--ink);letter-spacing:-1px}
+  .cap p{margin-top:16px;font-size:27px;line-height:1.4;color:#6A675F;font-weight:500}
+  .phone{margin-top:46px;width:600px;height:1160px;background:var(--bg);border-radius:56px;
+    border:2px solid #D9D9D5;box-shadow:0 40px 90px rgba(60,50,30,.16);overflow:hidden;position:relative}
+  .scr{position:absolute;inset:0;padding:26px 26px 0;display:flex;flex-direction:column;overflow:hidden}
+  /* generic app bits */
+  .h1{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.4px}
+  .sub{font-size:17px;color:var(--t3);margin-top:5px}
+  .card{border:1.5px solid var(--hair);border-radius:26px;padding:22px;background:var(--bg)}
+  .capt{font-size:15px;font-weight:800;letter-spacing:2px;color:var(--t2)}
+  .big{font-size:46px;font-weight:800;letter-spacing:-1px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .gr{color:var(--gr)} .rd{color:var(--rd)}
+  .tint{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center}
+  .pill{display:inline-flex;padding:6px 14px;border-radius:999px;font-size:16px;font-weight:700}
+  .ava{width:46px;height:46px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--ink)}
+  .badge{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;background:var(--ink);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .btn{height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700}
+  .btnk{background:var(--ink);color:#fff}.btng{border:1.5px solid var(--bd);color:var(--ink)}
+  .spark{width:100%;height:56px;display:block}
+  .bub{border:1.5px solid var(--hair);background:var(--field);border-radius:22px;border-bottom-left-radius:6px;padding:18px 20px;font-size:19px;line-height:1.5;color:var(--ink)}
+  .userbub{background:var(--ink);color:#fff;border-radius:22px;border-bottom-right-radius:6px;padding:16px 20px;font-size:19px;align-self:flex-end;max-width:74%}
+  .chip{border:1.5px solid var(--bd);border-radius:999px;padding:12px 18px;font-size:17px;font-weight:600;color:var(--ink);background:var(--bg)}
+  .barbg{flex:1;height:12px;border-radius:6px;background:var(--bar);overflow:hidden}
+  .foot{position:absolute;bottom:40px;font-size:20px;color:#8A867C;font-weight:600}
+</style></head>
+<body>
+
+<!-- 1 · HUB -->
+<section class="panel" data-p="1">
+  <div class="brandrow"><div class="logo"><span>≡</span></div><div class="nm">Trust</div></div>
+  <div class="cap"><h2>Qarz, xarajat va AI —<br>hammasi bitta joyda</h2><p>Bosh ekrandan butun moliyangizni boshqaring</p></div>
+  <div class="phone"><div class="scr">
+    <div class="row"><div><div class="h1">Xayrli kun, Aziz</div><div class="sub">Iyul 2026 · payshanba</div></div><div class="ava">AK</div></div>
+    <div class="card" style="margin-top:20px">
+      <div class="row"><div class="capt">XARAJATLAR</div></div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:10px">
+        <div class="tint" style="background:var(--rdT)"><svg width="22" height="22" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="#A94438" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div style="font-size:18px;color:var(--t1)">Iyulda sarfladingiz</div><div class="big rd">−5 056 098 <span style="font-size:20px;color:var(--t2);font-weight:400">so'm</span></div></div>
+      </div>
+      <svg class="spark" viewBox="0 0 320 46" preserveAspectRatio="none"><path d="M0,33 C60,32 120,34 170,26 C210,20 250,28 285,10 L285,10" fill="none" stroke="#A94438" stroke-width="3" stroke-linecap="round"/><circle cx="285" cy="10" r="5" fill="#A94438"/></svg>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:16px">
+      <div class="card" style="flex:1;padding:18px"><div class="capt">QARZ DAFTAR</div><div style="font-size:16px;color:var(--t1);margin-top:12px">Sizga qaytishi kerak</div><div class="big gr" style="font-size:32px;margin-top:2px">+2.5 mln</div><div style="font-size:15px;color:var(--t2);margin-top:4px">3 faol qarz · 12 hamkor</div></div>
+      <div class="card" style="flex:1;padding:18px;background:var(--field);border-color:var(--field)"><div class="capt">TRUST AI ●</div><div style="font-size:17px;color:var(--ink);line-height:1.4;margin-top:12px">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div><div style="font-size:16px;font-weight:700;color:var(--ink);margin-top:14px">Ko'rish →</div></div>
+    </div>
+    <div style="margin-top:18px;padding:0 4px"><div class="capt">SO'NGGI</div>
+      <div class="row" style="padding:14px 0;border-bottom:1px solid var(--hair2)"><div style="display:flex;gap:14px;align-items:center"><div class="ava" style="width:38px;height:38px;font-size:13px">TX</div><div><div style="font-size:18px;font-weight:600">Taksi</div><div style="font-size:15px;color:var(--t3)">Bugun · Transport</div></div></div><div class="rd" style="font-weight:600">−12 000</div></div>
+      <div class="row" style="padding:14px 0"><div style="display:flex;gap:14px;align-items:center"><div class="ava" style="width:38px;height:38px;font-size:13px">DL</div><div><div style="font-size:18px;font-weight:600">Dilnoza qarzni tasdiqladi</div><div style="font-size:15px;color:var(--t3)">Kecha · Oldi-berdi</div></div></div><div class="gr" style="font-weight:600">+300 000</div></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 2 · TWO-SIDED -->
+<section class="panel" data-p="2">
+  <div class="brandrow"><div class="logo"><span>≡</span></div><div class="nm">Trust</div></div>
+  <div class="cap"><h2>Yozilgan qarz —<br>inkor qilinmaydi</h2><p>Ikki tomon tasdiqlaydi, na unutiladi na bahs bo'ladi</p></div>
+  <div class="phone"><div class="scr">
+    <div style="display:flex;align-items:center;gap:14px"><div style="position:relative"><div class="ava" style="width:52px;height:52px">BX</div><div class="badge">in Trust</div></div><div><div class="h1" style="font-size:26px">Bekzod Xolmatov</div><div class="rd" style="font-size:16px;margin-top:4px">U sizga: 275 000 so'm · 250 000 tasdiqsiz</div></div></div>
+    <div class="capt" style="margin:22px 2px 12px">ESKI YOZUVLAR (1)</div>
+    <div class="card" style="padding:20px">
+      <div class="row"><div style="font-size:22px;font-weight:700">Sizga qarz</div><div style="font-size:26px;font-weight:800">250 000 so'm</div></div>
+      <div style="font-size:15px;color:var(--t3);margin-top:4px">18-iyul · qoldiq 250 000 so'm</div>
+      <div style="display:flex;gap:14px;margin-top:16px"><div class="btn btng" style="flex:1">Rad</div><div class="btn btnk" style="flex:1.4">Tasdiqlash</div></div>
+    </div>
+    <div class="card" style="padding:20px;margin-top:16px">
+      <div class="row"><div style="display:flex;align-items:center;gap:8px"><div style="width:9px;height:9px;border-radius:50%;background:var(--gr)"></div><div style="font-size:22px;font-weight:700">Sizga qarz</div><div class="pill" style="background:var(--grT);color:var(--gr);font-size:14px">Faol</div></div><div class="gr" style="font-size:26px;font-weight:800">+25 000 so'm</div></div>
+      <div style="font-size:15px;color:var(--t3);margin-top:6px">17-iyul · tasdiqlangan ✓</div>
+      <div class="barbg" style="margin-top:12px"><div style="width:0;height:100%"></div></div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:auto;margin-bottom:26px"><div class="btn btnk" style="flex:1">Qarz berish</div><div class="btn btnk" style="flex:1">Qarz olish</div></div>
+  </div></div>
+</section>
+
+<!-- 3 · TRUST AI -->
+<section class="panel" data-p="3">
+  <div class="brandrow"><div class="logo"><span>≡</span></div><div class="nm">Trust</div></div>
+  <div class="cap"><h2>Pulingiz haqida —<br>aniq raqam bilan</h2><p>Trust AI daftaringizni o'qiydi va yo'l ko'rsatadi</p></div>
+  <div class="phone"><div class="scr">
+    <div style="display:flex;align-items:center;gap:12px"><svg width="26" height="26" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg><div><div class="h1" style="font-size:26px">Trust AI</div><div class="sub">Moliyaviy hamrohing</div></div></div>
+    <div style="margin-top:22px;display:flex;flex-direction:column;gap:14px">
+      <div class="userbub">Bu oy qanday ketyapman?</div>
+      <div class="bub">Yaxshi ketyapsan — balansing +6.9 mln, o'tgan oydan yaxshiroq. Bitta narsa ko'zga tashlandi:</div>
+      <div class="card" style="padding:18px 20px"><div class="capt">TRANSPORT</div><div class="row" style="margin-top:8px"><div class="big rd" style="font-size:38px">175k</div><div class="pill rd" style="background:var(--rdT)">+25%</div></div></div>
+      <div class="bub">Asosan taksi (12 marta). Ertalabki qisqa yo'llarni boshqacha qilsang, oyiga ~200k qoladi.</div>
+      <div style="display:flex;gap:12px"><div class="chip">Qaysi kunlar?</div><div class="chip">Chegara qo'y</div></div>
+    </div>
+    <div style="margin-top:auto;margin-bottom:24px;height:60px;border-radius:30px;border:1.5px solid var(--bd);display:flex;align-items:center;padding:0 22px;color:var(--t3);font-size:19px">Puling haqida so'ra…<div style="margin-left:auto;width:44px;height:44px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">↑</div></div>
+  </div></div>
+</section>
+
+<!-- 4 · EXPENSE -->
+<section class="panel" data-p="4">
+  <div class="brandrow"><div class="logo"><span>≡</span></div><div class="nm">Trust</div></div>
+  <div class="cap"><h2>Har so'm —<br>ko'z oldingizda</h2><p>Yozing, AI o'zi papkalarga saralaydi</p></div>
+  <div class="phone"><div class="scr">
+    <div class="h1">Xarajatlar</div><div class="sub">Iyul 2026</div>
+    <div class="card" style="margin-top:18px;padding:20px"><div class="row"><div><div style="font-size:16px;color:var(--t1)">Balans</div><div class="big gr">+6 893 902</div></div><svg width="120" height="60" viewBox="0 0 120 60"><path d="M4,50 C30,48 50,40 70,30 C90,20 104,14 116,8" fill="none" stroke="#2F7A54" stroke-width="3" stroke-linecap="round"/><circle cx="116" cy="8" r="5" fill="#2F7A54"/></svg></div></div>
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="card row" style="padding:16px 20px"><div style="display:flex;gap:14px;align-items:center"><div class="tint" style="background:var(--grT);width:44px;height:44px">＋</div><div style="font-weight:600;font-size:20px">Daromad</div></div><div class="gr" style="font-weight:700">+11 950 000</div></div>
+      <div class="card row" style="padding:16px 20px"><div style="display:flex;gap:14px;align-items:center"><div class="tint" style="background:var(--card2);width:44px;height:44px">🍎</div><div><div style="font-weight:600;font-size:20px">Oziq-ovqat</div><div class="barbg" style="width:180px;margin-top:6px"><div style="width:58%;height:100%;background:var(--rd);border-radius:6px"></div></div></div></div><div class="rd" style="font-weight:700">−2 956 999</div></div>
+      <div class="card row" style="padding:16px 20px"><div style="display:flex;gap:14px;align-items:center"><div class="tint" style="background:var(--card2);width:44px;height:44px">👕</div><div style="font-weight:600;font-size:20px">Kiyim</div></div><div class="rd" style="font-weight:700">−1 424 099</div></div>
+    </div>
+    <div style="margin-top:auto;margin-bottom:24px;height:60px;border-radius:30px;border:1.5px solid var(--bd);display:flex;align-items:center;padding:0 22px;color:var(--t3);font-size:19px">Oziq-ovqatga 120 000 sarfladim…<div style="margin-left:auto;width:44px;height:44px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">↑</div></div>
+  </div></div>
+</section>
+
+<!-- 5 · TRUST/PRIVACY -->
+<section class="panel" data-p="5">
+  <div class="brandrow"><div class="logo"><span>≡</span></div><div class="nm">Trust</div></div>
+  <div class="cap"><h2>Hisobli do'st —<br>ayrilmas</h2><p>Ishonchli, maxfiy, ikki tomonlama hisob-kitob</p></div>
+  <div class="phone"><div class="scr" style="align-items:center;justify-content:center;text-align:center;padding:40px">
+    <div class="logo" style="width:120px;height:120px;border-radius:32px"><span style="font-size:64px">≡</span></div>
+    <div style="font-size:40px;font-weight:800;margin-top:30px">Trust</div>
+    <div style="font-size:20px;color:var(--t1);margin-top:12px;line-height:1.5">Qarzni yodda emas — Trust'da saqlang.<br>Na unutiladi, na inkor qilinadi.</div>
+    <div style="margin-top:36px;display:flex;flex-direction:column;gap:16px;width:100%">
+      <div class="card row" style="padding:18px 22px;text-align:left"><div style="font-size:19px;font-weight:600">🔒 PIN + SMS kod bilan kirish</div></div>
+      <div class="card row" style="padding:18px 22px;text-align:left"><div style="font-size:19px;font-weight:600">🤝 Ikki tomonlama tasdiq</div></div>
+      <div class="card row" style="padding:18px 22px;text-align:left"><div style="font-size:19px;font-weight:600">🌐 6 tilda · tungi rejim</div></div>
+    </div>
+  </div></div>
+</section>
+
+<script>
+  const p = new URLSearchParams(location.search).get('p') || '1';
+  const el = document.querySelector('.panel[data-p="'+p+'"]');
+  if (el) el.classList.add('on');
+</script>
+</body></html>
