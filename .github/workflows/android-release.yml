@@ -1,0 +1,75 @@
+name: Android release (AAB)
+
+# To'liq-ABI (armeabi-v7a + arm64 + x86_64) imzolangan App Bundle'ni Linux'da quradi.
+# Sabab: 32-bit ARM AOT snapshotter Windows dev-mashinada qulaydi (0xC0000005) —
+# Linux runner'da muammosiz. Natija: Play Store'ga yuklashga tayyor imzolangan .aab.
+#
+# KERAKLI GitHub Secrets (Settings -> Secrets and variables -> Actions):
+#   ANDROID_KEYSTORE_BASE64   - trust-release.jks ning base64 matni
+#                               (yaratish:  base64 -w0 mobile/android/trust-release.jks)
+#   ANDROID_KEYSTORE_PASSWORD - store paroli
+#   ANDROID_KEY_PASSWORD      - kalit paroli
+#   ANDROID_KEY_ALIAS         - kalit aliasi
+# Kalit/parollar HECH QAYERDA logga chiqmaydi (GitHub secrets maskalaydi).
+
+on:
+  workflow_dispatch:       # qo'lda ishga tushirish (Actions tab -> Run workflow)
+  push:
+    tags: ['v*']           # v3.4.0 kabi teg push qilinganda avtomatik
+
+jobs:
+  build-aab:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: stable
+          cache: true
+
+      - name: Restore signing keystore + key.properties
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KS_B64" | base64 -d > android/trust-release.jks
+          cat > android/key.properties <<EOF
+          storeFile=trust-release.jks
+          storePassword=$KS_PW
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PW
+          EOF
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze + test (gate)
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build signed App Bundle (all ABIs)
+        run: flutter build appbundle --release
+
+      - name: Clean up secrets
+        if: always()
+        run: rm -f android/key.properties android/trust-release.jks
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trust-release-aab
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
