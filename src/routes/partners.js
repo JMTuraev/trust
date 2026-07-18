@@ -202,6 +202,28 @@ router.post('/', requireActiveSub, async (req, res, next) => {
     const guard = await creationGuards(req, phone);
     if (guard.error) return res.status(guard.status).json({ success: false, error: guard.error });
 
+    // RECIPROCAL (2026-07-18): raqam egasi SIZNI allaqachon kontragent qilib qo'shgan
+    // bo'lsa (kiruvchi pending/accepted link) — dublikat qator YARATMAYMIZ. O'rniga
+    // mobilга mavjud link id'sini qaytaramiz; u qaror sheet'ini (pending) yoki daftarni
+    // (accepted) ochadi. Aks holda ikki tomon bir-birini qo'shsa 2 ta parallel link qolardi.
+    if (guard.cp) {
+      const { data: recip } = await supabaseAdmin
+        .from('partners').select('id, link_status')
+        .eq('owner_id', guard.cp.id).eq('counterparty_id', req.user.id)
+        .in('link_status', ['pending', 'accepted']).maybeSingle();
+      if (recip) {
+        return res.status(409).json({
+          success: false,
+          code: 'RECIPROCAL_LINK',
+          link_id: recip.id,
+          link_status: recip.link_status,
+          error: recip.link_status === 'accepted'
+            ? 'Bu odam bilan allaqachon bog\'langansiz'
+            : 'Bu odam sizni allaqachon qo\'shgan — so\'rovni qabul qiling',
+        });
+      }
+    }
+
     const { data, error } = await supabaseAdmin.from('partners').insert({
       owner_id: req.user.id,
       counterparty_id: guard.cp?.id ?? null,
