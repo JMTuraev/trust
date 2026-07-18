@@ -1,6 +1,12 @@
 # Google Play Data Safety — form answers (Trust / Oldi-Berdi, uz.trust.trust_mobile)
 
 > Manba: Trust Play Store reliz tayyorlash (2026-07-18), kodga asoslangan.
+>
+> ⚠️ **Tuzatish (security review):** "Shared" javobi va "AI consent-gated" da'vosi bo'yicha
+> yakuniy, kelishilgan qaror — [RELEASE.md §5](RELEASE.md) (yagona manba). Consent ekrani
+> hozircha kodда YO'Q; "opt-in, consent-gated"ni forma'да belgilashdan oldin uni qo'shing
+> yoki deklaratsiyani realga moslang. Pseudonimizatsiya faqat AI-CHAT'ga; `/expenses/parse`
+> Groq/OpenAI'ga xom matn yuboradi (privacy-policy'да aniq yozing).
 
 ## Google Play Data Safety — form answers
 

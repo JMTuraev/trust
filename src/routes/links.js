@@ -5,6 +5,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { setLinkStatus, displayName, notifEnabled } from '../lib/links.js';
+import { invalidateProfile } from '../services/ai-context.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -131,6 +132,12 @@ async function transition(req, res, next, allowedFrom, toStatus) {
       return res.status(400).json({ success: false, error: `Holat '${p.link_status}' — bu amal qo'llanmaydi` });
 
     const data = await setLinkStatus(p, toStatus, req.user.id);
+
+    // Bog'lanish holati o'zgardi -> ikkala tomonning AI psevdonim xaritasi eskirishi
+    // mumkin (qabul qilingach mijoz bu hamkorni ko'radi; rad/uzishda chiqib ketadi).
+    // MAXFIYLIK: yangi ism keyingi AI so'rovida xom ketmasin (2026-07-18 review).
+    await invalidateProfile(req.user.id);
+    if (p.owner_id && p.owner_id !== req.user.id) await invalidateProfile(p.owner_id);
 
     if (toStatus === 'rejected') {
       // Sotuvchiga signal kechikish bilan (oynada tiklansa — umuman bormaydi)

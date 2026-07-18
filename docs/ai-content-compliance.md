@@ -1,6 +1,11 @@
 # Trust AI — Google Play 2026 AI-Generated Content policy compliance
 
 > Manba: Trust Play Store reliz tayyorlash (2026-07-18), kodga asoslangan.
+>
+> ⚠️ **Tuzatish (security review):** bu hujjatdagi consent copy NORMATIV emas — birinchi-kirish
+> consent ekrani hozircha KODDA YO'Q. "Shared" javobi va consent bo'yicha yakuniy qaror —
+> [RELEASE.md §5](RELEASE.md). Ishga tushirishdan oldin consent ekranini qo'shing yoki
+> deklaratsiyani realga moslang.
 
 ## Trust AI — Google Play 2026 AI-Generated Content policy compliance
 

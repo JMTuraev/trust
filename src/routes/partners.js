@@ -7,6 +7,10 @@ import { normalizePhone } from '../lib/phone.js';
 import { config } from '../config.js';
 import { logLinkEvent, displayName, notifEnabled } from '../lib/links.js';
 import { canonicalDir } from '../lib/ledger.js';
+// AI kesh invalidatsiyasi (MAXFIYLIK): hamkor qo'shilsa/nomlansa, keshlangan
+// psevdonim xaritasi (ai_profile.tokens) eskiradi — yangi ismni AI xom yubormasligi
+// uchun keshni bekor qilamiz (2026-07-18 xavfsizlik review'i).
+import { invalidateProfile } from '../services/ai-context.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -236,6 +240,7 @@ router.post('/', requireActiveSub, async (req, res, next) => {
 
     await logLinkEvent(data.id, null, 'pending', req.user.id);
     if (guard.cp) await notifyLinkNew(req.user.id, guard.cp.id, data.id);
+    await invalidateProfile(req.user.id); // yangi hamkor -> AI psevdonim xaritasi yangilansin
 
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
@@ -367,6 +372,11 @@ router.patch('/:id', async (req, res, next) => {
     if (req.body?.archived !== undefined) patch.archived = !!req.body.archived;
     const { data, error } = await supabaseAdmin.from('partners').update(patch).eq('id', req.params.id).select().single();
     if (error) throw new Error(error.message);
+    // Nom/arxiv o'zgardi -> AI psevdonim xaritasi eskirdi (rename ismni, archive esa
+    // xaritadan chiqishni anglatadi). Keshni bekor qilamiz.
+    if (req.body?.name !== undefined || req.body?.archived !== undefined) {
+      await invalidateProfile(req.user.id);
+    }
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
