@@ -31,6 +31,17 @@ services:
         value: "300"
       - key: OTP_MAX_ATTEMPTS
         value: "5"
+      # Do'kon review (Google Play / App Store) test-login: AYNAN shu raqam uchun
+      # haqiqiy SMS yuborilmaydi va kod qat'iy. Boshqa raqamlarga ta'siri yo'q.
+      # MUHIM: repo PUBLIC — qiymatlar bu yerga YOZILMAYDI, Render Dashboard'da kiritiladi
+      # (sync:false). O'rnatilmasa bypass o'chiq (xavfsiz default). Tavsiya qilingan qiymatlar:
+      #   REVIEW_TEST_PHONE = 998900000000   (ilovada: +998 90 000 00 00)
+      #   REVIEW_TEST_CODE  = 50413          (5 xonali, ilovadagi OTP kataklariga mos)
+      # Review tugagach ikkalasini o'chirib, bypass'ni butunlay yopsa bo'ladi.
+      - key: REVIEW_TEST_PHONE
+        sync: false
+      - key: REVIEW_TEST_CODE
+        sync: false
       # SMS toll-fraud: butun servis bo'yicha soatlik OTP capi (devsms balansini himoya)
       - key: SMS_GLOBAL_HOURLY_CAP
         value: "200"

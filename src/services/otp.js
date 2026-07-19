@@ -31,6 +31,12 @@ function reserveGlobalSmsSlot() {
 
 // ---------- OTP yuborish ----------
 export async function sendOtp(phone) {
+  // Do'kon review test-login: aynan shu raqamga HAQIQIY SMS yuborilmaydi (kod qat'iy,
+  // config.otp.reviewCode). Faqat REVIEW_TEST_PHONE bilan bir xil raqamga ta'sir qiladi.
+  if (config.otp.reviewPhone && phone === config.otp.reviewPhone) {
+    return { provider: 'review', expires_in: config.otp.ttlSeconds };
+  }
+
   if (isUzbekPhone(phone)) {
     // O'zbekiston: devsms.uz (AllClubs shabloni)
     // Rate limit: oxirgi 60 soniyada yuborilgan bo'lsa - rad
@@ -76,6 +82,19 @@ export async function sendOtp(phone) {
 
 // ---------- OTP tekshirish ----------
 export async function verifyOtp(phone, code) {
+  // Do'kon review test-login: aynan shu raqam + qat'iy kod => darhol session.
+  // SMS/DB kod tekshiruvidan o'tmaydi; boshqa raqamlarga umuman ta'sir qilmaydi.
+  if (config.otp.reviewPhone && phone === config.otp.reviewPhone) {
+    if (config.otp.reviewCode && String(code) === config.otp.reviewCode) {
+      const user = await findOrCreateUser(phone);
+      await reactivateIfDeleted(user.id);
+      return issueSession(user);
+    }
+    const e = new Error("Kod noto'g'ri");
+    e.status = 400;
+    throw e;
+  }
+
   if (isUzbekPhone(phone)) {
     const { data: rows, error } = await supabaseAdmin
       .from('otp_codes')

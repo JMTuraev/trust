@@ -20,6 +20,11 @@ export const config = {
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS || '300', 10),
     maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
+    // Do'kon review test-login (Google Play / App Store): AYNAN shu raqam uchun
+    // haqiqiy SMS yuborilmaydi va kod qat'iy (reviewCode). Boshqa hech qaysi raqamga
+    // ta'sir qilmaydi. Review tugagach env'larni olib tashlab, bypass'ni o'chirsa bo'ladi.
+    reviewPhone: (process.env.REVIEW_TEST_PHONE || '').replace(/[^\d]/g, ''),
+    reviewCode: String(process.env.REVIEW_TEST_CODE || '').trim(),
   },
   // STT (ovoz -> matn) BUTUNLAY OLIB TASHLANDI (2026-07-17, docs/ai-character.md §11):
   // mahsulot qarori — odam pul masalasini ovoz chiqarib aytmaydi. `STT_ENABLED` yo'q,
