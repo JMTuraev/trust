@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config, assertConfig } from './config.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
@@ -29,6 +31,15 @@ app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'trust-backend', version: '3.4' }));
+
+// Maxfiylik siyosati — Google Play "App content → Privacy policy" uchun ochiq HTTPS URL.
+// docs/privacy-policy.html Render checkout'ida mavjud (build uni o'chirmaydi). gh-pages'ga tegmaymiz.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.get('/privacy', (_req, res) =>
+  res.sendFile(path.join(__dirname, '../docs/privacy-policy.html'), (err) => {
+    if (err) res.status(404).send('Privacy policy not found');
+  })
+);
 
 // So'rov kuzatuvi — health'dan tashqari har so'rov usuli+yo'li (parse/expenses kabi jonli ko'rinadi)
 app.use((req, _res, next) => { if (req.path !== '/health') console.log(`→ ${req.method} ${req.path}`); next(); });
