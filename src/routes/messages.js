@@ -7,6 +7,8 @@ import { requireAuth } from '../middleware/auth.js';
 // Obuna read-only qoidasi: xabar YUBORISH — 402; o'qish va read-belgilash OCHIQ
 import { requireActiveSub } from '../lib/subscription.js';
 import { displayName, notifEnabled } from '../lib/links.js';
+// FCM push (fail-soft) — in-app notification'ga qo'shimcha, telefon tray'iga tushadi
+import { pushToUser } from '../services/push.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -52,6 +54,12 @@ async function notifyMessage(partner, senderId, preview) {
     // Bog'lanish qabul qilinmagan bo'lsa matn OSHKOR QILINMAYDI (link modeli)
     detail: partner.link_status === 'accepted' ? preview : 'Yangi xabar — ko\'rish uchun bog\'lanishni qabul qiling',
     link_id: partner.id,
+  });
+  // Telefonga push — xuddi shu maxfiylik qoidasi bilan. await EMAS.
+  pushToUser(recipient, {
+    title: `${displayName(me)} xabar yubordi`,
+    body: partner.link_status === 'accepted' ? preview : 'Yangi xabar — ko\'rish uchun bog\'lanishni qabul qiling',
+    data: { type: 'msg', link_id: partner.id },
   });
 }
 

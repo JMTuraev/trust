@@ -1,8 +1,12 @@
 name: Android release (AAB)
 
-# To'liq-ABI (armeabi-v7a + arm64 + x86_64) imzolangan App Bundle'ni Linux'da quradi.
-# Sabab: 32-bit ARM AOT snapshotter Windows dev-mashinada qulaydi (0xC0000005) —
-# Linux runner'da muammosiz. Natija: Play Store'ga yuklashga tayyor imzolangan .aab.
+# Imzolangan App Bundle'ni Linux'da (toza, takrorlanadigan) quradi.
+# Ilova ATAYLAB arm64-only (build.gradle: abiFilters 'arm64-v8a' + packagingOptions —
+# 32-bit "yarim" split crashining oldini oladi; 2019+ qurilmalar). Bu AAB to'g'ri
+# production artefakt. CI'ning foydasi: standart `flutter build appbundle --release`
+# Windows dev-mashinada 32-bit AOT bosqichida qulaydi (0xC0000005), Linux runner'da esa
+# muammosiz o'tadi (keyin gradle 32-bit .so'larni baribir chiqarib tashlaydi). Natijada
+# lokal mashinaga bog'liq bo'lmagan, imzolangan, Play'ga tayyor .aab.
 #
 # KERAKLI GitHub Secrets (Settings -> Secrets and variables -> Actions):
 #   ANDROID_KEYSTORE_BASE64   - trust-release.jks ning base64 matni

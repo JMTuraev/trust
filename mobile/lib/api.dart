@@ -69,7 +69,8 @@ class Api {
         case 'PATCH':
           res = await http.patch(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
         case 'DELETE':
-          res = await http.delete(uri, headers: headers).timeout(t);
+          // body ixtiyoriy (masalan push-token'ni uzish) — bo'lmasa '{}' ketadi, zararsiz
+          res = await http.delete(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
         default:
           res = await http.post(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
       }
@@ -249,6 +250,13 @@ class Api {
   static Future<ApiRes> aiMessages() => _req('GET', '/api/ai/messages', timeoutSec: 30);
   static Future<ApiRes> aiFlag(String messageId, String reason) => _req('POST', '/api/ai/flag',
       body: {'message_id': messageId, if (reason.isNotEmpty) 'reason': reason});
+
+  // ---- Push token (FCM) ----
+  // Qurilma tokenini akkauntga bog'lash (push.dart chaqiradi — login/startap/refresh'da)
+  static Future<ApiRes> savePushToken(String token) =>
+      _req('POST', '/api/profile/push-token', body: {'token': token, 'platform': 'android'});
+  static Future<ApiRes> deletePushToken(String token) =>
+      _req('DELETE', '/api/profile/push-token', body: {'token': token});
 
   // ---- Notifications ----
   static Future<ApiRes> notifications() => _req('GET', '/api/notifications');

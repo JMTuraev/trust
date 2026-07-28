@@ -162,6 +162,38 @@ router.put('/me', async (req, res, next) => {
   }
 });
 
+// ---- Push token (FCM) ----
+// POST /api/profile/push-token { token, platform } — qurilma tokenini akkauntga bog'lash.
+// token UNIQUE (014 migratsiya): qurilmada akkaunt almashsa upsert qatorni yangi
+// user_id ga qayta bog'laydi — eski akkauntga push ketmaydi.
+router.post('/push-token', async (req, res, next) => {
+  try {
+    const token = String(req.body?.token ?? '').trim();
+    const platform = ['android', 'ios'].includes(req.body?.platform) ? req.body.platform : 'android';
+    if (!token || token.length > 4096)
+      return res.status(400).json({ success: false, error: 'token kerak' });
+    const { error } = await supabaseAdmin.from('device_tokens').upsert(
+      { token, user_id: req.user.id, platform, updated_at: new Date().toISOString() },
+      { onConflict: 'token' }
+    );
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/profile/push-token { token } — logout: shu qurilmani ro'yxatdan chiqarish.
+// Token topilmasa ham success — idempotent (mobil fire-and-forget chaqiradi).
+router.delete('/push-token', async (req, res, next) => {
+  try {
+    const token = String(req.body?.token ?? '').trim();
+    if (token) {
+      await supabaseAdmin.from('device_tokens')
+        .delete().eq('token', token).eq('user_id', req.user.id);
+    }
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
 // DELETE /api/profile/me — akkauntni SOFT delete qilish (App Store/Play siyosati talabi).
 // Ma'lumotlar O'CHIRILMAYDI: link modelida qarshi tomonning daftari saqlanib qolishi kerak.
 // Faqat profiles.deleted_at belgilanadi; qayta kirish (OTP tasdig'i, src/services/otp.js

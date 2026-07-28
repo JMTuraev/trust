@@ -1,1 +1,74 @@
 START 
+warning: in the working copy of 'push_out.txt', CRLF will be replaced by LF the next time Git touches it
+[main 84da363] diag: surface Anthropic error.message in [ai] log (400 invalid_request_error root cause) + home hub (bottom nav behind flag, smooth bezier sparkline, empty/skeleton states)
+ 77 files changed, 6810 insertions(+), 66 deletions(-)
+ create mode 100644 docs/team-reports/2026-07-17-home-hub.md
+ create mode 100644 mobile/lib/screens/home_hub.dart
+ create mode 100644 mobile/lib/sparkline.dart
+ create mode 100644 mobile/prototype/bosh-ekran.dc.html
+ create mode 100644 mobile/prototype/support.js
+ create mode 100644 mobile/prototype/xarajatlar.dc.html
+ create mode 100644 mobile/qa-shots/01-launch.png
+ create mode 100644 mobile/qa-shots/02-after-boshlash.png
+ create mode 100644 mobile/qa-shots/03-after-otp.png
+ create mode 100644 mobile/qa-shots/04-typed.png
+ create mode 100644 mobile/qa-shots/05-typed2.png
+ create mode 100644 mobile/qa-shots/06-ai-reply.png
+ create mode 100644 mobile/qa-shots/07-xarajat.png
+ create mode 100644 mobile/qa-shots/08-xarajat.png
+ create mode 100644 mobile/qa-shots/09-xarajat.png
+ create mode 100644 mobile/qa-shots/10-v2-launch.png
+ create mode 100644 mobile/qa-shots/11-fresh-launch.png
+ create mode 100644 mobile/qa-shots/12-after-boshlash.png
+ create mode 100644 mobile/qa-shots/13-state.png
+ create mode 100644 mobile/qa-shots/14-ai-full.png
+ create mode 100644 mobile/qa-shots/15-q1-typed.png
+ create mode 100644 mobile/qa-shots/16-loader.png
+ create mode 100644 mobile/qa-shots/17-q1-answer.png
+ create mode 100644 mobile/qa-shots/18-q2-answer.png
+ create mode 100644 mobile/qa-shots/19-q2-text.png
+ create mode 100644 mobile/qa-shots/20-q3-invest.png
+ create mode 100644 mobile/qa-shots/21-q4-literacy.png
+ create mode 100644 mobile/qa-shots/22-q5-transport.png
+ create mode 100644 mobile/qa-shots/23-pre.png
+ create mode 100644 mobile/qa-shots/24-ai-open.png
+ create mode 100644 mobile/qa-shots/25-trust-back.png
+ create mode 100644 mobile/qa-shots/26-home.png
+ create mode 100644 mobile/qa-shots/27-q6-typed.png
+ create mode 100644 mobile/qa-shots/28-q6-answer.png
+ create mode 100644 mobile/qa-shots/29-q7-fact.png
+ create mode 100644 mobile/qa-shots/30-state.png
+ create mode 100644 mobile/qa-shots/31-state.png
+ create mode 100644 mobile/qa-shots/32-burst1.png
+ create mode 100644 mobile/qa-shots/32-burst2.png
+ create mode 100644 mobile/qa-shots/32-burst3.png
+ create mode 100644 mobile/qa-shots/32-burst4.png
+ create mode 100644 mobile/qa-shots/32-burst5.png
+ create mode 100644 mobile/qa-shots/32-burst6.png
+ create mode 100644 mobile/qa-shots/32-burst7.png
+ create mode 100644 mobile/qa-shots/33-final-answer.png
+ create mode 100644 mobile/qa-shots/34-namestrip-test.png
+ create mode 100644 qa-shots/02_after_boshlash.png
+ create mode 100644 qa-shots/03_otp_wait.png
+ create mode 100644 qa-shots/04_xarajat_open.png
+ create mode 100644 qa-shots/05_back_to_hub.png
+ create mode 100644 qa-shots/06_oldiberdi_open.png
+ create mode 100644 qa-shots/07_hw_back.png
+ create mode 100644 qa-shots/08_ai_open.png
+ create mode 100644 qa-shots/09_after_call.png
+ create mode 100644 qa-shots/10_ai_answer.png
+ create mode 100644 qa-shots/11_profil.png
+ create mode 100644 qa-shots/12_hub_dark.png
+ create mode 100644 qa-shots/13_xarajat_keyboard.png
+ create mode 100644 qa-shots/14_final_light.png
+ create mode 100644 qa-shots/15_hub_v2.png
+ create mode 100644 qa-shots/16_hamkorlar_header.png
+ create mode 100644 qa-shots/17_hub_after.png
+ create mode 100644 qa-shots/18_ai_opens_at_end.png
+ create mode 100644 qa-shots/19_input_multiline.png
+ create mode 100644 qa-shots/20_debt_q_result.png
+ create mode 100644 qa-shots/21_provider_test.png
+ create mode 100644 qa-shots/22_hub_v3.png
+To https://github.com/JMTuraev/trust.git
+   3689d39..84da363  main -> main
+DONE 

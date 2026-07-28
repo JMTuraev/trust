@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "352525593277",
+    "project_id": "trustbook-b011b",
+    "storage_bucket": "trustbook-b011b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:352525593277:android:3b9a9f8c26a9530c55a5d4",
+        "android_client_info": {
+          "package_name": "uz.trust.trust_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhcew_Nb6367mHZzVjnOez-JhkS5qJDfo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

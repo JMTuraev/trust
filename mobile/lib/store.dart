@@ -11,6 +11,7 @@ import 'package:collection/collection.dart';
 import 'theme.dart';
 import 'api.dart';
 import 'secure.dart';
+import 'push.dart';
 import 'l10n.dart';
 import 'ledger/debt_ledger.dart';
 import 'circles_data.dart';
@@ -1952,6 +1953,7 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     await _loginSuccess(r.data as Map<String, dynamic>);
+    PushService.sync(); // FCM tokenni yangi akkauntga bog'laymiz (fire-and-forget)
     _busy = false;
     _setBusy(null);
     set({'stage': 'pin', 'pinVal': '', 'pinMode': 'set'}); // yangi kirish — PIN o'rnatiladi
@@ -1959,6 +1961,9 @@ class TrustStore extends ChangeNotifier {
 
   void logout_() {
     _poll?.cancel();
+    // MUHIM: Api.saveToken(null) dan OLDIN — push token serverdan uziladi
+    // (shu qurilmada boshqa akkaunt kirsa, bu akkauntning push'i kelmasin)
+    PushService.unregister();
     Api.saveToken(null);
     SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
     set({

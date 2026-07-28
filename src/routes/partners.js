@@ -11,6 +11,8 @@ import { canonicalDir } from '../lib/ledger.js';
 // psevdonim xaritasi (ai_profile.tokens) eskiradi — yangi ismni AI xom yubormasligi
 // uchun keshni bekor qilamiz (2026-07-18 xavfsizlik review'i).
 import { invalidateProfile } from '../services/ai-context.js';
+// FCM push (fail-soft, hech qachon throw qilmaydi) — in-app notification'ga qo'shimcha
+import { pushToUser } from '../services/push.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -181,6 +183,12 @@ async function notifyLinkNew(sellerId, cpId, partnerId) {
     title: 'Sizni kontragent qilib qo\'shishdi',
     detail: `${displayName(seller)} sizni kontragent qilib qo'shgan — qabul qilasizmi?`,
     link_id: partnerId,
+  });
+  // Telefonga push — await EMAS (javobni kechiktirmasin)
+  pushToUser(cpId, {
+    title: 'Sizni kontragent qilib qo\'shishdi',
+    body: `${displayName(seller)} sizni kontragent qilib qo'shgan — qabul qilasizmi?`,
+    data: { type: 'link_new', link_id: partnerId },
   });
 }
 
@@ -358,6 +366,12 @@ router.post('/:id/remind', requireActiveSub, async (req, res, next) => {
       link_id: p.id,
     });
     if (error) throw new Error(error.message);
+    // Telefonga push — mahsulotning yadro va'dasi (eslatish). await EMAS.
+    pushToUser(p.counterparty_id, {
+      title: 'Eslatma',
+      body: `${Math.abs(main.val).toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
+      data: { type: 'rem', link_id: p.id },
+    });
     res.json({ success: true });
   } catch (e) { next(e); }
 });

@@ -74,6 +74,14 @@ export const config = {
       outPerMTok: parseFloat(process.env.AI_PRICE_OUT || '25'),
     },
   },
+  fcm: {
+    // Push bildirishnomalar (FCM v1, Firebase loyihasi: trustbook-b011b).
+    // Variant A (TAVSIYA, Render): Secret File sifatida service-account JSON yuklanadi
+    //   va GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/firebase.json env qo'yiladi.
+    // Variant B: FCM_SERVICE_ACCOUNT_JSON = JSON'ning TO'LIQ matni (bitta env).
+    // Ikkalasi ham yo'q = push o'chiq, server ishlayveradi (services/push.js fail-soft).
+    serviceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON,
+  },
   links: {
     // Mijoz rad etganda sotuvchiga signal shu kechikish bilan boradi (tiklansa — umuman bormaydi)
     rejectSignalDelayMs: Math.round(parseFloat(process.env.REJECT_SIGNAL_DELAY_HOURS || '24') * 3600_000),

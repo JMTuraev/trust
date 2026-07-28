@@ -5,6 +5,7 @@ import 'store.dart';
 import 'theme.dart';
 import 'ui.dart';
 import 'flags.dart';
+import 'push.dart';
 
 import 'screens/onboarding.dart';
 import 'screens/ai_chat.dart';
@@ -38,6 +39,11 @@ import 'screens/lang_sheet.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await store.init();
+  // FCM push: Firebase'ni ko'taramiz (google-services.json bo'lmasa jim o'tadi).
+  // Ilova ochiq payt kelgan push tizim tray'da chiqmaydi — toast qilib ko'rsatamiz.
+  await PushService.init();
+  PushService.onForeground = (title, body) => store.toast_(body.isEmpty ? title : body);
+  PushService.sync(); // login bo'lgan bo'lsa tokenni serverga bog'laydi (await EMAS — UI kutmasin)
   runApp(const TrustApp());
 }
 
