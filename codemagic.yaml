@@ -1,0 +1,72 @@
+# Trustbook — iOS build & App Store deploy (Codemagic, Mac talab qilinmaydi).
+#
+# TAYYORGARLIK (bir marta, Codemagic + Apple tomonda — pastdagi <TO'LDIRING> joylar):
+#   1) Apple Developer Program a'zoligi ($99/yil) faol bo'lsin.
+#   2) Apple Developer Portal → Identifiers → App ID: uz.trust.trustMobile ro'yxatdan o'tkazilsin.
+#      Capabilities: "Push Notifications" VA "In-App Purchase" YOQILGAN bo'lsin.
+#   3) App Store Connect → App yaratilsin (bundle: uz.trust.trustMobile). Uning raqamli
+#      "Apple ID" sini pastdagi APP_STORE_APPLE_ID ga yozing.
+#   4) Codemagic → Team settings → Integrations → App Store Connect: API key ulang
+#      (Issuer ID + Key ID + .p8). Integratsiya NOMINI pastdagi `app_store_connect:` ga yozing.
+#   5) GoogleService-Info.plist — Firebase iOS ilovasidan olib mobile/ios/Runner/ ga qo'ying
+#      va repoga commit qiling (u proyektga allaqachon ulangan: Resources build phase).
+#      (Bu fayl "sir" emas — mijoz konfiguratsiyasi; commit qilish xavfsiz.)
+#
+# Ishga tushirish: Codemagic'da shu workflow'ni tanlab "Start new build".
+
+workflows:
+  ios-appstore:
+    name: Trustbook iOS — App Store
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    working_directory: mobile        # Flutter proyekti repo ichida mobile/ da
+    integrations:
+      # <TO'LDIRING>: Codemagic'dagi App Store Connect integratsiyasi NOMI (4-qadam)
+      app_store_connect: Trustbook ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store          # avtomatik imzo: App Store taqsimoti
+        bundle_identifier: uz.trust.trustMobile
+      vars:
+        # <TO'LDIRING>: App Store Connect'dagi app'ning raqamli Apple ID si (3-qadam)
+        APP_STORE_APPLE_ID: 0000000000
+        BUNDLE_ID: "uz.trust.trustMobile"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Xcode proyektiga imzo profillari (automatic signing)
+        script: |
+          xcode-project use-profiles
+      - name: Flutter paketlari
+        script: |
+          flutter pub get
+      - name: CocoaPods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Flutter analyze (build oldidan tez tekshiruv)
+        script: |
+          flutter analyze || true   # ogohlantirishlar build'ni to'xtatmasin
+      - name: IPA yig'ish (avtomatik build raqami)
+        script: |
+          # TestFlight'dagi oxirgi build raqamidan +1 (versiyalar to'qnashmasin)
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          NEXT=$((LATEST + 1))
+          flutter build ipa --release \
+            --build-number=$NEXT \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      email:
+        recipients:
+          - jafaralituraev@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true      # TestFlight'ga yuborilsin (ichki test)
+        # submit_to_app_store: false     # App Store review'ga tayyor bo'lsangiz true qiling

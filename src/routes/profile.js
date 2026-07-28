@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { computeSubscription, getSubscription } from '../lib/subscription.js';
+import { computeSubscription, getSubscription, PREMIUM_PRODUCT_ID } from '../lib/subscription.js';
+import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -55,76 +56,135 @@ router.get('/me/subscription', async (req, res, next) => {
 });
 
 // POST /api/profile/me/subscription/verify — obuna xaridini server tomonda tasdiqlash.
-// HOZIRCHA STUB: Google Play Billing ulanmagan (008 migratsiya izohi: "to'lov keyinroq").
-// To'liq ulash uchun kerak bo'ladi (docs/team-reports/2026-07-16-profile.md da batafsil):
-//   1) Play Console'da obuna mahsuloti (masalan trust_premium_monthly, $9/oy);
-//   2) Google Cloud service account (androidpublisher scope) + kaliti Render env'da;
-//   3) purchases.subscriptionsv2.get(packageName, purchaseToken) -> expiryTime ->
-//      profiles.premium_until = expiryTime; RTDN (Pub/Sub webhook) bilan uzaytirish/bekor.
-// DEV rejim (faqat PLAY_BILLING_DEV_MODE=true env bilan): 'DEV.' prefiksli token
-// premium'ni 30 kunga uzaytiradi — QA/E2E uchun. Productionda flag yo'q = har doim 501.
+// Ikki platforma (mobil `platform` yuboradi):
+//   • app_store   — TIRIK: Apple verifyReceipt (lib/appleIap.js). `receipt_data` (base64)
+//                   tekshiriladi -> profiles.premium_until = Apple bergan tugash vaqti.
+//                   APPLE_SHARED_SECRET (Render env) kerak; o'rnatilmasa 501.
+//   • google_play — STUB: Play Billing hali ulanmagan. DEV rejim (PLAY_BILLING_DEV_MODE=true)
+//                   'DEV.' prefiksli token premium'ni 30 kunga uzaytiradi (QA/E2E). Aks holda 501.
+// To'liq Google ulash (kelajak): androidpublisher subscriptionsv2.get -> expiryTime + RTDN webhook.
 const DEV_MODE = process.env.PLAY_BILLING_DEV_MODE === 'true';
 const PREMIUM_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Idempotent audit yozuvi + profiles.premium_until ni newUntilIso ga o'rnatish.
+// Mavjud (kelajakdagi) premium_until ni QISQARTIRMAYDI — max(joriy, yangi) olinadi
+// (boshqa platformadagi uzoqroq obuna tasodifan kesilmasin).
+async function grantPremium(userId, curSub, provider, productId, token, newUntilMs) {
+  const now = Date.now();
+  const curUntil = curSub.premium_until ? new Date(curSub.premium_until).getTime() : 0;
+  const finalMs = Math.max(curUntil, newUntilMs);
+  const newUntilIso = new Date(finalMs).toISOString();
+
+  // Audit — purchase_token bo'yicha UNIQUE; takror bo'lsa jimgina o'tkazamiz (idempotent).
+  if (token) {
+    await supabaseAdmin
+      .from('subscription_events')
+      .upsert(
+        {
+          user_id: userId,
+          provider,
+          product_id: productId,
+          purchase_token: token,
+          premium_until_after: newUntilIso,
+        },
+        { onConflict: 'purchase_token', ignoreDuplicates: true }
+      );
+  }
+
+  // premium_until faqat oldinga siljisa yozamiz (bekorga updated_at o'zgarmasin)
+  if (finalMs > curUntil) {
+    const { data: upd, error: updErr } = await supabaseAdmin
+      .from('profiles')
+      .update({ premium_until: newUntilIso, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select('id, created_at, premium_until, deleted_at')
+      .single();
+    if (updErr) throw new Error(updErr.message);
+    return computeSubscription(upd);
+  }
+  return curSub;
+}
 
 router.post(
   '/me/subscription/verify',
   rateLimit({ windowMs: 60_000, max: 10 }),
   async (req, res, next) => {
     try {
-      const { platform, product_id, purchase_token } = req.body || {};
-      if (platform !== 'google_play') {
-        return res.status(400).json({ success: false, error: "platform 'google_play' bo'lishi kerak" });
-      }
-      const pid = String(product_id ?? '').trim();
-      const tok = String(purchase_token ?? '').trim();
-      if (!pid || pid.length > 100 || !tok || tok.length > 1000) {
-        return res.status(400).json({ success: false, error: 'product_id va purchase_token kerak' });
+      const { platform, product_id } = req.body || {};
+      const pid = String(product_id ?? '').trim() || PREMIUM_PRODUCT_ID;
+      if (pid.length > 100) {
+        return res.status(400).json({ success: false, error: 'product_id juda uzun' });
       }
 
-      if (!DEV_MODE || !tok.startsWith('DEV.')) {
-        return res.status(501).json({
-          success: false,
-          error: "To'lov hali ulanmagan — obuna tez orada Google Play orqali ishlaydi",
-        });
+      // ===================== Apple App Store (TIRIK) =====================
+      if (platform === 'app_store') {
+        if (!appleConfigured()) {
+          return res.status(501).json({
+            success: false,
+            error: "Apple to'lovi hali sozlanmagan — tez orada ishlaydi",
+          });
+        }
+        // Mobil `receipt_data` yuboradi; `purchase_token` — orqaga moslik uchun alias.
+        const receipt = String(req.body?.receipt_data ?? req.body?.purchase_token ?? '').trim();
+        if (!receipt || receipt.length > 200_000) {
+          return res.status(400).json({ success: false, error: 'receipt_data kerak' });
+        }
+        let ver;
+        try {
+          ver = await verifyAppleReceipt(receipt, pid);
+        } catch (e) {
+          console.error('Apple verifyReceipt xato:', e?.message || e);
+          return res.status(502).json({ success: false, error: "Apple bilan aloqa xatosi — qayta urinib ko'ring" });
+        }
+        if (!ver.ok) {
+          return res.status(400).json({ success: false, error: `Chek yaroqsiz (Apple status ${ver.status})` });
+        }
+        if (!ver.expiryMs) {
+          return res.status(400).json({ success: false, error: 'Bu chekda faol obuna topilmadi' });
+        }
+        const r = await getSubscription(req.user.id);
+        if (!r) return res.status(403).json({ success: false, error: 'Profil topilmadi' });
+        const sub = await grantPremium(
+          req.user.id,
+          r.sub,
+          'app_store',
+          pid,
+          ver.txnId ? `apple:${ver.txnId}` : null,
+          ver.expiryMs
+        );
+        return res.json({ success: true, data: sub });
       }
 
-      // ---- DEV grant (idempotent: bitta token faqat bir marta premium beradi) ----
-      const r = await getSubscription(req.user.id);
-      if (!r) return res.status(403).json({ success: false, error: 'Profil topilmadi' });
-      const { data: existing, error: exErr } = await supabaseAdmin
-        .from('subscription_events')
-        .select('id')
-        .eq('purchase_token', tok)
-        .maybeSingle();
-      if (exErr) throw new Error(`subscription_events o'qishda xato (012 migratsiya yurgizilganmi?): ${exErr.message}`);
-      if (existing) return res.json({ success: true, data: r.sub }); // takroriy so'rov — joriy holat
+      // ===================== Google Play (STUB / DEV) =====================
+      if (platform === 'google_play') {
+        const tok = String(req.body?.purchase_token ?? '').trim();
+        if (!tok || tok.length > 1000) {
+          return res.status(400).json({ success: false, error: 'purchase_token kerak' });
+        }
+        if (!DEV_MODE || !tok.startsWith('DEV.')) {
+          return res.status(501).json({
+            success: false,
+            error: "To'lov hali ulanmagan — obuna tez orada Google Play orqali ishlaydi",
+          });
+        }
+        const r = await getSubscription(req.user.id);
+        if (!r) return res.status(403).json({ success: false, error: 'Profil topilmadi' });
+        const sub = await grantPremium(
+          req.user.id,
+          r.sub,
+          'google_play_dev',
+          pid,
+          tok,
+          Date.now() + PREMIUM_DAYS * DAY_MS
+        );
+        return res.json({ success: true, data: sub });
+      }
 
-      // Uzaytirish bazasi: amaldagi premium_until (kelajakda bo'lsa) yoki hozir
-      const now = Date.now();
-      const curUntil = r.sub.premium_until ? new Date(r.sub.premium_until).getTime() : 0;
-      const base = curUntil > now ? curUntil : now;
-      const newUntil = new Date(base + PREMIUM_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-      const { error: insErr } = await supabaseAdmin.from('subscription_events').insert({
-        user_id: req.user.id,
-        provider: 'google_play_dev',
-        product_id: pid,
-        purchase_token: tok,
-        premium_until_after: newUntil,
+      return res.status(400).json({
+        success: false,
+        error: "platform 'app_store' yoki 'google_play' bo'lishi kerak",
       });
-      if (insErr) {
-        // 23505 = unique buzilishi (parallel takroriy so'rov) — joriy holatni qaytaramiz
-        if (insErr.code === '23505') return res.json({ success: true, data: r.sub });
-        throw new Error(insErr.message);
-      }
-      const { data: upd, error: updErr } = await supabaseAdmin
-        .from('profiles')
-        .update({ premium_until: newUntil, updated_at: new Date().toISOString() })
-        .eq('id', req.user.id)
-        .select('id, created_at, premium_until, deleted_at')
-        .single();
-      if (updErr) throw new Error(updErr.message);
-      res.json({ success: true, data: computeSubscription(upd) });
     } catch (e) {
       next(e);
     }

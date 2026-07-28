@@ -267,7 +267,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               Expanded(child: _debtCard(v, p, dark)),
               if (kAiEnabled) ...[
                 const SizedBox(width: 10),
-                Expanded(child: _aiCard(v, p)),
+                Expanded(child: _aiCard(v, p, dark)),
               ],
             ],
           ),
@@ -286,11 +286,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
       onTap: () => v['hubOpenXar'](),
       child: Container(
         clipBehavior: Clip.antiAlias, // prototip: overflow:hidden (watermark)
-        decoration: BoxDecoration(
-          color: p.hov2,
-          border: Border.all(color: p.hair),
-          borderRadius: BorderRadius.circular(18),
-        ),
+        decoration: _cardDeco(p, p.hov2, p.red, dark), // #20: Xarajat — qizil urg'u
         child: Stack(
           children: [
             // Watermark: light 0.06, dark 0.07 (qora fonda bir xil sezilishi uchun)
@@ -399,11 +395,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
       onTap: () => v['hubOpenDebt'](),
       child: Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: p.hov2,
-          border: Border.all(color: p.hair),
-          borderRadius: BorderRadius.circular(18),
-        ),
+        decoration: _cardDeco(p, p.hov2, p.green, dark), // #20: Qarz — yashil urg'u
         child: Stack(
           children: [
             Positioned(
@@ -492,13 +484,13 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   }
 
   // TRUST AI kartasi
-  Widget _aiCard(Map<String, dynamic> v, Pal p) {
+  Widget _aiCard(Map<String, dynamic> v, Pal p, bool dark) {
     return Tap(
       // goAi — vals()dagi mavjud o'tish (aiFrom='hub' saqlanadi, orqaga hub'ga qaytadi)
       onTap: () => v['goAi'](),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-        decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(18)),
+        decoration: _cardDeco(p, p.field, _aiAccent(dark), dark), // #20: AI — binafsha urg'u
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -761,6 +753,43 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
 
   // --pgrT / --prdT: light rgba(...,0.09), dark rgba(...,0.14)
   Color _tint(Color c, bool dark) => c.withValues(alpha: dark ? .14 : .09);
+
+  // #20: Trust AI kartasi urg'u rangi — palitrada binafsha yo'q, shu sabab lokal
+  // (muted indigo, brend qizil/yashilining to'yinganligiga mos).
+  Color _aiAccent(bool dark) => dark ? const Color(0xFF9385D6) : const Color(0xFF6E5FB0);
+
+  // #20: Bosh ekran kartasi bezaklari — CHUQURLIK (yumshoq soya) + RANG GRADIENT.
+  // base = karta foni (hov2/field), accent = bo'lim rangi (qizil/yashil/binafsha).
+  // Gradient juda nozik (matn o'qilishi buzilmasin); soya accent tusida "ko'tarilish" beradi.
+  BoxDecoration _cardDeco(Pal p, Color base, Color accent, bool dark) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          base,
+          Color.alphaBlend(accent.withValues(alpha: dark ? .11 : .075), base),
+        ],
+      ),
+      border: Border.all(color: p.hair),
+      boxShadow: [
+        // Accent tusidagi yumshoq "halo" — kartani fondan ko'taradi
+        BoxShadow(
+          color: accent.withValues(alpha: dark ? .16 : .13),
+          blurRadius: 18,
+          spreadRadius: -3,
+          offset: const Offset(0, 7),
+        ),
+        // Neytral yerga bosuvchi soya (chuqurlikni aniqlaydi)
+        BoxShadow(
+          color: dark ? const Color(0x33000000) : const Color(0x0F000000),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    );
+  }
 }
 
 /// Hub'dan ochilgan bo'lim uchun yengil qobiq: header'da faqat orqaga (<).

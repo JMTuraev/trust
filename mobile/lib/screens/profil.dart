@@ -4,9 +4,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../store.dart';
 import '../ui.dart';
+import '../iap.dart';
+import '../api.dart' show apiUrl;
 import 'tab_bar.dart' show SubInfo, subTr, subWarnInk;
+
+/// Tashqi havolani ochish (Apple 3.1.2 — Shartlar / Maxfiylik). Ochib bo'lmasa jim o'tadi.
+Future<void> _openUrl(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  } catch (_) {/* havola ochilmadi — jim o'tamiz */}
+}
 
 class ProfilScreen extends StatelessWidget {
   const ProfilScreen({super.key});
@@ -205,20 +218,22 @@ class ProfilScreen extends StatelessWidget {
   }
 }
 
-/// Obuna holati kartasi — profildagi "obuna bo'limi".
-/// Uch holat aniq ko'rsatiladi: sinov (N kun qoldi) / Premium (sanagacha) /
-/// tugagan (read-only ogohlantirish). Narx har doim ko'rinadi: $9/oy.
-/// CTA hozircha halol dev-stub (Play Billing keyingi bosqichda —
-/// keyin bu yerda in_app_purchase + POST /me/subscription/verify chaqiriladi).
+/// Obuna holati kartasi — profildagi "obuna bo'limi" + Apple IAP paywall.
+///
+/// iOS: StoreKit orqali $9/oy premium sotib olish (store.buyPremium) + Apple
+///   Guideline 3.1.2 MAJBURIY ma'lumotlari: avtomatik yangilanish, narx/davr,
+///   bekor qilish yo'li, "Xaridni tiklash", Foydalanish shartlari + Maxfiylik havolalari.
+///   Bularsiz App Store rad etadi.
+/// Android: hozircha halol xabar (Play Billing keyin) — kvota modeli serverda (402).
 class _SubCard extends StatelessWidget {
   const _SubCard();
 
   String _d2(int x) => x.toString().padLeft(2, '0');
 
   void _renewTap() {
-    // To'lov hali ulanmagan — halol xabar (subInfo: "7 kun bepul, keyin $9/oy ...")
+    // Android / IAP mavjud emas — halol xabar (yangi tarif: 3 ta yozuv bepul).
     store.toast_(store.L()['subInfo'] as String? ??
-        "7 kun bepul, keyin \$9/oy — to'lov tez orada ulanadi");
+        "3 ta yozuv bepul, keyin \$9/oy — to'lov tez orada ulanadi");
   }
 
   @override
@@ -226,31 +241,49 @@ class _SubCard extends StatelessWidget {
     final p = curPal();
     final sub = SubInfo.read();
     final L0 = store.L();
-    final price = subTr('subPriceMonthly', '\$9/oy');
     final w = subWarnInk(store.S['dark'] == true);
+    final bool ios = Platform.isIOS;
+    final bool busy = store.S['iapBusy'] == true;
+    final bool isPremium = sub.status == 'premium';
+
+    // Narx — StoreKit lokalizatsiyalangan narxi bo'lsa o'shani (masalan "$8.99"),
+    // aks holda $9/oy. Apple do'kon narxini ko'rsatishni talab qiladi.
+    final String storePrice = IapService.priceLabel;
+    final String priceMonthly =
+        storePrice.isNotEmpty ? storePrice : subTr('subPriceMonthly', '\$9/oy');
+    final String priceTop = storePrice.isNotEmpty ? '$storePrice/oy' : priceMonthly;
 
     // Holat sarlavhasi
     String title;
     Color titleColor = p.ink;
-    if (sub.expired) {
-      title = subTr('subExpiredTitle', "To'lov muddati tugagan");
-      titleColor = p.red;
-    } else if (sub.status == 'premium') {
+    if (isPremium) {
       final u = sub.until;
       title = u == null
           ? (L0['subPremium'] as String? ?? 'Premium')
           : subTr('subPremiumUntil', 'Premium · {d} gacha',
               {'d': '${_d2(u.day)}.${_d2(u.month)}.${u.year}'});
+    } else if (sub.expired) {
+      title = subTr('subExpiredTitle', "To'lov muddati tugagan");
+      titleColor = p.red;
     } else {
-      // trial; muddat hali kelmagan bo'lsa (birinchi soniyalar) — umumiy sarlavha
-      title = sub.until == null
-          ? subTr('subTrialTitle', 'Sinov davri')
-          : store.Lf('subTrialLeft', {'n': '${sub.daysLeft}'});
+      title = subTr('subFreeTitle', 'Bepul reja');
     }
 
-    final String body = sub.expired
-        ? subTr('subExpiredBody', 'Yangi yozuv kirita olmaysiz — obunani yangilang')
-        : (L0['subInfo'] as String? ?? "7 kun bepul, keyin \$9/oy — to'lov tez orada ulanadi");
+    // Karta matni
+    final String body = isPremium
+        ? subTr('subPremiumBody', 'Cheksiz qarz va xarajat yozuvlari yoqilgan. Rahmat!')
+        : sub.expired
+            ? subTr('subExpiredBody', 'Yangi yozuv kirita olmaysiz — obunani yangilang')
+            : ios
+                ? subTr('subPitch', 'Cheksiz qarz va xarajat yozuvlari — {price}.',
+                    {'price': priceMonthly})
+                : (L0['subInfo'] as String? ??
+                    "3 ta yozuv bepul, keyin \$9/oy — to'lov tez orada ulanadi");
+
+    // CTA yo'nalishi: iOS'da StoreKit xaridi; boshqa joyda halol xabar.
+    final VoidCallback cta = ios ? () => store.buyPremium() : _renewTap;
+    final String ctaLabel =
+        isPremium ? subTr('subManage', 'Obunani boshqarish') : subTr('subRenew', 'Obunani yangilash');
 
     return Container(
       margin: const EdgeInsets.fromLTRB(24, 18, 24, 6),
@@ -266,8 +299,8 @@ class _SubCard extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Cap((L0['profSub'] as String? ?? 'Obuna').toUpperCase())),
-              // Narx — har doim ko'rinadi
-              Tx(price, size: 12.5, w: FontWeight.w700, color: p.ink, tab: true),
+              // Narx — har doim ko'rinadi (do'kon narxi bo'lsa o'shani)
+              Tx(priceTop, size: 12.5, w: FontWeight.w700, color: p.ink, tab: true),
             ],
           ),
           const SizedBox(height: 10),
@@ -292,10 +325,65 @@ class _SubCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          // CTA: tugaganda asosiy (qora), aks holda kontur — bosim darajasi holatga mos
+          // CTA — busy bo'lsa spinnerli (bosish bloklangan). Tugaganda asosiy (qora),
+          // aks holda kontur. loading param InkBtn/GhostBtn'da o'zi spinner ko'rsatadi.
           sub.expired
-              ? InkBtn(label: subTr('subRenew', 'Obunani yangilash'), h: 44, fs: 14, onTap: _renewTap)
-              : GhostBtn(label: subTr('subRenew', 'Obunani yangilash'), h: 42, fs: 13.5, onTap: _renewTap),
+              ? InkBtn(label: ctaLabel, h: 44, fs: 14, onTap: cta, loading: busy)
+              : GhostBtn(label: ctaLabel, h: 42, fs: 13.5, onTap: cta, loading: busy),
+
+          // ---- iOS: Apple 3.1.2 majburiy ma'lumotlari + Restore + havolalar ----
+          if (ios) ...[
+            const SizedBox(height: 10),
+            // "Xaridni tiklash" — Apple talabi (qurilma almashsa obuna qaytadi)
+            Center(
+              child: Tap(
+                onTap: busy ? () {} : () => store.restorePremium(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  child: Tx(subTr('subRestore', 'Xaridni tiklash'),
+                      size: 12.5, w: FontWeight.w600, color: p.t2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Avtomatik yangilanish sharti + bekor qilish yo'li (majburiy oshkorlik)
+            Tx(
+              subTr(
+                'subAutoRenewNote',
+                'Obuna avtomatik yangilanadi. Joriy davr tugashidan 24 soat oldin '
+                    'hisobingizdan {price} yechiladi. Istalgan vaqtda bekor qilish: '
+                    'App Store → Apple ID → Obunalar.',
+                {'price': priceMonthly},
+              ),
+              size: 11, color: p.t4, lh: 15,
+            ),
+            const SizedBox(height: 7),
+            // Foydalanish shartlari (Apple standart EULA) + Maxfiylik siyosati — tappable
+            Row(
+              children: [
+                Tap(
+                  onTap: () => _openUrl(
+                      'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                  child: Text(
+                    subTr('subTerms', 'Foydalanish shartlari'),
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
+                        decoration: TextDecoration.underline),
+                  ),
+                ),
+                Tx('   ·   ', size: 11, color: p.t6),
+                Tap(
+                  onTap: () => _openUrl('$apiUrl/privacy'),
+                  child: Text(
+                    subTr('subPrivacy', 'Maxfiylik siyosati'),
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
+                        decoration: TextDecoration.underline),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

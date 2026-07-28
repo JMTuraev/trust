@@ -1,9 +1,10 @@
 name: trust_mobile
 description: "Trust — ishonchli hisob-kitob. UI prototip bilan 1:1 (prototype/template.html)."
 publish_to: "none"
-# 3.5.0+3 (2026-07-28): FCM push, Trustbook rebrand + bloknot ikonka, yordam chati,
-# 8 xonali user ID, yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.5.0+3
+# 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
+# 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
+#          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
+version: 3.6.0+4
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
@@ -21,6 +22,10 @@ dependencies:
   # Firebase push bildirishnomalar (FCM)
   firebase_core: ^3.13.0
   firebase_messaging: ^15.2.5
+  # Apple App Store ichki xarid (StoreKit) — $9/oy premium obuna (iOS). iap.dart.
+  in_app_purchase: ^3.2.0
+  # Paywall'da Foydalanish shartlari / Maxfiylik havolalari (Apple 3.1.2)
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

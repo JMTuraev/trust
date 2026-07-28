@@ -946,8 +946,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               ],
             ),
           ),
+          // #15: Daromad papkasi ichida — kirim qo'shish paneli (summa + ixtiyoriy @manba)
+          if (v['xfDIsIncome'] == true)
+            _IncomeAddBar(
+              busy: v['xfIncBusy'] == true,
+              onAdd: (a, s) =>
+                  (v['xfAddIncome'] as Future<bool> Function(String, String))(a, s),
+            ),
           Expanded(
-            child: v['xfDEmpty'] == true
+            child: v['xfDEmpty'] == true && v['xfDIsIncome'] != true
                 ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
@@ -2631,4 +2638,128 @@ class _CatIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CatIconPainter old) => old.glyph != glyph || old.color != color;
+}
+
+/// #15: Daromad papkasi ichida "kirim qo'shish" paneli — o'z kontrollerlari bilan
+/// (controlled-field sinxron muammosini chetlab o'tadi). Summa + ixtiyoriy @manba.
+/// onAdd true qaytarsa (server saqladi) — maydonlar tozalanadi.
+class _IncomeAddBar extends StatefulWidget {
+  final Future<bool> Function(String amount, String source) onAdd;
+  final bool busy;
+  const _IncomeAddBar({required this.onAdd, required this.busy});
+
+  @override
+  State<_IncomeAddBar> createState() => _IncomeAddBarState();
+}
+
+class _IncomeAddBarState extends State<_IncomeAddBar> {
+  final _amt = TextEditingController();
+  final _src = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _amt.dispose();
+    _src.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_sending || widget.busy) return;
+    setState(() => _sending = true);
+    final ok = await widget.onAdd(_amt.text, _src.text);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) {
+      _amt.clear();
+      _src.clear();
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final busy = _sending || widget.busy;
+    InputDecoration deco(String hint) => InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: p.t5, fontSize: 13),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: p.bd),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: p.bd),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: p.green),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: TextField(
+                  controller: _amt,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                  decoration: deco(store.L()['xfIncAmtHint'] as String? ?? 'Summa'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: TextField(
+                  controller: _src,
+                  style: TextStyle(color: p.ink, fontSize: 14),
+                  decoration: deco(store.L()['xfIncSrcHint'] as String? ?? '@manba'),
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tap(
+                onTap: busy ? null : _submit,
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: busy ? p.green.withValues(alpha: .5) : p.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.add, color: Colors.white, size: 22),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Tx(
+            store.L()['xfIncHint'] as String? ??
+                "Kirim qo'shish — @manba yozsangiz alohida guruhga tushadi",
+            size: 11,
+            color: p.t4,
+            lh: 15,
+          ),
+        ],
+      ),
+    );
+  }
 }

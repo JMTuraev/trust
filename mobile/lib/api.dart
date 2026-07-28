@@ -2,6 +2,7 @@
 // Backend xato xabarlari o'zbekcha — UI ularni to'g'ridan-to'g'ri toast qiladi.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'secure.dart';
@@ -257,10 +258,22 @@ class Api {
   static Future<ApiRes> sendSupport(String body) =>
       _req('POST', '/api/support/messages', body: {'body': body});
 
+  // ---- Obuna: Apple IAP cheki (StoreKit app receipt) ----
+  // iap.dart chaqiradi: StoreKit base64 chekini serverga yuboradi; server Apple'da
+  // tekshirib profiles.premium_until ni o'rnatadi. Timeout uzun — Render cold-start +
+  // Apple'ga (ba'zan sandbox'ga qayta) so'rov.
+  static Future<ApiRes> verifyApple(String receipt) =>
+      _req('POST', '/api/profile/me/subscription/verify', body: {
+        'platform': 'app_store',
+        'product_id': 'trust_premium_monthly',
+        'receipt_data': receipt,
+      }, timeoutSec: 45);
+
   // ---- Push token (FCM) ----
   // Qurilma tokenini akkauntga bog'lash (push.dart chaqiradi — login/startap/refresh'da)
   static Future<ApiRes> savePushToken(String token) =>
-      _req('POST', '/api/profile/push-token', body: {'token': token, 'platform': 'android'});
+      _req('POST', '/api/profile/push-token',
+          body: {'token': token, 'platform': Platform.isIOS ? 'ios' : 'android'});
   static Future<ApiRes> deletePushToken(String token) =>
       _req('DELETE', '/api/profile/push-token', body: {'token': token});
 
