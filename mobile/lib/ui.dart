@@ -1,6 +1,6 @@
 // Trust — umumiy UI primitivlari (prototip elementlari bilan 1:1)
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter;
+import 'package:flutter/services.dart' show TextInputFormatter, HapticFeedback;
 import 'package:google_fonts/google_fonts.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -257,13 +257,14 @@ class SearchGlyph extends StatelessWidget {
 }
 
 /// Raqamli klaviatura (3x4). keys: [{label, tap}]
+// Raqamli klaviatura (telefon/OTP/PIN). PO 2026-07-28: har bosishda SEZILADIGAN
+// javob — yengil vibratsiya (haptic) + tugma foni/masshtabi "bosildi" holatiga o'tadi.
 class KeyPad extends StatelessWidget {
   final List<Map<String, dynamic>> keys;
   const KeyPad({super.key, required this.keys});
 
   @override
   Widget build(BuildContext context) {
-    final p = curPal();
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 0, 30, 26),
       child: Column(
@@ -275,20 +276,57 @@ class KeyPad extends StatelessWidget {
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(3),
-                  child: Tap(
-                    onTap: k['tap'],
-                    child: Container(
-                      height: 52,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                      child: Tx(k['label'], size: 20, w: FontWeight.w600, color: p.ink),
-                    ),
-                  ),
+                  child: _PadKey(label: '${k['label']}', onTap: k['tap'] as void Function()?),
                 ),
               );
             }),
           );
         }),
+      ),
+    );
+  }
+}
+
+class _PadKey extends StatefulWidget {
+  final String label;
+  final void Function()? onTap;
+  const _PadKey({required this.label, this.onTap});
+
+  @override
+  State<_PadKey> createState() => _PadKeyState();
+}
+
+class _PadKeyState extends State<_PadKey> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final empty = widget.label.trim().isEmpty;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) {
+        if (empty) return;
+        setState(() => _down = true);
+        HapticFeedback.lightImpact(); // bosilganda yengil titrash — sezilsin
+      },
+      onTapUp: (_) => setState(() => _down = false),
+      onTapCancel: () => setState(() => _down = false),
+      onTap: empty ? null : widget.onTap,
+      child: AnimatedScale(
+        scale: _down ? 0.90 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 80),
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _down ? p.field : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Tx(widget.label, size: 20, w: FontWeight.w600, color: p.ink),
+        ),
       ),
     );
   }

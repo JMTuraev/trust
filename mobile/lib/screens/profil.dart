@@ -120,6 +120,12 @@ class ProfilScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Tx(v['mePhoneFmt'], size: 13, color: p.t2),
               ),
+              // 8 xonali unikal ID (PO 2026-07-28) — kengayish uchun; nusxalash oson format
+              if ('${v['meNoFmt'] ?? ''}'.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Tx('${v['meNoFmt']}', size: 12, w: FontWeight.w600, color: p.t4, tab: true),
+                ),
             ],
           ),
         ),

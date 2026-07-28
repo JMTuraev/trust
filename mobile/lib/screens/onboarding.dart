@@ -44,7 +44,7 @@ class OnboardingScreen extends StatelessWidget {
               children: [
                 const TrustMarkAnim(size: 84, boxed: true), // kirishda animatsiyali logo
                 const SizedBox(height: 22),
-                Tx('Trust', size: 32, w: FontWeight.w700, color: p.ink, ls: -0.5),
+                Tx('Trustbook', size: 32, w: FontWeight.w700, color: p.ink, ls: -0.5),
                 const SizedBox(height: 14),
                 Tx(
                   L0['tagline'] as String,

@@ -74,6 +74,15 @@ export const config = {
       outPerMTok: parseFloat(process.env.AI_PRICE_OUT || '25'),
     },
   },
+  support: {
+    // Yordam chati -> Telegram bot (BotFather'dan). Token FAQAT env'da, kodda YO'Q.
+    tgToken: process.env.SUPPORT_TG_BOT_TOKEN,
+    // Admin (jamoa) chat id — bot bilan /start yozilgach Render logida ko'rinadi
+    adminChatId: process.env.SUPPORT_TG_CHAT_ID,
+    // Webhook himoyasi — istalgan tasodifiy uzun satr
+    webhookSecret: process.env.SUPPORT_TG_WEBHOOK_SECRET,
+    publicUrl: process.env.SUPPORT_PUBLIC_URL || 'https://trust-backend-ft1s.onrender.com',
+  },
   fcm: {
     // Push bildirishnomalar (FCM v1, Firebase loyihasi: trustbook-b011b).
     // Variant A (TAVSIYA, Render): Secret File sifatida service-account JSON yuklanadi

@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { parseText, previewKinds, learnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
 import { ensureCategories } from '../lib/categories.js';
-import { requireActiveSub } from '../lib/subscription.js';
+import { requireActiveSub, requireExpenseQuota } from '../lib/subscription.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -27,7 +27,8 @@ router.get('/', async (req, res, next) => {
 
 // POST /api/expenses  { income, amount, category?, note? }
 // Obuna: expired user yangi yozuv yarata olmaydi (402 SUB_EXPIRED) — o'qish ochiq qoladi.
-router.post('/', requireActiveSub, async (req, res, next) => {
+// YANGI TARIF (PO 2026-07-28): bepul 3 ta xarajat yozuvi, keyin $9/oy (kvota serverda)
+router.post('/', requireExpenseQuota, async (req, res, next) => {
   try {
     const { income, amount, category, note } = req.body || {};
     const amt = Number(amount);
@@ -75,7 +76,8 @@ router.post('/preview', rateLimit({ windowMs: 60_000, max: 60 }), async (req, re
 // actions — user tasdiqlagan yakuniy holat (kartada tahrirlangan bo'lishi mumkin).
 // daromad/xarajat -> expenses'ga yoziladi; qarz_* -> saqlanmaydi, `routed` bo'lib qaytadi
 // (mobil Hamkorlar oqimiga yo'naltiradi). O'rganish: lug'at + tuzatishlar (few-shot).
-router.post('/confirm', requireActiveSub, async (req, res, next) => {
+// YANGI TARIF: confirm ham expenses'ga YOZADI — xuddi shu kvota gate'i
+router.post('/confirm', requireExpenseQuota, async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     const source = req.body?.source === 'voice' ? 'voice' : 'text';

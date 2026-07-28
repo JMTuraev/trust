@@ -5,11 +5,13 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 // Obuna read-only qoidasi: yangi yozuv/tahrir — 402; confirm/reject/cancel OCHIQ (qarshi tomon qulflanmasin)
-import { requireActiveSub } from '../lib/subscription.js';
+import { requireActiveSub, requireNewDebtQuota } from '../lib/subscription.js';
 import { displayName, notifEnabled } from '../lib/links.js';
 import {
   rem, remEff, isLockedByPending, isOverdue, applyRepaySettle, canonicalDir,
 } from '../lib/ledger.js';
+// FCM push (fail-soft, hech qachon throw qilmaydi) — notify() ichida ishlatiladi
+import { pushToUser } from '../services/push.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -68,6 +70,9 @@ async function notify(userId, senderId, type, title, detail, partnerId) {
   await supabaseAdmin.from('notifications').insert({
     user_id: userId, sender_id: senderId, type, title, detail, link_id: partnerId || null,
   });
+  // Telefonga push — barcha qarz bildirishnomalari (debt_new/confirm/repay/settle/edit/review)
+  // shu bitta joydan o'tadi. await EMAS — javobni kechiktirmasin.
+  pushToUser(userId, { title, body: detail, data: { type, link_id: partnerId || '' } });
 }
 
 // Shu qarzga bog'liq repay/settle bolalari (band tekshiruvi uchun).
@@ -122,7 +127,10 @@ router.get('/:partnerId', async (req, res, next) => {
 // ============================================================
 // POST /api/debts/:partnerId — yangi qarz {direction, amount, currency, acted_at, due, note}
 // ============================================================
-router.post('/:partnerId', requireActiveSub, async (req, res, next) => {
+// YANGI TARIF (PO 2026-07-28): yangi qarz yozuvi — daftar EGASI kvotasi bo'yicha
+// (bepul 3 ta, keyin $9/oy; egasi to'lamagan bo'lsa kontragent ham yozolmaydi).
+// repay/settle/tasdiqlar ATAYLAB ochiq — pul qaytishi hech qachon bloklanmaydi.
+router.post('/:partnerId', requireNewDebtQuota, async (req, res, next) => {
   try {
     const p = await loadPartnerForUser(req.params.partnerId, req.user.id);
     if (!p) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });

@@ -251,6 +251,12 @@ class Api {
   static Future<ApiRes> aiFlag(String messageId, String reason) => _req('POST', '/api/ai/flag',
       body: {'message_id': messageId, if (reason.isNotEmpty) 'reason': reason});
 
+  // ---- Yordam chati (support -> Telegram) ----
+  static Future<ApiRes> supportMessages({String? after}) => _req('GET',
+      '/api/support/messages${after != null ? '?after=${Uri.encodeComponent(after)}' : ''}');
+  static Future<ApiRes> sendSupport(String body) =>
+      _req('POST', '/api/support/messages', body: {'body': body});
+
   // ---- Push token (FCM) ----
   // Qurilma tokenini akkauntga bog'lash (push.dart chaqiradi — login/startap/refresh'da)
   static Future<ApiRes> savePushToken(String token) =>

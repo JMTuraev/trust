@@ -1001,7 +1001,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Tx('${r['desc']}', size: 13.5, w: FontWeight.w500, color: p.ink, maxLines: 1),
+                  // PO 2026-07-28: izoh TO'LIQ ko'rinsin — maxLines olib tashlandi (o'rab yozadi)
+                  Tx('${r['desc']}', size: 13.5, w: FontWeight.w500, color: p.ink),
                   const SizedBox(height: 2),
                   Tx('${r['time']}', size: 11, color: p.t4),
                 ],
@@ -1113,8 +1114,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     Flexible(
                       child: Text(
                         '${o['desc']}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        // PO 2026-07-28: jurnal qatorida ham izoh to'liq o'raladi (kesilmaydi)
                         style: GoogleFonts.inter(
                           fontSize: 13.5, fontWeight: FontWeight.w500,
                           color: isDel ? p.t3 : p.ink,

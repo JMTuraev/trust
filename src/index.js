@@ -18,6 +18,9 @@ import debtRoutes from './routes/debts.js';
 import circleRoutes from './routes/circles.js';
 import aiRoutes from './routes/ai.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
+import { startDueReminderSweeper } from './services/dueReminder.js';
+import supportRoutes from './routes/support.js';
+import { tgSetWebhook } from './services/telegram.js';
 
 assertConfig();
 
@@ -67,6 +70,8 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/debts', debtRoutes);
 app.use('/api/circles', circleRoutes);
 app.use('/api/ai', aiRoutes);
+// Yordam chati (Telegram ko'prigi) — webhook shu router ichida (auth'siz, secret bilan)
+app.use('/api/support', supportRoutes);
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Endpoint topilmadi' }));
 app.use((err, _req, res, _next) => {
@@ -84,6 +89,12 @@ const server = app.listen(config.port, () =>
 
 // Kechiktirilgan rad signallari (link modeli)
 startRejectSignalSweeper();
+
+// Qarz muddati (due) avto-eslatmalari — in-app + FCM push (015 migratsiya talab qilinadi)
+startDueReminderSweeper();
+
+// Yordam chati: Telegram webhook'ni o'rnatish (token bo'lsa; idempotent)
+tgSetWebhook();
 
 // Render/Docker SIGTERM yuboradi — ochiq so'rovlarni yakunlab chiqamiz
 for (const sig of ['SIGTERM', 'SIGINT']) {

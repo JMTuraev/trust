@@ -3,7 +3,7 @@
     <!-- Push bildirishnomalar uchun (Android 13+ da majburiy runtime ruxsat) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="Trust"
+        android:label="Trustbook"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

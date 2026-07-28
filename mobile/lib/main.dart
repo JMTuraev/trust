@@ -26,6 +26,7 @@ import 'screens/profil.dart';
 import 'screens/tab_bar.dart';
 import 'screens/client_screen.dart';
 import 'screens/notifs.dart';
+import 'screens/support_chat.dart';
 import 'screens/receipt.dart';
 import 'screens/pdf_preview.dart';
 import 'screens/new_tx_sheet.dart';
@@ -189,6 +190,9 @@ class _RootState extends State<Root> {
                   // Bildirishnomalar (z:12)
                   if (v['notifOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: NotifsScreen())),
+                  // Yordam chati (z:13) — Telegram'ga ulangan support (PO #10)
+                  if (v['supportOpen'] == true)
+                    Positioned.fill(child: Container(color: p.bg, child: SupportChatScreen())),
                   // Rad etilgan bog'lanishlar (z:14)
                   if (v['rejOpen'] == true)
                     Positioned.fill(child: Container(color: p.bg, child: RejectedLinksScreen())),

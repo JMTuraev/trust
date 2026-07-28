@@ -117,7 +117,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               // home.dart headeri bilan bir uslub: logo + «Trust» yozuvi (PO 2026-07-17)
               const TrustMark(size: 27, boxed: true),
               const SizedBox(width: 9),
-              Tx('Trust', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
+              Tx('Trustbook', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
               const Spacer(),
               _bellBtn(v, p),
               const SizedBox(width: 10),
@@ -238,25 +238,20 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   }
 
   // Avatar — 38x38, kontur phair, ichida bosh harflar yoki tanlangan rasm.
+  // PO 2026-07-28 (#10): avatar/ism harflari o'rniga SOZLAMALAR ikonkasi —
+  // profil (sozlamalar) kirish nuqtasi endi aniq "settings" bo'lib ko'rinadi.
   Widget _avatarBtn(Map<String, dynamic> v, Pal p) {
-    final path = v['hubAvatar'] as String?;
-    // Kesh tozalansa fayl yo'qoladi — profil.dart bilan bir xil tekshiruv
-    final File? f = (path != null && File(path).existsSync()) ? File(path) : null;
     return Tap(
       onTap: () => v['hubOpenProfil'](),
       child: Container(
         width: 38,
         height: 38,
         alignment: Alignment.center,
-        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: p.hair),
-          image: f != null ? DecorationImage(image: FileImage(f), fit: BoxFit.cover) : null,
         ),
-        child: f == null
-            ? Tx(v['hubIni'] as String, size: 12, w: FontWeight.w600, color: p.ink)
-            : null,
+        child: Icon(Icons.settings_outlined, size: 20, color: p.ink),
       ),
     );
   }

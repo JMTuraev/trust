@@ -90,6 +90,9 @@ class TrustStore extends ChangeNotifier {
     // Qarz daftari (ledger) — ochiq hamkor yozuvlari (server'dan, DebtEntry ro'yxati)
     'ledgerRows': <Map<String, dynamic>>[],
     'ledgerLoading': false,
+    'ledgerError': null, // server xatosi JIM yutilmasin (bo'sh ekran o'rniga xabar)
+    // Yordam chati (support -> Telegram ko'prigi)
+    'supportOpen': false, 'supportMsgs': <Map<String, dynamic>>[], 'supportInput': '',
     // Input panel: chAct = null|'lend'|'borrow'|'close'; forma maydonlari
     'chAct': null, 'chA': '', 'chCur': 'UZS', 'chDue': '', 'chDate': '', 'chNote': '',
     'chDebt': null, 'chReason': 'returned', // yopish oqimida tanlangan qarz + sabab
@@ -119,6 +122,7 @@ class TrustStore extends ChangeNotifier {
     'inLinkOps': <Map<String, dynamic>>[], // uning operatsiyalari
     // Auth / sessiya
     'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null,
+    'meNo': null, // 8 xonali foydalanuvchi ID (profiles.user_no, 016 migratsiya)
     'pMeta': <String, String>{}, // hamkor o'zgarish-imzolari (poll uchun)
     'busy': null, // server javobini kutayotgan tugma kaliti (loading spinner)
   };
@@ -178,6 +182,7 @@ class TrustStore extends ChangeNotifier {
       final p = prof.data as Map<String, dynamic>;
       set({
         'meId': p['id'], 'mePhone': p['phone'], 'meName': p['full_name'],
+        'meNo': p['user_no'],
         'notifOn': p['notif_enabled'] != false,
         // Obuna holati: trial (7 kun) / premium / expired — profil va paywall uchun
         'subStatus': p['status'] ?? 'trial',
@@ -456,6 +461,7 @@ class TrustStore extends ChangeNotifier {
     if (prof.ok && prof.data is Map) {
       final p = prof.data as Map;
       S['meName'] = p['full_name'];
+      S['meNo'] = p['user_no'];
       S['notifOn'] = p['notif_enabled'] != false;
       // Obuna holati birinchi kirishda ham to'ldirilsin — aks holda profil qatori
       // ilova qayta ochilgunicha "Sinov tugagan" deb NOTO'G'RI ko'rsatadi
@@ -465,6 +471,16 @@ class TrustStore extends ChangeNotifier {
     }
     hydrate(); // fonda yuklanadi — foydalanuvchi PIN kiritayotgan payt
     _startPolling();
+  }
+
+  /// 8 xonali user ID'ni o'qish oson shaklda: 12345678 -> "1234 5678"
+  String _fmtUserNo(String n) => n.length == 8 ? '${n.substring(0, 4)} ${n.substring(4)}' : n;
+
+  /// ISO sanadan mahalliy HH:mm (chat vaqt yorlig'i uchun)
+  String _hhmm(String iso) {
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return '';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
   Map<String, dynamic> L() => kLangs[S['lang']] ?? lUz;
@@ -1004,9 +1020,12 @@ class TrustStore extends ChangeNotifier {
     }
     final r = await Api.debts(partnerId);
     if (r.ok && r.data is List) {
-      set({'ledgerRows': (r.data as List).cast<Map<String, dynamic>>(), 'ledgerLoading': false});
+      set({'ledgerRows': (r.data as List).cast<Map<String, dynamic>>(), 'ledgerLoading': false, 'ledgerError': null});
     } else {
-      set({'ledgerLoading': false});
+      // MUHIM (2026-07-28 audit): xato JIM yutilardi — kontragent "bo'sh daftar"
+      // ko'rib, yozuvlar yo'qolgan deb o'ylardi. Endi xabar ko'rsatamiz.
+      set({'ledgerLoading': false, 'ledgerError': r.error});
+      toast_(r.error);
     }
     _ledgerPoll?.cancel();
     _ledgerPoll = Timer.periodic(const Duration(seconds: 4), (_) {
@@ -1961,6 +1980,7 @@ class TrustStore extends ChangeNotifier {
 
   void logout_() {
     _poll?.cancel();
+    _supPoll?.cancel();
     // MUHIM: Api.saveToken(null) dan OLDIN — push token serverdan uziladi
     // (shu qurilmada boshqa akkaunt kirsa, bu akkauntning push'i kelmasin)
     PushService.unregister();
@@ -1977,7 +1997,8 @@ class TrustStore extends ChangeNotifier {
       'msgs': <String, List<Map<String, dynamic>>>{}, 'localMsgs': <String, List<Map<String, dynamic>>>{},
       'notifs': <Map<String, dynamic>>[], 'xarEntries': <Map<String, dynamic>>[],
       'xarLimit': 0, 'pMeta': <String, String>{},
-      'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null,
+      'supportOpen': false, 'supportMsgs': <Map<String, dynamic>>[], 'supportInput': '',
+      'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null, 'meNo': null,
       'subStatus': 'trial', 'trialEnd': null, 'premUntil': null,
       'meAvatar': null, // shu qurilmada boshqa user kirsa avvalgi rasm ko'rinmasin
       // Trust AI suhbati — shaxsiy ma'lumot: qurilmada boshqa user kirsa ko'rinmasin
@@ -1986,6 +2007,54 @@ class TrustStore extends ChangeNotifier {
       'aiLastText': null, 'aiLimited': false, 'aiLimitKind': null,
     });
     SharedPreferences.getInstance().then((sp) => sp.remove('trust_avatar'));
+  }
+
+  // ================= YORDAM CHATI (support -> Telegram) =================
+  Timer? _supPoll;
+  List<Map<String, dynamic>> _supMsgs() => (S['supportMsgs'] as List).cast<Map<String, dynamic>>();
+
+  Future<void> openSupport_() async {
+    set({'supportOpen': true});
+    final r = await Api.supportMessages();
+    if (r.ok && r.data is List) {
+      set({'supportMsgs': (r.data as List).cast<Map<String, dynamic>>()});
+    } else if (!r.ok) {
+      toast_(r.error);
+    }
+    _supPoll?.cancel();
+    // Chat ochiq ekan — 4s realtime polling (partner chati naqshi bilan bir xil)
+    _supPoll = Timer.periodic(const Duration(seconds: 4), (_) => _supTick());
+  }
+
+  void closeSupport_() {
+    _supPoll?.cancel();
+    set({'supportOpen': false});
+  }
+
+  Future<void> _supTick() async {
+    if (S['supportOpen'] != true) {
+      _supPoll?.cancel();
+      return;
+    }
+    final list = _supMsgs();
+    final after = list.isEmpty ? null : list.last['created_at'] as String?;
+    final r = await Api.supportMessages(after: after);
+    if (r.ok && r.data is List && (r.data as List).isNotEmpty) {
+      set({'supportMsgs': [...list, ...(r.data as List).cast<Map<String, dynamic>>()]});
+    }
+  }
+
+  Future<void> sendSupport_() async {
+    final t = (S['supportInput'] as String).trim();
+    if (t.isEmpty) return;
+    set({'supportInput': ''});
+    final r = await Api.sendSupport(t);
+    if (r.ok && r.data is Map) {
+      set({'supportMsgs': [..._supMsgs(), (r.data as Map).cast<String, dynamic>()]});
+    } else {
+      set({'supportInput': t}); // yuborilmadi — matn yo'qolmasin
+      toast_(r.error);
+    }
   }
 
   /// Bildirishnoma bosilganda marshrutlash (link modeli)
@@ -3328,6 +3397,12 @@ class TrustStore extends ChangeNotifier {
           toast_(r.error);
         }
       }),
+      // Yordam chati (PO #10) — xabarlar jamoa Telegramiga tushadi, javob shu yerga keladi
+      {
+        'label': L0['profSupport'] ?? 'Yordam chati',
+        'value': '', 'isPlain': true, 'isSwitch': false,
+        'tap': () => openSupport_(),
+      },
       // Rad etilgan bog'lanishlar — istalgan payt tiklash mumkin
       {
         'label': L0['rejLinks'],
@@ -3892,9 +3967,10 @@ class TrustStore extends ChangeNotifier {
           }).toList().reversed.toList();
 
           // ---- 3 tugma (spec 4.4) ----
+          // ---- Tugmalar (PO 2026-07-28): "Qarz olish" OLIB TASHLANDI — qarz olish
+          // kontragentning "qarz berish"i bilan bir xil ma'no, chalkashlik tug'dirardi.
           final btns = [
             {'key': 'lend', 'label': L()['lendDebt'] as String, 'on': led.canGive, 'off': led.giveDisabledReason(firstName)},
-            {'key': 'borrow', 'label': L()['borrowDebt'] as String, 'on': led.canTake, 'off': led.takeDisabledReason(firstName)},
             {'key': 'close', 'label': L()['closeDebt'] as String, 'on': led.canClose, 'off': led.closeDisabledReason()},
           ];
 
@@ -4010,6 +4086,8 @@ class TrustStore extends ChangeNotifier {
       'meAvatar': S['meAvatar'], // lokal foto yo'li (galereyadan)
       'pickAvatar': () => pickAvatar_(),
       'mePhoneFmt': _fmtSrvPhone((S['mePhone'] as String?) ?? ''),
+      // 8 xonali foydalanuvchi ID (016 migratsiya) — profil ekranida ism ostida
+      'meNoFmt': S['meNo'] == null ? '' : 'ID: ${_fmtUserNo('${S['meNo']}')}',
       // Profil ismini tahrirlash (mijozlarga shu ism ko'rinadi)
       'meEditing': S['meNameEdit'] != null,
       'meEditVal': S['meNameEdit'] ?? '',
@@ -4128,6 +4206,19 @@ class TrustStore extends ChangeNotifier {
       'logout': () => logout_(),
       'L': L0,
       'busy': S['busy'], // server javobini kutayotgan tugma kaliti (loading)
+
+      // Yordam chati (support -> Telegram)
+      'supportOpen': S['supportOpen'] == true,
+      'closeSupport': () => closeSupport_(),
+      'supportItems': _supMsgs().map((m) => {
+            'key': m['id'],
+            'mine': m['direction'] == 'in',
+            'body': '${m['body']}',
+            'time': _hhmm('${m['created_at']}'),
+          }).toList(),
+      'supportInput': '${S['supportInput']}',
+      'supportSetInput': (String t) => S['supportInput'] = t, // har harfda rebuild shart emas
+      'supportSend': () => sendSupport_(),
 
       'openNotifs': () => set({'notifOpen': true}),
       'closeNotifs': () => set({'notifOpen': false}),
