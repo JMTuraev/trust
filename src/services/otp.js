@@ -235,3 +235,52 @@ function issueSession(user) {
   );
   return { access_token, refresh_token: null, user };
 }
+
+// ---------- Kodni faqat TEKSHIRISH (sessiya YARATMAYDI) ----------
+// Profil o'chirish kabi "tasdiqlash" oqimlari uchun: kod to'g'ri bo'lsa true,
+// aks holda xato otadi (verifyOtp bilan bir xil xabarlar). Urinishlar hisobi,
+// muddat va bir-martalik (kod o'chishi) verifyOtp bilan AYNAN bir xil.
+export async function checkOtpCode(phone, code) {
+  if (config.otp.reviewPhone && phone === config.otp.reviewPhone) {
+    if (config.otp.reviewCode && String(code) === config.otp.reviewCode) return true;
+    const e = new Error("Kod noto'g'ri");
+    e.status = 400;
+    throw e;
+  }
+  if (isUzbekPhone(phone)) {
+    const { data: rows, error } = await supabaseAdmin
+      .from('otp_codes')
+      .select('*')
+      .eq('phone', phone)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (error) throw new Error(`DB xatosi: ${error.message}`);
+    const rec = rows?.[0];
+    const fail = (msg, status = 400) => {
+      const e = new Error(msg);
+      e.status = status;
+      return e;
+    };
+    if (!rec) throw fail("Kod topilmadi. Qaytadan so'rang.");
+    if (new Date(rec.expires_at) < new Date()) throw fail("Kod muddati tugagan. Qaytadan so'rang.");
+    if (rec.attempts >= config.otp.maxAttempts) throw fail("Urinishlar soni tugadi. Qaytadan so'rang.", 429);
+    if (rec.code_hash !== hash(String(code))) {
+      await supabaseAdmin.from('otp_codes').update({ attempts: rec.attempts + 1 }).eq('id', rec.id);
+      throw fail("Kod noto'g'ri");
+    }
+    await supabaseAdmin.from('otp_codes').delete().eq('id', rec.id);
+    return true;
+  }
+  // Xalqaro: Supabase tekshiradi (qaytgan sessiya ishlatilmaydi)
+  const { error } = await supabaseAnon.auth.verifyOtp({
+    phone: `+${phone}`,
+    token: String(code),
+    type: 'sms',
+  });
+  if (error) {
+    const err = new Error(error.message);
+    err.status = 400;
+    throw err;
+  }
+  return true;
+}

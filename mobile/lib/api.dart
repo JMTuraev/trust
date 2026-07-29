@@ -239,7 +239,12 @@ class Api {
   static Future<ApiRes> circleClose(String id) => _req('DELETE', '/api/circles/$id');
 
   // ---- Profil hayoti (soft-delete) ----
-  static Future<ApiRes> deleteProfile() => _req('DELETE', '/api/profile/me');
+  // #34: o'chirish endi SMS kod bilan tasdiqlanadi. Avval sendDeleteOtp() — bazadagi
+  // raqamga kod boradi (raqam qayta yozilmaydi); keyin deleteProfile(code).
+  static Future<ApiRes> sendDeleteOtp() =>
+      _req('POST', '/api/profile/me/delete-otp', timeoutSec: 45);
+  static Future<ApiRes> deleteProfile(String code) =>
+      _req('DELETE', '/api/profile/me', body: {'code': code});
 
   // ---- Trust AI (moliyaviy hamroh chati — docs/ai-character.md) ----
   // Javob bloklar bilan keladi (§11): {id, role, text?, blocks:[...], created_at}.

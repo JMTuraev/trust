@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { computeSubscription, getSubscription, PREMIUM_PRODUCT_ID } from '../lib/subscription.js';
 import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
+import { sendOtp, checkOtpCode } from '../services/otp.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -254,12 +255,44 @@ router.delete('/push-token', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/profile/me/delete-otp — profil o'chirishni TASDIQLASH kodi (SMS).
+// Telefon bazadagi profil raqami (mijoz qayta yozmaydi). sendOtp o'z limitlariga ega
+// (raqam boshiga 60s dedupe + global soatlik cap) — bu yerda qo'shimcha 3/min IP limiti.
+router.post(
+  '/me/delete-otp',
+  rateLimit({ windowMs: 60_000, max: 3 }),
+  async (req, res, next) => {
+    try {
+      const { data: prof, error } = await supabaseAdmin
+        .from('profiles').select('phone').eq('id', req.user.id).maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!prof?.phone) return res.status(404).json({ success: false, error: 'Profil topilmadi' });
+      const r = await sendOtp(String(prof.phone));
+      // Raqam niqoblanadi: +99890***4567 (UI xabar uchun)
+      const ph = String(prof.phone);
+      const masked = ph.length > 7 ? `+${ph.slice(0, 5)}***${ph.slice(-4)}` : `+${ph}`;
+      res.json({ success: true, data: { phone_masked: masked, expires_in: r.expires_in } });
+    } catch (e) { next(e); }
+  }
+);
+
 // DELETE /api/profile/me — akkauntni SOFT delete qilish (App Store/Play siyosati talabi).
+// PO 2026-07-29: endi SMS KOD bilan tasdiqlanadi (body.code) — ikki bosqichli bosish o'rniga.
 // Ma'lumotlar O'CHIRILMAYDI: link modelida qarshi tomonning daftari saqlanib qolishi kerak.
 // Faqat profiles.deleted_at belgilanadi; qayta kirish (OTP tasdig'i, src/services/otp.js
 // reactivateIfDeleted) profilni avtomatik tiklaydi (deleted_at=null) — tiklash oynasi cheksiz.
 router.delete('/me', async (req, res, next) => {
   try {
+    const code = String(req.body?.code ?? '').trim();
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'Tasdiqlash kodi kerak — SMS kodni kiriting' });
+    }
+    const { data: prof, error: pe } = await supabaseAdmin
+      .from('profiles').select('phone').eq('id', req.user.id).maybeSingle();
+    if (pe) throw new Error(pe.message);
+    if (!prof?.phone) return res.status(404).json({ success: false, error: 'Profil topilmadi' });
+    await checkOtpCode(String(prof.phone), code); // noto'g'ri kod -> 400 (xabari o'zbekcha)
+
     const nowIso = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from('profiles')

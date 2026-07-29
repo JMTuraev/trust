@@ -108,7 +108,8 @@ class TrustStore extends ChangeNotifier {
     'cur': 'UZS', // asosiy valyuta (yangi yozuv formasi uchun default)
     'subStatus': 'trial', 'trialEnd': null, 'premUntil': null, // obuna holati (backend /profile/me)
     'iapBusy': false, // Apple IAP xaridi ketmoqda — paywall CTA spinner/disabled
-    'delArmAt': 0, // profil o'chirish ikki bosqichli tasdiq vaqti
+    'delArmAt': 0, // (eski) profil o'chirish ikki bosqichli tasdiq vaqti — endi ishlatilmaydi
+    'delOtpOpen': false, 'delOtpBusy': false, 'delOtpPhone': '', // #34: OTP bilan o'chirish modali
     'notifs': <Map<String, dynamic>>[],
     // Trust AI (moliyaviy hamroh chati — docs/ai-character.md)
     // aiMsgs qatori: {id, role:'user'|'ai', text, blocks:[...], ts, flagged, fresh}
@@ -1026,24 +1027,45 @@ class TrustStore extends ChangeNotifier {
     set({'cur': next});
   }
 
-  /// Profil o'chirish — ikki bosqichli tasdiq (5s ichida ikkinchi bosish).
+  /// #34: Profil o'chirish — SMS KOD bilan tasdiqlash (ikki bosqichli bosish o'rniga).
+  /// 1-qadam profileDeleteAsk_: bazadagi raqamga OTP yuboriladi, modal ochiladi.
+  /// 2-qadam profileDeleteConfirm_: kod to'g'ri -> soft delete + logout.
   /// SOFT delete: qarshi tomonda daftar QOLADI (link modeli), qayta kirish = tiklash.
-  Future<void> profileDelete_() async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final armed = (S['delArmAt'] as int? ?? 0);
-    if (now - armed > 5000) {
-      set({'delArmAt': now});
-      toast_(L()['tDelConfirmAgain']);
-      return;
-    }
-    final r = await Api.deleteProfile();
+  Future<void> profileDeleteAsk_() async {
+    if (S['delOtpBusy'] == true) return;
+    set({'delOtpBusy': true});
+    final r = await Api.sendDeleteOtp();
+    set({'delOtpBusy': false});
     if (!r.ok) {
       toast_(r.error);
       return;
     }
+    final masked = ((r.data as Map?)?['phone_masked'] as String?) ?? '';
+    set({'delOtpOpen': true, 'delOtpPhone': masked});
+    toast_(L()['tDelOtpSent'] as String? ?? 'Tasdiqlash kodi SMS bilan yuborildi');
+  }
+
+  Future<bool> profileDeleteConfirm_(String code) async {
+    final c = code.trim();
+    if (c.length < 4) {
+      toast_(L()['tCodeShort'] as String? ?? "Kodni to'liq kiriting");
+      return false;
+    }
+    if (S['delOtpBusy'] == true) return false;
+    set({'delOtpBusy': true});
+    final r = await Api.deleteProfile(c);
+    set({'delOtpBusy': false});
+    if (!r.ok) {
+      toast_(r.error);
+      return false;
+    }
+    set({'delOtpOpen': false});
     toast_(L()['tProfileDeleted']);
     logout_();
+    return true;
   }
+
+  void profileDeleteCancel_() => set({'delOtpOpen': false});
 
   // ================= QARZ DAFTARI (ledger) =================
   Timer? _ledgerPoll;
@@ -3735,11 +3757,12 @@ class TrustStore extends ChangeNotifier {
         'isPlain': true, 'isSwitch': false,
         'tap': () => toast_(L()['subInfo']),
       },
-      // Profilni o'chirish (App Store/Play siyosati) — SOFT: qarshi tomonda daftar qoladi
+      // Profilni o'chirish (App Store/Play siyosati) — SOFT: qarshi tomonda daftar qoladi.
+      // #34: bosilganda SMS kod yuboriladi va tasdiqlash modali ochiladi.
       {
         'label': L0['profDelete'] ?? "Profilni o'chirish",
         'value': '', 'isPlain': true, 'isSwitch': false, 'danger': true,
-        'tap': () => profileDelete_(),
+        'tap': () => profileDeleteAsk_(),
       },
     ];
 
@@ -4375,6 +4398,12 @@ class TrustStore extends ChangeNotifier {
 
       'receiptOpen': rt != null, 'receipt': receipt,
       'molTotals': molTotals, 'bars': bars, 'reminders': reminders, 'profRows': profRows,
+      // #34: profil o'chirish OTP modali (profil.dart)
+      'delOtpOpen': S['delOtpOpen'] == true,
+      'delOtpBusy': S['delOtpBusy'] == true,
+      'delOtpPhone': '${S['delOtpPhone'] ?? ''}',
+      'delOtpConfirm': (String code) => profileDeleteConfirm_(code),
+      'delOtpCancel': () => profileDeleteCancel_(),
       'meName': meLabel(),
       'meInitials': initials(meLabel()),
       'meAvatar': S['meAvatar'], // lokal foto yo'li (galereyadan)

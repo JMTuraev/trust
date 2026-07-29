@@ -36,7 +36,9 @@ class ProfilScreen extends StatelessWidget {
     final File? avatarFile =
         (avatarPath != null && File(avatarPath).existsSync()) ? File(avatarPath) : null;
 
-    return ListView(
+    return Stack(
+      children: [
+        ListView(
       padding: EdgeInsets.zero,
       children: [
         Container(
@@ -214,6 +216,127 @@ class ProfilScreen extends StatelessWidget {
           child: Center(child: Tx(L0['versionFooter'] as String, size: 11, color: p.t6)),
         ),
       ],
+        ),
+        // #34: profil o'chirish — SMS kod bilan tasdiqlash modali
+        if (v['delOtpOpen'] == true) _DelOtpModal(v: v),
+      ],
+    );
+  }
+}
+
+/// #34: Profilni o'chirish — OTP tasdiqlash modali.
+/// Telefon QAYTA yozilmaydi (bazadagi raqamga kod yuborilgan); faqat kod kiritiladi.
+/// Ogohlantirish: tasdiqlansa profil o'chiriladi va yozuvlarga kirish yopiladi.
+class _DelOtpModal extends StatefulWidget {
+  final Map<String, dynamic> v;
+  const _DelOtpModal({required this.v});
+
+  @override
+  State<_DelOtpModal> createState() => _DelOtpModalState();
+}
+
+class _DelOtpModalState extends State<_DelOtpModal> {
+  final _code = TextEditingController();
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  String _t(String key, String fb) => (store.L()[key] as String?) ?? fb;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final v = widget.v;
+    final busy = v['delOtpBusy'] == true;
+    final phone = '${v['delOtpPhone'] ?? ''}';
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: busy ? null : () => (v['delOtpCancel'] as Function)(),
+        child: Container(
+          color: p.dim,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: GestureDetector(
+            onTap: () {},
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: p.bg,
+                border: Border.all(color: p.bd2),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tx(_t('delOtpTitle', "Profil o'chirilsinmi?"), size: 16, w: FontWeight.w700, color: p.red),
+                  const SizedBox(height: 6),
+                  Tx(
+                    _t('delOtpWarn',
+                        "Diqqat: profilingiz o'chiriladi va barcha yozuvlaringizga kirish yopiladi."),
+                    size: 12.5, color: p.t1, lh: 17,
+                  ),
+                  const SizedBox(height: 4),
+                  Tx(
+                    phone.isEmpty
+                        ? _t('delOtpSentTo', 'Raqamingizga yuborilgan SMS kodni kiriting:')
+                        : '${_t('delOtpSentTo2', 'SMS kod yuborildi:')} $phone',
+                    size: 12.5, color: p.t3, lh: 17,
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _code,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    style: TextStyle(
+                        color: p.ink, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 6),
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '•••••',
+                      hintStyle: TextStyle(color: p.t5, letterSpacing: 6),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.red)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GhostBtn(
+                          label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                          onTap: () { if (!busy) (v['delOtpCancel'] as Function)(); },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkBtn(
+                          label: _t('delOtpBtn', "O'chirish"), h: 42, fs: 13.5, loading: busy,
+                          onTap: () => (v['delOtpConfirm'] as Function)(_code.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
