@@ -22,9 +22,11 @@ export const PREMIUM_PRODUCT_ID = 'trust_premium_monthly';
 export const WARN_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Bepul kvotalar — faqat env orqali boshqariladi (UI'da yo'q)
-export const FREE_DEBT_ENTRIES = Math.max(0, parseInt(process.env.FREE_DEBT_ENTRIES || '3', 10) || 3);
-export const FREE_EXPENSE_ENTRIES = Math.max(0, parseInt(process.env.FREE_EXPENSE_ENTRIES || '3', 10) || 3);
+// Bepul kvotalar — faqat env orqali boshqariladi (UI'da yo'q).
+// VAQTINCHA (PO 2026-07-29): default 30 — jonli TEST davri uchun. Test tugagach
+// 3 ga qaytariladi (env FREE_*=3 qo'yish YOKI shu defaultlarni 3 ga tushirish).
+export const FREE_DEBT_ENTRIES = Math.max(0, parseInt(process.env.FREE_DEBT_ENTRIES || '30', 10) || 30);
+export const FREE_EXPENSE_ENTRIES = Math.max(0, parseInt(process.env.FREE_EXPENSE_ENTRIES || '30', 10) || 30);
 
 // Orqaga moslik: eski kod TRIAL_DAYS import qilsa yiqilmasin (endi ma'nosi yo'q)
 export const TRIAL_DAYS = 0;

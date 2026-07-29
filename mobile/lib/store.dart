@@ -47,7 +47,10 @@ class TrustStore extends ChangeNotifier {
     'xcCats': <String>[], 'qarzDraft': null,
     // Xarajatlar v2 — papka (folder) UI holati (dizayn: Xarajatlar Trust.html)
     'xfDetail': null, // ochiq papka nomi
-    'xfIncBusy': false, // #15: Daromad papkasi ichidan kirim qo'shilmoqda (spinner)
+    'xfIncBusy': false, // #15: kirim qo'shilmoqda (spinner)
+    'xfIncSub': null, // #15v2: ochiq sub-daromad papkasi ('@dokon'); null = Daromad asosiy
+    'xfIncSubsMade': <String>[], // #15v2: yaratilgan sub-papkalar (bo'sh bo'lsa ham ko'rinadi) — SharedPreferences
+    'xfDeleting': <String>[], // #35: o'chirilayotgan yozuv idlari (kartada spinner)
     'xfLogOpen': false, 'xfLogDot': false,
     'xfLog': <Map<String, dynamic>>[], // sessiya jurnali: add/edit/del/merge (max 12)
     'xfTray': <Map<String, dynamic>>[], // ANIQLANMAGAN — papka tanlanishi kutilayotgan yozuvlar
@@ -167,6 +170,8 @@ class TrustStore extends ChangeNotifier {
       final sp = await SharedPreferences.getInstance();
       S['cur'] = sp.getString('trust_cur') ?? 'UZS';
       S['meAvatar'] = sp.getString('trust_avatar');
+      // #15v2: yaratilgan sub-daromad papkalari (bo'sh bo'lsa ham ko'rinadi)
+      S['xfIncSubsMade'] = sp.getStringList('trust_inc_subs') ?? <String>[];
     } catch (_) {}
     if (Api.token != null) {
       _tryResume(); // splash ko'rinib turadi — natijaga qarab app/pin/welcome
@@ -1757,6 +1762,46 @@ class TrustStore extends ChangeNotifier {
     return list;
   }
 
+  // #15v2: yozuv izohidan birinchi @teg ('@dokon') — kichik harflarda. Yo'q bo'lsa null.
+  String? _incTag(String? note) {
+    if (note == null || note.isEmpty) return null;
+    final m = RegExp(r'@[^\s@]{1,20}').firstMatch(note);
+    return m?.group(0)?.toLowerCase();
+  }
+
+  /// #15v2: sub-daromad papkalari (joriy oy): kirim (in), @chiqim (out), qoldiq (left).
+  /// Manba: kirim yozuvlari cat='@nomi' + foydalanuvchi yaratgan bo'sh papkalar
+  /// (xfIncSubsMade). Chiqim: izohida '@nomi' tegi bo'lgan xarajatlar.
+  List<Map<String, dynamic>> _xfIncSubs() {
+    final map = <String, Map<String, dynamic>>{}; // key: lowercase nom
+    void ensure(String name) => map.putIfAbsent(
+        name.toLowerCase(), () => {'name': name, 'in': 0, 'out': 0, 'n': 0});
+    for (final s in (S['xfIncSubsMade'] as List).cast<String>()) {
+      ensure(s);
+    }
+    for (final e in _xfMonthEntries()) {
+      if (e['kind'] == 'd') {
+        final c = (e['cat'] as String?) ?? 'Daromad';
+        if (!c.startsWith('@')) continue; // 'Daromad' umumiy — sub emas
+        ensure(c);
+        final f = map[c.toLowerCase()]!;
+        f['in'] = (f['in'] as int) + (e['a'] as int);
+        f['n'] = (f['n'] as int) + 1;
+      } else {
+        final tag = _incTag(e['note'] as String?);
+        if (tag == null || !map.containsKey(tag)) continue;
+        final f = map[tag]!;
+        f['out'] = (f['out'] as int) + (e['a'] as int);
+      }
+    }
+    final list = map.values.toList();
+    for (final f in list) {
+      f['left'] = (f['in'] as int) - (f['out'] as int);
+    }
+    list.sort((a, b) => (b['left'] as int).compareTo(a['left'] as int));
+    return list;
+  }
+
   // Dinamik sparkline (dizayn kabi): papkaning OXIRGI 8 yozuvi summalari — yangi yozuv
   // qo'shilganda chiziq siljiydi (rolling oyna). Kam yozuvda chapdan past qiymat bilan to'ldiriladi.
   List<double> _xfSpark(List entries) {
@@ -1788,26 +1833,65 @@ class TrustStore extends ChangeNotifier {
     set({'xfLog': log.take(12).toList(), if (S['xfLogOpen'] != true) 'xfLogDot': true});
   }
 
-  // #15: Daromad papkasi ichidan KIRIM qo'shish. srcText bo'sh -> umumiy ('Daromad');
-  // aks holda '@manba' sub-guruh ('@' avtomatik qo'shiladi). Asosiy input xarajat-only,
-  // shu sabab kirim faqat shu yo'l bilan kiritiladi. true qaytsa — UI maydonni tozalaydi.
-  Future<bool> xfAddIncome_(String amountText, String srcText) async {
+  // #15v2: OCHIQ sub-papka ichiga kirim qo'shish (summa + izoh). Kirimlar FAQAT
+  // sub-papka ichidan kiritiladi (asosiy input xarajat-only). true = maydonni tozala.
+  Future<bool> xfAddIncome_(String amountText, String noteText) async {
+    final sub = S['xfIncSub'] as String?;
+    if (sub == null) return false;
     final amt = int.tryParse(amountText.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
     if (amt <= 0) { toast_(L()['tSum'] as String? ?? "Summa noto'g'ri"); return false; }
-    var src = srcText.trim();
-    if (src.isNotEmpty && !src.startsWith('@')) src = '@$src';
-    final cat = src.isEmpty ? 'Daromad' : src;
     if (_busy) return false;
     _busy = true;
     set({'xfIncBusy': true});
-    final r = await Api.addExpense(amt, true, cat, '');
+    final r = await Api.addExpense(amt, true, sub, noteText.trim());
     _busy = false;
     set({'xfIncBusy': false});
     if (!r.ok) { toast_(r.error); return false; }
     final e = _mapExpense(r.data as Map<String, dynamic>);
     set({'xarEntries': [e, ..._xar()]});
-    _xfLogAdd('add', cat: cat, desc: cat, amount: amt, income: true, id: e['id'] as String?);
+    _xfLogAdd('add', cat: sub, desc: noteText.trim().isNotEmpty ? noteText.trim() : sub,
+        amount: amt, income: true, id: e['id'] as String?);
     toast_(L()['tSavedIncome'] as String? ?? 'Kirim saqlandi');
+    return true;
+  }
+
+  /// #15v2: yangi sub-daromad papkasi. '@' avtomatik qo'shiladi, bo'sh joylar olib
+  /// tashlanadi; mavjud bo'lsa (katta-kichik farqsiz) — o'shanisi ochiladi.
+  Future<bool> xfIncSubCreate_(String raw) async {
+    var n = raw.trim().replaceAll(RegExp(r'\s+'), '');
+    if (n.isNotEmpty && !n.startsWith('@')) n = '@$n';
+    if (n.length < 2 || n.length > 21) {
+      toast_(L()['xfIncNameLen'] as String? ?? "Nom 1–20 belgi bo'lsin");
+      return false;
+    }
+    // Mavjudmi? (yaratilganlar + kirimlardan hosil bo'lganlar)
+    final existing = _xfIncSubs().where((f) => '${f['name']}'.toLowerCase() == n.toLowerCase()).toList();
+    if (existing.isNotEmpty) {
+      set({'xfIncSub': existing.first['name']});
+      return true;
+    }
+    final made = List<String>.from(S['xfIncSubsMade'] as List);
+    made.add(n);
+    S['xfIncSubsMade'] = made;
+    SharedPreferences.getInstance()
+        .then((sp) => sp.setStringList('trust_inc_subs', made))
+        .catchError((_) => false);
+    set({'xfIncSub': n});
+    return true;
+  }
+
+  /// #15v2: kirim yozuvini tahrirlash (summa + izoh). true = modal yopilsin.
+  Future<bool> xfIncEditSave_(String id, String amountText, String noteText) async {
+    final amt = int.tryParse(amountText.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+    if (amt <= 0) { toast_(L()['tSum'] as String? ?? "Summa noto'g'ri"); return false; }
+    if (_busy) return false;
+    _busy = true;
+    final r = await Api.patchExpense(id, amount: amt, note: noteText.trim());
+    _busy = false;
+    if (!r.ok) { toast_(r.error); return false; }
+    final e = _mapExpense(r.data as Map<String, dynamic>);
+    set({'xarEntries': _xar().map((x) => x['id'] == id ? e : x).toList()});
+    toast_(L()['tUpdated'] as String? ?? 'Yangilandi');
     return true;
   }
 
@@ -1942,12 +2026,19 @@ class TrustStore extends ChangeNotifier {
   Future<void> xfDelEntry_(String id) async {
     final e = _xar().firstWhere((x) => x['id'] == id, orElse: () => <String, dynamic>{});
     if (e.isEmpty) return;
+    // #35: karta "o'chirilmoqda" holati — server javobi kelguncha spinner ko'rinadi
+    final dl = List<String>.from(S['xfDeleting'] as List);
+    if (dl.contains(id)) return; // ikkilangan bosish
+    dl.add(id);
+    set({'xfDeleting': dl});
     final r = await Api.deleteExpense(id);
+    final dl2 = List<String>.from(S['xfDeleting'] as List)..remove(id);
     if (!r.ok) {
+      set({'xfDeleting': dl2});
       toast_(r.error);
       return;
     }
-    set({'xarEntries': _xar().where((x) => x['id'] != id).toList()});
+    set({'xarEntries': _xar().where((x) => x['id'] != id).toList(), 'xfDeleting': dl2});
     _xfLogAdd('del', cat: e['cat'] as String,
         desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
         amount: e['a'] as int, income: e['kind'] == 'd');
@@ -2638,7 +2729,9 @@ class TrustStore extends ChangeNotifier {
 
   // Hub kartalaridan bo'limga o'tish (vals() ichidagi goHome/goXarajat bilan bir xil patch)
   void goHome_() =>
-      set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+      // #31: npOpen:false — eski/ochiq qolgan "yangi hamkor" oynasi bo'limga kirganda
+      // avtomatik ochilib qolmasin.
+      set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false});
   void goXarajat_() =>
       set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null});
 
@@ -2821,53 +2914,94 @@ class TrustStore extends ChangeNotifier {
               'ghost': f['ghost'] == true,
               'open': () => set({'xfDetail': f['name']}),
             };
+        // #15v2: sub-daromad papkalari (har doim hisoblanadi — @ tanlov popupi uchun ham)
+        final incSubs = _xfIncSubs();
+        final xfDel = (S['xfDeleting'] as List).cast<String>();
         // Ochiq papka (tafsilot)
         final xfDN = S['xfDetail'] as String?;
         final xfDFl = xfFs.where((f) => f['name'] == xfDN).toList();
         final xfDF = xfDFl.isEmpty ? null : xfDFl.first;
         final xfGroups = <Map<String, dynamic>>[];
         final xfDIsInc = xfDF?['income'] == true;
-        if (xfDF != null) {
-          Map<String, dynamic> detRow(Map<String, dynamic> e) => {
-                'id': e['id'], 'a': e['a'],
-                'desc': (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'],
-                'time': e['t'],
-                'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
-                'inc': e['kind'] == 'd',
-                'edit': () => xfEditStart_(e['id'] as String),
-                'del': () => xfDelEntry_(e['id'] as String),
-              };
+        // Ochiq sub-daromad (Daromad ichida)
+        final incSubName = S['xfIncSub'] as String?;
+        final incSubF = incSubName == null
+            ? null
+            : incSubs.where((f) => '${f['name']}'.toLowerCase() == incSubName.toLowerCase()).firstOrNull;
+        final incMain = incSubF == null;
+        Map<String, dynamic> detRow(Map<String, dynamic> e) => {
+              'id': e['id'], 'a': e['a'], 'note': e['note'] ?? '',
+              'desc': (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'],
+              'time': e['t'],
+              'amtTxt': (e['kind'] == 'd' ? '+' : '−') + _fx(e['a'] as int),
+              'inc': e['kind'] == 'd',
+              'deleting': xfDel.contains(e['id']),
+              'edit': () => xfEditStart_(e['id'] as String),
+              'del': () => xfDelEntry_(e['id'] as String),
+            };
+        if (xfDF != null && !xfDIsInc) {
+          // Chiqim papkasi — kunlar bo'yicha guruhlash (avvalgidek)
           final ents = (xfDF['entries'] as List).cast<Map<String, dynamic>>().toList();
-          if (xfDIsInc) {
-            // #15: kirim — @manba bo'yicha guruhlash ('Daromad' = Umumiy, oxirida).
-            final byCat = <String, List<Map<String, dynamic>>>{};
-            for (final e in ents) {
-              byCat.putIfAbsent((e['cat'] as String?) ?? 'Daromad', () => []).add(e);
+          ents.sort((a, b) => (a['days'] as int).compareTo(b['days'] as int));
+          for (final e in ents) {
+            final d = e['days'] as int;
+            final label = d <= 0 ? (L()['tToday'] as String) : d == 1 ? (L()['tYesterday'] as String) : Lf('daysAgo', {'d': '$d'});
+            if (xfGroups.isEmpty || xfGroups.last['label'] != label) {
+              xfGroups.add({'label': label, 'rows': <Map<String, dynamic>>[]});
             }
-            final keys = byCat.keys.toList()
-              ..sort((a, b) {
-                if (a == 'Daromad') return 1; // Umumiy oxirida
-                if (b == 'Daromad') return -1;
-                return a.toLowerCase().compareTo(b.toLowerCase());
-              });
-            for (final k in keys) {
-              final rows = byCat[k]!..sort((a, b) => (a['days'] as int).compareTo(b['days'] as int));
-              xfGroups.add({
-                'label': k == 'Daromad' ? (L()['xfIncGeneral'] as String? ?? 'Umumiy') : k,
-                'rows': rows.map(detRow).toList(),
-              });
-            }
-          } else {
-            ents.sort((a, b) => (a['days'] as int).compareTo(b['days'] as int));
-            for (final e in ents) {
-              final d = e['days'] as int;
-              final label = d <= 0 ? (L()['tToday'] as String) : d == 1 ? (L()['tYesterday'] as String) : Lf('daysAgo', {'d': '$d'});
-              if (xfGroups.isEmpty || xfGroups.last['label'] != label) {
-                xfGroups.add({'label': label, 'rows': <Map<String, dynamic>>[]});
-              }
-              (xfGroups.last['rows'] as List).add(detRow(e));
-            }
+            (xfGroups.last['rows'] as List).add(detRow(e));
           }
+        }
+        // #15v2: Daromad oqimi — kirim (hammasi/sub) + @tegli chiqimlar, yangi->eski
+        final incFlow = <Map<String, dynamic>>[];
+        if (xfDIsInc && xfDF != null) {
+          for (final e in _xfMonthEntries()) {
+            final isInc = e['kind'] == 'd';
+            if (isInc) {
+              final c = (e['cat'] as String?) ?? 'Daromad';
+              if (!incMain && c.toLowerCase() != '${incSubF!['name']}'.toLowerCase()) continue;
+            } else {
+              final tag = _incTag(e['note'] as String?);
+              if (tag == null) continue;
+              if (!incMain && tag != '${incSubF!['name']}'.toLowerCase()) continue;
+            }
+            incFlow.add(e);
+          }
+          incFlow.sort((a, b) => ((b['ts'] as int?) ?? 0).compareTo((a['ts'] as int?) ?? 0));
+        }
+        final incFlowRows = incFlow.map((e) {
+          final isInc = e['kind'] == 'd';
+          final note = (e['note'] as String?) ?? '';
+          return <String, dynamic>{
+            'id': e['id'], 'a': e['a'], 'note': note,
+            'inc': isInc,
+            'title': note.isNotEmpty
+                ? note
+                : (isInc
+                    ? (('${e['cat'] ?? ''}').startsWith('@')
+                        ? '${e['cat']}'
+                        : (L()['xfIncGeneral'] as String? ?? 'Umumiy kirim'))
+                    : '${e['cat'] ?? ''}'),
+            'when': '${e['dom']}-${_monFull[xfNow.month - 1].toLowerCase()} · ${e['t']}',
+            'chip': isInc ? '' : '${e['cat'] ?? ''}', // chiqimda: qaysi xarajat papkasi
+            'amtTxt': (isInc ? '+' : '−') + _fx(e['a'] as int),
+            'deleting': xfDel.contains(e['id']),
+            'del': () => xfDelEntry_(e['id'] as String),
+          };
+        }).toList();
+        // Sarlavha qiymatlari: sub ochiq bo'lsa — nomi + QOLDIQ (kirim − @chiqim)
+        String xfDNameV = xfDF == null ? '' : '${xfDF['name']}';
+        int xfDTotalV = xfDF == null ? 0 : xfDF['total'] as int;
+        String xfDPrefixV = xfDF?['income'] == true ? '+' : '−';
+        String xfDCountV = xfDF == null
+            ? ''
+            : Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'});
+        if (xfDIsInc && !incMain) {
+          final left = incSubF!['left'] as int;
+          xfDNameV = '${incSubF!['name']}';
+          xfDTotalV = left.abs();
+          xfDPrefixV = left < 0 ? '−' : '+';
+          xfDCountV = '${incFlowRows.length} ${(L()['xfActsLabel'] as String?) ?? 'ta harakat'}';
         }
         // Tasdiqlash kartasi (birlashtirish / papka o'chirish)
         final xfCf = S['xfConfirm'] as Map<String, dynamic>?;
@@ -2895,20 +3029,53 @@ class TrustStore extends ChangeNotifier {
           // Papka tafsiloti
           'xfDetailOpen': xfDF != null,
           'xfDEmoji': xfDF == null ? '' : xfEmoji(xfDF['name'] as String),
-          'xfDName': xfDF == null ? '' : xfDF['name'],
-          'xfDCount': xfDF == null ? '' : Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'}),
-          'xfDTotalTxt': xfDF == null ? '' : ((xfDF['income'] == true ? '+' : '−') + _fx(xfDF['total'] as int)),
-          'xfDTotalVal': xfDF == null ? 0 : xfDF['total'] as int,
+          'xfDName': xfDNameV,
+          'xfDCount': xfDCountV,
+          'xfDTotalTxt': xfDF == null ? '' : (xfDPrefixV + _fx(xfDTotalV)),
+          'xfDTotalVal': xfDTotalV,
+          'xfDPrefix': xfDPrefixV,
           'xfDInc': xfDF?['income'] == true,
           'xfDSpark': xfDF == null ? List<double>.filled(8, 0.06) : _xfSpark(xfDF['entries'] as List),
           'xfDGroups': xfGroups,
           'xfDEmpty': xfDF != null && (xfDF['entries'] as List).isEmpty,
-          'xfDetailClose': () => set({'xfDetail': null}),
-          // #15: Daromad papkasi ichidan kirim qo'shish (summa + ixtiyoriy @manba).
-          // xfAddIncome(amount, source) -> Future<bool> (true = maydonni tozala).
+          // Yopish: sub ochiq bo'lsa -> Daromad asosiyga qaytadi; aks holda detail yopiladi
+          'xfDetailClose': () {
+            if (xfDIsInc && !incMain) {
+              set({'xfIncSub': null});
+            } else {
+              set({'xfDetail': null, 'xfIncSub': null});
+            }
+          },
+          // ---- #15v2: Daromad bo'limi (sub-papkalar + oqim + kirim qo'shish) ----
           'xfDIsIncome': xfDIsInc,
+          'xfIncMain': incMain, // true = Daromad asosiy ko'rinish (sub-papkalar ro'yxati)
           'xfIncBusy': S['xfIncBusy'] == true,
-          'xfAddIncome': (String amt, String src) => xfAddIncome_(amt, src),
+          'xfAddIncome': (String amt, String note) => xfAddIncome_(amt, note),
+          'xfIncCreate': (String name) => xfIncSubCreate_(name),
+          'xfIncEditSave': (String id, String amt, String note) => xfIncEditSave_(id, amt, note),
+          'xfIncSubRows': incSubs.map((f) {
+            final left = f['left'] as int;
+            return <String, dynamic>{
+              'name': f['name'],
+              'leftTxt': (left < 0 ? '−' : '') + _fx(left.abs()),
+              'neg': left < 0,
+              'inTxt': '+${_fx(f['in'] as int)}',
+              'n': f['n'],
+              'open': () => set({'xfIncSub': f['name']}),
+            };
+          }).toList(),
+          'xfIncFlow': incFlowRows,
+          // @ tanlov popupi (asosiy inputda '@...' yozilganda): nom + qoldiq
+          'xfAtSubs': incSubs.map((f) {
+            final left = f['left'] as int;
+            return <String, dynamic>{
+              'name': f['name'],
+              'leftTxt': (left < 0 ? '−' : '') + _fx(left.abs()),
+              'neg': left < 0,
+            };
+          }).toList(),
+          // Daromad sahifasida pastki xarajat inputi KO'RINMAYDI (PO 2026-07-29)
+          'xfHideInput': xfDIsInc && xfDF != null,
           // Jurnal (Oxirgi o'zgarishlar)
           'xfLogOpen': S['xfLogOpen'] == true,
           'xfLogDot': S['xfLogDot'] == true,
@@ -3011,8 +3178,12 @@ class TrustStore extends ChangeNotifier {
             'xfDCount': '', 'xfDTotalTxt': '', 'xfDTotalVal': 0, 'xfDInc': false,
             'xfDSpark': List<double>.filled(8, 0.08), 'xfDGroups': <Map<String, dynamic>>[],
             'xfDEmpty': true, 'xfDetailClose': () {},
-            'xfDIsIncome': false, 'xfIncBusy': false,
-            'xfAddIncome': (String amt, String src) async => false,
+            'xfDIsIncome': false, 'xfIncBusy': false, 'xfIncMain': true,
+            'xfAddIncome': (String amt, String note) async => false,
+            'xfIncCreate': (String name) async => false,
+            'xfIncEditSave': (String id, String amt, String note) async => false,
+            'xfIncSubRows': <Map<String, dynamic>>[], 'xfIncFlow': <Map<String, dynamic>>[],
+            'xfAtSubs': <Map<String, dynamic>>[], 'xfHideInput': false, 'xfDPrefix': '+',
             'xfLogOpen': false, 'xfLogDot': false, 'xfLogToggle': () {}, 'xfLogEmpty': true,
             'xfLogRows': <Map<String, dynamic>>[],
             'xfShowTray': false, 'xfTrayCount': '0', 'xfTrayRows': <Map<String, dynamic>>[],
@@ -3799,7 +3970,7 @@ class TrustStore extends ChangeNotifier {
         toast_(L()['tPartnerAdded']);
         hydrate(full: false);
       },
-      'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
+      'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false}),
       'goCircles': () {
         set({'screen': 'circles', 'clientId': null, 'receiptId': null, 'inLinkId': null});
         loadCircles();

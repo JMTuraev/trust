@@ -54,14 +54,45 @@ class Tx extends StatelessWidget {
 }
 
 /// Bosiladigan element
-class Tap extends StatelessWidget {
+/// Bosiladigan element — bosilganda yengil kichrayish + haptik ("bosildi" hissi
+/// butun ilova bo'ylab). onTap null bo'lsa (o'chirilgan) — effekt yo'q.
+class Tap extends StatefulWidget {
   final VoidCallback? onTap;
   final Widget child;
   const Tap({super.key, this.onTap, required this.child});
 
   @override
-  Widget build(BuildContext context) =>
-      GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: child);
+  State<Tap> createState() => _TapState();
+}
+
+class _TapState extends State<Tap> {
+  bool _down = false;
+  void _set(bool d) {
+    if (mounted && _down != d) setState(() => _down = d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onTapDown: enabled
+          ? (_) {
+              _set(true);
+              HapticFeedback.selectionClick(); // bosilgani seziladi
+            }
+          : null,
+      onTapUp: enabled ? (_) => _set(false) : null,
+      onTapCancel: enabled ? () => _set(false) : null,
+      child: AnimatedScale(
+        scale: _down ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 /// Orqaga strelka (burchak-chiziq)

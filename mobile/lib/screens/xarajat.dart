@@ -47,9 +47,22 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   // Rename maydoni — barqaror controller (poll-rebuild matnni o'chirmasin)
   final TextEditingController _fCtl = TextEditingController();
 
+  // ---- #15v2/#35/#36: modal holatlari (ekran-lokal) ----
+  Map<String, dynamic>? _rowMenu; // ⋮ menyu: {'edit': fn?, 'del': fn}
+  Map<String, dynamic>? _delAsk; // o'chirish tasdiqi: {'title', 'run': fn}
+  Map<String, dynamic>? _incEdit; // kirim tahriri: {'id'}
+  bool _incNew = false; // yangi sub-papka modali
+  bool _mBusy = false; // modal ichida server kutilmoqda
+  final TextEditingController _ieAmt = TextEditingController();
+  final TextEditingController _ieNote = TextEditingController();
+  final TextEditingController _inName = TextEditingController();
+
   @override
   void dispose() {
     _fCtl.dispose();
+    _ieAmt.dispose();
+    _ieNote.dispose();
+    _inName.dispose();
     super.dispose();
   }
 
@@ -315,8 +328,254 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
         // ------- Pastki qatlam -------
         Positioned(left: 0, right: 0, bottom: 0, child: _bottomOverlay(v, p)),
+
+        // ------- #15v2/#35/#36: modallar (hamma narsaning ustida) -------
+        if (_rowMenu != null) _menuModal(p),
+        if (_delAsk != null) _delModal(p),
+        if (_incEdit != null) _incEditModal(v, p),
+        if (_incNew) _incNewModal(v, p),
       ],
     );
+  }
+
+  // ================= #15v2/#35/#36 MODALLAR =================
+
+  /// Qoraytirilgan fon + markazda karta (tashqarisi bosilsa yopiladi)
+  Widget _scrimCard(Pal p, VoidCallback close, Widget card) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _mBusy ? null : close,
+        child: Container(
+          color: p.dim,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 36),
+          child: GestureDetector(onTap: () {}, child: card),
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _modalDeco(Pal p) => BoxDecoration(
+        color: p.bg,
+        border: Border.all(color: p.bd2),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16))],
+      );
+
+  /// #36: ⋮ menyu — Tahrirlash / O'chirish
+  Widget _menuModal(Pal p) {
+    final m = _rowMenu!;
+    final hasEdit = m['edit'] != null;
+    Widget row(String label, Color c, VoidCallback onTap) => Tap(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+            child: Row(children: [Expanded(child: Tx(label, size: 14.5, w: FontWeight.w600, color: c))]),
+          ),
+        );
+    return _scrimCard(
+      p,
+      () => setState(() => _rowMenu = null),
+      Container(
+        width: 240,
+        decoration: _modalDeco(p),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasEdit) ...[
+              row(_t('btnEdit', 'Tahrirlash'), p.ink, () {
+                final f = m['edit'] as Function;
+                setState(() => _rowMenu = null);
+                f();
+              }),
+              Container(height: 1, color: p.hair2),
+            ],
+            row(_t('btnDelete', "O'chirish"), p.red, () {
+              (m['del'] as Function)();
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// #35: o'chirish tasdiqi — modal ogohlantirish
+  Widget _delModal(Pal p) {
+    final d = _delAsk!;
+    return _scrimCard(
+      p,
+      () => setState(() => _delAsk = null),
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _modalDeco(p),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Tx(_t('xfDelAskTitle', "Yozuv o'chirilsinmi?"), size: 16, w: FontWeight.w700, color: p.ink),
+            const SizedBox(height: 6),
+            Tx('${d['title']}', size: 13, color: p.t1, lh: 18, maxLines: 3, ellipsis: true),
+            const SizedBox(height: 4),
+            Tx(_t('xfDelAskSub', "Tasdiqlasangiz yozuv o'chiriladi."), size: 12, color: p.t3),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: GhostBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                    onTap: () => setState(() => _delAsk = null),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkBtn(
+                    label: _t('btnDelete', "O'chirish"), h: 42, fs: 13.5,
+                    onTap: () {
+                      final run = d['run'] as Function;
+                      setState(() => _delAsk = null);
+                      run(); // karta "o'chirilmoqda" spinneriga o'tadi (store xfDeleting)
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _mFieldDeco(Pal p, String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: p.t5, fontSize: 13.5),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.ink)),
+      );
+
+  /// #15v2: kirim yozuvini tahrirlash (summa + izoh)
+  Widget _incEditModal(Map<String, dynamic> v, Pal p) {
+    return _scrimCard(
+      p,
+      () => setState(() => _incEdit = null),
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _modalDeco(p),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Tx(_t('xfIncEditTitle', 'Kirimni tahrirlash'), size: 16, w: FontWeight.w700, color: p.ink),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _ieAmt,
+              keyboardType: TextInputType.number,
+              style: TextStyle(color: p.ink, fontSize: 14.5, fontWeight: FontWeight.w600),
+              decoration: _mFieldDeco(p, _t('xfIncAmtHint', 'Summa')),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _ieNote,
+              style: TextStyle(color: p.ink, fontSize: 14),
+              decoration: _mFieldDeco(p, _t('xfIncNoteHint', 'Izoh (ixtiyoriy)')),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: GhostBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                    onTap: () { if (!_mBusy) setState(() => _incEdit = null); },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkBtn(
+                    label: _t('btnSave', 'Saqlash'), h: 42, fs: 13.5, loading: _mBusy,
+                    onTap: () async {
+                      if (_mBusy) return;
+                      setState(() => _mBusy = true);
+                      final ok = await (v['xfIncEditSave'] as Future<bool> Function(String, String, String))(
+                          '${_incEdit!['id']}', _ieAmt.text, _ieNote.text);
+                      if (!mounted) return;
+                      setState(() {
+                        _mBusy = false;
+                        if (ok) _incEdit = null;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// #15v2: yangi sub-daromad papkasi yaratish
+  Widget _incNewModal(Map<String, dynamic> v, Pal p) {
+    return _scrimCard(
+      p,
+      () => setState(() => _incNew = false),
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _modalDeco(p),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Tx(_t('xfIncNewTitle', 'Yangi daromad manbasi'), size: 16, w: FontWeight.w700, color: p.ink),
+            const SizedBox(height: 6),
+            Tx(_t('xfIncNewSub', "Masalan: dokon, oylik, ijara — '@' o'zi qo'shiladi"),
+                size: 12, color: p.t3, lh: 16),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _inName,
+              autofocus: true,
+              style: TextStyle(color: p.ink, fontSize: 14.5, fontWeight: FontWeight.w600),
+              decoration: _mFieldDeco(p, _t('xfIncNewHint', '@nomi')),
+              onSubmitted: (_) => _incCreateGo(v),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: GhostBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                    onTap: () { if (!_mBusy) setState(() => _incNew = false); },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkBtn(
+                    label: _t('btnCreate', 'Yaratish'), h: 42, fs: 13.5, loading: _mBusy,
+                    onTap: () => _incCreateGo(v),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _incCreateGo(Map<String, dynamic> v) async {
+    if (_mBusy) return;
+    setState(() => _mBusy = true);
+    final ok = await (v['xfIncCreate'] as Future<bool> Function(String))(_inName.text);
+    if (!mounted) return;
+    setState(() {
+      _mBusy = false;
+      if (ok) {
+        _incNew = false;
+        _inName.clear();
+      }
+    });
   }
 
   // ================= FLY ANIMATSIYASI (dizayn: flyToFolder) =================
@@ -929,10 +1188,14 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   children: [
                     _AnimNum(
                       value: v['xfDTotalVal'] as int? ?? 0,
-                      prefix: v['xfDInc'] == true ? '+' : '−',
+                      // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
+                      prefix: '${v['xfDPrefix'] ?? (v['xfDInc'] == true ? '+' : '−')}',
                       size: 28, weight: FontWeight.w700,
                       // RANG BUGI TUZATILDI: chiqim jami p.ink emas — brend qizil
-                      color: v['xfDInc'] == true ? p.green : p.red, ls: -0.5,
+                      color: v['xfDInc'] == true
+                          ? (('${v['xfDPrefix'] ?? '+'}' == '−') ? p.red : p.green)
+                          : p.red,
+                      ls: -0.5,
                     ),
                     const SizedBox(width: 7),
                     Padding(
@@ -946,15 +1209,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               ],
             ),
           ),
-          // #15: Daromad papkasi ichida — kirim qo'shish paneli (summa + ixtiyoriy @manba)
+          // #15v2: Daromad — sub-papkalar + kirim-chiqim oqimi (alohida body)
           if (v['xfDIsIncome'] == true)
-            _IncomeAddBar(
-              busy: v['xfIncBusy'] == true,
-              onAdd: (a, s) =>
-                  (v['xfAddIncome'] as Future<bool> Function(String, String))(a, s),
-            ),
+            Expanded(child: _incomeBody(v, p))
+          else
           Expanded(
-            child: v['xfDEmpty'] == true && v['xfDIsIncome'] != true
+            child: v['xfDEmpty'] == true
                 ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
@@ -990,6 +1250,190 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
+  // ================= #15v2: DAROMAD BO'LIMI =================
+  // Asosiy ko'rinish: sub-papkalar (nomi + QOLDIQ) + barcha kirim-chiqim oqimi.
+  // Sub ko'rinish: kirim qo'shish paneli (summa+izoh) + shu manba oqimi.
+  Widget _incomeBody(Map<String, dynamic> v, Pal p) {
+    final main = v['xfIncMain'] == true;
+    final flow = (v['xfIncFlow'] as List).cast<Map<String, dynamic>>();
+
+    if (!main) {
+      // ---- SUB ko'rinish ----
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            child: _IncomeAddBar(
+              busy: v['xfIncBusy'] == true,
+              onAdd: (a, n) => (v['xfAddIncome'] as Future<bool> Function(String, String))(a, n),
+            ),
+          ),
+          Expanded(
+            child: flow.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+                    child: Tx(_t('xfIncSubEmpty', "Hali yozuv yo'q — yuqorida summa kiritib qo'shing"),
+                        size: 12.5, color: p.t4, align: TextAlign.center, lh: 17),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                    children: [
+                      for (final r in flow)
+                        Padding(padding: const EdgeInsets.only(bottom: 8), child: _incFlowRow(r, p)),
+                    ],
+                  ),
+          ),
+        ],
+      );
+    }
+
+    // ---- ASOSIY (Daromad) ko'rinish ----
+    final subs = (v['xfIncSubRows'] as List).cast<Map<String, dynamic>>();
+    final cards = <Widget>[
+      for (final f in subs) _incSubCard(f, p),
+      _incNewCard(p), // + Yangi manba
+    ];
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      rows.add(Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: cards[i]),
+          const SizedBox(width: 10),
+          Expanded(child: i + 1 < cards.length ? cards[i + 1] : const SizedBox()),
+        ],
+      ));
+      if (i + 2 < cards.length) rows.add(const SizedBox(height: 10));
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Tx(_t('xfIncSrcCap', 'MANBALAR'), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+        ),
+        ...rows,
+        const SizedBox(height: 18),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Tx(_t('xfIncFlowCap', 'HARAKATLAR'), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+        ),
+        if (flow.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Tx(_t('xfIncEmpty', "Hali harakat yo'q — manba ochib kirim qo'shing"),
+                size: 12.5, color: p.t4, align: TextAlign.center, lh: 17),
+          )
+        else
+          for (final r in flow)
+            Padding(padding: const EdgeInsets.only(bottom: 8), child: _incFlowRow(r, p)),
+      ],
+    );
+  }
+
+  /// Sub-daromad kartasi: nomi + QOLDIQ (katta) + kirimlar soni
+  Widget _incSubCard(Map<String, dynamic> f, Pal p) {
+    return Tap(
+      onTap: f['open'] as VoidCallback,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: p.hov2,
+          border: Border.all(color: p.hair2),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Tx('${f['name']}', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+            const SizedBox(height: 6),
+            Tx('${f['leftTxt']}', size: 16, w: FontWeight.w700,
+                color: f['neg'] == true ? p.red : p.green, tab: true),
+            const SizedBox(height: 2),
+            Tx('${f['n']} ${_t('xfIncCardN', 'ta kirim')} · ${f['inTxt']}',
+                size: 10.5, color: p.t4, maxLines: 1, ellipsis: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "+ Yangi manba" kartasi (shtrixli)
+  Widget _incNewCard(Pal p) {
+    return Tap(
+      onTap: () => setState(() { _incNew = true; _inName.clear(); }),
+      child: _Dashed(
+        color: p.t5,
+        radius: 14,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          alignment: Alignment.center,
+          constraints: const BoxConstraints(minHeight: 78),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Tx('+', size: 20, w: FontWeight.w600, color: p.t3),
+              const SizedBox(height: 2),
+              Tx(_t('xfIncNewCard', 'Yangi manba'), size: 12, w: FontWeight.w600, color: p.t3),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Oqim qatori: kirim (yashil, ⋮ bilan) yoki @chiqim (qizil).
+  /// Chiqim bu yerda faqat ko'rinadi (tahriri o'z xarajat papkasida); ⋮da faqat o'chirish.
+  Widget _incFlowRow(Map<String, dynamic> r, Pal p) {
+    final inc = r['inc'] == true;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: p.hov2,
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Tx('${r['title']}', size: 13.5, w: FontWeight.w500, color: p.ink),
+                const SizedBox(height: 2),
+                Tx(
+                  '${r['when']}${(r['chip'] as String? ?? '').isNotEmpty ? ' · ${r['chip']}' : ''}',
+                  size: 11, color: p.t4, maxLines: 1, ellipsis: true,
+                ),
+              ],
+            ),
+          ),
+          Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600, color: inc ? p.green : p.red, tab: true),
+          const SizedBox(width: 6),
+          if (r['deleting'] == true)
+            const SizedBox(
+              width: 28, height: 28,
+              child: Center(
+                child: SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else
+            _dotsBtn(
+              p,
+              onEdit: inc
+                  ? () => setState(() {
+                        _incEdit = {'id': r['id']};
+                        _ieAmt.text = '${r['a']}';
+                        _ieNote.text = '${r['note'] ?? ''}';
+                      })
+                  : null,
+              onDelete: () => _askDelete('${r['title']}', r['del'] as Function),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _entryRow(Map<String, dynamic> r, String folderName, Pal p) {
     return Tap(
       // Qator bosilsa — yozuvni boshqa papkaga KO'CHIRISH kartasi (XOTIRA §4:
@@ -1018,14 +1462,47 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600,
                 // RANG BUGI TUZATILDI: chiqim raqamlari brend qizil (p.ink emas)
                 color: r['inc'] == true ? p.green : p.red),
-            const SizedBox(width: 8),
-            _roundBtn('✎', r['edit'], p),
             const SizedBox(width: 6),
-            _roundBtn('✕', r['del'], p),
+            // #35/#36: o'chirilayotganda spinner; aks holda 3-nuqta menyu (edit/delete)
+            if (r['deleting'] == true)
+              const SizedBox(
+                width: 28, height: 28,
+                child: Center(
+                  child: SizedBox(
+                    width: 15, height: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else
+              _dotsBtn(p, onEdit: () => (r['edit'] as Function)(), onDelete: () {
+                _askDelete('${r['desc']}', r['del'] as Function);
+              }),
           ],
         ),
       ),
     );
+  }
+
+  /// #36: 3-nuqta (⋮) tugmasi — bosilsa yonida kichik menyu (Tahrirlash / O'chirish).
+  /// onEdit null bo'lsa menyuda faqat "O'chirish" ko'rinadi.
+  Widget _dotsBtn(Pal p, {Function? onEdit, required Function onDelete}) {
+    return Tap(
+      onTap: () => setState(() => _rowMenu = {'edit': onEdit, 'del': onDelete}),
+      child: Container(
+        width: 28, height: 28, alignment: Alignment.center,
+        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
+        child: Tx('⋮', size: 14, w: FontWeight.w700, color: p.t2),
+      ),
+    );
+  }
+
+  /// #35: o'chirishdan oldin tasdiq modalini ochish
+  void _askDelete(String title, Function run) {
+    setState(() {
+      _rowMenu = null;
+      _delAsk = {'title': title, 'run': run};
+    });
   }
 
   Widget _roundBtn(String glyph, dynamic onTap, Pal p) {
@@ -1263,6 +1740,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             const SizedBox(height: 10),
           ],
 
+          // #15v2: Daromad sahifalarida pastki xarajat inputi KO'RINMAYDI
+          if (v['xfHideInput'] != true) ...[
+          // @ tanlov popupi — '@...' yozilganda manbalar ro'yxati (nomi + qoldiq)
+          if (_atList(v).isNotEmpty) _atOverlay(v, p),
           // Yo'riqnoma — inputdan yuqorida
           Center(
             child: Tx(store.L()['xarInputHint'] as String, size: 11, color: p.t4),
@@ -1310,6 +1791,62 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               ],
             ),
           ),
+          ], // xfHideInput gate tugadi
+        ],
+      ),
+    );
+  }
+
+  // ---- #15v2: @ tanlov popupi (asosiy inputda '@...' yozilganda) ----
+  /// Matn oxiridagi '@so'z' bo'lagiga mos manbalar (maks 4 ta)
+  List<Map<String, dynamic>> _atList(Map<String, dynamic> v) {
+    final txt = '${v['xarTextVal'] ?? ''}';
+    final m = RegExp(r'@[^\s@]*$').firstMatch(txt);
+    if (m == null) return const [];
+    final q = m.group(0)!.toLowerCase();
+    final subs = (v['xfAtSubs'] as List? ?? const []).cast<Map<String, dynamic>>();
+    return subs.where((s) => '${s['name']}'.toLowerCase().startsWith(q)).take(4).toList();
+  }
+
+  void _atPick(Map<String, dynamic> v, String name) {
+    final txt = '${v['xarTextVal'] ?? ''}';
+    final nt = txt.replaceFirst(RegExp(r'@[^\s@]*$'), '$name ');
+    (v['xarTextSet'] as Function)(nt);
+  }
+
+  Widget _atOverlay(Map<String, dynamic> v, Pal p) {
+    final list = _atList(v);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: p.field.withValues(alpha: .97),
+        border: Border.all(color: p.bd),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 8))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < list.length; i++) ...[
+            if (i > 0) Container(height: 1, color: p.hair2),
+            Tap(
+              onTap: () => _atPick(v, '${list[i]['name']}'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Tx('${list[i]['name']}', size: 13.5, w: FontWeight.w600, color: p.ink,
+                          maxLines: 1, ellipsis: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Tx('${list[i]['leftTxt']}', size: 12.5, w: FontWeight.w600,
+                        color: list[i]['neg'] == true ? p.red : p.green, tab: true),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2640,11 +3177,10 @@ class _CatIconPainter extends CustomPainter {
   bool shouldRepaint(_CatIconPainter old) => old.glyph != glyph || old.color != color;
 }
 
-/// #15: Daromad papkasi ichida "kirim qo'shish" paneli — o'z kontrollerlari bilan
-/// (controlled-field sinxron muammosini chetlab o'tadi). Summa + ixtiyoriy @manba.
+/// #15v2: SUB-papka ichida "kirim qo'shish" paneli — summa + izoh.
 /// onAdd true qaytarsa (server saqladi) — maydonlar tozalanadi.
 class _IncomeAddBar extends StatefulWidget {
-  final Future<bool> Function(String amount, String source) onAdd;
+  final Future<bool> Function(String amount, String note) onAdd;
   final bool busy;
   const _IncomeAddBar({required this.onAdd, required this.busy});
 
@@ -2654,25 +3190,25 @@ class _IncomeAddBar extends StatefulWidget {
 
 class _IncomeAddBarState extends State<_IncomeAddBar> {
   final _amt = TextEditingController();
-  final _src = TextEditingController();
+  final _note = TextEditingController();
   bool _sending = false;
 
   @override
   void dispose() {
     _amt.dispose();
-    _src.dispose();
+    _note.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_sending || widget.busy) return;
     setState(() => _sending = true);
-    final ok = await widget.onAdd(_amt.text, _src.text);
+    final ok = await widget.onAdd(_amt.text, _note.text);
     if (!mounted) return;
     setState(() => _sending = false);
     if (ok) {
       _amt.clear();
-      _src.clear();
+      _note.clear();
       FocusScope.of(context).unfocus();
     }
   }
@@ -2719,9 +3255,9 @@ class _IncomeAddBarState extends State<_IncomeAddBar> {
               Expanded(
                 flex: 5,
                 child: TextField(
-                  controller: _src,
+                  controller: _note,
                   style: TextStyle(color: p.ink, fontSize: 14),
-                  decoration: deco(store.L()['xfIncSrcHint'] as String? ?? '@manba'),
+                  decoration: deco(store.L()['xfIncNoteHint'] as String? ?? 'Izoh (ixtiyoriy)'),
                   onSubmitted: (_) => _submit(),
                 ),
               ),
@@ -2753,7 +3289,7 @@ class _IncomeAddBarState extends State<_IncomeAddBar> {
           const SizedBox(height: 6),
           Tx(
             store.L()['xfIncHint'] as String? ??
-                "Kirim qo'shish — @manba yozsangiz alohida guruhga tushadi",
+                "Shu manbaga kirim qo'shish — summa va izoh yozib + ni bosing",
             size: 11,
             color: p.t4,
             lh: 15,
