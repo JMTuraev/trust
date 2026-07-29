@@ -21,15 +21,16 @@ workflows:
     instance_type: mac_mini_m2
     working_directory: mobile        # Flutter proyekti repo ichida mobile/ da
     integrations:
-      # <TO'LDIRING>: Codemagic'dagi App Store Connect integratsiyasi NOMI (4-qadam)
-      app_store_connect: Trustbook ASC
+      # Codemagic'dagi App Store Connect integratsiyasi (Personal Account -> Settings ->
+      # Integrations -> Developer Portal). AllClubs uchun yaratilgan kalit — shu ishlaydi.
+      app_store_connect: codemagic_api_key
     environment:
       ios_signing:
         distribution_type: app_store          # avtomatik imzo: App Store taqsimoti
         bundle_identifier: uz.trust.trustMobile
       vars:
-        # <TO'LDIRING>: App Store Connect'dagi app'ning raqamli Apple ID si (3-qadam)
-        APP_STORE_APPLE_ID: 0000000000
+        # App Store Connect'dagi app'ning raqamli Apple ID si (Trustbook — xarajat va qarz)
+        APP_STORE_APPLE_ID: 6795898196
         BUNDLE_ID: "uz.trust.trustMobile"
       flutter: stable
       xcode: latest
