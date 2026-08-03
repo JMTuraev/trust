@@ -8,8 +8,6 @@
 // Navigatsiya: hub -> karta bosiladi -> bo'lim TO'LIQ EKRAN ochiladi ->
 // header'dagi orqaga (<) hub'ga qaytaradi (store: goHub_ / hubBack).
 // Barcha raqam store.vals() dan (real ma'lumot) — mock yo'q.
-import 'dart:io' show File;
-
 import 'package:flutter/material.dart';
 
 import '../flags.dart';

@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
-import '../theme.dart';
 
 class SupportChatScreen extends StatelessWidget {
   const SupportChatScreen({super.key});

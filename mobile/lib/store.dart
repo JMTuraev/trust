@@ -1545,7 +1545,8 @@ class TrustStore extends ChangeNotifier {
     }
     final trimmed = txt.trim();
     final note = trimmed.isEmpty ? '' : trimmed[0].toUpperCase() + trimmed.substring(1);
-    return {'kind': inc ? 'd' : 'x', 'amount': ai != 0 ? ai.toString() : '', 'cat': cat, 'note': note};
+    // #15: asosiy input faqat xarajat (inc doim false) — CI analyze dead_code tozalandi
+    return {'kind': 'x', 'amount': ai != 0 ? ai.toString() : '', 'cat': cat, 'note': note};
   }
 
   // 2026-07-17: ovozli kiritish (STT hold-to-talk) OLIB TASHLANDI — FAQAT MATN.
@@ -3188,6 +3189,10 @@ class TrustStore extends ChangeNotifier {
             ? null
             : incSubs.where((f) => '${f['name']}'.toLowerCase() == incSubName.toLowerCase()).firstOrNull;
         final incMain = incSubF == null;
+        // CI analyze gate (2026-08-03): `incSubF!` o'rniga oddiy promotion ishlaydigan
+        // lokal nusxa — har qanday Dart versiyasida ogohlantirishsiz (unnecessary_non_null_assertion)
+        final subF = incSubF;
+        final incSubNameLow = subF == null ? null : '${subF['name']}'.toLowerCase();
         Map<String, dynamic> detRow(Map<String, dynamic> e) => {
               'id': e['id'], 'a': e['a'], 'note': e['note'] ?? '',
               'desc': (e['note'] as String?)?.isNotEmpty == true ? e['note'] : e['cat'],
@@ -3218,11 +3223,11 @@ class TrustStore extends ChangeNotifier {
             final isInc = e['kind'] == 'd';
             if (isInc) {
               final c = (e['cat'] as String?) ?? 'Daromad';
-              if (!incMain && c.toLowerCase() != '${incSubF!['name']}'.toLowerCase()) continue;
+              if (incSubNameLow != null && c.toLowerCase() != incSubNameLow) continue;
             } else {
               final tag = _incTag(e['note'] as String?);
               if (tag == null) continue;
-              if (!incMain && tag != '${incSubF!['name']}'.toLowerCase()) continue;
+              if (incSubNameLow != null && tag != incSubNameLow) continue;
             }
             incFlow.add(e);
           }
@@ -3255,9 +3260,9 @@ class TrustStore extends ChangeNotifier {
         String xfDCountV = xfDF == null
             ? ''
             : Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'});
-        if (xfDIsInc && !incMain) {
-          final left = incSubF!['left'] as int;
-          xfDNameV = '${incSubF!['name']}';
+        if (xfDIsInc && subF != null) {
+          final left = subF['left'] as int;
+          xfDNameV = '${subF['name']}';
           xfDTotalV = left.abs();
           xfDPrefixV = left < 0 ? '−' : '+';
           xfDCountV = '${incFlowRows.length} ${(L()['xfActsLabel'] as String?) ?? 'ta harakat'}';

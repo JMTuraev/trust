@@ -1,3 +1,43 @@
 === 1. Eski git qulflari tozalanmoqda ===
 === 2. Noto'gri teg olib tashlanmoqda ===
 Deleted tag 'v3.8.0' (was d7f16a9)
+To https://github.com/JMTuraev/trust.git
+ - [deleted]         v3.8.0
+=== 3. Commit ===
+warning: in the working copy of '.env.example', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of '.gitignore', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'README.md', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'mobile/android/gradlew.bat', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'package-lock.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'package.json', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'phone_log.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'push_out.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/lib/ops.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/lib/phone.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/lib/supabase.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/middleware/auth.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/routes/notifications.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/services/devsms.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'src/services/parse.js', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'supabase/apply_all.sql', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/001_init.sql', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/002_trust_model.sql', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'claude_fix_result.txt', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'claude_fix_v380.bat', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'claude_push_v380.bat', CRLF will be replaced by LF the next time Git touches it
+[main 6173159] v3.8.0: audit + toifa/daromad tuzatishlari, yangi kirim paneli, limit 300
+ 34 files changed, 1498 insertions(+), 279 deletions(-)
+ create mode 100644 claude_fix_result.txt
+ create mode 100644 claude_fix_v380.bat
+ create mode 100644 claude_push_v380.bat
+ create mode 100644 supabase/migrations/018_audit_fixes.sql
+=== 4. Push ===
+To https://github.com/JMTuraev/trust.git
+   d7f16a9..6173159  main -> main
+=== 5. Yangi teg ===
+To https://github.com/JMTuraev/trust.git
+ * [new tag]         v3.8.0 -> v3.8.0
+=== 6. Holat ===
+6173159 v3.8.0: audit + toifa/daromad tuzatishlari, yangi kirim paneli, limit 300
+d7f16a9 iOS: GoogleService-Info.plist + codemagic.yaml yakuniy
+ M claude_fix_result.txt
