@@ -13,6 +13,10 @@ class SupportChatScreen extends StatelessWidget {
     final v = store.vals();
     final p = curPal();
     final items = (v['supportItems'] as List).cast<Map<String, dynamic>>();
+    // 2026-08-02 audit: bu ekran yagona TO'LIQ o'zbekcha (tarjimasiz) ekran edi —
+    // ruscha/inglizcha interfeysdagi foydalanuvchi aynan muammo haqida yozmoqchi
+    // bo'lganda o'zi tushunmaydigan tilga duch kelardi.
+    final L0 = store.L();
     return Column(
       children: [
         Padding(
@@ -21,7 +25,7 @@ class SupportChatScreen extends StatelessWidget {
             children: [
               BackBtn(onTap: () => v['closeSupport']()),
               const SizedBox(width: 10),
-              Tx('Yordam chati', size: 18, w: FontWeight.w700, color: p.ink),
+              Tx('${L0['supportTitle'] ?? "Yordam chati"}', size: 18, w: FontWeight.w700, color: p.ink),
               const Spacer(),
             ],
           ),
@@ -32,7 +36,7 @@ class SupportChatScreen extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(28),
                     child: Tx(
-                      "Savol, muammo yoki taklifingizni yozing — jamoamiz shu yerning o'zida javob beradi.",
+                      '${L0['supportEmpty'] ?? "Savol, muammo yoki taklifingizni yozing."}',
                       size: 13.5, color: p.t3, lh: 20, align: TextAlign.center,
                     ),
                   ),
@@ -61,7 +65,7 @@ class SupportChatScreen extends StatelessWidget {
                             Tx('${m['body']}', size: 13.5, color: mine ? p.bg : p.ink),
                             const SizedBox(height: 3),
                             Tx('${m['time']}', size: 10,
-                                color: mine ? p.bg.withOpacity(.6) : p.t4, tab: true),
+                                color: mine ? p.bg.withValues(alpha: .6) : p.t4, tab: true),
                           ],
                         ),
                       ),
@@ -86,7 +90,7 @@ class SupportChatScreen extends StatelessWidget {
                   child: StoreField(
                     value: '${v['supportInput']}',
                     onChanged: (t) => v['supportSetInput'](t),
-                    hint: 'Xabar yozing...',
+                    hint: '${L0['supportHint'] ?? "Xabar yozing..."}',
                   ),
                 ),
               ),

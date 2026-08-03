@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 // Obuna read-only qoidasi: yangi yozuv/tahrir — 402; cancel/archive OCHIQ (o'z yozuvini boshqarish)
-import { requireActiveSub } from '../lib/subscription.js';
+import { requireActiveSub, requireNewOpQuota } from '../lib/subscription.js';
 import { deltaFor, typeLabel } from '../lib/ops.js';
 import { displayName, notifEnabled } from '../lib/links.js';
 
@@ -32,13 +32,13 @@ async function notifyCounterparty(partner, sellerId, title, detail, operationId)
 
 // POST /api/operations  { partner_id, type, amount, currency?, note? }
 // Bir tomonlama da'vo: sotuvchi yozadi, hech qanday tasdiq talab qilinmaydi.
-router.post('/', requireActiveSub, async (req, res, next) => {
+router.post('/', requireActiveSub, requireNewOpQuota, async (req, res, next) => {
   try {
     const { partner_id, type, amount, currency, note } = req.body || {};
     const types = ['qarz_berdim', 'qarz_oldim', 'qaytardim', 'menga_qaytarildi'];
     if (!partner_id || !types.includes(type)) return res.status(400).json({ success: false, error: "partner_id va to'g'ri type kerak" });
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ success: false, error: 'amount musbat son bo\'lishi kerak' });
+    const amt = Math.round(Number(amount));
+    if (!Number.isInteger(amt) || amt <= 0 || amt > 1e13) return res.status(400).json({ success: false, error: 'amount musbat butun son bo\'lishi kerak' });
     // Valyuta faqat qo'llab-quvvatlanadigan ro'yxatdan (bo'sh bo'lsa UZS)
     const currencies = ['UZS', 'USD', 'EUR', 'RUB'];
     const cur = currency || 'UZS';

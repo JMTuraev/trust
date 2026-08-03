@@ -23,10 +23,25 @@ export const WARN_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Bepul kvotalar — faqat env orqali boshqariladi (UI'da yo'q).
-// VAQTINCHA (PO 2026-07-29): default 30 — jonli TEST davri uchun. Test tugagach
-// 3 ga qaytariladi (env FREE_*=3 qo'yish YOKI shu defaultlarni 3 ga tushirish).
-export const FREE_DEBT_ENTRIES = Math.max(0, parseInt(process.env.FREE_DEBT_ENTRIES || '30', 10) || 30);
-export const FREE_EXPENSE_ENTRIES = Math.max(0, parseInt(process.env.FREE_EXPENSE_ENTRIES || '30', 10) || 30);
+// VAQTINCHA (PO 2026-08-03): default 300 — jonli TEST davri uchun (avval 30 edi).
+// Test tugagach 3 ga qaytariladi (env FREE_*=3 qo'yish YOKI defaultlarni tushirish).
+// MUHIM (2026-08-02 audit): ilgari `parseInt(env || '30') || 30` yozilgan edi — parseInt('0')
+// = 0 va u FALSY, shuning uchun FREE_DEBT_ENTRIES=0 qo'yilsa ham jimgina 30 bo'lib qolardi
+// (ya'ni "bepul tarifni yopish" sozlamasi umuman ishlamas edi).
+function intEnv(name, def) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || String(raw).trim() === '') return def;
+  const n = Number.parseInt(String(raw), 10);
+  if (!Number.isFinite(n) || n < 0) {
+    console.warn(`[config] ${name} noto'g'ri ("${raw}") — default ${def} ishlatildi`);
+    return def;
+  }
+  return n;
+}
+// PO 2026-08-03: sinov davri uchun 30 -> 300 (auditda operations ham kvotaga
+// qo'shilgani sabab mavjud foydalanuvchilar paywallga urilmasin).
+export const FREE_DEBT_ENTRIES = intEnv('FREE_DEBT_ENTRIES', 300);
+export const FREE_EXPENSE_ENTRIES = intEnv('FREE_EXPENSE_ENTRIES', 300);
 
 // Orqaga moslik: eski kod TRIAL_DAYS import qilsa yiqilmasin (endi ma'nosi yo'q)
 export const TRIAL_DAYS = 0;
@@ -62,21 +77,47 @@ export function computeSubscription(profile, now = new Date()) {
   };
 }
 
-/** Foydalanuvchining ishlatilgan kvotasi (server hisobi). */
-export async function countUsage(userId) {
-  const [d, e] = await Promise.all([
+/** Daftar EGASI bo'yicha qarz yozuvlari soni.
+ *  MUHIM (2026-08-02 audit): ilgari faqat `created_by = userId` sanalardi. Kontragent
+ *  o'sha daftarga yozgan qarzlar HECH KIMGA sanalmasdi (egasiga — created_by boshqa,
+ *  yozuvchiga — u ega emas). Ikki foydalanuvchi bir-birining daftariga yozib, ikkalasi
+ *  ham cheksiz bepul ishlata olardi. Endi kvota daftar EGALIGI bo'yicha hisoblanadi —
+ *  bu "daftar egasi to'laydi" qoidasiga ham aynan mos. */
+async function countOwnerDebts(ownerId) {
+  const { data: partners } = await supabaseAdmin
+    .from('partners').select('id').eq('owner_id', ownerId).limit(2000);
+  const ids = (partners || []).map((p) => p.id);
+  if (!ids.length) return 0;
+  // `operations` ham SANALADI (2026-08-02 audit): mobil "Yangi operatsiya" varag'i
+  // aynan shu jadvalga yozadi va u hamkor balansiga qo'shiladi. Ilgari kvota faqat
+  // `debts` bo'yicha edi, ya'ni bepul foydalanuvchi cheksiz oldi-berdi kiritaverardi
+  // va paywall hech qachon ko'rinmasdi.
+  const [d, o] = await Promise.all([
     supabaseAdmin
       .from('debts')
       .select('id', { count: 'exact', head: true })
-      .eq('created_by', userId)
+      .in('partner_id', ids)
       .eq('kind', 'debt')
       .not('status', 'in', '(cancelled,rejected)'),
+    supabaseAdmin
+      .from('operations')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId)
+      .neq('status', 'cancelled'),
+  ]);
+  return (d.count || 0) + (o.count || 0);
+}
+
+/** Foydalanuvchining ishlatilgan kvotasi (server hisobi). */
+export async function countUsage(userId) {
+  const [debts_used, e] = await Promise.all([
+    countOwnerDebts(userId),
     supabaseAdmin
       .from('expenses')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId),
   ]);
-  return { debts_used: d.count || 0, expenses_used: e.count || 0 };
+  return { debts_used, expenses_used: e.count || 0 };
 }
 
 /** Foydalanuvchi obunasi: profiles'dan o'qib hisoblaydi. null = profil topilmadi. */
@@ -133,6 +174,30 @@ export function requireExpenseQuota(req, res, next) {
   })().catch(next);
 }
 
+/** YANGI OPERATSIYA kvotasi — POST /api/operations uchun (partner_id BODY'da).
+ *  MUHIM (2026-08-02 audit): bu endpoint mobil ilovaning asosiy "yangi yozuv" yo'li,
+ *  lekin unda kvota tekshiruvi UMUMAN yo'q edi — paywall hech qachon ishlamasdi. */
+export function requireNewOpQuota(req, res, next) {
+  (async () => {
+    const partnerId = req.body?.partner_id;
+    if (!partnerId) return next(); // handler o'zi 400 beradi
+    const { data: p } = await supabaseAdmin
+      .from('partners').select('owner_id').eq('id', partnerId).maybeSingle();
+    if (!p) return next();
+    if (await isPremiumUser(p.owner_id)) return next();
+    const { debts_used } = await countUsage(p.owner_id);
+    if (debts_used < FREE_DEBT_ENTRIES) return next();
+    const isOwner = p.owner_id === req.user.id;
+    return res.status(402).json({
+      success: false,
+      code: isOwner ? 'SUB_EXPIRED' : 'OWNER_SUB_EXPIRED',
+      error: isOwner
+        ? `Bepul ${FREE_DEBT_ENTRIES} ta yozuv ishlatildi — davom etish uchun obuna kerak ($${PRICE_USD_MONTHLY}/oy)`
+        : "Daftar egasining obunasi faol emas — bu daftarga hozircha yangi yozuv kiritib bo'lmaydi",
+    });
+  })().catch(next);
+}
+
 /** YANGI QARZ yozuvi kvotasi — daftar EGASI bo'yicha (PO qoidasi).
  *  POST /api/debts/:partnerId dan OLDIN turadi. */
 export function requireNewDebtQuota(req, res, next) {
@@ -145,9 +210,12 @@ export function requireNewDebtQuota(req, res, next) {
     const { debts_used } = await countUsage(p.owner_id);
     if (debts_used < FREE_DEBT_ENTRIES) return next();
     const isOwner = p.owner_id === req.user.id;
+    // MUHIM (2026-08-02 audit): kod AJRATILDI. Ilgari ikkala holat ham 'SUB_EXPIRED'
+    // qaytarardi, mobil esa uni "MENING obunam tugadi" deb qabul qilib, butun ilovada
+    // qizil banner ko'rsatardi — holbuki kvota tugagani QARSHI TOMONNIKI edi.
     return res.status(402).json({
       success: false,
-      code: 'SUB_EXPIRED',
+      code: isOwner ? 'SUB_EXPIRED' : 'OWNER_SUB_EXPIRED',
       error: isOwner
         ? `Bepul ${FREE_DEBT_ENTRIES} ta qarz yozuvi ishlatildi — davom etish uchun obuna kerak ($${PRICE_USD_MONTHLY}/oy)`
         : "Daftar egasining obunasi faol emas — bu daftarga hozircha yangi yozuv kiritib bo'lmaydi",

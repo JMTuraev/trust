@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { computeSubscription, getSubscription, PREMIUM_PRODUCT_ID } from '../lib/subscription.js';
+import { computeSubscription, getSubscription, countUsage, PREMIUM_PRODUCT_ID } from '../lib/subscription.js';
 import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
 import { sendOtp, checkOtpCode } from '../services/otp.js';
 
@@ -37,6 +37,10 @@ router.get('/me', async (req, res, next) => {
         warn_expiring: sub.warn_expiring,
         // Narx: 7 kun bepul -> $9/oy (mahsulot qarori; bitta manba lib/subscription.js)
         price: sub.price,
+        // Ishlatilgan kvota (2026-08-02 audit): mobil "Bepul · 5/30" ko'rinishini
+        // ko'rsatishi uchun. Ilgari klient bu ma'lumotga ega emas edi va 'free'
+        // holatini "Sinov tugagan" deb noto'g'ri talqin qilardi.
+        usage: await countUsage(req.user.id),
       };
     }
     res.json({ success: true, data: out });
@@ -64,7 +68,12 @@ router.get('/me/subscription', async (req, res, next) => {
 //   • google_play — STUB: Play Billing hali ulanmagan. DEV rejim (PLAY_BILLING_DEV_MODE=true)
 //                   'DEV.' prefiksli token premium'ni 30 kunga uzaytiradi (QA/E2E). Aks holda 501.
 // To'liq Google ulash (kelajak): androidpublisher subscriptionsv2.get -> expiryTime + RTDN webhook.
-const DEV_MODE = process.env.PLAY_BILLING_DEV_MODE === 'true';
+// DEV_MODE — faqat NODE_ENV !== 'production' bo'lganda. Aks holda Render'da bayroq
+// tasodifan yoqilsa HAR QANDAY foydalanuvchi 'DEV.<random>' token bilan cheksiz premium olardi.
+const DEV_MODE = process.env.PLAY_BILLING_DEV_MODE === 'true' && process.env.NODE_ENV !== 'production';
+if (process.env.PLAY_BILLING_DEV_MODE === 'true' && process.env.NODE_ENV === 'production') {
+  console.warn('[xavfsizlik] PLAY_BILLING_DEV_MODE production’da E’TIBORSIZ qoldirildi');
+}
 const PREMIUM_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -77,20 +86,33 @@ async function grantPremium(userId, curSub, provider, productId, token, newUntil
   const finalMs = Math.max(curUntil, newUntilMs);
   const newUntilIso = new Date(finalMs).toISOString();
 
-  // Audit — purchase_token bo'yicha UNIQUE; takror bo'lsa jimgina o'tkazamiz (idempotent).
+  // Audit — purchase_token bo'yicha UNIQUE. MUHIM (2026-08-02 audit): avval bu yerda
+  // ignoreDuplicates:true ishlatilardi va natija TEKSHIRILMASDI — ya'ni bitta Apple cheki
+  // cheksiz akkauntga premium berardi (chek mobil klientda ochiq yotadi, uni tarqatish oson).
+  // Endi chek EGASIGA bog'lanadi: takror bo'lsa, egasini tekshirib, boshqa bo'lsa RAD etamiz.
   if (token) {
-    await supabaseAdmin
-      .from('subscription_events')
-      .upsert(
-        {
-          user_id: userId,
-          provider,
-          product_id: productId,
-          purchase_token: token,
-          premium_until_after: newUntilIso,
-        },
-        { onConflict: 'purchase_token', ignoreDuplicates: true }
-      );
+    const { error: insErr } = await supabaseAdmin.from('subscription_events').insert({
+      user_id: userId,
+      provider,
+      product_id: productId,
+      purchase_token: token,
+      premium_until_after: newUntilIso,
+    });
+    if (insErr) {
+      const dup = insErr.code === '23505' || /duplicate|unique/i.test(insErr.message || '');
+      if (!dup) throw new Error(insErr.message);
+      const { data: owner } = await supabaseAdmin
+        .from('subscription_events')
+        .select('user_id')
+        .eq('purchase_token', token)
+        .maybeSingle();
+      if (owner && owner.user_id !== userId) {
+        const err = new Error("Bu xarid boshqa akkauntga bog'langan");
+        err.status = 409;
+        throw err;
+      }
+      // O'sha foydalanuvchining takroriy so'rovi (yangilash/restore) — idempotent, davom etamiz.
+    }
   }
 
   // premium_until faqat oldinga siljisa yozamiz (bekorga updated_at o'zgarmasin)
@@ -112,11 +134,11 @@ router.post(
   rateLimit({ windowMs: 60_000, max: 10 }),
   async (req, res, next) => {
     try {
-      const { platform, product_id } = req.body || {};
-      const pid = String(product_id ?? '').trim() || PREMIUM_PRODUCT_ID;
-      if (pid.length > 100) {
-        return res.status(400).json({ success: false, error: 'product_id juda uzun' });
-      }
+      const { platform } = req.body || {};
+      // MUHIM: product_id KLIENTDAN OLINMAYDI. Ilgari klient yuborgan qiymat Apple chekini
+      // filtrlashda ishlatilardi — bu bir developer akkauntidagi BOSHQA ilovaning arzon
+      // obunasi bilan premium olish yo'lini ochardi. Doim server konstantasi.
+      const pid = PREMIUM_PRODUCT_ID;
 
       // ===================== Apple App Store (TIRIK) =====================
       if (platform === 'app_store') {
@@ -151,7 +173,9 @@ router.post(
           r.sub,
           'app_store',
           pid,
-          ver.txnId ? `apple:${ver.txnId}` : null,
+          // Barqaror identifikator: original_transaction_id yangilanishda o'zgarmaydi,
+          // shuning uchun chek AYNAN bitta akkauntga bog'lanib qoladi.
+          ver.originalTxnId ? `apple:${ver.originalTxnId}` : (ver.txnId ? `apple:${ver.txnId}` : null),
           ver.expiryMs
         );
         return res.json({ success: true, data: sub });
@@ -308,6 +332,10 @@ router.delete('/me', async (req, res, next) => {
     // ai_usage QOLADI: bu moliyaviy/token auditi, shaxsiy suhbat mazmuni emas.
     await supabaseAdmin.from('ai_messages').delete().eq('user_id', req.user.id);
     await supabaseAdmin.from('ai_profile').delete().eq('user_id', req.user.id);
+    // MUHIM (2026-08-02 audit): push tokenlari ham o'chiriladi. Ilgari ular qolib
+    // ketardi va "o'chirilgan" akkaunt telefoni qarshi tomon yozuv kiritganda
+    // baribir jiringlab turardi (Play/App Store maxfiylik va'dasiga zid).
+    await supabaseAdmin.from('device_tokens').delete().eq('user_id', req.user.id);
 
     res.json({ success: true, data: { deleted_at: nowIso } });
   } catch (e) {

@@ -114,6 +114,17 @@ export function assertConfig() {
   if (!config.supabase.url) missing.push('SUPABASE_URL');
   if (!config.supabase.serviceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
   if (!config.app.jwtSecret) missing.push('APP_JWT_SECRET');
+  // MUHIM (2026-08-02 audit): bular tekshirilmasdi va natijada server /health'da YASHIL
+  // bo'lib turib, LOGIN butunlay ishlamas holatda deploy bo'lib ketardi:
+  //  - DEVSMS_TOKEN yo'q  -> har bir +998 kirish 500, ustiga 60s bloklanish
+  //  - SUPABASE_ANON_KEY yo'q -> xalqaro kirish 502 (supabaseAnon 'placeholder' bilan)
+  if (!config.devsms.token) missing.push('DEVSMS_TOKEN');
+  if (!config.supabase.anonKey) missing.push('SUPABASE_ANON_KEY');
+  // Telegram yordam ko'prigi yoqilgan bo'lsa, webhook secret'i MAJBURIY —
+  // usiz webhook autentifikatsiyasiz ochiq qoladi (routes/support.js izohiga qarang).
+  if (config.support?.tgToken && !config.support?.webhookSecret) {
+    missing.push('SUPPORT_TG_WEBHOOK_SECRET');
+  }
 
   // Trust AI — MAJBURIY EMAS (fail-soft): kalitsiz ham server ko'tariladi, chat esa
   // zaxiraga (Groq) yoki 503 AI_OFF ga tushadi. Sabab: AI — fishka, oldi-berdi yadrosi

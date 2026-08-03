@@ -55,7 +55,16 @@ export async function verifyAppleReceipt(receipt, wantProductId) {
   else if (data && data.status === 21008) data = await postReceipt(PROD_URL, receipt);
 
   if (!data || data.status !== 0) {
-    return { ok: false, status: data ? data.status : -1, expiryMs: 0, txnId: null, productIds: [] };
+    return { ok: false, status: data ? data.status : -1, expiryMs: 0, txnId: null, originalTxnId: null, productIds: [] };
+  }
+
+  // MUHIM (2026-08-02 audit): chek BIZNING ilovamiznikimi? Apple'ning o'z tavsiyasi.
+  // APPLE_SHARED_SECRET tasodifan akkaunt darajasidagi (master) secret qo'yilsa, o'sha
+  // developer akkauntидagi BOSHQA ilovaning cheki ham status:0 bilan o'tib ketardi.
+  const wantBundle = (process.env.APPLE_BUNDLE_ID || '').trim();
+  const gotBundle = data.receipt && data.receipt.bundle_id;
+  if (wantBundle && gotBundle && gotBundle !== wantBundle) {
+    return { ok: false, status: -2, expiryMs: 0, txnId: null, originalTxnId: null, productIds: [] };
   }
 
   // latest_receipt_info — barcha auto-renew davrlari. Eng katta expires_date_ms = amaldagi tugash.
@@ -66,14 +75,18 @@ export async function verifyAppleReceipt(receipt, wantProductId) {
   ];
   let expiryMs = 0;
   let txnId = null;
+  let originalTxnId = null;
   for (const it of infos) {
     if (wantProductId && it.product_id !== wantProductId) continue;
     const ex = parseInt(it.expires_date_ms || '0', 10);
     if (ex > expiryMs) {
       expiryMs = ex;
       txnId = it.transaction_id || it.original_transaction_id || null;
+      // original_transaction_id — obuna BARQAROR identifikatori (yangilanishda o'zgarmaydi).
+      // Akkauntga bog'lash uchun shu ishlatiladi (bitta chek = bitta akkaunt).
+      originalTxnId = it.original_transaction_id || it.transaction_id || null;
     }
   }
   const productIds = [...new Set(infos.map((i) => i.product_id).filter(Boolean))];
-  return { ok: true, status: 0, expiryMs, txnId, productIds };
+  return { ok: true, status: 0, expiryMs, txnId, originalTxnId, productIds };
 }

@@ -44,6 +44,10 @@ Future<void> main() async {
   // Ilova ochiq payt kelgan push tizim tray'da chiqmaydi — toast qilib ko'rsatamiz.
   await PushService.init();
   PushService.onForeground = (title, body) => store.toast_(body.isEmpty ? title : body);
+  // Push BOSILGANDA tegishli ekranga o'tamiz (2026-08-02 audit: ilgari e'tiborsiz qolardi).
+  PushService.onOpened = (data) => store.openFromPush(data);
+  final pendingPush = PushService.drainInitial(); // ilova push bilan ochilgan bo'lsa
+  if (pendingPush != null) store.openFromPush(pendingPush);
   PushService.sync(); // login bo'lgan bo'lsa tokenni serverga bog'laydi (await EMAS — UI kutmasin)
   runApp(const TrustApp());
 }
@@ -79,9 +83,31 @@ class Root extends StatefulWidget {
   State<Root> createState() => _RootState();
 }
 
-class _RootState extends State<Root> {
+class _RootState extends State<Root> with WidgetsBindingObserver {
   // Apparat "orqaga" hub ildizida: 2 soniya ichida ikkinchi bosishda chiqadi.
   DateTime? _lastBack;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Ilova fonga o'tsa polling to'xtaydi (batareya/trafik/429 — 2026-08-02 audit).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      store.appResumed_();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      store.appPaused_();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,13 +118,23 @@ class _RootState extends State<Root> {
         final p = curPal();
         final backToHub = v['hubBackable'] == true;
         final atRoot = v['hubAtRoot'] == true;
+        final layerOpen = v['layerOpen'] == true;
         return PopScope(
-          // Android apparat "orqaga": bo'lim ekranidan (Hamkorlar / Xarajat / AI /
-          // Profil) hub'ga qaytadi. Hub ildizida — 2 marta bosilsa chiqadi (aks
-          // holda "yana bosing" toast). Overlay/sheet ochiq bo'lsa — tizim ixtiyorida.
-          canPop: !backToHub && !atRoot,
+          // Android apparat "orqaga": ochiq overlay/sheet bo'lsa — o'shani yopadi;
+          // bo'lim ekranidan (Hamkorlar / Xarajat / AI / Profil) hub'ga qaytadi;
+          // hub ildizida — 2 marta bosilsa chiqadi (aks holda "yana bosing" toast).
+          //
+          // MUHIM (2026-08-02 audit): ilgari `canPop` overlay ochiq bo'lganda TRUE
+          // bo'lardi. Ilovada bitta route bo'lgani uchun tizim buni "chiqish" deb
+          // bajarardi — ya'ni hamkor daftaridan/chekdan orqaga bosish ILOVANI
+          // YOPARDI. Endi qatlam ochiq bo'lsa pop tizimga berilmaydi.
+          canPop: !layerOpen && !backToHub && !atRoot,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
+            if (layerOpen) {
+              (v['closeTopLayer'] as bool Function())();
+              return;
+            }
             if (backToHub) {
               v['hubBack']();
               return;

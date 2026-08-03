@@ -7,6 +7,33 @@ import { ensureCategories } from '../lib/categories.js';
 import { requireActiveSub, requireExpenseQuota } from '../lib/subscription.js';
 
 const router = Router();
+
+// Har foydalanuvchi uchun daqiqalik LLM limiti.
+// MUHIM (2026-08-02 audit): /parse va /preview har chaqiruvda HAQIQIY Groq/OpenAI
+// so'rovi yuboradi, lekin ular faqat IP bo'yicha cheklangan edi. Bitta foydalanuvchi
+// 60/min tezlikda ~34 daqiqada Groq'ning kunlik bepul kvotasini tugatib, BARCHA
+// foydalanuvchilarni qoida-parseriga tushirib qo'yishi mumkin edi.
+const llmBuckets = new Map();
+function perUserLlmLimit(max) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = `${req.user.id}`;
+    let b = llmBuckets.get(key);
+    if (!b || now - b.start > 60_000) { b = { start: now, count: 0 }; llmBuckets.set(key, b); }
+    b.count += 1;
+    if (b.count > max) {
+      return res.status(429).json({
+        success: false, code: 'PARSE_RATE_MINUTE',
+        error: "Biroz sekinroq — bir ozdan keyin qayta urinib ko'ring",
+      });
+    }
+    next();
+  };
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, b] of llmBuckets) if (now - b.start > 10 * 60_000) llmBuckets.delete(k);
+}, 5 * 60_000).unref();
 router.use(requireAuth);
 
 // GET /api/expenses?from=ISO&to=ISO&category=Nomi&limit=N
@@ -14,11 +41,22 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     let q = supabaseAdmin.from('expenses').select('*').eq('user_id', req.user.id).order('occurred_at', { ascending: false });
-    if (req.query.from) q = q.gte('occurred_at', req.query.from);
-    if (req.query.to) q = q.lte('occurred_at', req.query.to);
-    if (req.query.category) q = q.eq('category', String(req.query.category));
+    // Sana filtrlari TEKSHIRILADI: ?from[]=a&from[]=b massiv berardi va PostgREST'da
+    // `gte.a,b` bo'lib 500 qaytarardi (2026-08-02 audit).
+    const isIsoish = (v) => typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v));
+    if (req.query.from) {
+      if (!isIsoish(req.query.from)) return res.status(400).json({ success: false, error: "from noto'g'ri sana" });
+      q = q.gte('occurred_at', req.query.from);
+    }
+    if (req.query.to) {
+      if (!isIsoish(req.query.to)) return res.status(400).json({ success: false, error: "to noto'g'ri sana" });
+      q = q.lte('occurred_at', req.query.to);
+    }
+    if (req.query.category) q = q.eq('category', String(req.query.category).slice(0, 40));
+    // DEFAULT LIMIT majburiy: limitsiz so'rov foydalanuvchining butun tarixini bir
+    // javobda tortib, Render'ning kichik xotirasini to'ldirardi (2026-08-02 audit).
     const lim = parseInt(req.query.limit, 10);
-    if (Number.isFinite(lim) && lim > 0) q = q.limit(Math.min(lim, 1000));
+    q = q.limit(Number.isFinite(lim) && lim > 0 ? Math.min(lim, 1000) : 500);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     res.json({ success: true, data });
@@ -31,10 +69,34 @@ router.get('/', async (req, res, next) => {
 router.post('/', requireExpenseQuota, async (req, res, next) => {
   try {
     const { income, amount, category, note } = req.body || {};
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ success: false, error: 'amount musbat son bo\'lishi kerak' });
+    // MUHIM (2026-08-02 audit): ilgari Number.isFinite yetarli deb hisoblanardi.
+    // amount=0.001 tekshiruvdan o'tib, numeric(18,2) ustunida 0.00 ga yaxlitlanardi va
+    // `check (amount > 0)` buzilib, foydalanuvchi XOM Postgres xatosi bilan 500 olardi;
+    // 1e17 esa ustun sig'imidan oshib ketardi. Boshqa yozuv yo'llari kabi butun son.
+    const amt = Math.round(Number(amount));
+    if (!Number.isInteger(amt) || amt <= 0 || amt > 1e13) {
+      return res.status(400).json({ success: false, error: 'amount musbat butun son bo\'lishi kerak' });
+    }
+    // Toifa SANITATSIYA qilinadi (2026-08-02 audit: prompt injection + uzunlik), ammo
+    // ro'yxatga MAJBURLANMAYDI (2026-08-03 tuzatish). Majburlash ikki oqimni sindirardi:
+    //  (1) daromad manbalari — mobil kirimni category='@nomi' bilan yuboradi, bu nom
+    //      categories jadvalida YO'Q (manbalar yozuvlardan quriladi) -> kirim jimgina
+    //      'Boshqa'ga tushib, manba qoldig'i 0 bo'lib qolardi;
+    //  (2) undo-restore — o'chirilgan yozuv qaytarilganda toifasi jadvalda bo'lmasligi
+    //      mumkin (papkalar expenses qatorlaridan hosil bo'ladi) -> tarix buzilardi.
+    // Injection himoyasi: boshqaruv belgilari olib tashlanadi + 40 belgi limiti.
+    let cat = category == null
+      ? null
+      : String(category).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim() || null;
+    if (cat) {
+      if (cat.length > 40) return res.status(400).json({ success: false, error: 'Toifa nomi 40 belgidan oshmasin' });
+      const cats = await ensureCategories(req.user.id);
+      const hit = cats.find((c) => c.name.toLowerCase() === cat.toLowerCase());
+      if (hit) cat = hit.name; // ro'yxatda bo'lsa — kanonik yozilish
+    }
+    const noteVal = note == null ? null : String(note).trim().slice(0, 200) || null;
     const { data, error } = await supabaseAdmin.from('expenses').insert({
-      user_id: req.user.id, income: !!income, amount: amt, category: category || null, note: note || null,
+      user_id: req.user.id, income: !!income, amount: amt, category: cat, note: noteVal,
     }).select().single();
     if (error) throw new Error(error.message);
     res.status(201).json({ success: true, data });
@@ -44,7 +106,7 @@ router.post('/', requireExpenseQuota, async (req, res, next) => {
 // POST /api/expenses/parse  { text, source? }
 // Uch signal (LLM + qoida + lug'at) -> { actions[], needs_confirm, provider }
 // Hech narsa saqlanmaydi — saqlash /confirm orqali (tasdiqlash kartasi oqimi).
-router.post('/parse', requireActiveSub, rateLimit({ windowMs: 60_000, max: 30 }), async (req, res, next) => {
+router.post('/parse', requireActiveSub, rateLimit({ windowMs: 60_000, max: 30 }), perUserLlmLimit(20), async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     if (text.length < 2 || text.length > 300) {
@@ -61,7 +123,7 @@ router.post('/parse', requireActiveSub, rateLimit({ windowMs: 60_000, max: 30 })
 // Jonli input rangi (summa yashil "in" / qizil "out") — DB'ga YOZILMAYDI, javob tez.
 // Mobil 550ms debounce bilan chaqiradi (xarajat.dart _HlController); natija kesh
 // bilan qaytadi. Limit /parse'dan yuqori — yozish jarayonida bir necha so'rov normal.
-router.post('/preview', rateLimit({ windowMs: 60_000, max: 60 }), async (req, res, next) => {
+router.post('/preview', rateLimit({ windowMs: 60_000, max: 60 }), perUserLlmLimit(40), async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     if (!text || text.length > 300) {

@@ -15,6 +15,17 @@ class PushService {
   /// (main.dart bu callback'ni store.toast_ ga ulaydi).
   static void Function(String title, String body)? onForeground;
 
+  /// Push BOSILGANDA chaqiriladi — data: { type, link_id, circle_id }.
+  /// MUHIM (2026-08-02 audit): ilgari bosish UMUMAN qayta ishlanmasdi. Backend har
+  /// push'da marshrut ma'lumotini yuboradi (services/push.js), lekin klient uni
+  /// tashlab yuborardi: foydalanuvchi "qarzni tasdiqlaysizmi?" bildirishnomasini
+  /// bosardi va bosh ekranga tushardi — ya'ni mahsulotning asosiy siklida yo'qotish.
+  static void Function(Map<String, dynamic> data)? onOpened;
+
+  /// Ilova YOPIQ holatdan push bilan ochilgan bo'lsa — payload shu yerda kutib turadi
+  /// (store tayyor bo'lgach `drainInitial()` uni beradi).
+  static Map<String, dynamic>? _pendingOpen;
+
   static Future<void> init() async {
     try {
       await Firebase.initializeApp();
@@ -28,10 +39,25 @@ class PushService {
         final n = m.notification;
         if (n != null) onForeground?.call(n.title ?? '', n.body ?? '');
       });
+      // Ilova fonda turib push bosilgan
+      FirebaseMessaging.onMessageOpenedApp.listen((m) {
+        final d = Map<String, dynamic>.from(m.data);
+        if (onOpened != null) { onOpened!(d); } else { _pendingOpen = d; }
+      });
+      // Ilova butunlay yopiq bo'lib, push bilan ochilgan
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) _pendingOpen = Map<String, dynamic>.from(initial.data);
     } catch (_) {
       // Firebase sozlanmagan — push'siz davom etamiz (ilova yiqilmasin)
       _ready = false;
     }
+  }
+
+  /// Kutib turgan "push bosildi" payloadini olib, tozalaydi.
+  static Map<String, dynamic>? drainInitial() {
+    final d = _pendingOpen;
+    _pendingOpen = null;
+    return d;
   }
 
   /// Login bo'lgach (yoki startapda, token bor bo'lsa) chaqiriladi.

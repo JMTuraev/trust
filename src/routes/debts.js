@@ -91,8 +91,10 @@ router.get('/:partnerId', async (req, res, next) => {
     const p = await loadPartnerForUser(req.params.partnerId, req.user.id);
     if (!p) return res.status(404).json({ success: false, error: 'Hamkor topilmadi' });
 
+    // Xavfsizlik klapani: bitta daftar yozuvlari soni real hayotda mingdan oshmaydi,
+    // ammo limitsiz so'rov nazariy jihatdan butun jarayonni xotira bo'yicha yiqitadi.
     const { data: rows, error } = await supabaseAdmin.from('debts').select('*')
-      .eq('partner_id', p.id).order('created_at', { ascending: true });
+      .eq('partner_id', p.id).order('created_at', { ascending: true }).limit(5000);
     if (error) throw new Error(error.message);
     const all = rows || [];
 
@@ -289,7 +291,12 @@ async function createRepaySettle(req, res, next, kind) {
   if (Number(amount) > remaining)
     return res.status(400).json({ success: false, error: `Summa qoldiqdan oshmasligi kerak (qoldiq: ${fmt(remaining)} ${ref.currency})` });
 
-  const prov = provOf(p);
+  // MUHIM (2026-08-02 audit): ilgari bu yerda provOf(p) — ya'ni BOG'LANISHNING HOZIRGI
+  // holati — ishlatilardi. Natijada qarshi tomon bog'lanishni bloklasa/uzsa, allaqachon
+  // IKKI TOMON TASDIQLAGAN qarz "oneSided" bo'lib qolar va muallif uni bir o'zi
+  // "kechirilgan" deb yopib yuborishi mumkin edi. Endi qaror QARZ YOZUVINING O'ZIDAN
+  // olinadi: twoSided qarz umrbod twoSided bo'lib qoladi.
+  const prov = ref.prov === 'twoSided' ? 'twoSided' : provOf(p);
   const baseRow = {
     partner_id: p.id, kind, created_by: req.user.id, amount: Number(amount),
     currency: ref.currency, acted_at: todayStr(), note: note || null,
@@ -347,18 +354,67 @@ router.post('/:id/confirm-op', async (req, res, next) => {
     const { data: ref } = await supabaseAdmin.from('debts').select('*').eq('id', op.ref_id).maybeSingle();
     if (!ref) return res.status(404).json({ success: false, error: 'Bog\'liq qarz topilmadi' });
 
-    // Endi ref qarzga qo'llaymiz (op ok bo'lgani uchun ikki marta qo'llanmaydi).
+    // MUHIM (2026-08-02 audit): ref qarz holati tasdiqlash paytida ham FAOL bo'lishi shart.
+    // Aks holda bahsli (disputed) yoki yopilgan qarzga to'lov "yopishib" ketardi.
+    if (ref.status !== 'active') {
+      await supabaseAdmin.from('debts').update({ status: 'pending', updated_at: nowIso() }).eq('id', op.id).eq('status', 'ok');
+      return res.status(409).json({ success: false, error: "Bog'liq qarz endi faol emas" });
+    }
+
+    // Endi ref qarzga qo'llaymiz. Yozish SHARTLI (CAS: paid/forgiven kutilgan qiymatda
+    // bo'lsagina) — parallel ikki tasdiq bir-birining natijasini yo'q qilmasin.
     const applied = applyRepaySettle(ref, { kind: op.kind, amount: Number(op.amount), reason: op.reason });
-    const { error: e2 } = await supabaseAdmin.from('debts').update({
+    const { data: appliedRow, error: e2 } = await supabaseAdmin.from('debts').update({
       paid: applied.paid, forgiven: applied.forgiven, status: applied.status,
       reason: applied.reason, updated_at: nowIso(),
-    }).eq('id', ref.id);
+    })
+      .eq('id', ref.id)
+      .eq('paid', ref.paid ?? 0)
+      .eq('forgiven', ref.forgiven ?? 0)
+      .select('id')
+      .maybeSingle();
     if (e2) throw new Error(e2.message);
+    if (!appliedRow) {
+      // Poyga yutqazildi yoki yozish bajarilmadi — amalni pending'ga qaytaramiz,
+      // aks holda "ok" bo'lib qolgan, lekin hisobga TUSHMAGAN to'lov paydo bo'ladi.
+      await supabaseAdmin.from('debts').update({ status: 'pending', updated_at: nowIso() }).eq('id', op.id).eq('status', 'ok');
+      return res.status(409).json({ success: false, error: "Qarz ayni paytda o'zgardi — qayta urinib ko'ring" });
+    }
 
     const name = await meName(req.user.id);
     await notify(op.created_by, req.user.id, 'debt_confirm', `${name} amalni tasdiqladi`,
       `${fmt(op.amount)} ${ref.currency} — qarzga qo'llandi`, partner.id);
     res.json({ success: true, data: okRow });
+  } catch (e) { next(e); }
+});
+
+// POST /api/debts/:id/reject-op — qarshi tomon pending repay/settle amalini RAD etadi.
+// MUHIM (2026-08-02 audit): ilgari bunday yo'l UMUMAN yo'q edi — /reject faqat 'debt'
+// yozuvini qabul qilardi. Natijada muallif soxta "qaytardim" kiritsa, qarshi tomon uni
+// na rad eta olardi, na qarzni tahrirlay/yopa olardi (isLockedByPending qulflab turardi).
+// Ya'ni istalgan qarzni bepul "garovga" olish mumkin edi.
+router.post('/:id/reject-op', async (req, res, next) => {
+  try {
+    const ctx = await loadDebtWithPartner(req.params.id, req.user.id);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const { debt: op, partner } = ctx;
+    if (!['repay', 'settle'].includes(op.kind))
+      return res.status(400).json({ success: false, error: 'Bu yozuv qaytarish/hisob-kitob emas' });
+    if (op.status !== 'pending')
+      return res.status(400).json({ success: false, error: 'Faqat tasdiqlanmagan amal rad etiladi' });
+    if (op.created_by === req.user.id)
+      return res.status(403).json({ success: false, error: "O'z amalingizni rad eta olmaysiz — bekor qiling" });
+
+    const { data, error } = await supabaseAdmin.from('debts')
+      .update({ status: 'rejected', updated_at: nowIso() })
+      .eq('id', op.id).eq('status', 'pending').select().maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return res.status(409).json({ success: false, error: "Amal holati o'zgargan" });
+
+    const name = await meName(req.user.id);
+    await notify(op.created_by, req.user.id, 'debt_reject', `${name} amalni rad etdi`,
+      `${fmt(op.amount)} ${op.currency}`, partner.id);
+    res.json({ success: true, data });
   } catch (e) { next(e); }
 });
 
@@ -410,7 +466,10 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
     if (isLockedByPending(debt, children))
       return res.status(409).json({ success: false, error: 'Bu qarzda tasdiqlanmagan amal bor — avval uni yakunlang' });
 
-    const direct = debt.status === 'pending' || debt.prov === 'oneSided';
+    // MUHIM (2026-08-02 audit): under_review yozuv qarshi tomon balansida ALLAQACHON
+    // ko'rinadi, shuning uchun uni bir tomonlama (xabarsiz) o'zgartirib bo'lmaydi —
+    // aks holda "ko'rib chiqish" kartasi jimgina boshqa summaga aylanardi.
+    const direct = debt.status === 'pending' || (debt.prov === 'oneSided' && !debt.under_review);
     if (direct) {
       // Eski qiymat versions'ga
       await supabaseAdmin.from('debt_versions').insert({
@@ -420,7 +479,13 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
       if ('amount' in changes) {
         patch.amount = changes.amount;
         patch.paid = Math.min(Number(debt.paid || 0), changes.amount); // paid <= amount
+        // forgiven ham qisqartirilishi SHART, aks holda forgiven > amount bo'lib qoladi
+        // va "qancha kechirdim" hisoboti soxta raqam ko'rsatadi (2026-08-02 audit).
+        patch.forgiven = Math.min(Number(debt.forgiven || 0), changes.amount);
       }
+      // Muddat o'zgarsa — avto-eslatma markerini tozalaymiz, aks holda yangi muddat
+      // bo'yicha eslatma HECH QACHON kelmaydi (marker bir martalik).
+      if ('due' in changes) patch.due_reminder_sent_at = null;
       if ('due' in changes) patch.due = changes.due;
       if ('note' in changes) patch.note = changes.note;
       // Kamaytirish paid'ni yopib qo'ysa — qarz yopiladi
@@ -468,8 +533,9 @@ router.post('/:id/edit-confirm', async (req, res, next) => {
     if (pe.amount !== undefined) {
       patch.amount = Number(pe.amount);
       patch.paid = Math.min(Number(debt.paid || 0), Number(pe.amount)); // paid <= yangiAmount
+      patch.forgiven = Math.min(Number(debt.forgiven || 0), Number(pe.amount)); // forgiven <= yangiAmount
     }
-    if (pe.due !== undefined) patch.due = pe.due;
+    if (pe.due !== undefined) { patch.due = pe.due; patch.due_reminder_sent_at = null; }
     if (pe.note !== undefined) patch.note = pe.note;
     const newAmount = patch.amount ?? Number(debt.amount);
     const newPaid = patch.paid ?? Number(debt.paid || 0);

@@ -94,21 +94,36 @@ router.get('/:partnerId', async (req, res, next) => {
     const p = await chatPartner(req, req.params.partnerId);
     if (!p) return res.status(404).json({ success: false, error: 'Topilmadi' });
 
-    let q = supabaseAdmin
-      .from('messages').select('*')
-      .eq('partner_id', p.id)
-      .order('created_at', { ascending: true });
+    // MUHIM (2026-08-02 audit): ilgari LIMIT umuman yo'q edi va bu endpoint mobilda
+    // har 4 soniyada so'raladi. Ikki yillik chat (o'n minglab xabar) har pollingda
+    // to'liq tortilardi — bitta foydalanuvchi butun API'ni xotira bo'yicha yiqita olardi.
+    const HISTORY_LIMIT = 300;
+    let rowsRaw;
     if (req.query.after) {
       const after = new Date(req.query.after);
       if (Number.isNaN(after.getTime()))
         return res.status(400).json({ success: false, error: 'after noto\'g\'ri sana formatida' });
-      q = q.gt('created_at', after.toISOString());
+      const { data, error } = await supabaseAdmin
+        .from('messages').select('*')
+        .eq('partner_id', p.id)
+        .gt('created_at', after.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(HISTORY_LIMIT);
+      if (error) throw new Error(error.message);
+      rowsRaw = data || [];
+    } else {
+      // Birinchi yuklash: OXIRGI HISTORY_LIMIT ta (desc), so'ng xronologik tartibga qaytaramiz.
+      const { data, error } = await supabaseAdmin
+        .from('messages').select('*')
+        .eq('partner_id', p.id)
+        .order('created_at', { ascending: false })
+        .limit(HISTORY_LIMIT);
+      if (error) throw new Error(error.message);
+      rowsRaw = (data || []).reverse();
     }
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
 
     // Eski ovozli xabarlar (2026-07-17 gacha) endi ko'rsatilmaydi — ovoz mahsulotdan olib tashlandi.
-    const rows = (data || []).filter((m) => m.kind !== 'audio').map(toClient);
+    const rows = rowsRaw.filter((m) => m.kind !== 'audio').map(toClient);
     res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });

@@ -473,7 +473,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             TextField(
               controller: _ieAmt,
               keyboardType: TextInputType.number,
-              style: TextStyle(color: p.ink, fontSize: 14.5, fontWeight: FontWeight.w600),
+              inputFormatters: [_ThousandsFmt()], // 1 234 567 guruhlash (add-bar bilan bir xil)
+              style: GoogleFonts.inter(
+                  color: p.ink, fontSize: 18, fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
               decoration: _mFieldDeco(p, _t('xfIncAmtHint', 'Summa')),
             ),
             const SizedBox(height: 10),
@@ -1187,7 +1190,14 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _AnimNum(
+                      // 2026-08-03: har papka/manba O'Z animatsiya holatini oladi (key) —
+                      // ilgari Daromad -> manba (yoki papka -> papka) o'tishda widget holati
+                      // qayta ishlatilib, raqam OLDINGI sahifa summasidan PASTGA "sanab"
+                      // tushardi. Endi sahifaga kirilganda doim 0 dan n ga O'SIB chiqadi;
+                      // shu sahifada yangi kirim qo'shilsa — eski qiymatdan silliq davom etadi.
+                      key: ValueKey('xfDSum|${v['xfDName']}|${v['xfIncMain']}'),
                       value: v['xfDTotalVal'] as int? ?? 0,
+                      fromZero: true,
                       // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
                       prefix: '${v['xfDPrefix'] ?? (v['xfDInc'] == true ? '+' : '−')}',
                       size: 28, weight: FontWeight.w700,
@@ -1423,7 +1433,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               onEdit: inc
                   ? () => setState(() {
                         _incEdit = {'id': r['id']};
-                        _ieAmt.text = '${r['a']}';
+                        _ieAmt.text = _groupDigits('${r['a']}'); // ochilishda ham 1 234 567 ko'rinishi
                         _ieNote.text = '${r['note'] ?? ''}';
                       })
                   : null,
@@ -2656,6 +2666,7 @@ class _AnimNum extends StatefulWidget {
   // false: birinchi ko'rinishda darhol, faqat O'ZGARISHDA sanaydi (balans)
   final bool fromZero;
   const _AnimNum({
+    super.key, // sahifa/papka almashganda holatni qayta boshlash uchun (ValueKey)
     required this.value,
     required this.prefix,
     required this.size,
@@ -3177,8 +3188,32 @@ class _CatIconPainter extends CustomPainter {
   bool shouldRepaint(_CatIconPainter old) => old.glyph != glyph || old.color != color;
 }
 
+/// Yozish paytida raqamni 3 xonadan guruhlaydi: 1234567 -> «1 234 567».
+/// (server 13 xonagacha qabul qiladi — undan uzuni kesiladi)
+String _groupDigits(String raw) {
+  var digits = raw.replaceAll(RegExp(r'[^\d]'), '');
+  if (digits.length > 13) digits = digits.substring(0, 13);
+  final b = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) b.write(' ');
+    b.write(digits[i]);
+  }
+  return b.toString();
+}
+
+class _ThousandsFmt extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
+    final t = _groupDigits(newV.text);
+    return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+  }
+}
+
 /// #15v2: SUB-papka ichida "kirim qo'shish" paneli — summa + izoh.
 /// onAdd true qaytarsa (server saqladi) — maydonlar tozalanadi.
+/// 2026-08-03 UI/UX: siqilgan 3-ustunli qator o'rniga karta ko'rinishi —
+/// katta Summa maydoni (21px, «so'm» suffiks, avto 1 234 567 guruhlash),
+/// to'liq enli Izoh va 50dp yashil «Qo'shish» tugmasi (summa bo'sh — xira).
 class _IncomeAddBar extends StatefulWidget {
   final Future<bool> Function(String amount, String note) onAdd;
   final bool busy;
@@ -3194,7 +3229,18 @@ class _IncomeAddBarState extends State<_IncomeAddBar> {
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _amt.addListener(_onAmt); // «Qo'shish» tugmasi holati jonli yangilansin
+  }
+
+  void _onAmt() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _amt.removeListener(_onAmt);
     _amt.dispose();
     _note.dispose();
     super.dispose();
@@ -3217,80 +3263,95 @@ class _IncomeAddBarState extends State<_IncomeAddBar> {
   Widget build(BuildContext context) {
     final p = curPal();
     final busy = _sending || widget.busy;
-    InputDecoration deco(String hint) => InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: p.t5, fontSize: 13),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: p.bd),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: p.bd),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: p.green),
-          ),
+    final hasAmt = _amt.text.trim().isNotEmpty;
+    OutlineInputBorder ob(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c, width: w),
         );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 10),
+    InputDecoration deco(String hint, {Widget? suffix}) => InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: p.t5, fontSize: 14),
+          isDense: true,
+          filled: true,
+          fillColor: p.bg,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          border: ob(p.bd),
+          enabledBorder: ob(p.bd),
+          focusedBorder: ob(p.green, 1.4),
+          suffixIcon: suffix,
+          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: p.hov2,
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                flex: 5,
-                child: TextField(
-                  controller: _amt,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: p.ink, fontSize: 14, fontWeight: FontWeight.w600),
-                  decoration: deco(store.L()['xfIncAmtHint'] as String? ?? 'Summa'),
-                ),
+          TextField(
+            controller: _amt,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [_ThousandsFmt()],
+            style: GoogleFonts.inter(
+              color: p.ink, fontSize: 21, fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            decoration: deco(
+              store.L()['xfIncAmtHint'] as String? ?? 'Summa',
+              suffix: Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: Tx(store.L()['som'] as String? ?? "so'm", size: 13.5, color: p.t3),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 5,
-                child: TextField(
-                  controller: _note,
-                  style: TextStyle(color: p.ink, fontSize: 14),
-                  decoration: deco(store.L()['xfIncNoteHint'] as String? ?? 'Izoh (ixtiyoriy)'),
-                  onSubmitted: (_) => _submit(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Tap(
-                onTap: busy ? null : _submit,
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: busy ? p.green.withValues(alpha: .5) : p.green,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Icon(Icons.add, color: Colors.white, size: 22),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _note,
+            style: TextStyle(color: p.ink, fontSize: 14.5),
+            textInputAction: TextInputAction.done,
+            decoration: deco(store.L()['xfIncNoteHint'] as String? ?? 'Izoh (ixtiyoriy)'),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 12),
+          Tap(
+            onTap: (busy || !hasAmt) ? null : _submit,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              height: 50,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: p.green.withValues(alpha: busy ? .55 : (hasAmt ? 1 : .35)),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_rounded, color: Colors.white, size: 21),
+                        const SizedBox(width: 7),
+                        Tx(store.L()['xfIncAddBtn'] as String? ?? "Qo'shish",
+                            size: 15, w: FontWeight.w700, color: Colors.white),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Tx(
             store.L()['xfIncHint'] as String? ??
-                "Shu manbaga kirim qo'shish — summa va izoh yozib + ni bosing",
-            size: 11,
+                "Shu manbaga kirim qo'shish — summa yozib «Qo'shish»ni bosing",
+            size: 11.5,
             color: p.t4,
             lh: 15,
           ),

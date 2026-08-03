@@ -100,7 +100,12 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       if (!config.ai.enabled || !aiReady()) {
         return res.status(503).json({ success: false, code: 'AI_OFF', error: 'Trust AI hozircha mavjud emas' });
       }
-      const message = String(req.body?.message || '').trim();
+      // Boshqaruv belgilari (ayniqsa NUL) olib tashlanadi: Postgres text ustuniga NUL
+      // yozib bo'lmaydi, natijada ai_messages insert'i yiqilib, hisob (ai_usage) yozilmay
+      // qolardi — ya'ni kunlik AI limitini chetlab o'tish yo'li ochilardi (2026-08-02 audit).
+      const message = String(req.body?.message || '')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+        .trim();
       if (message.length < 1 || message.length > MAX_MESSAGE_CHARS) {
         return res.status(400).json({ success: false, error: `Xabar 1–${MAX_MESSAGE_CHARS} belgi bo'lsin` });
       }
@@ -157,6 +162,28 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       // 4. Model: Anthropic -> Groq -> iliq xato (hech qachon tashlamaydi)
       const r = await askAI({ contextText, history, message: safeMessage });
 
+      // 4b. HISOB (ai_usage) — pul sarflangani BILAN BIR ZAHOTI yoziladi.
+      // MUHIM (2026-08-02 audit): ilgari bu yozuv eng oxirida, ai_messages insert'laridan
+      // KEYIN turardi. Ular yiqilsa (masalan xabarda NUL bo'lsa) handler throw qilib,
+      // ai_usage YOZILMASDI — kunlik/oylik limit hech qachon o'smasdi va cheksiz
+      // Opus chaqiruvi mumkin bo'lardi. Endi hisob birinchi va u hech qachon
+      // so'rovni to'xtatmaydi (fail-soft).
+      const cost = r.provider === 'anthropic' ? costOf(r.usage) : 0;
+      const modelInfo = r.provider === 'fallback'
+        ? ((r.errors || []).join(' | ').slice(0, 180) || 'none')
+        : r.model;
+      try {
+        const { error: uErr } = await supabaseAdmin.from('ai_usage').insert({
+          user_id: req.user.id, provider: r.provider, model: modelInfo,
+          input_tokens: r.usage.input_tokens, cached_input_tokens: r.usage.cached_input_tokens,
+          cache_write_tokens: r.usage.cache_write_tokens, output_tokens: r.usage.output_tokens,
+          cost_usd: cost,
+        });
+        if (uErr) console.error('[ai] ai_usage yozilmadi:', uErr.message);
+      } catch (e) {
+        console.error('[ai] ai_usage yozilmadi:', e?.message || e);
+      }
+
       // 5. Belgilarni real ism/UUID'ga qaytarish + server tomonidan majburlangan maydonlar.
       //    Hammasi tushib qolsa XOM bloklar KO'RSATILMAYDI — ular ichida HAMKOR_n belgisi
       //    qolgan bo'lishi mumkin (aynan biz to'sayotgan sizib chiqish).
@@ -181,22 +208,9 @@ router.post('/chat', requireActiveSub, rateLimit({ windowMs: 60_000, max: 20 }),
       }).select('id, created_at').single();
       if (aErr) throw new Error(aErr.message);
 
-      // 7. Token/xarajat auditi (PO real ma'lumot bilan limitlarni sozlaydi).
-      //    cost_usd faqat Anthropic uchun hisoblanadi — narx jadvali (config.ai.price)
-      //    o'shanikidir. Groq ~10x arzon va sozlash nishoni emas: tokenlari yoziladi,
-      //    xarajati 0 (aks holda audit Opus narxida shishib, tahlilni chalg'itardi).
-      const cost = r.provider === 'anthropic' ? costOf(r.usage) : 0;
-      // Fallback'da model='none' o'rniga XATO SABABLARI yoziladi (kalit YO'Q, faqat
-      // status/turi) — monitoring DB'dan ko'rinadi, Render logiga qaramasdan.
-      const modelInfo = r.provider === 'fallback'
-        ? ((r.errors || []).join(' | ').slice(0, 180) || 'none')
-        : r.model;
-      await supabaseAdmin.from('ai_usage').insert({
-        user_id: req.user.id, provider: r.provider, model: modelInfo,
-        input_tokens: r.usage.input_tokens, cached_input_tokens: r.usage.cached_input_tokens,
-        cache_write_tokens: r.usage.cache_write_tokens, output_tokens: r.usage.output_tokens,
-        cost_usd: cost,
-      });
+      // 7. Token/xarajat auditi 4b bosqichida (askAI'dan bevosita keyin) yozildi —
+      //    cost_usd faqat Anthropic uchun hisoblanadi (config.ai.price o'shanikidir);
+      //    Groq ~10x arzon va sozlash nishoni emas: tokenlari yoziladi, xarajati 0.
 
       // Log: kalit/xabar mazmuni EMAS — faqat o'lchov
       console.log(`[ai] ${r.provider}/${r.model} in=${r.usage.input_tokens} cached=${r.usage.cached_input_tokens} `

@@ -238,7 +238,10 @@ router.post('/', requireActiveSub, async (req, res, next) => {
         status: idx === 1 ? 'current' : 'upcoming',
       };
     });
-    const { data: insRounds } = await supabaseAdmin.from('circle_rounds').insert(roundRows).select();
+    const { data: insRounds, error: erRounds } = await supabaseAdmin.from('circle_rounds').insert(roundRows).select();
+    // Roundlarsiz doira umuman ishlamaydi ("Joriy round topilmadi") — jimgina o'tkazib
+    // yuborish mumkin emas (2026-08-02 audit).
+    if (erRounds) throw new Error(erRounds.message);
 
     // 1-round uchun pending to'lovlar (oluvchidan tashqari)
     const round1 = (insRounds || []).find((r) => r.idx === 1);
@@ -307,6 +310,18 @@ router.post('/join/:token', requireActiveSub, async (req, res, next) => {
     const full = await loadFull(circle.id);
     const meMember = memberOf(full, meId, mePhone);
 
+    // MUHIM (2026-08-02 audit): havola muddatsiz ishlaydi. Ilgari doira ALLAQACHON
+    // boshlangan bo'lsa ham qo'shilib bo'lardi: yangi a'zo o'tgan roundlarga to'lamaydi,
+    // lekin oxiriga o'z roundi qo'shiladi — ya'ni deyarli hech narsa to'lamay butun
+    // qozonni olib ketadi. Boshlangan doiraga faqat TAKLIF QILINGANLAR kira oladi.
+    const started = (circle.current_round || 1) > 1 || full.rounds.some((r) => r.status === 'done');
+    if (started && !(meMember && meMember.status === 'invited')) {
+      return res.status(400).json({
+        success: false,
+        error: "Doira allaqachon boshlangan — havola orqali qo'shilib bo'lmaydi",
+      });
+    }
+
     if (meMember && meMember.user_id === meId && meMember.status === 'active') {
       // Allaqachon a'zo — idempotent
       return res.json({ success: true, data: mapCircle(full, meId, mePhone) });
@@ -325,9 +340,16 @@ router.post('/join/:token', requireActiveSub, async (req, res, next) => {
         payout_position: maxPos + 1, status: 'active',
       }).select().single();
       if (em) throw new Error(em.message);
-      await supabaseAdmin.from('circle_rounds').insert({
+      // Round insert XATOSI ilgari e'tiborsiz qolardi (2026-08-02 audit): parallel
+      // qo'shilishda unique(circle_id, idx) buzilib, a'zo ROUNDSIZ qolardi — u har
+      // aylanada to'laydi, lekin hech qachon oluvchi bo'lmaydi. Endi a'zo ham qaytariladi.
+      const { error: er } = await supabaseAdmin.from('circle_rounds').insert({
         circle_id: circle.id, idx: maxIdx + 1, recipient_member_id: nm.id, status: 'upcoming',
       });
+      if (er) {
+        await supabaseAdmin.from('circle_members').delete().eq('id', nm.id);
+        return res.status(409).json({ success: false, error: "Ayni paytda band — qayta urinib ko'ring" });
+      }
     }
     const meNm = await meName(meId);
     await notify(circle.owner_id, meId, 'circle_joined', `${meNm} "${circle.name}" doirasiga qo'shildi`, '', circle.id);
@@ -599,7 +621,15 @@ router.delete('/:id', async (req, res, next) => {
     const full = await loadFull(req.params.id);
     if (!full) return res.status(404).json({ success: false, error: 'Doira topilmadi' });
     if (full.circle.owner_id !== req.user.id) return res.status(403).json({ success: false, error: 'Faqat egasi yopadi' });
-    const anyDone = full.rounds.some((r) => r.status === 'done');
+    // MUHIM (2026-08-02 audit): ilgari "dalil" faqat YOPILGAN round deb hisoblanardi.
+    // Ammo a'zolar "to'ladim" deb belgilagan (status='paid') to'lovlar ham DALIL —
+    // va oluvchi roundni tasdiqlamasa, round hech qachon 'done' bo'lmasdi. Ya'ni egasi
+    // pulni yig'ib olib, DELETE bilan barcha to'lov yozuvlarini (cascade orqali
+    // bildirishnomalar bilan birga) butunlay o'chirib yubora olardi.
+    const anyPaid = (full.payments || []).some((p) => p.status && p.status !== 'pending');
+    const anyDone = full.rounds.some((r) => r.status === 'done')
+      || anyPaid
+      || (full.circle.current_round || 1) > 1;
     const meNm = await meName(req.user.id);
     if (anyDone) {
       // Dalil bor — hech qachon hard delete qilinmaydi

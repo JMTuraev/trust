@@ -106,7 +106,10 @@ class TrustStore extends ChangeNotifier {
     // Profil qo'shimchalari
     'meAvatar': null, // lokal rasm yo'li (galereyadan)
     'cur': 'UZS', // asosiy valyuta (yangi yozuv formasi uchun default)
-    'subStatus': 'trial', 'trialEnd': null, 'premUntil': null, // obuna holati (backend /profile/me)
+    // Obuna holati (backend /profile/me): 'free' | 'premium'. Server 'trial' qaytarmaydi.
+    'subStatus': 'free', 'trialEnd': null, 'premUntil': null,
+    'debtsUsed': null, 'expensesUsed': null,
+    'freeDebtEntries': null, 'freeExpenseEntries': null,
     'iapBusy': false, // Apple IAP xaridi ketmoqda — paywall CTA spinner/disabled
     'delArmAt': 0, // (eski) profil o'chirish ikki bosqichli tasdiq vaqti — endi ishlatilmaydi
     'delOtpOpen': false, 'delOtpBusy': false, 'delOtpPhone': '', // #34: OTP bilan o'chirish modali
@@ -135,6 +138,8 @@ class TrustStore extends ChangeNotifier {
   };
 
   Timer? _tt, _pi, _lp, _poll;
+  /// Xarajat "land" zaxira taymeri — logout'da bekor qilinadi (2026-08-02 audit).
+  Timer? _landFallback;
   Map<String, dynamic>? _sw;
   bool _swClick = false;
   bool _busy = false;
@@ -157,11 +162,20 @@ class TrustStore extends ChangeNotifier {
     } catch (_) {}
     // Token muddati o'tsa (401) — istalgan ekrandan markazlashgan logout
     Api.onUnauthorized = _forceLogout;
+    // Tarmoq xatolari foydalanuvchi tilida ko'rsatilsin (ilgari har doim o'zbekcha edi,
+    // ruscha/inglizcha interfeysda ham — 2026-08-02 audit).
+    _syncApiErrStrings();
     // Server yozishni 402 bilan bloklagan = obuna tugagan. Lokal holat darhol
     // 'expired'ga o'tadi — global banner va profil kartasi to'g'ri ko'rinadi
     // (aks holda ilova qayta ochilgunicha eski "trial" holati ko'rsatilardi).
-    Api.onPaymentRequired = () {
+    // MUHIM (2026-08-02 audit): 402 faqat O'ZIMIZNING kvota tugaganda holatni
+    // o'zgartiradi. Ilgari qarshi tomon (daftar egasi) kvotasi tugagani uchun kelgan
+    // 402 ham "mening obunam tugadi" deb qabul qilinardi va butun ilovada qizil
+    // banner yonardi. Server endi kodni ajratadi: SUB_EXPIRED / OWNER_SUB_EXPIRED.
+    Api.onPaymentRequired = (String code) {
+      if (code == 'OWNER_SUB_EXPIRED') return; // bu — daftar egasining muammosi
       if (S['subStatus'] != 'expired') set({'subStatus': 'expired'});
+      unawaited(refreshMe()); // serverdan aniqlashtirib olamiz (yopishib qolmasin)
     };
     await Api.loadToken();
     _wireIap(); // Apple IAP (iOS) — StoreKit tayyorlash + xarid oqimini kuzatish
@@ -194,31 +208,81 @@ class TrustStore extends ChangeNotifier {
         'meId': p['id'], 'mePhone': p['phone'], 'meName': p['full_name'],
         'meNo': p['user_no'],
         'notifOn': p['notif_enabled'] != false,
-        // Obuna holati: trial (7 kun) / premium / expired — profil va paywall uchun
-        'subStatus': p['status'] ?? 'trial',
+        // Obuna holati: server 'premium' yoki 'free' qaytaradi (trial modeli olib tashlangan)
+        'subStatus': p['status'] ?? 'free',
+        // Bepul kvota hisobi — serverdan (UI hech narsa hardcode qilmaydi)
+        'debtsUsed': ((p['usage'] as Map?)?['debts_used'] as num?)?.toInt(),
+        'expensesUsed': ((p['usage'] as Map?)?['expenses_used'] as num?)?.toInt(),
+        'freeDebtEntries': ((p['price'] as Map?)?['free_debt_entries'] as num?)?.toInt(),
+        'freeExpenseEntries': ((p['price'] as Map?)?['free_expense_entries'] as num?)?.toInt(),
         'trialEnd': p['trial_ends_at'],
         'premUntil': p['premium_until'],
         'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true,
       });
+      await SecureStore.writeMe(p['id'] as String?, p['phone'] as String?);
       await hydrate();
       set({'skelHome': false});
       _startPolling();
     } else if (prof.status == 401) {
       await Api.saveToken(null); // muddati o'tgan token
+      await SecureStore.writeMe(null, null);
       set({'stage': 'welcome'}); // boot splashdan welcome'ga
     } else {
       // Tarmoq/server xatosi (status 0 yoki 5xx): token yaroqli — ilovaga kiritamiz,
       // hydrate keyin qayta urinadi. Foydalanuvchi onboarding'ga tushmaydi.
-      set({'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true});
+      // MUHIM (2026-08-02 audit): bu yo'lda ilgari meId UMUMAN o'rnatilmasdi. Natijada
+      // '${S['meId']}' -> "null" bo'lib, HAR BIR qarzning yo'nalishi TESKARI ko'rsatilardi
+      // ("Aziz menga qarzdor" -> "Men Azizga qarzdorman"). Endi oxirgi kirishda
+      // saqlangan qiymat tiklanadi va profil fonda qayta so'raladi.
+      final savedId = await SecureStore.readMeId();
+      final savedPhone = await SecureStore.readMePhone();
+      set({
+        if (savedId != null) 'meId': savedId,
+        if (savedPhone != null) 'mePhone': savedPhone,
+        'stage': needPin ? 'pin' : 'app', 'pinMode': 'check', 'skelHome': true,
+      });
       await hydrate();
       set({'skelHome': false});
       _startPolling();
+      // Profilni fonda qayta olishga urinamiz (meId hali noma'lum bo'lsa — muhim).
+      unawaited(_retryMe());
+    }
+  }
+
+  /// Profilni fonda qayta olish (tarmoq tiklangach). meId noma'lum bo'lsa —
+  /// qarz yo'nalishlari noto'g'ri ko'rinadi, shuning uchun bir necha marta urinamiz.
+  Future<void> _retryMe() async {
+    for (final delay in [3, 8, 20, 45]) {
+      await Future.delayed(Duration(seconds: delay));
+      if (S['stage'] != 'app' && S['stage'] != 'pin') return;
+      final r = await Api.me();
+      if (!r.ok || r.data is! Map) continue;
+      final p = r.data as Map<String, dynamic>;
+      set({
+        'meId': p['id'], 'mePhone': p['phone'], 'meName': p['full_name'],
+        'meNo': p['user_no'],
+        'notifOn': p['notif_enabled'] != false,
+        'subStatus': p['status'] ?? 'free',
+        // Bepul kvota hisobi — serverdan (UI hech narsa hardcode qilmaydi)
+        'debtsUsed': ((p['usage'] as Map?)?['debts_used'] as num?)?.toInt(),
+        'expensesUsed': ((p['usage'] as Map?)?['expenses_used'] as num?)?.toInt(),
+        'freeDebtEntries': ((p['price'] as Map?)?['free_debt_entries'] as num?)?.toInt(),
+        'freeExpenseEntries': ((p['price'] as Map?)?['free_expense_entries'] as num?)?.toInt(),
+        'trialEnd': p['trial_ends_at'],
+        'premUntil': p['premium_until'],
+      });
+      await SecureStore.writeMe(p['id'] as String?, p['phone'] as String?);
+      await hydrate();
+      return;
     }
   }
 
   // Markazlashgan logout — 401 (sessiya tugagan) yoki qo'lda chiqishда
   void _forceLogout() {
-    if (S['stage'] != 'app') return;
+    // MUHIM (2026-08-02 audit): ilgari faqat stage=='app' da ishlardi. Token kechasi
+    // muddati tugab, foydalanuvchi PIN ekranida turgan bo'lsa, 401'lar e'tiborsiz
+    // qolardi — u PIN kiritib, BO'M-BO'SH ilovaga tushardi va nima bo'lganini bilmasdi.
+    if (S['stage'] != 'app' && S['stage'] != 'pin') return;
     logout_();
     toast_(L()['tSessionEnd']);
   }
@@ -429,8 +493,17 @@ class TrustStore extends ChangeNotifier {
       }
       if (toFetch.isNotEmpty) {
         final details = await Future.wait(toFetch.map((p) => Api.partnerDetail(p['id'] as String)));
-        final fetchedIds = toFetch.map((p) => p['id']).toSet();
-        final kept = _txs().where((t) => !fetchedIds.contains(t['c'])).toList();
+        // MUHIM (2026-08-02 audit): ilgari fetchedIds BARCHA so'ralgan hamkorlarni
+        // o'z ichiga olardi, shu sabab so'rovi MUVAFFAQIYATSIZ bo'lgan hamkorning
+        // tranzaksiyalari ham `kept` dan chiqarib tashlanardi — ammo msgs[pid] eski
+        // id'larga ishora qilib qolardi. Keyingi qayta chizishda `_tx(...)!` null'ga
+        // tushib, butun ilova qizil xato ekraniga o'tardi (orqaga qaytib ham bo'lmasdi).
+        // Endi faqat MUVAFFAQIYATLI olinganlar almashtiriladi.
+        final okIds = <dynamic>{};
+        for (var i = 0; i < details.length; i++) {
+          if (details[i].ok && details[i].data is Map) okIds.add(toFetch[i]['id']);
+        }
+        final kept = _txs().where((t) => !okIds.contains(t['c'])).toList();
         final added = <Map<String, dynamic>>[];
         final msgs = Map<String, List<Map<String, dynamic>>>.from(S['msgs']);
         for (var i = 0; i < details.length; i++) {
@@ -459,6 +532,41 @@ class TrustStore extends ChangeNotifier {
     _poll = Timer.periodic(const Duration(seconds: 15), (_) {
       if (S['stage'] == 'app') hydrate(full: false);
     });
+  }
+
+  /// Ilova fonga o'tganda BARCHA pollinglar to'xtaydi, qaytganda tiklanadi.
+  ///
+  /// MUHIM (2026-08-02 audit): ilgari ilova fonda ham har 15 soniyada hydrate,
+  /// har 3–4 soniyada chat/ledger/support so'rovlarini yuborib turardi. 12 hamkorli
+  /// foydalanuvchida bu daqiqasiga ~87 so'rov — serverning /api limiti esa 120/min
+  /// (IP bo'yicha). Bir uy/operator NAT ortidagi ikki foydalanuvchi 429 ola boshlardi,
+  /// ustiga batareya va mobil trafik behuda sarflanardi.
+  void appPaused_() {
+    _poll?.cancel();
+    _ledgerPoll?.cancel();
+    _chatPoll?.cancel();
+    _supPoll?.cancel();
+  }
+
+  void appResumed_() {
+    if (S['stage'] != 'app') return;
+    _startPolling();
+    hydrate(full: false);
+    if (S['supportOpen'] == true) {
+      _supPoll?.cancel();
+      _supPoll = Timer.periodic(const Duration(seconds: 4), (_) => _supTick());
+    }
+    final pid = _ledPid();
+    if (pid != null) {
+      _ledgerPoll?.cancel();
+      _ledgerPoll = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (S['clientId'] == pid || S['inLinkId'] == pid) {
+          _refetchLedger(pid);
+        } else {
+          _ledgerPoll?.cancel();
+        }
+      });
+    }
   }
 
   /// verify-otp muvaffaqiyati: token + profil + ma'lumotlar
@@ -520,6 +628,14 @@ class TrustStore extends ChangeNotifier {
   void setLang(String l) {
     SharedPreferences.getInstance().then((sp) => sp.setString('trust_lang', l));
     set({'lang': l});
+    _syncApiErrStrings();
+  }
+
+  /// Api qatlamidagi tarmoq xatolari matnini joriy tilga moslaydi.
+  void _syncApiErrStrings() {
+    final l = L();
+    Api.errNetwork = l['errNetwork'] as String?;
+    Api.errWaking = l['errWaking'] as String?;
   }
 
   // ================= Obuna xaridi (Apple IAP — iap.dart) =================
@@ -1167,13 +1283,25 @@ class TrustStore extends ChangeNotifier {
       toast_(L()['tSum']);
       return;
     }
+    // MUHIM (2026-08-02 audit): quyidagi qiymatlar chClose_() dan OLDIN o'zgaruvchiga
+    // olinadi. Ilgari closure ichida S['chDue'] / S['chNote'] / S['chDate'] o'qilardi,
+    // ammo chClose_() ulardan avval ishga tushib formani TOZALAB yuborardi — natijada
+    // MUDDAT, IZOH va SANA serverга hech qachon bormasdi. Ya'ni foydalanuvchi kalendardan
+    // muddat tanlaydi, ilova esa uni jimgina tashlab yuborardi va avto-eslatma
+    // (mahsulotning asosiy va'dasi) hech qachon ishlamasdi.
+    final curV = '${S['chCur'] ?? 'UZS'}';
+    final dueV = '${S['chDue']}';
+    final noteV = '${S['chNote']}';
+    final dateV = '${S['chDate']}'.isEmpty ? _isoDate(DateTime.now()) : '${S['chDate']}';
+    final reasonV = S['chReason'] == 'forgiven' ? 'forgiven' : 'returned';
+
     if (act == 'lend' || act == 'borrow') {
       final dir = act == 'lend' ? 'toMe' : 'fromMe'; // viewer perspektivasi
       chClose_();
       await _ledgerAct(pid, () => Api.openDebt(pid,
-          direction: dir, amount: amt, currency: '${S['chCur'] ?? 'UZS'}',
-          actedAt: '${S['chDate']}'.isEmpty ? _isoDate(DateTime.now()) : '${S['chDate']}',
-          due: '${S['chDue']}', note: '${S['chNote']}'),
+          direction: dir, amount: amt, currency: curV,
+          actedAt: dateV,
+          due: dueV, note: noteV),
           okMsg: _ledgerFor(pid).partnerAccepted ? (L()['okPendingConfirm'] as String) : (L()['okWroteUnconf'] as String));
     } else if (act == 'close') {
       final debtId = S['chDebt'] as String?;
@@ -1190,11 +1318,10 @@ class TrustStore extends ChangeNotifier {
       chClose_();
       if (d.direction == DebtDir.fromMe) {
         // Men qaytaraman
-        await _ledgerAct(pid, () => Api.repay(pid, debtId, amt, note: '${S['chNote']}'), okMsg: L()['okRepaySent'] as String);
+        await _ledgerAct(pid, () => Api.repay(pid, debtId, amt, note: noteV), okMsg: L()['okRepaySent'] as String);
       } else {
         // U menga qarzdor — pulni oldim / kechdim
-        final reason = S['chReason'] == 'forgiven' ? 'forgiven' : 'returned';
-        await _ledgerAct(pid, () => Api.settle(pid, debtId, amt, reason, note: '${S['chNote']}'), okMsg: L()['okSent'] as String);
+        await _ledgerAct(pid, () => Api.settle(pid, debtId, amt, reasonV, note: noteV), okMsg: L()['okSent'] as String);
       }
     }
   }
@@ -1205,6 +1332,7 @@ class TrustStore extends ChangeNotifier {
   void ledgerConfirm_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirm(id), okMsg: L()['okConfirmed'] as String);
   void ledgerReject_(String id) => _ledgerAct(_ledPid()!, () => Api.debtReject(id), okMsg: L()['okRejected'] as String);
   void ledgerConfirmOp_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirmOp(id), okMsg: L()['okConfirmed'] as String);
+  void ledgerRejectOp_(String id) => _ledgerAct(_ledPid()!, () => Api.debtRejectOp(id), okMsg: L()['okRejected'] as String);
   void ledgerCancel_(String id) => _ledgerAct(_ledPid()!, () => Api.debtCancel(id), okMsg: L()['tCancelled'] as String);
   void ledgerEditConfirm_(String id) => _ledgerAct(_ledPid()!, () => Api.debtEditConfirm(id), okMsg: L()['okEditConfirmed'] as String);
   void ledgerEditReject_(String id) => _ledgerAct(_ledPid()!, () => Api.debtEditReject(id), okMsg: L()['okRejected'] as String);
@@ -1216,11 +1344,16 @@ class TrustStore extends ChangeNotifier {
     set({'revAllOpen': false});
     final pid = _ledPid()!;
     final led = _ledgerFor(pid);
+    // Har bir natija tekshiriladi — ilgari 409 ("holat o'zgargan") kelsa ham
+    // "hammasi tasdiqlandi" deb aytilardi (2026-08-02 audit).
+    var ok = 0, total = 0;
     for (final d in led.reviewDebts()) {
-      await Api.reviewConfirm(pid, d.id);
+      total++;
+      final r = await Api.reviewConfirm(pid, d.id);
+      if (r.ok) ok++;
     }
     await _refetchLedger(pid);
-    toast_(L()['tAllConfirmed']);
+    toast_(ok == total ? L()['tAllConfirmed'] as String : '$ok/$total — qisman tasdiqlandi');
   }
 
   // ---- Yozuv tahriri (dialog) ----
@@ -1530,8 +1663,13 @@ class TrustStore extends ChangeNotifier {
         if (!existing.contains(c)) ghosts[c] = e['kind'] == 'd';
       }
       set({'xfNewCats': newCats, 'xfFly': fly, 'xfGhostCats': ghosts});
-      // Zaxira: biror sabab bilan land bo'lmasa (ekran yopildi) — 8s dan keyin to'g'ridan-to'g'ri
-      Timer(const Duration(seconds: 8), () {
+      // Zaxira: biror sabab bilan land bo'lmasa (ekran yopildi) — 8s dan keyin to'g'ridan-to'g'ri.
+      // MUHIM (2026-08-02 audit): taymer maydonda saqlanadi va logout'da bekor qilinadi —
+      // aks holda chiqishdan keyin ishga tushib, OLDINGI akkaunt xarajatlarini
+      // yangi foydalanuvchi ekraniga qaytarib qo'yardi.
+      _landFallback?.cancel();
+      _landFallback = Timer(const Duration(seconds: 8), () {
+        if (S['stage'] != 'app') return;
         for (final e in es) {
           xfLandOne_(e);
         }
@@ -1987,24 +2125,40 @@ class TrustStore extends ChangeNotifier {
     set({'xfConfirm': null});
     final from = c['from'] as Map<String, dynamic>;
     final ids = (from['entries'] as List).cast<Map<String, dynamic>>().map((e) => e['id'] as String).toList();
+    // MUHIM (2026-08-02 audit): ilgari har bir so'rov natijasi E'TIBORSIZ qolardi va
+    // UI shartsiz "bajarildi" deb ko'rsatardi. Zaif tarmoqda 11 tadan 4 tasi o'chib,
+    // 7 tasi qolardi — foydalanuvchi "papka o'chdi" degan xabarni ko'rar, 15 soniyadan
+    // keyin esa hydrate o'sha 7 ta yozuvni qaytarib, balansni ham ko'tarib qo'yardi.
+    // Endi FAQAT muvaffaqiyatli id'lar lokal holatga qo'llanadi va toast rost gapiradi.
+    final okIds = <String>[];
     if (c['kind'] == 'merge') {
       final to = c['to'] as Map<String, dynamic>;
       for (final id in ids) {
-        await Api.patchExpense(id, category: to['name'] as String);
+        final r = await Api.patchExpense(id, category: to['name'] as String);
+        if (r.ok) okIds.add(id);
       }
-      set({'xarEntries': _xar().map((x) => ids.contains(x['id']) ? {...x, 'cat': to['name']} : x).toList()});
+      set({'xarEntries': _xar().map((x) => okIds.contains(x['id']) ? {...x, 'cat': to['name']} : x).toList()});
       _xfLogAdd('merge', cat: to['name'] as String, desc: "${from['name']} → ${to['name']}",
           amount: from['total'] as int, income: from['income'] == true);
-      toast_(Lf('tMerged', {'from': '${from['name']}', 'to': '${to['name']}'}));
+      toast_(okIds.length == ids.length
+          ? Lf('tMerged', {'from': '${from['name']}', 'to': '${to['name']}'})
+          : '${okIds.length}/${ids.length} — qisman bajarildi');
     } else {
       for (final id in ids) {
-        await Api.deleteExpense(id);
+        final r = await Api.deleteExpense(id);
+        if (r.ok) okIds.add(id);
       }
-      set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList(), 'xfDetail': null});
+      set({
+        'xarEntries': _xar().where((x) => !okIds.contains(x['id'])).toList(),
+        if (okIds.length == ids.length) 'xfDetail': null,
+      });
       _xfLogAdd('del', cat: from['name'] as String, desc: "${from['name']} papkasi",
           amount: from['total'] as int, income: from['income'] == true);
-      toast_(Lf('tDeletedName', {'name': '${from['name']}'}));
+      toast_(okIds.length == ids.length
+          ? Lf('tDeletedName', {'name': '${from['name']}'})
+          : '${okIds.length}/${ids.length} — qisman o\'chirildi');
     }
+    if (okIds.length != ids.length) unawaited(hydrate(full: true));
   }
 
   void xfCfNo_() => set({'xfConfirm': null});
@@ -2117,7 +2271,11 @@ class TrustStore extends ChangeNotifier {
     if (t.isEmpty) return;
     final a = Map<String, dynamic>.from(t['action'] as Map);
     a['category'] = cat;
-    if (createNew) a['accept_new_category'] = true;
+    // 2026-08-03: har doim true — foydalanuvchi papkani O'ZI tanladi (bu "jimgina
+    // yaratish" emas). Ilgari faqat createNew'da yuborilardi; tanlangan papka
+    // categories jadvalida bo'lmasa (eski yozuvlardan qurilgan papka) server yozuvni
+    // indamay 'Boshqa'ga tushirardi — foydalanuvchi tanlagan toifa "yo'qolardi".
+    a['accept_new_category'] = true;
     set({'xfTray': tray.where((x) => x['id'] != id).toList()});
     // confirm orqali saqlaymiz — parsed bilan birga (lug'at o'rganadi: keyingi safar AI o'zi topadi)
     await _xcConfirm(t['src'] as String, 'text', [a], [Map<String, dynamic>.from(t['action'] as Map)]);
@@ -2191,7 +2349,9 @@ class TrustStore extends ChangeNotifier {
     // (shu qurilmada boshqa akkaunt kirsa, bu akkauntning push'i kelmasin)
     PushService.unregister();
     Api.saveToken(null);
+    SecureStore.writeMe(null, null); // shaxsiyat keshini ham tozalaymiz
     SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
+    _landFallback?.cancel(); // chiqishdan keyin eski akkaunt yozuvlarini qaytarmasin
     set({
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
       'screen': 'hub', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
@@ -2205,7 +2365,8 @@ class TrustStore extends ChangeNotifier {
       'xarLimit': 0, 'pMeta': <String, String>{},
       'supportOpen': false, 'supportMsgs': <Map<String, dynamic>>[], 'supportInput': '',
       'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null, 'meNo': null,
-      'subStatus': 'trial', 'trialEnd': null, 'premUntil': null,
+      'subStatus': 'free', 'trialEnd': null, 'premUntil': null,
+      'debtsUsed': null, 'expensesUsed': null,
       'meAvatar': null, // shu qurilmada boshqa user kirsa avvalgi rasm ko'rinmasin
       // Trust AI suhbati — shaxsiy ma'lumot: qurilmada boshqa user kirsa ko'rinmasin
       'aiMsgs': <Map<String, dynamic>>[], 'aiInput': '', 'aiLoaded': false,
@@ -2242,12 +2403,21 @@ class TrustStore extends ChangeNotifier {
       _supPoll?.cancel();
       return;
     }
-    final list = _supMsgs();
-    final after = list.isEmpty ? null : list.last['created_at'] as String?;
+    final before = _supMsgs();
+    final after = before.isEmpty ? null : before.last['created_at'] as String?;
     final r = await Api.supportMessages(after: after);
-    if (r.ok && r.data is List && (r.data as List).isNotEmpty) {
-      set({'supportMsgs': [...list, ...(r.data as List).cast<Map<String, dynamic>>()]});
-    }
+    if (!(r.ok && r.data is List && (r.data as List).isNotEmpty)) return;
+    // MUHIM (2026-08-02 audit): ro'yxat AWAIT'dan KEYIN qayta o'qiladi va id bo'yicha
+    // dublikat filtrlanadi. Ilgari `before` (eski surat) ustiga qo'shilardi, shu bois
+    // polling oynasida yuborilgan xabar chatda IKKI MARTA ko'rinardi.
+    final cur = _supMsgs();
+    final seen = cur.map((m) => '${m['id']}').toSet();
+    final fresh = (r.data as List)
+        .cast<Map<String, dynamic>>()
+        .where((m) => !seen.contains('${m['id']}'))
+        .toList();
+    if (fresh.isEmpty) return;
+    set({'supportMsgs': [...cur, ...fresh]});
   }
 
   Future<void> sendSupport_() async {
@@ -2256,7 +2426,10 @@ class TrustStore extends ChangeNotifier {
     set({'supportInput': ''});
     final r = await Api.sendSupport(t);
     if (r.ok && r.data is Map) {
-      set({'supportMsgs': [..._supMsgs(), (r.data as Map).cast<String, dynamic>()]});
+      final row = (r.data as Map).cast<String, dynamic>();
+      final cur = _supMsgs();
+      if (cur.any((m) => '${m['id']}' == '${row['id']}')) return; // polling ulgurgan
+      set({'supportMsgs': [...cur, row]});
     } else {
       set({'supportInput': t}); // yuborilmadi — matn yo'qolmasin
       toast_(r.error);
@@ -2264,8 +2437,28 @@ class TrustStore extends ChangeNotifier {
   }
 
   /// Bildirishnoma bosilganda marshrutlash (link modeli)
+  /// Push BOSILGANDA: FCM `data` ni ichki bildirishnoma shakliga o'giradi va ochadi.
+  /// (2026-08-02 audit: ilgari bosish umuman qayta ishlanmasdi.)
+  Future<void> openFromPush(Map<String, dynamic> d) async {
+    // Ilova hali tayyor bo'lmasa — tayyor bo'lguncha kutamiz (maks. ~10s)
+    for (var i = 0; i < 20 && S['stage'] != 'app'; i++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    if (S['stage'] != 'app') return;
+    final type = '${d['type'] ?? ''}';
+    if (type == 'support') { unawaited(openSupport_()); return; }
+    await openFromNotif({
+      'id': null,
+      'kind': _notifKind[type] ?? 'confirmed',
+      'link': d['link_id'],
+      'circle': d['circle_id'],
+      'tx': d['operation_id'],
+    });
+  }
+
   Future<void> openFromNotif(Map<String, dynamic> n) async {
-    Api.readNotif(n['id'] as String); // fire-and-forget
+    final nid = n['id'] as String?;
+    if (nid != null) Api.readNotif(nid); // fire-and-forget (push'dan kelganda id yo'q)
     set({'notifs': _notifs().map((x) => x['id'] == n['id'] ? {...x, 'unread': false} : x).toList()});
     final kind = n['kind'] as String?;
     final linkId = n['link'] as String?;
@@ -2399,6 +2592,48 @@ class TrustStore extends ChangeNotifier {
     if (S['screen'] == 'hub') return false;
     return !_anyLayerOpen();
   }
+
+  /// Ochiq eng YUQORI qatlamni yopadi. true = biror narsa yopildi.
+  ///
+  /// MUHIM (2026-08-02 audit): Android'ning apparat "orqaga" tugmasi ilgari
+  /// overlay ochiq bo'lganda TIZIM ixtiyoriga qolardi. Ilovada bitta route
+  /// bo'lgani uchun tizim buni "ilovadan chiqish" deb tushunardi: foydalanuvchi
+  /// hamkor daftarini ochib, orqaga bosardi va ILOVA YOPILARDI (chekni ko'rish,
+  /// bildirishnomalar paneli, PDF ko'rinishi va h.k. — hammasida shunday edi).
+  bool closeTopLayer_() {
+    // Tartib: eng ustki (sheet/dialog) -> pastki (ekran qatlami)
+    if (S['ccOpen'] != null) { set({'ccOpen': null}); return true; }
+    if (S['langOpen'] == true) { set({'langOpen': false}); return true; }
+    if (S['circleInviteOpen'] == true) { set({'circleInviteOpen': false}); return true; }
+    if (S['circleConfirmOpen'] == true) { set({'circleConfirmOpen': false}); return true; }
+    if (S['circlePayOpen'] == true) { set({'circlePayOpen': false}); return true; }
+    if (S['circleJoinOpen'] == true) { set({'circleJoinOpen': false}); return true; }
+    if (S['circleManageOpen'] == true) { set({'circleManageOpen': false}); return true; }
+    if (S['circleHistoryOpen'] == true) { set({'circleHistoryOpen': false}); return true; }
+    if (S['circleCreateOpen'] == true) { set({'circleCreateOpen': false}); return true; }
+    if (S['circleOpen'] == true) { set({'circleOpen': false}); return true; }
+    if (S['editFormOpen'] == true) { set({'editFormOpen': false}); return true; }
+    if (S['xEditId'] != null) { set({'xEditId': null}); return true; }
+    if (S['sheetOpen'] == true) { set({'sheetOpen': false}); return true; }
+    if (S['npOpen'] == true) { set({'npOpen': false}); return true; }
+    if (S['linkDecisionId'] != null) { set({'linkDecisionId': null}); return true; }
+    if (S['pdfOpen'] == true) { set({'pdfOpen': false}); return true; }
+    if (S['receiptId'] != null) { set({'receiptId': null}); return true; }
+    if (S['xfDetail'] != null) { set({'xfDetail': null}); return true; }
+    if (S['notifOpen'] == true) { set({'notifOpen': false}); return true; }
+    if (S['archOpen'] == true) { set({'archOpen': false}); return true; }
+    if (S['rejOpen'] == true) { set({'rejOpen': false}); return true; }
+    if (S['supportOpen'] == true) { closeSupport_(); return true; }
+    if (S['clientId'] != null || S['inLinkId'] != null) {
+      stopLedgerPoll_();
+      set({'clientId': null, 'inLinkId': null, 'cMenuOpen': false, 'cRen': null, 'pProfOpen': false});
+      return true;
+    }
+    return false;
+  }
+
+  /// Apparat "orqaga" biror qatlamni yopishi kerakmi?
+  bool layerOpen() => S['stage'] == 'app' && _anyLayerOpen();
 
   /// Hub ildizida (bo'lim/overlay/sheet yo'q) — apparat "orqaga" bu holatda
   /// darhol chiqarmaydi: 2 soniya ichida yana bosilsagina ilova yopiladi.
@@ -2625,6 +2860,8 @@ class TrustStore extends ChangeNotifier {
       'goHub': () => goHub_(),
       'hubBackable': hubBackable(),
       'hubAtRoot': atHubRoot(),
+      'layerOpen': layerOpen(),
+      'closeTopLayer': closeTopLayer_,
       'hubBack': () => goHub_(),
       // Menga kelgan pending bog'lanish so'rovlari (hub bannerida ko'rsatiladi — item 7)
       'hubPendingReq': pendingIn.length,
@@ -3256,26 +3493,43 @@ class TrustStore extends ChangeNotifier {
     String initials(String n) =>
         n.split(' ').where((w) => w.isNotEmpty).map((w) => w[0]).take(2).join().toUpperCase();
 
+    // MUHIM (2026-08-02 audit): ilgari bu funksiya FAQAT UZS va USD ni qaytarardi,
+    // holbuki profil valyutasi EUR/RUB bo'lishi mumkin (Profil > Asosiy valyuta) va
+    // server barcha valyutalarni qaytaradi. Natijada EUR/RUB qarz ro'yxatda "0 so'm"
+    // bo'lib ko'rinardi. Lokal fallback esa `b[t['cur']]!` da null'ga tushib
+    // ILOVANI YIQITARDI (har kadrda qizil ekran). Endi valyutalar dinamik.
+    const curOrder = ['UZS', 'USD', 'EUR', 'RUB'];
     Map<String, int> bal(String cid) {
       // Server balansi (operations + qarz daftari) — haqiqat manbai; bo'sh bo'lsa lokal fallback
       final srv = (_client(cid)?['srvBal'] as Map?)?.cast<String, int>();
-      if (srv != null && srv.isNotEmpty) return {'UZS': srv['UZS'] ?? 0, 'USD': srv['USD'] ?? 0};
-      final b = {'UZS': 0, 'USD': 0};
+      if (srv != null && srv.isNotEmpty) return Map<String, int>.from(srv);
+      final b = <String, int>{'UZS': 0, 'USD': 0};
       for (final t in _txs()) {
         if (t['c'] == cid && t['st'] != 'pending') {
-          b[t['cur']] = b[t['cur']]! + sign(t['type']) * (t['a'] as int);
+          final cur = '${t['cur'] ?? 'UZS'}';
+          b[cur] = (b[cur] ?? 0) + sign(t['type']) * (t['a'] as int);
         }
       }
       return b;
     }
 
     Map<String, dynamic> balMain(Map<String, int> b) {
-      if (b['UZS'] == 0 && b['USD'] == 0) {
+      // Ko'rsatiladigan valyuta: nolga teng bo'lmagan birinchisi (odatdagi tartibda,
+      // so'ng ro'yxatda bo'lmagan valyutalar).
+      final keys = [
+        ...curOrder.where(b.containsKey),
+        ...b.keys.where((k) => !curOrder.contains(k)),
+      ];
+      String? pick;
+      for (final k in keys) {
+        if ((b[k] ?? 0) != 0) { pick = k; break; }
+      }
+      if (pick == null) {
         // «hisob teng» yozuvi olib tashlandi (PO sinov) — faqat «0 so'm» summa qoladi.
         return {'text': L0['zero'], 'color': mut, 'sub': ''};
       }
-      final v = b['UZS'] != 0 ? b['UZS']! : b['USD']!;
-      final cur = b['UZS'] != 0 ? 'UZS' : 'USD';
+      final v = b[pick]!;
+      final cur = pick;
       final pos = v > 0;
       return {
         'text': (pos ? '+' : '−') + money(v.abs(), cur),
@@ -3364,9 +3618,10 @@ class TrustStore extends ChangeNotifier {
     int toMeUZS = 0, toMeUSD = 0, byMe = 0;
     for (final c in _clients()) {
       final b = bal(c['id']);
-      if (b['UZS']! > 0) toMeUZS += b['UZS']!;
-      if (b['UZS']! < 0) byMe += -b['UZS']!;
-      if (b['USD']! > 0) toMeUSD += b['USD']!;
+      final uzs = b['UZS'] ?? 0, usd = b['USD'] ?? 0;
+      if (uzs > 0) toMeUZS += uzs;
+      if (uzs < 0) byMe += -uzs;
+      if (usd > 0) toMeUSD += usd;
     }
     // Qabul qilingan kiruvchi bog'lanishlar balansga qo'shiladi
     for (final l in linksAll) {
@@ -3671,9 +3926,13 @@ class TrustStore extends ChangeNotifier {
     // Eslatmalar — menga qarzi bor, Trust'dagi hamkorlar
     final reminders = _clients().where((c) => c['archived'] != true && c['onTrust'] != false).map((c) {
       final b = bal(c['id'] as String);
-      final v = b['UZS']! > 0 ? b['UZS']! : (b['USD']! > 0 ? b['USD']! : 0);
-      if (v <= 0) return null;
-      final cur = b['UZS']! > 0 ? 'UZS' : 'USD';
+      // Har qanday valyutadagi musbat qoldiq eslatmaga tushadi (ilgari faqat UZS/USD edi).
+      String? cur;
+      int v = 0;
+      for (final k in [...curOrder.where(b.containsKey), ...b.keys.where((k) => !curOrder.contains(k))]) {
+        if ((b[k] ?? 0) > 0) { cur = k; v = b[k]!; break; }
+      }
+      if (cur == null || v <= 0) return null;
       return mkRem(c['id'] as String, c['name'] as String, money(v, cur));
     }).whereType<Map<String, dynamic>>().toList();
 
@@ -3738,7 +3997,7 @@ class TrustStore extends ChangeNotifier {
       {
         'label': L0['profSub'] ?? 'Obuna',
         'value': () {
-          final st = S['subStatus'] as String? ?? 'trial';
+          final st = S['subStatus'] as String? ?? 'free';
           if (st == 'premium') {
             // "Premium · 12.08.2026" — konsumer bir qarashda qachongacha ekanini ko'radi
             final pu = _dt(S['premUntil'] as String?);
@@ -3751,6 +4010,18 @@ class TrustStore extends ChangeNotifier {
           if (st == 'trial' && te != null) {
             final left = te.difference(DateTime.now()).inDays + 1;
             return Lf('subTrialLeft', {'n': '${left.clamp(0, 7)}'});
+          }
+          // MUHIM (2026-08-02 audit): server 'free' qaytaradi (trial modeli olib
+          // tashlangan), lekin klient uni bilmasdi va HAR BIR yangi foydalanuvchiga
+          // birinchi kunidayoq "Sinov tugagan" deb ko'rsatardi. Endi bepul kvota
+          // ko'rsatiladi (raqamlar serverdan — UI hech narsa hardcode qilmaydi).
+          if (st != 'expired') {
+            final used = S['debtsUsed'];
+            final lim = S['freeDebtEntries'];
+            if (used is int && lim is int && lim > 0) {
+              return '${L()['subFree'] ?? 'Bepul'} · $used/$lim';
+            }
+            return (L()['subFree'] as String?) ?? 'Bepul';
           }
           return L()['subExpired9'] as String;
         }(),
@@ -3778,7 +4049,11 @@ class TrustStore extends ChangeNotifier {
               'pick': () => set({'form': {...f, 'type': tp}}),
             })
         .toList();
-    final curs = ['UZS', 'USD']
+    // MUHIM (2026-08-02 audit): ilgari bu ro'yxat ['UZS','USD'] edi, ammo forma
+    // valyutasi profil valyutasidan olinadi (EUR/RUB bo'lishi mumkin). Natijada
+    // HECH BIR chip tanlangan ko'rinmasdi va foydalanuvchi valyutani ko'ra ham,
+    // to'g'rilay ham olmasdi — yozuv esa EUR bo'lib ketaverardi.
+    final curs = _curList
         .map((cu) => {
               'key': cu, 'label': cu,
               'bg': f['currency'] == cu ? ink : bg,
@@ -4231,7 +4506,11 @@ class TrustStore extends ChangeNotifier {
                   if (refDebt != null) Lf('remainPfx', {'a': '${fmtAmt(led.remainingEff(refDebt), refDebt.currency)}'}),
                 ].join(' · '),
                 'confirm': () => e.kind == EntryKind.debt ? ledgerConfirm_(e.id) : ledgerConfirmOp_(e.id),
-                'reject': () => ledgerReject_(e.id),
+                // MUHIM (2026-08-02 audit): 'reject' ham TURGA qarab tarmoqlanadi.
+                // Ilgari har doim /reject chaqirilardi, u esa faqat 'debt' ni qabul
+                // qiladi — ya'ni soxta "qaytardim" yozuvini rad etish tugmasi
+                // DOIM xato berardi, qarz esa pending amal bilan qulflanib qolardi.
+                'reject': () => e.kind == EntryKind.debt ? ledgerReject_(e.id) : ledgerRejectOp_(e.id),
               });
             }
           }
@@ -4464,16 +4743,16 @@ class TrustStore extends ChangeNotifier {
       'pinTitle': S['pinMode'] == 'check'
           ? L0['pinEnterTitle']
           : S['pinMode'] == 'confirm'
-              ? (L0['pinConfirmTitle'] ?? "PIN'ni qayta kiriting")
+              ? (L0['pinReenterT'] ?? "PIN'ni qayta kiriting")
               : S['pinMode'] == 'old'
-                  ? (L0['pinOldTitle'] ?? 'Joriy PIN kodni kiriting')
+                  ? (L0['pinCurrentT'] ?? 'Joriy PIN kodni kiriting')
                   : L0['pinTitle'],
       'pinSub': S['pinMode'] == 'check'
           ? L0['pinEnterSub']
           : S['pinMode'] == 'confirm'
-              ? (L0['pinConfirmSub'] ?? 'Tasdiqlash uchun xuddi shu kodni kiriting')
+              ? (L0['pinConfirmSame'] ?? 'Tasdiqlash uchun xuddi shu kodni kiriting')
               : S['pinMode'] == 'old'
-                  ? (L0['pinOldSub'] ?? "O'zgartirish uchun joriy kodni tasdiqlang")
+                  ? (L0['pinConfirmCurrent'] ?? "O'zgartirish uchun joriy kodni tasdiqlang")
                   : L0['pinSub'],
       'pinErr': S['pinErr'] == true,
       'startOnb': () => set({'stage': 'phone'}),

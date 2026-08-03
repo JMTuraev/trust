@@ -289,6 +289,29 @@ router.post('/:id/move', requireActiveSub, async (req, res, next) => {
     if (phone === old.counterparty_phone)
       return res.status(400).json({ success: false, error: 'Raqam o\'zgarmadi' });
 
+    // MUHIM (2026-08-02 audit): /move faqat HALI EGASI TOPILMAGAN (bog'lanmagan) daftar
+    // uchun. Ilgari tekshiruv yo'q edi va bu ikki og'ir oqibat berardi:
+    //  1) Qabul qilingan bog'lanishdagi barcha qarz + CHAT tarixi (qarshi tomon yozgan
+    //     xabarlar ham) begona raqamga ko'chib, u qabul qilgach o'sha odamga ochilardi.
+    //  2) Qarshi tomon uchun daftar bo'shab qolardi — ya'ni tasdiqlangan qarz "yo'qolardi",
+    //     muallif esa uni bir tomonlama "kechirilgan" deb yopib yuborishi mumkin edi.
+    if (old.counterparty_id || old.link_status === 'accepted') {
+      return res.status(409).json({
+        success: false,
+        error: "Bu daftar allaqachon bog'langan — raqamni o'zgartirib bo'lmaydi. Yangi kontragent qo'shing.",
+      });
+    }
+    // Qo'shimcha himoya: daftarda ikki tomonlama (tasdiqlangan) yozuv bo'lsa ham ko'chirilmaydi.
+    const { count: twoSidedCount } = await supabaseAdmin
+      .from('debts').select('id', { count: 'exact', head: true })
+      .eq('partner_id', old.id).eq('prov', 'twoSided');
+    if (twoSidedCount) {
+      return res.status(409).json({
+        success: false,
+        error: "Daftarda ikki tomon tasdiqlagan yozuv bor — raqamni o'zgartirib bo'lmaydi",
+      });
+    }
+
     const { data: existing } = await supabaseAdmin
       .from('partners').select('id, link_status')
       .eq('owner_id', req.user.id).eq('counterparty_phone', phone).maybeSingle();
@@ -382,7 +405,14 @@ router.patch('/:id', async (req, res, next) => {
     const { data: p } = await supabaseAdmin.from('partners').select('owner_id').eq('id', req.params.id).maybeSingle();
     if (!p || p.owner_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
     const patch = { updated_at: new Date().toISOString() };
-    if (req.body?.name !== undefined) patch.name = req.body.name;
+    if (req.body?.name !== undefined) {
+      // POST'da nom tekshiriladi, PATCH'da esa tekshirilmasdi (2026-08-02 audit):
+      // {"name": null} -> NOT NULL buzilib 500; 250KB satr esa bildirishnoma matniga tushardi.
+      const nm = String(req.body.name ?? '').trim();
+      if (!nm) return res.status(400).json({ success: false, error: 'Ism bo\'sh bo\'lmasin' });
+      if (nm.length > 80) return res.status(400).json({ success: false, error: 'Ism 80 belgidan oshmasin' });
+      patch.name = nm;
+    }
     if (req.body?.archived !== undefined) patch.archived = !!req.body.archived;
     const { data, error } = await supabaseAdmin.from('partners').update(patch).eq('id', req.params.id).select().single();
     if (error) throw new Error(error.message);

@@ -405,6 +405,12 @@ export async function parseText(text, userId) {
     for (const w of meaningfulWords(a.note)) {
       const hit = dict.get(w);
       if (!hit) continue;
+      // 'Boshqa' TOIFANI MAJBURLAMAYDI (2026-08-03): eski lug'atda so'z->Boshqa yozuvlari
+      // to'planib qolgan (learnFrom ilgari Boshqa'ni ham o'rganardi). Ular LLM topgan to'g'ri
+      // toifani va yangi toifa taklifini (✨) o'chirib, foydalanuvchiga "kerakli toifa
+      // yaratilmayapti" bo'lib ko'rinardi. Arxivlangan/yo'q toifa ham majburlanmaydi.
+      if (String(hit.category).trim().toLowerCase() === 'boshqa') continue;
+      if (!categories.some((c) => c.toLowerCase() === String(hit.category).toLowerCase())) continue;
       if (hit.category !== a.category) { a.category = hit.category; a.new_category_suggestion = null; }
       a.confidence = Math.max(a.confidence, 0.9);
       break;
@@ -433,6 +439,10 @@ export async function learnFrom(userId, text, finalActions, parsedActions) {
     const rows = [];
     for (const a of finalActions) {
       if (a.direction !== 'xarajat' || !a.category) continue;
+      // 'Boshqa' O'RGANILMAYDI (2026-08-03): zaxira papka lug'atga tushsa, o'sha so'zlar
+      // keyingi parse'larda doim 'Boshqa'ga majburlanib, ✨ yangi-toifa taklifi umrbod
+      // yo'qolardi (parseText'dagi juft tekshiruvga qarang).
+      if (String(a.category).trim().toLowerCase() === 'boshqa') continue;
       for (const w of meaningfulWords(a.note || text)) rows.push({ user_id: userId, word: w, category: a.category });
     }
     for (const r of rows) {

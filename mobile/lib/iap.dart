@@ -50,7 +50,13 @@ class IapService {
       _sub = _iap.purchaseStream.listen(
         _onPurchases,
         onDone: () => _sub?.cancel(),
-        onError: (_) {},
+        // Oqim xatosi ilgari JIMGINA yutilardi — spinner esa faqat 20s taymer bilan
+        // o'chardi va foydalanuvchi sababini bilmasdi (2026-08-02 audit).
+        onError: (_) {
+          _busyTimer?.cancel();
+          onBusy?.call(false);
+          onError?.call("To'lov servisi bilan aloqa uzildi — qayta urinib ko'ring");
+        },
       );
       await _loadProduct();
     } catch (_) {
@@ -96,12 +102,24 @@ class IapService {
   }
 
   /// "Xaridni tiklash" — qurilma almashtirilganda oldingi obunani qaytaradi (Apple talabi).
+  /// MUHIM (2026-08-02 audit): hech qachon xarid qilmagan foydalanuvchida
+  /// restorePurchases() HECH NARSA emitmaydi — ilgari spinner 20 soniya aylanib,
+  /// so'ng JIMGINA to'xtardi va foydalanuvchi ilovani buzuq deb o'ylardi.
+  static bool _sawResult = false;
   static Future<void> restore() async {
     if (!Platform.isIOS || !_storeReady) return;
+    _sawResult = false;
     onBusy?.call(true);
     _armBusyTimeout(); // tiklashda hech nima kelmasa spinner osilib qolmasin
     try {
       await _iap.restorePurchases();
+      // Natijalar purchaseStream orqali keladi — qisqa muhlat beramiz.
+      await Future.delayed(const Duration(seconds: 3));
+      if (!_sawResult) {
+        _busyTimer?.cancel();
+        onBusy?.call(false);
+        onError?.call('Tiklanadigan xarid topilmadi');
+      }
     } catch (_) {
       _busyTimer?.cancel();
       onBusy?.call(false);
@@ -136,13 +154,23 @@ class IapService {
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          final ok = await _verify(p);
+          _sawResult = true;
+          final res = await _verify(p);
           onBusy?.call(false);
-          if (ok) {
+          if (res.ok) {
             onPremiumGranted?.call();
+          } else if (res.status == 0) {
+            // Tarmoq/timeout — QAYTA urinish mantiqiy: tranzaksiyani ochiq qoldiramiz.
+            onError?.call("Chekni tasdiqlab bo'lmadi — internet tiklangach avtomatik qayta urinamiz");
+            finish = false;
           } else {
-            onError?.call("Chekni tasdiqlab bo'lmadi — qayta urinib ko'ring");
-            finish = false; // tasdiqlanmadi — qayta urinish uchun ochiq qoldiramiz
+            // MUHIM (2026-08-02 audit): 400/501 kabi DOIMIY xatolarda tranzaksiya
+            // YOPILADI. Ilgari u ochiq qolar va StoreKit uni HAR bir ochilishda qayta
+            // yuborardi: foydalanuvchidan pul olingan, premium yo'q, har startda qizil
+            // xato, va o'sha SKU'ni qayta sotib ham bo'lmasdi.
+            onError?.call("Xarid tasdiqlanmadi (${res.status}). Iltimos, Yordam chatiga yozing — "
+                'biz qo\'lda tekshiramiz.');
+            finish = true;
           }
           break;
       }
@@ -154,12 +182,11 @@ class IapService {
     }
   }
 
-  static Future<bool> _verify(PurchaseDetails p) async {
+  static Future<ApiRes> _verify(PurchaseDetails p) async {
     // StoreKit 1: serverVerificationData = base64 app receipt. Backend Apple'da tekshiradi.
     final receipt = p.verificationData.serverVerificationData;
-    if (receipt.isEmpty) return false;
-    final res = await Api.verifyApple(receipt);
-    return res.ok;
+    if (receipt.isEmpty) return ApiRes(false, null, 'Chek bo\'sh', 400);
+    return Api.verifyApple(receipt);
   }
 
   static void dispose() {

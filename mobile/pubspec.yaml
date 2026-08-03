@@ -1,13 +1,17 @@
 name: trust_mobile
 description: "Trust — ishonchli hisob-kitob. UI prototip bilan 1:1 (prototype/template.html)."
 publish_to: "none"
+# 3.8.0+6 (2026-08-03): 2026-08-02 audit tuzatishlari (xavfsizlik/pul hisobi/crash'lar),
+#          toifa bug: 'Boshqa' lug'at zaharlanishi + tray tanlovi yo'qolishi tuzatildi,
+#          manba ichi kirim paneli yangi UI (katta Summa, guruhlash, Qo'shish tugmasi),
+#          papka/manba summasi 0->n o'sish animatsiyasi, bepul limit 300 (server).
 # 3.7.0+5 (2026-07-29): Daromad v2 (sub-manbalar, qoldiq, @ tanlov popup, kirim-chiqim
 #          oqimi), yangi in-app Trustbook logo, OTP bilan profil o'chirish, 3-nuqta menyu +
 #          o'chirish tasdiq/spinner, barcha tugmalarda bosish effekti, avto-ochilish bug fix
 # 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
 # 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
 #          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.7.0+5
+version: 3.8.0+6
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

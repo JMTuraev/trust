@@ -13,6 +13,8 @@ class CircleManageScreen extends StatelessWidget {
 
   void _rename(BuildContext context, String current, Map<String, dynamic> v) {
     final p = curPal();
+    // Controller dialog yopilgach dispose qilinadi (2026-08-02 audit: ilgari
+    // har ochilishda yangi controller yaratilib, hech qachon bo'shatilmasdi).
     final ctrl = TextEditingController(text: current);
     showDialog(
       context: context,
@@ -40,7 +42,7 @@ class CircleManageScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).whenComplete(ctrl.dispose);
   }
 
   // Yopish — halokatli amal: avval tasdiq so'raladi

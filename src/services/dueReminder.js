@@ -28,13 +28,11 @@ async function sweep() {
       .limit(100);
 
     for (const d of dueList || []) {
-      // Atomik belgi: parallel sweep yoki restartda ikki marta yubormaslik uchun
-      const { data: marked } = await supabaseAdmin.from('debts')
-        .update({ due_reminder_sent_at: new Date().toISOString() })
-        .eq('id', d.id).is('due_reminder_sent_at', null)
-        .select('id');
-      if (!marked?.length) continue;
-
+      // MUHIM (2026-08-02 audit): ilgari atomik belgi eng BOSHIDA qo'yilardi — ya'ni
+      // "hali qabul qilinmagan bog'lanish", "bildirishnomalar o'chiq" yoki "qoldiq 0"
+      // sabab tashlab ketilgan qarz o'zining YAGONA eslatmasini behuda sarflardi va
+      // keyin hech qachon eslatilmasdi. Endi avval BARCHA shartlar tekshiriladi,
+      // belgi esa aynan yuborishdan oldin qo'yiladi.
       const { data: p } = await supabaseAdmin
         .from('partners').select('owner_id, counterparty_id, link_status')
         .eq('id', d.partner_id).maybeSingle();
@@ -52,10 +50,23 @@ async function sweep() {
       if (remaining <= 0) continue;
       if (!(await notifEnabled(debtor))) continue;
 
+      // Atomik belgi: parallel sweep yoki restartda ikki marta yubormaslik uchun
+      const { data: marked } = await supabaseAdmin.from('debts')
+        .update({ due_reminder_sent_at: new Date().toISOString() })
+        .eq('id', d.id).is('due_reminder_sent_at', null)
+        .select('id');
+      if (!marked?.length) continue;
+
       const detail = `Qarz muddati keldi: ${remaining.toLocaleString('ru-RU')} ${d.currency} — hisobni ko'rib chiqing`;
-      await supabaseAdmin.from('notifications').insert({
+      const { error: nErr } = await supabaseAdmin.from('notifications').insert({
         user_id: debtor, type: 'rem', title: 'Eslatma', detail, link_id: d.partner_id,
       });
+      if (nErr) {
+        // Yuborilmadi — belgini qaytarib, keyingi sweep qayta urinsin.
+        console.error('dueReminder notif xatosi:', nErr.message);
+        await supabaseAdmin.from('debts').update({ due_reminder_sent_at: null }).eq('id', d.id);
+        continue;
+      }
       pushToUser(debtor, { title: 'Eslatma', body: detail, data: { type: 'rem', link_id: d.partner_id } });
     }
   } catch (e) {

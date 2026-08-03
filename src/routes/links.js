@@ -195,10 +195,16 @@ router.patch('/:id', async (req, res, next) => {
     const p = await myLink(req);
     if (!p) return res.status(404).json({ success: false, error: 'Topilmadi' });
     if (req.body?.alias === undefined) return res.status(400).json({ success: false, error: 'alias kerak' });
+    const alias = req.body.alias == null ? null : String(req.body.alias).trim().slice(0, 80) || null;
     const { data, error } = await supabaseAdmin.from('partners')
-      .update({ client_alias: req.body.alias || null, updated_at: new Date().toISOString() })
+      .update({ client_alias: alias, updated_at: new Date().toISOString() })
       .eq('id', p.id).select().single();
     if (error) throw new Error(error.message);
+    // MUHIM (2026-08-02 audit): client_alias — bu AYNAN AI psevdonim xaritasidagi "ism".
+    // Bu yerda kesh bekor qilinmasdi, natijada 6 soatgacha eski xarita ishlatilib,
+    // yangi qo'yilgan HAQIQIY ISM Anthropic'ga psevdonimlashmasdan jo'natilardi.
+    await invalidateProfile(req.user.id);
+    if (p.owner_id && p.owner_id !== req.user.id) await invalidateProfile(p.owner_id);
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });

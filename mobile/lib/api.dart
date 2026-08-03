@@ -31,8 +31,12 @@ class Api {
   static String? token;
   // Sessiya davomida token muddati o'tsa (401) — store shu callback orqali logout qiladi.
   static void Function()? onUnauthorized;
-  // 402 SUB_EXPIRED — obuna tugagan: store lokal holatni yangilab bannerni darhol ko'rsatadi.
-  static void Function()? onPaymentRequired;
+  // 402 — obuna/kvota to'sig'i. Kod uzatiladi: 'SUB_EXPIRED' (o'zimniki) yoki
+  // 'OWNER_SUB_EXPIRED' (daftar egasiniki) — store faqat birinchisida holatni o'zgartiradi.
+  static void Function(String code)? onPaymentRequired;
+  // Xato matnlari l10n'dan (store init paytida o'rnatiladi). null bo'lsa o'zbekcha zaxira.
+  static String? errNetwork;
+  static String? errWaking;
 
   static Future<void> loadToken() async {
     token = await SecureStore.readToken();
@@ -75,25 +79,38 @@ class Api {
         default:
           res = await http.post(uri, headers: headers, body: jsonEncode(body ?? {})).timeout(t);
       }
-      final map = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      // MUHIM (2026-08-02 audit): ilgari jsonDecode STATUSDAN OLDIN bajarilardi va
+      // JSON bo'lmagan javob (Render deploy paytidagi HTML 502, proxy sahifasi)
+      // umumiy catch'ga tushib, "internetni tekshiring" + status 0 bo'lib qaytardi.
+      // Oqibati: (a) foydalanuvchi Wi-Fi'sini bejiz tekshirardi, (b) HTML ichidagi
+      // 401 hech qachon logout'ni ishga tushirmasdi, (c) xarajat kiritish jimgina
+      // oflayn-parserga tushib qolardi. Endi avval STATUS, keyin tanani o'qiymiz.
+      Map<String, dynamic> map;
+      try {
+        final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+        map = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      } catch (_) {
+        map = <String, dynamic>{};
+      }
       if (res.statusCode >= 400 || map['success'] == false) {
         // Token muddati o'tgan/yaroqsiz — markazlashgan logout (har ekran alohida ishlamasin)
         if (res.statusCode == 401 && token != null) {
           onUnauthorized?.call();
         }
-        // Obuna tugagan (402 SUB_EXPIRED) — banner darhol ko'rinsin (S.subStatus='expired')
+        // Obuna tugagan (402) — kod bilan: SUB_EXPIRED (o'zimniki) / OWNER_SUB_EXPIRED (egasi)
+        final code = (map['code'] as String?) ?? '';
         if (res.statusCode == 402) {
-          onPaymentRequired?.call();
+          onPaymentRequired?.call(code);
         }
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})',
-            res.statusCode, (map['code'] as String?) ?? '', map);
+            res.statusCode, code, map);
       }
       return ApiRes(true, map['data'], '', res.statusCode);
     } on TimeoutException {
       // Render bepul plan cold-start ~30-50s uxlaydi — buni tarmoq uzilishidan ajratamiz.
-      return ApiRes(false, null, 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
+      return ApiRes(false, null, errWaking ?? 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
     } catch (_) {
-      return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
+      return ApiRes(false, null, errNetwork ?? 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
     }
   }
 
@@ -208,6 +225,8 @@ class Api {
       });
   static Future<ApiRes> debtConfirm(String id) => _req('POST', '/api/debts/$id/confirm');
   static Future<ApiRes> debtReject(String id) => _req('POST', '/api/debts/$id/reject');
+  /// Pending repay/settle amalini rad etish (qarz yozuvi uchun emas — u /reject).
+  static Future<ApiRes> debtRejectOp(String id) => _req('POST', '/api/debts/$id/reject-op');
   static Future<ApiRes> debtCancel(String id) => _req('POST', '/api/debts/$id/cancel');
   static Future<ApiRes> repay(String partnerId, String refId, num amount, {String note = ''}) =>
       _req('POST', '/api/debts/$partnerId/repay', body: {'ref_id': refId, 'amount': amount, if (note.isNotEmpty) 'note': note});

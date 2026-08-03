@@ -10,6 +10,11 @@ class SecureStore {
   );
   static const _kToken = 'trust_token';
   static const _kPinHash = 'trust_pin_hash';
+  // MUHIM (2026-08-02 audit): o'z user id'imiz ham saqlanadi. U bo'lmasa qarz
+  // YO'NALISHI teskari hisoblanadi (DebtEntry.fromServer created_by != meId bo'lsa
+  // yo'nalishni ag'daradi) — ya'ni "menga qarzdor" o'rniga "men qarzdorman" ko'rinadi.
+  static const _kMeId = 'trust_me_id';
+  static const _kMePhone = 'trust_me_phone';
 
   // PIN'ni ochiq saqlamaymiz — SHA-256 hash (qurilmaga bog'liq tuz bilan emas, lekin
   // secure storage o'zi Keystore bilan shifrlangani uchun yetarli himoya).
@@ -19,6 +24,14 @@ class SecureStore {
   static Future<String?> readToken() => _s.read(key: _kToken);
   static Future<void> writeToken(String? t) =>
       t == null ? _s.delete(key: _kToken) : _s.write(key: _kToken, value: t);
+
+  // ---- Shaxsiyat (offline/xatolik holatida yo'nalishni to'g'ri hisoblash uchun) ----
+  static Future<String?> readMeId() => _s.read(key: _kMeId);
+  static Future<String?> readMePhone() => _s.read(key: _kMePhone);
+  static Future<void> writeMe(String? id, String? phone) async {
+    if (id == null) { await _s.delete(key: _kMeId); } else { await _s.write(key: _kMeId, value: id); }
+    if (phone == null) { await _s.delete(key: _kMePhone); } else { await _s.write(key: _kMePhone, value: phone); }
+  }
 
   // ---- PIN ----
   static Future<bool> hasPin() async => (await _s.read(key: _kPinHash)) != null;
@@ -33,5 +46,7 @@ class SecureStore {
   static Future<void> clearAll() async {
     await _s.delete(key: _kToken);
     await _s.delete(key: _kPinHash);
+    await _s.delete(key: _kMeId);
+    await _s.delete(key: _kMePhone);
   }
 }

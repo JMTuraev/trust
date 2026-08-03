@@ -33,11 +33,13 @@ services:
         value: "5"
       # Do'kon review (Google Play / App Store) test-login: AYNAN shu raqam uchun
       # haqiqiy SMS yuborilmaydi va kod qat'iy. Boshqa raqamlarga ta'siri yo'q.
-      # MUHIM: repo PUBLIC — qiymatlar bu yerga YOZILMAYDI, Render Dashboard'da kiritiladi
-      # (sync:false). O'rnatilmasa bypass o'chiq (xavfsiz default). Tavsiya qilingan qiymatlar:
-      #   REVIEW_TEST_PHONE = 998900000000   (ilovada: +998 90 000 00 00)
-      #   REVIEW_TEST_CODE  = 50413          (5 xonali, ilovadagi OTP kataklariga mos)
-      # Review tugagach ikkalasini o'chirib, bypass'ni butunlay yopsa bo'ladi.
+      # MUHIM: repo PUBLIC — qiymatlar bu yerga YOZILMAYDI va IZOHDA HAM KO'RSATILMAYDI
+      # (2026-08-02 audit: ilgari aynan tavsiya qilingan raqam va kod shu yerda yozilgan
+      # edi — ya'ni "maxfiy" bypass kalitlari ochiq repoda turardi).
+      # Ikkala qiymat FAQAT Render Dashboard'da kiritiladi (sync:false).
+      # O'rnatilmasa bypass o'chiq (xavfsiz default).
+      # Tavsiya: REVIEW_TEST_CODE kamida 12 belgi, tasodifiy. Review tugagach ikkalasini
+      # Dashboard'dan O'CHIRIB, bypass'ni butunlay yoping.
       - key: REVIEW_TEST_PHONE
         sync: false
       - key: REVIEW_TEST_CODE

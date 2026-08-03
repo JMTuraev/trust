@@ -37,21 +37,23 @@ export async function sendOtp(phone) {
     return { provider: 'review', expires_in: config.otp.ttlSeconds };
   }
 
+  // Per-telefon 60s dedup — MUHIM (2026-08-02 audit): ilgari bu tekshiruv FAQAT
+  // isUzbekPhone shoxida edi, ya'ni xalqaro raqamlar uchun na dedup, na global cap
+  // ishlardi. Botnet 3/min/IP bilan cheksiz xalqaro SMS "yoqib" yuborishi mumkin edi.
+  const { data: recent } = await supabaseAdmin
+    .from('otp_codes')
+    .select('id, created_at')
+    .eq('phone', phone)
+    .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+    .limit(1);
+  if (recent?.length) {
+    const err = new Error("Iltimos, 1 daqiqadan keyin qayta urinib ko'ring");
+    err.status = 429;
+    throw err;
+  }
+
   if (isUzbekPhone(phone)) {
     // O'zbekiston: devsms.uz (AllClubs shabloni)
-    // Rate limit: oxirgi 60 soniyada yuborilgan bo'lsa - rad
-    const { data: recent } = await supabaseAdmin
-      .from('otp_codes')
-      .select('id, created_at')
-      .eq('phone', phone)
-      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
-      .limit(1);
-    if (recent?.length) {
-      const err = new Error("Iltimos, 1 daqiqadan keyin qayta urinib ko'ring");
-      err.status = 429;
-      throw err;
-    }
-
     const code = generateCode();
     const expiresAt = new Date(Date.now() + config.otp.ttlSeconds * 1000).toISOString();
 
@@ -70,14 +72,78 @@ export async function sendOtp(phone) {
     return { provider: 'devsms', expires_in: config.otp.ttlSeconds };
   }
 
-  // Boshqa davlatlar: Supabase'ning o'z OTP servisi
+  // Boshqa davlatlar: Supabase'ning o'z OTP servisi.
+  // Dedup yozuvi (kod hash'isiz — tekshirishni Supabase qiladi) + global cap:
+  // ikkalasi ham xalqaro yo'nalishda ham toll-fraud'ni cheklaydi.
+  reserveGlobalSmsSlot();
   const { error } = await supabaseAnon.auth.signInWithOtp({ phone: `+${phone}` });
   if (error) {
     const err = new Error(`Supabase OTP xatosi: ${error.message}`);
     err.status = 502;
     throw err;
   }
+  // Muvaffaqiyatli yuborilgandan KEYIN dedup markerini yozamiz (provayder tushib qolsa
+  // foydalanuvchi 60 soniyaga bekorga bloklanmasin).
+  await supabaseAdmin.from('otp_codes').delete().eq('phone', phone);
+  await supabaseAdmin.from('otp_codes').insert({
+    phone,
+    code_hash: `supabase:${crypto.randomUUID()}`, // bu yo'lda kod bizda saqlanmaydi
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  });
   return { provider: 'supabase', expires_in: 60 };
+}
+
+// ---------- Do'kon-review bypass himoyasi ----------
+// MUHIM (2026-08-02 audit): review kodi otp_codes'ga yozilmaydi, ya'ni unga urinishlar
+// limiti, muddat va bloklash UMUMAN qo'llanmasdi — faqat 10/min/IP limiter qolardi.
+// 5 xonali kod uchun bu yetarli emas. Quyida butun servis bo'yicha soatlik urinish capi
+// va vaqt bo'yicha xavfsiz taqqoslash qo'shildi (kod uzunligi o'zgartirilmaydi —
+// jonli App Store review'ini buzmaslik uchun).
+const REVIEW_TRY_CAP = parseInt(process.env.REVIEW_TRY_HOURLY_CAP || '20', 10);
+let reviewWindow = { start: 0, count: 0 };
+function reviewCodeMatches(code) {
+  const expected = config.otp.reviewCode;
+  if (!expected) return false;
+  const now = Date.now();
+  if (now - reviewWindow.start > 3600_000) reviewWindow = { start: now, count: 0 };
+  reviewWindow.count++;
+  if (reviewWindow.count > REVIEW_TRY_CAP) {
+    const e = new Error("Urinishlar soni tugadi. Birozdan keyin qayta urinib ko'ring.");
+    e.status = 429;
+    throw e;
+  }
+  const a = Buffer.from(String(code));
+  const b = Buffer.from(String(expected));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+if (config.otp.reviewCode && String(config.otp.reviewCode).length < 8) {
+  console.warn('[xavfsizlik] REVIEW_TEST_CODE juda qisqa — review tugagach uni Render '
+    + "Dashboard'dan o'chiring yoki kamida 12 belgili tasodifiy qiymatga almashtiring");
+}
+
+// ---------- Urinishni ATOMAR "band qilish" ----------
+// MUHIM (2026-08-02 audit): ilgari attempts oddiy read-modify-write bilan oshirilardi
+// (select -> hisobla -> update). 10 ta PARALLEL so'rov hammasi attempts=0 ni ko'rib,
+// hammasi capdan o'tib ketardi — ya'ni 5 urinish limiti amalda ishlamas edi
+// (5 xonali kod = 90 000 variant, limit ishlamasa brute-force real bo'lib qoladi).
+// Endi urinish TAQQOSLASHDAN OLDIN, shartli (CAS) update bilan band qilinadi:
+// bir vaqtda faqat bittasi `attempts` ni oshira oladi, qolganlari 429 oladi.
+async function reserveOtpAttempt(rec, fail) {
+  if (rec.attempts >= config.otp.maxAttempts) {
+    throw fail("Urinishlar soni tugadi. Qaytadan so'rang.", 429);
+  }
+  const { data: won, error } = await supabaseAdmin
+    .from('otp_codes')
+    .update({ attempts: rec.attempts + 1 })
+    .eq('id', rec.id)
+    .eq('attempts', rec.attempts) // <- CAS: kutilgan qiymat
+    .select('id');
+  if (error) throw new Error(`DB xatosi: ${error.message}`);
+  if (!won?.length) {
+    // Poyga yutqazildi (boshqa so'rov ayni shu paytda oshirdi) yoki yozuv o'chdi.
+    throw fail("Juda ko'p urinish — birozdan keyin qayta urinib ko'ring", 429);
+  }
 }
 
 // ---------- OTP tekshirish ----------
@@ -85,7 +151,7 @@ export async function verifyOtp(phone, code) {
   // Do'kon review test-login: aynan shu raqam + qat'iy kod => darhol session.
   // SMS/DB kod tekshiruvidan o'tmaydi; boshqa raqamlarga umuman ta'sir qilmaydi.
   if (config.otp.reviewPhone && phone === config.otp.reviewPhone) {
-    if (config.otp.reviewCode && String(code) === config.otp.reviewCode) {
+    if (reviewCodeMatches(code)) {
       const user = await findOrCreateUser(phone);
       await reactivateIfDeleted(user.id);
       return issueSession(user);
@@ -112,15 +178,10 @@ export async function verifyOtp(phone, code) {
     };
     if (!rec) throw fail("Kod topilmadi. Qaytadan so'rang.");
     if (new Date(rec.expires_at) < new Date()) throw fail("Kod muddati tugagan. Qaytadan so'rang.");
-    if (rec.attempts >= config.otp.maxAttempts) throw fail("Urinishlar soni tugadi. Qaytadan so'rang.", 429);
 
-    if (rec.code_hash !== hash(String(code))) {
-      await supabaseAdmin
-        .from('otp_codes')
-        .update({ attempts: rec.attempts + 1 })
-        .eq('id', rec.id);
-      throw fail("Kod noto'g'ri");
-    }
+    // Urinishni AVVAL band qilamiz — taqqoslashdan oldin (yuqoridagi izohga qarang).
+    await reserveOtpAttempt(rec, fail);
+    if (rec.code_hash !== hash(String(code))) throw fail("Kod noto'g'ri");
 
     await supabaseAdmin.from('otp_codes').delete().eq('id', rec.id);
     const user = await findOrCreateUser(phone);
@@ -242,7 +303,7 @@ function issueSession(user) {
 // muddat va bir-martalik (kod o'chishi) verifyOtp bilan AYNAN bir xil.
 export async function checkOtpCode(phone, code) {
   if (config.otp.reviewPhone && phone === config.otp.reviewPhone) {
-    if (config.otp.reviewCode && String(code) === config.otp.reviewCode) return true;
+    if (reviewCodeMatches(code)) return true;
     const e = new Error("Kod noto'g'ri");
     e.status = 400;
     throw e;
@@ -263,11 +324,8 @@ export async function checkOtpCode(phone, code) {
     };
     if (!rec) throw fail("Kod topilmadi. Qaytadan so'rang.");
     if (new Date(rec.expires_at) < new Date()) throw fail("Kod muddati tugagan. Qaytadan so'rang.");
-    if (rec.attempts >= config.otp.maxAttempts) throw fail("Urinishlar soni tugadi. Qaytadan so'rang.", 429);
-    if (rec.code_hash !== hash(String(code))) {
-      await supabaseAdmin.from('otp_codes').update({ attempts: rec.attempts + 1 }).eq('id', rec.id);
-      throw fail("Kod noto'g'ri");
-    }
+    await reserveOtpAttempt(rec, fail);
+    if (rec.code_hash !== hash(String(code))) throw fail("Kod noto'g'ri");
     await supabaseAdmin.from('otp_codes').delete().eq('id', rec.id);
     return true;
   }
