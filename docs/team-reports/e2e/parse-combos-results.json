@@ -2895,5 +2895,675 @@
       "noteworthy": null,
       "got": []
     }
-  ]
+  ],
+  "round2": {
+    "date": "2026-08-03T14:02:24.422Z",
+    "notes": [
+      "PATCHSIZ probe: provider=dict, errors=[]",
+      "taxi 20k REKLASSIFIKATSIYA: funksional PASS — dict short-circuit (STRONG hit) to'g'ri Transport/20000/xarajat qaytardi; scorer kutgan provider=rules eskirgan kutish edi.",
+      "config.js allaqachon yangilangan (llm.anthropicUserDailyMax=40, anthropicDailyTokenMax=300k default) — Round2 boshidagi 'budget gate bug' gumoni BEKOR.",
+      "TEST-OPS: ANTHROPIC_USER_DAILY_MAX default 40 — kelgusi 112-case Anthropic qayta-runida 40-chaqiruvdan keyin LLM jimgina o'chadi (userLlmBudgetOk) va qolgani rules bo'ladi; test oldidan env ko'tarilsin yoki bir necha test-user ishlatilsin."
+    ],
+    "multipliers": [
+      {
+        "text": "40 mil",
+        "expect": [
+          40000
+        ],
+        "got": [
+          40000
+        ],
+        "pass": true
+      },
+      {
+        "text": "2 mille",
+        "expect": [
+          2000
+        ],
+        "got": [
+          2000
+        ],
+        "pass": true
+      },
+      {
+        "text": "3 thousand",
+        "expect": [
+          3000
+        ],
+        "got": [
+          3000
+        ],
+        "pass": true
+      },
+      {
+        "text": "4万",
+        "expect": [
+          40000
+        ],
+        "got": [
+          40000
+        ],
+        "pass": true
+      },
+      {
+        "text": "5千",
+        "expect": [
+          5000
+        ],
+        "got": [
+          5000
+        ],
+        "pass": true
+      },
+      {
+        "text": "1 百万",
+        "expect": [
+          1000000
+        ],
+        "got": [
+          1000000
+        ],
+        "pass": true
+      },
+      {
+        "text": "2 millones",
+        "expect": [
+          2000000
+        ],
+        "got": [
+          2000000
+        ],
+        "pass": true
+      },
+      {
+        "text": "3 millón",
+        "expect": [
+          3000000
+        ],
+        "got": [
+          3000000
+        ],
+        "pass": true
+      },
+      {
+        "text": "3 million bilan 40 mil aralash",
+        "expect": [
+          3000000,
+          40000
+        ],
+        "got": [
+          3000000,
+          40000
+        ],
+        "pass": true
+      },
+      {
+        "text": "5 milk oldim",
+        "expect": [
+          5
+        ],
+        "got": [
+          5
+        ],
+        "pass": true
+      },
+      {
+        "text": "1<NBSP>500<NBSP>000",
+        "expect": [
+          1500000
+        ],
+        "got": [
+          1500000
+        ],
+        "pass": true
+      },
+      {
+        "text": "5000 kofe",
+        "expect": [
+          5000
+        ],
+        "got": [
+          5000
+        ],
+        "pass": true
+      },
+      {
+        "text": "4 миллион",
+        "expect": [
+          4000000
+        ],
+        "got": [
+          4000000
+        ],
+        "pass": true
+      },
+      {
+        "text": "200к",
+        "expect": [
+          200000
+        ],
+        "got": [
+          200000
+        ],
+        "pass": true
+      },
+      {
+        "text": "25 ming",
+        "expect": [
+          25000
+        ],
+        "got": [
+          25000
+        ],
+        "pass": true
+      },
+      {
+        "text": "comida 50 mil",
+        "expect": [
+          50000
+        ],
+        "got": [
+          50000
+        ],
+        "pass": true
+      }
+    ],
+    "fallbackMulti": [
+      {
+        "text": "bozorga 200 ming taksiga 30 ming berdim",
+        "capNote": null,
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            200000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            30000,
+            "Transport",
+            null
+          ]
+        ]
+      },
+      {
+        "text": "nonushta 25k obed 40k kechki 60k",
+        "capNote": null,
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            25000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            40000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            60000,
+            "Boshqa",
+            null
+          ]
+        ]
+      },
+      {
+        "text": "non 5 ming sut 6 ming gosht 70 ming taksi 20 ming svet 80 ming gaz 60 ming",
+        "capNote": "6 summa -> cap 5",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            5000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            6000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            70000,
+            "Oziq-ovqat",
+            null
+          ],
+          [
+            "xarajat",
+            20000,
+            "Transport",
+            null
+          ],
+          [
+            "xarajat",
+            80000,
+            "Kommunal",
+            null
+          ]
+        ]
+      },
+      {
+        "text": "oylik keldi 4 mln kreditga 200 ming berdim",
+        "capNote": null,
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "daromad",
+            4000000,
+            "Daromad",
+            null
+          ],
+          [
+            "xarajat",
+            200000,
+            "Boshqa",
+            null
+          ]
+        ]
+      },
+      {
+        "text": "Anvarga qarz berdim 500 ming",
+        "capNote": null,
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "qarz_berdim",
+            500000,
+            null,
+            "Anvar"
+          ]
+        ]
+      }
+    ],
+    "languageRules": [
+      {
+        "text": "обед 40 тыс",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            40000,
+            "Oziq-ovqat"
+          ]
+        ]
+      },
+      {
+        "text": "аптека 30к",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            30000,
+            "Salomatlik"
+          ]
+        ]
+      },
+      {
+        "text": "taxi 20k",
+        "provider": "dict",
+        "pass": false,
+        "fails": [
+          "provider: kutildi rules, olindi dict",
+          "needs_confirm=true kutildi (fallback doim tasdiq bilan)"
+        ],
+        "got": [
+          [
+            "xarajat",
+            20000,
+            "Transport"
+          ]
+        ]
+      },
+      {
+        "text": "rent 500k",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            500000,
+            "Kommunal"
+          ]
+        ]
+      },
+      {
+        "text": "comida 50 mil",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            50000,
+            "Oziq-ovqat"
+          ]
+        ]
+      },
+      {
+        "text": "repas 30 mille",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            30000,
+            "Oziq-ovqat"
+          ]
+        ]
+      },
+      {
+        "text": "吃饭 5万",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            50000,
+            "Oziq-ovqat"
+          ]
+        ]
+      },
+      {
+        "text": "bazarga barib 80 ming ishlatdim",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            80000,
+            "Oziq-ovqat"
+          ]
+        ]
+      },
+      {
+        "text": "shipoxonaga 60 ming",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            60000,
+            "Salomatlik"
+          ]
+        ]
+      },
+      {
+        "text": "gazing uchun 90 ming",
+        "provider": "rules",
+        "pass": true,
+        "fails": [],
+        "got": [
+          [
+            "xarajat",
+            90000,
+            "Kommunal"
+          ]
+        ]
+      }
+    ],
+    "llmGroups": [
+      {
+        "group": "3-xorazm",
+        "text": "ekin dori aldim 60 ming",
+        "status": "RUN",
+        "provider": "groq",
+        "attempts": 1,
+        "needs_confirm": false,
+        "pass": false,
+        "fails": [
+          "category: kutildi Boshqa yoki taklif~/dehqon|qishloq|ekin|agro|bog'|hosil/, olindi \"Salomatlik\" (taklif: —)"
+        ],
+        "noteworthy": null,
+        "got": [
+          {
+            "direction": "xarajat",
+            "amount": 60000,
+            "category": "Salomatlik",
+            "suggestion": null,
+            "person": null,
+            "confidence": 0.9
+          }
+        ]
+      },
+      {
+        "group": "3-xorazm",
+        "text": "bazarga barib 100 ming savdo etdim",
+        "status": "RUN",
+        "provider": "groq",
+        "attempts": 1,
+        "needs_confirm": false,
+        "pass": true,
+        "fails": [],
+        "noteworthy": null,
+        "got": [
+          {
+            "direction": "xarajat",
+            "amount": 100000,
+            "category": "Oziq-ovqat",
+            "suggestion": null,
+            "person": null,
+            "confidence": 0.9
+          }
+        ]
+      },
+      {
+        "group": "3-xorazm",
+        "text": "taksa minib galdim 15 ming berdim",
+        "status": "SKIPPED-QUOTA",
+        "provider": "rules",
+        "errors": [
+          "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99618, Requested 1132. Please try again in 10m48s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+        ],
+        "attempts": 3
+      },
+      {
+        "group": "3-xorazm",
+        "text": "o'g'limga kitob aldim 40 ming",
+        "status": "SKIPPED-QUOTA",
+        "provider": "rules",
+        "errors": [
+          "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99603, Requested 1134. Please try again in 10m36.768s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+        ],
+        "attempts": 3
+      },
+      {
+        "group": "3-xorazm",
+        "text": "gazing pulini tuladim 95 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "3-xorazm",
+        "text": "shipoxonaga barib 50 ming to'ladim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "3-xorazm",
+        "text": "nabiramga shirinlik aldim 10 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "3-xorazm",
+        "text": "moshinga benzin quydirdim 150 ming boldi",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Anvarga qarz berdim 500 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "akamdan 1 mln qarz oldim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Dilshod 200 mingni qaytardi",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Sardor bergan qarzimni qaytarib berdi 350 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Jasurdan olgan 400 ming qarzimni qaytardim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "qo'shnimga 250 ming qarz berib turdim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Karimga qarzga 300 ming berdim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "Anvarga 200 ming berdim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "10-qarz",
+        "text": "singlimga 100 ming berdim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "kursga 500 ming to'ladim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "mashinamni remontiga 800 ming ketdi",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "singlimga sovg'a oldim 150 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "it ovqati 45 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "ukol qildirdim 25 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "parikmaxerga 50 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "sport zalga obuna 300 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "telegram premium 60 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "12-yangi-papka",
+        "text": "bog'chaga oylik to'lov 450 ming",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "10 dollar obed",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "100$ ga kurtka oldim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "20 baks taksi",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "yarim million to'y uchun",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "ikki yuz ming benzinga ketdi",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "besh ming so'mga non oldim",
+        "status": "SKIPPED-QUOTA"
+      },
+      {
+        "group": "14-valyuta",
+        "text": "bir yarim million divan oldim",
+        "status": "SKIPPED-QUOTA"
+      }
+    ],
+    "supplementary": [
+      {
+        "text": "победа 50k",
+        "check": "обед-guard: победа Oziq-ovqat EMAS",
+        "got": "Boshqa",
+        "pass": true
+      },
+      {
+        "text": "пообедал на 40к",
+        "check": "обед-guard: пообедал Oziq-ovqat QOLADI",
+        "got": "Oziq-ovqat",
+        "pass": true
+      },
+      {
+        "text": "обед 40 тыс",
+        "check": "обед oddiy match regressiyasi",
+        "got": "Oziq-ovqat",
+        "pass": true
+      },
+      {
+        "text": "0 som keyin non 5 ming",
+        "check": "zero-amount filter (rulesFallbackActions)",
+        "got": "[[5000,Oziq-ovqat]]",
+        "pass": true
+      }
+    ]
+  }
 }

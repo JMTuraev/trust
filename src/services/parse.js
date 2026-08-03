@@ -40,11 +40,23 @@ export function meaningfulWords(text) {
 // ---------- 2-signal: QOIDA-PARSER (validator roli) ----------
 // Matndagi barcha summalarni POZITSIYASI bilan topadi: "25 ming"->25000, "5 mln"->5000000,
 // "120 000"->120000 (bo'shliq/nuqta/vergul bilan guruhlangan minglar ham).
-// Multiplikator KO'P TILLI (mobil _amtRe bilan sinxron — xarajat.dart):
-// ming/минг/тыс/k/к -> x1000; mln/million/млн/миллион/m/м -> x1000000.
+// Multiplikator KO'P TILLI — KANONIK SPEC (2026-08-03, 6 ilova tili: uz lotin/kirill,
+// ru, en, es, fr, zh; mobil _amtRe AYNAN shu specni ko'zgulaydi — o'zgartirsang mobil
+// jamoaga xabar ber). UCH qiymat klassi (shuning uchun ikkilik isThousandMult emas,
+// multValue funksiyasi):
+//   x1e3: ming*|минг*|тыс*|thousand|mil/mille (es/fr; lookahead million/milion/millón'ni
+//         himoya qiladi)|千|k|к
+//   x1e4: 万 (xitoy "wan")
+//   x1e6: mln*|million*|milion*|millón*/millon*|млн|миллион*|милион*|百万|m|м
+// Tartib: UZUN shakllar OLDIN — "mil" hech qachon million/milion/millón'ni yeb qo'ymaydi.
 // Qisqa k|к|m|м faqat alohida turganda multiplikator ("5000 kofe"dagi "k" emas).
-const MULT_SRC = String.raw`(ming[a-z'’]*|минг[а-яё]*|тыс[а-яё]*\.?|mln[a-z]*|million[a-z]*|milion[a-z]*|млн\.?|миллион[а-яё]*|милион[а-яё]*|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9]))`;
-const isThousandMult = (w) => /^(ming|минг|тыс|k|к)/i.test(w);
+const MULT_SRC = String.raw`(mln[a-z]*|million[a-z]*|milion[a-z]*|mill[oó]n[a-z]*|млн\.?|миллион[а-яё]*|милион[а-яё]*|百万|ming[a-z'’]*|минг[а-яё]*|тыс[а-яё]*\.?|thousand|mil(?:le)?(?![a-zа-яё])|千|万|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9]))`;
+function multValue(w) {
+  const s = String(w).toLowerCase();
+  if (s === '万') return 10_000;
+  if (/^(mln|million|milion|mill[oó]n|млн|миллион|милион|百万|[mм]$)/.test(s)) return 1_000_000;
+  return 1_000; // ming/минг/тыс/thousand/mil/mille/千/k/к
+}
 export function amountSpans(text) {
   const t = norm(text);
   const out = [];
@@ -61,7 +73,7 @@ export function amountSpans(text) {
     else if (/^\d{1,3}(?:,\d{3})+$/.test(raw)) a = parseFloat(raw.replace(/,/g, ''));
     else a = parseFloat(raw.replace(',', '.'));
     if (!a) continue;
-    if (m[2]) a *= isThousandMult(m[2]) ? 1_000 : 1_000_000;
+    if (m[2]) a *= multValue(m[2]);
     out.push({ amount: Math.round(a), start: m.index, end: m.index + m[0].length });
   }
   return out;
@@ -75,10 +87,13 @@ export function amountsFromText(text) {
 // bog'lanadi: OT (oylik, kredit...) odatda summadan OLDIN keladi -> KEYINGI summaga,
 // FE'L (oldim, berdim...) summadan KEYIN keladi -> OLDINGI summaga. Masofada teng
 // bo'lsa chiqim ustun. Mobil inputdagi rang mantiqi bilan bir xil (xarajat.dart _amtKinds).
-const INC_NOUN = /\b(oylik|maosh|avans|daromad|bonus|kirim|foyda|salary|income|profit|revenue)\b|mijoz\w*|sotuv\w*|ойлик|маош|даромад|кирим|фойда|аванс|бонус|зарплат[а-яё]*|доход[а-яё]*|мижоз[а-яё]*|сотув[а-яё]*/g;
-const INC_VERB = /\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi\b|qaytardi\b|\breceived\b|\bearned\b|\bgot\b|\bsold\b|олдим|сотдим|келди|тушди|қайтди|получил[а-яё]*|заработал[а-яё]*|пришл[а-яё]*|поступил[а-яё]*|продал[а-яё]*/g;
+// 2026-08-03: es/fr/zh minimal shakllar qo'shildi (kompakt; aksentli so'zlarga \b
+// QO'YILMAYDI — JS \b ASCII-only, é/ç/у chegarada ishlamaydi; 收入|工资 OT bo'lgani
+// uchun INC_NOUN'da — oldinga bog'lanadi)
+const INC_NOUN = /\b(oylik|maosh|avans|daromad|bonus|kirim|foyda|salary|income|profit|revenue)\b|mijoz\w*|sotuv\w*|ойлик|маош|даромад|кирим|фойда|аванс|бонус|зарплат[а-яё]*|доход[а-яё]*|мижоз[а-яё]*|сотув[а-яё]*|收入|工资/g;
+const INC_VERB = /\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi\b|qaytardi\b|\breceived\b|\bearned\b|\bgot\b|\bsold\b|олдим|сотдим|келди|тушди|қайтди|получил[а-яё]*|заработал[а-яё]*|пришл[а-яё]*|поступил[а-яё]*|продал[а-яё]*|cobré|recibí|reçu|gagné/g;
 const EXP_NOUN = /kredit\w*|xarid\w*|\bqarzga\b|\brent\b|кредит[а-яё]*|аренд[а-яё]*|харид[а-яё]*/g;
-const EXP_VERB = /berdim|sarfladim|ishlatdim|to'ladim|toladim|ketdi|sotib\s+oldim|qaytardim|qaytarib\s+berdim|\bspent\b|\bpaid\b|\bbought\b|\bgave\b|бердим|сарфладим|тўладим|туладим|кетди|сотиб\s+олдим|потратил[а-яё]*|купил[а-яё]*|заплатил[а-яё]*|оплатил[а-яё]*|отдал[а-яё]*/g;
+const EXP_VERB = /berdim|sarfladim|ishlatdim|to'ladim|toladim|ketdi|sotib\s+oldim|qaytardim|qaytarib\s+berdim|\bspent\b|\bpaid\b|\bbought\b|\bgave\b|бердим|сарфладим|тўладим|туладим|кетди|сотиб\s+олдим|потратил[а-яё]*|купил[а-яё]*|заплатил[а-яё]*|оплатил[а-яё]*|отдал[а-яё]*|pagué|compré|gasté|payé|acheté|dépensé|买|付|花/g;
 
 export function amountKinds(text) {
   const t = norm(text);
@@ -287,7 +302,7 @@ async function anthropicJson({ key, model, system, user, tool, maxTokens, timeou
 }
 
 // Multiplikator/valyuta so'zlari kontekst EMAS ("400 ming so'm"da yo'nalish so'zi yo'q)
-const NOCTX = /^(ming|mln|million|milion|минг|млн|миллион|милион|тыс|тысяч|so'm|som|sum|сум|сўм|uzs|k|к|m|м)/i;
+const NOCTX = /^(ming|mln|million|milion|millon|millón|mille|mil|thousand|минг|млн|миллион|милион|тыс|тысяч|百万|千|万|so'm|som|sum|сум|сўм|uzs|k|к|m|м)/i;
 
 const previewCache = new Map(); // norm(matn) -> natija (user ma'lumotisiz — global kesh)
 export async function previewKinds(text) {
@@ -344,13 +359,19 @@ export async function previewKinds(text) {
   return out;
 }
 
+// Fallback toifa qoidalari — 6 ilova tili (2026-08-03): uz lotin/kirill + SHEVA (bazar,
+// shipoxona — Xorazm QA), ru, en, es, fr, zh. Kompakt: bular FAQAT LLM'siz zaxira.
+// Qisqa yangi so'zlarga \b yoki lookbehind — boshqa so'z ichida adashmasin
+// (gas/gasté, rent/parent, eau/bureau, bus/business, cine/medicine, jeu/jeudi,
+// газ/магазин). ESKI uz yozuvlarga atayin tegilmagan (non->nonushta, gaz->gazing
+// prefiks matchlari saqlanadi).
 const CAT_RULES = [
-  ['Oziq-ovqat', /oziq|ovqat|bozor|non|go'sht|gosht|market|korzinka|restoran|kafe|choyxona/],
-  ['Transport', /taksi|benzin|yo'l|yol|metro|avtobus|mashina/],
-  ['Kommunal', /kommunal|svet|elektr|gaz|suv|internet|telefon/],
-  ["Ko'ngilochar", /kino|konsert|o'yin|oyin|sayohat|dam olish/],
-  ['Kiyim', /kiyim|ko'ylak|koylak|poyabzal|shim|kurtka/],
-  ['Salomatlik', /dori|apteka|shifokor|klinika|tish|salomatlik/],
+  ['Oziq-ovqat', /oziq|ovqat|bozor|bazar|non|go'sht|gosht|market|korzinka|restoran|kafe|choyxona|obed|(?<!п)обед|(?<![а-яё])еда|продукт|lunch|food|grocer|comida|almuerzo|repas|nourriture|饭|吃|超市/],
+  ['Transport', /taksi|benzin|yo'l|yol|metro|avtobus|mashina|такси|метро|бензин|taxi|\bbus\b|fuel|\bgas\b|essence|出租|地铁|油/],
+  ['Kommunal', /kommunal|svet|elektr|gaz|suv|internet|telefon|свет|(?<![а-яё])газ|вода|аренда|\brent\b|electricity|water|\bluz\b|agua|alquiler|loyer|\beau\b|房租|水电/],
+  ["Ko'ngilochar", /kino|konsert|o'yin|oyin|sayohat|dam olish|кино|cinema|movie|concert|juego|\bcine\b|\bjeux?\b|电影|游戏/],
+  ['Kiyim', /kiyim|ko'ylak|koylak|poyabzal|shim|kurtka|одежда|обувь|clothes|shoes|ropa|zapatos|vêtement|衣|鞋/],
+  ['Salomatlik', /dori|apteka|shifokor|klinika|tish|salomatlik|shipoxona|аптека|врач|лекарств|pharmacy|doctor|medicine|farmacia|médico|pharmacie|médecin|药|医院/],
 ];
 
 // Qarz ibora -> yo'nalish (operations type'lariga 1:1)
@@ -394,6 +415,52 @@ export function ruleParse(text) {
     person: qarz ? personFromText(text) : null,
     confidence: amount > 0 ? 0.55 : 0,
   };
+}
+
+// LLM'siz KO'P-AMALLI zaxira (2026-08-03 owner, data-loss fix): ilgari fallback faqat
+// amounts[0]'dan bitta amal qurardi — "bozorga 200 ming taksiga 30 ming berdim"da 30k
+// JIMGINA YO'QOLARDI (mobil needs_confirm'ga qaramay keladi-saqlaydi). Endi har summa
+// uchun alohida amal (cap 5 — /confirm limiti bilan bir xil):
+//  - yo'nalish: amountKinds[i] (kirim -> daromad, aks holda xarajat);
+//  - toifa: summaning LOKAL kontekst oynasidan (oldingi summa OXIRIdan keyingi summa
+//    BOSHIgacha norm-matn kesimi): CAT_RULES -> lug'at (MIN pog'ona, guardlar
+//    dictCategory'da; hit bo'lsa ishonch 0.9 — Task B saqlanadi) -> 'Boshqa';
+//  - note: oyna kesimi (bo'sh bo'lsa to'liq matn), confidence 0.55.
+// ruleParse YAKKA amalligicha qoladi (u LLM validatori); qarz matnlari chaqiruvchida
+// mavjud yakka qarzDirection yo'lidan ketadi.
+export function rulesFallbackActions(text, dict, categories) {
+  const t = norm(text);
+  // Nol-summa spanlar FILTRLANADI (2026-08-03 reviewer): "60 ming gosht 0.4 kg"da
+  // 0.4 -> round 0 amal bo'lib o'tib, /confirm'da 400 + QISMAN saqlash (birinchi qator
+  // yozilib ikkinchisi rad) + retry'da duplikat xavfini berardi. kinds hizalanishi
+  // ORIGINAL indeks (s.i) orqali saqlanadi; oyna chegaralari filtrlangan ro'yxatdan.
+  const spans = amountSpans(text).map((s, i) => ({ ...s, i })).filter((s) => s.amount > 0).slice(0, 5);
+  const kinds = amountKinds(text);
+  const full = String(text || '').trim();
+  return spans.map((s, j) => {
+    const from = j === 0 ? 0 : spans[j - 1].end;
+    const to = j === spans.length - 1 ? t.length : spans[j + 1].start;
+    const win = t.slice(from, to);
+    const income = !!kinds[s.i];
+    let category = 'Daromad';
+    let confidence = 0.55;
+    if (!income) {
+      category = null;
+      for (const [name, re] of CAT_RULES) if (re.test(win)) { category = name; break; }
+      if (!category) {
+        const cat = dictCategory(dict, meaningfulWords(win), categories, DICT_SCORE_MIN);
+        if (cat) { category = cat; confidence = 0.9; }
+      }
+      if (!category) category = 'Boshqa';
+    }
+    const note = win.trim() || full;
+    return {
+      direction: income ? 'daromad' : 'xarajat',
+      amount: s.amount, currency: 'UZS', category,
+      note: note ? note[0].toUpperCase() + note.slice(1) : full,
+      person: null, new_category_suggestion: null, confidence,
+    };
+  });
 }
 
 // ---------- 3-signal: KALIT SO'Z LUG'ATI ----------
@@ -485,7 +552,8 @@ QOIDALAR:
 4. Xarajat uchun category FAQAT shu ro'yxatdan (qavsda — nimalar kiradi): ${categories.map((c) => (CAT_HINTS[c] ? `${c} (${CAT_HINTS[c]})` : c)).join('; ')}. Daromad uchun category="Daromad".
 5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Nom uslubi: o'zbekcha, 1-2 so'z, bosh harf bilan, birlikda; juda tor EMAS ("Lavash" emas — "Fastfud"), juda keng EMAS ("Xarajat" emas). Yaxshi misollar: "Ta'lim", "Sovg'a", "Remont", "Sport", "Uy-ro'zg'or", "Go'zallik". Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, taklif QILMA — mavjudini tanla.
 6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.
-7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
+7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).
+8. Shevaga bardoshli bo'l: aldim=oldim, bardim=berdim, bazar=bozor, shipoxona=klinika, savdo etdim=xarid qildim.${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
 }
 
 async function callLlm({ url, key, model, text, categories, fewshots, timeoutMs }) {
@@ -638,21 +706,15 @@ export async function parseText(text, userId) {
 
   let clean = (actions || []).map((a) => sanitizeAction(a, categories, text)).filter(Boolean);
 
-  // LLM yiqilsa -> qoida-parser natijasi MAJBURIY tasdiq bilan (XOTIRA §3)
+  // LLM yiqilsa -> qoida-zaxira MAJBURIY tasdiq bilan (XOTIRA §3).
+  // 2026-08-03 owner: endi KO'P-AMALLI (rulesFallbackActions) — har summa alohida amal,
+  // "taksiga 30 ming" yo'qolmaydi; lug'at MIN pog'onada oyna ichida qo'llanadi (Task B).
+  // Qarz matni mavjud YAKKA qarzDirection yo'lida qoladi (person/yo'nalish ruleParse'da).
   if (!clean.length) {
     if (rule.amount > 0) {
-      const fb = { ...rule, new_category_suggestion: null };
-      // Lug'at FALLBACK'da ham qo'llanadi (2026-08-03): ilgari bu return lug'at siklidan
-      // OLDIN turgani uchun hech bir LLM ishlamay qolganda user o'rgatgan so'zlar
-      // (somsa -> Oziq-ovqat, dori -> Salomatlik) e'tiborsiz qolib, hammasi 'Boshqa'ga
-      // tushardi. Guardlar dictCategory'da (short-circuit bilan umumiy); topilganda
-      // ishonch >= 0.9, lekin needs_confirm=true QOLADI (LLM tekshiruvisiz avto-saqlash yo'q).
-      if (fb.direction === 'xarajat') {
-        // MIN pog'ona yetarli: baribir MAJBURIY tasdiq bor, LLM'siz eng yaxshi taxmin shu
-        const cat = dictCategory(dict, words, categories, DICT_SCORE_MIN);
-        if (cat) { fb.category = cat; fb.confidence = Math.max(fb.confidence, 0.9); }
-      }
-      clean = [fb];
+      clean = isQarz(rule.direction)
+        ? [{ ...rule, new_category_suggestion: null }]
+        : rulesFallbackActions(text, dict, categories);
     }
     return { actions: clean, needs_confirm: true, provider: clean.length ? 'rules' : provider, errors };
   }
@@ -696,7 +758,23 @@ export async function learnFrom(userId, text, finalActions, parsedActions) {
     // keshlangan parse natijalarini bekor qiladi (arzon: kesh <= 500 yozuv)
     const cachePrefix = `${userId}|`;
     for (const k of parseCache.keys()) if (k.startsWith(cachePrefix)) parseCache.delete(k);
-    // 1. so'z -> toifa lug'ati (faqat xarajat)
+    // 1. so'z -> toifa lug'ati (faqat xarajat) — FAQAT USER TASDIQLAGAN amallardan.
+    // O'Z-O'ZINI ZAHARLASH tuzatildi (2026-08-03 CRITICAL, jonli qurilmada topildi):
+    // eski xato tuzatish -> few-shot Claude'ni zaharlaydi -> Claude svet matnini
+    // Transport deb belgilaydi -> avto-saqlash learnFrom'ni chaqiradi -> word_map
+    // svet->Transport hits=2 = STRONG -> lug'at endi LLM'ni HAR DOIM o'sha xatoga
+    // majburlaydi (matnda 'kommunal' so'zi tursa ham). LLM avto-natijasi hech qachon
+    // o'z-o'zini STRONG obro'ga ko'tarmasligi kerak. Amal o'rganiladi FAQAT:
+    //  (a) parsed BERILGAN va amalning [direction,amount,category] uchligi hech bir
+    //      parsed amalga teng emas (user kartada O'ZGARTIRGAN; tray-tanlov ham shunga
+    //      kiradi — parsed'da 'Boshqa' edi), YOKI
+    //  (b) accept_new_category === true (user yangi toifani OCHIQ qabul qilgan).
+    // Jim avto-saqlash (parse natijasi bilan bir xil) -> word_map'ga YOZILMAYDI.
+    // Toifa kichik harfda solishtiriladi — registr farqi jim avto-saqlashni
+    // "user tasdiqlagan"ga aylantirib yubormasin (reviewer 4-raund).
+    const triple = (a) => [a.direction, a.amount, String(a.category || '').toLowerCase()];
+    const asig = (a) => JSON.stringify(triple(a));
+    const parsedSigs = new Set((parsedActions || []).map(asig));
     const rows = [];
     for (const a of finalActions) {
       if (a.direction !== 'xarajat' || !a.category) continue;
@@ -704,6 +782,9 @@ export async function learnFrom(userId, text, finalActions, parsedActions) {
       // keyingi parse'larda doim 'Boshqa'ga majburlanib, ✨ yangi-toifa taklifi umrbod
       // yo'qolardi (parseText'dagi juft tekshiruvga qarang).
       if (String(a.category).trim().toLowerCase() === 'boshqa') continue;
+      const userVerified = a.accept_new_category === true
+        || (parsedActions && !parsedSigs.has(asig(a)));
+      if (!userVerified) continue;
       for (const w of meaningfulWords(a.note || text)) rows.push({ user_id: userId, word: w, category: a.category });
     }
     for (const r of rows) {
@@ -713,15 +794,47 @@ export async function learnFrom(userId, text, finalActions, parsedActions) {
         { ...r, hits: (data?.hits || 0) + 1, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,word,category' });
     }
-    // 2. tuzatish bo'lsa — few-shot xotiraga
-    const sig = (arr) => JSON.stringify((arr || []).map((a) => [a.direction, a.amount, a.category]));
+    // 2. tuzatish bo'lsa — few-shot xotiraga (sig — yuqoridagi triple bilan umumiy).
+    // accept_new_category YORLIG'I final'dan OLIB TASHLANADI — few-shot promptga
+    // texnik maydon sizib kirmasin (LLM uni taqlid qilib o'rganishi mumkin edi).
+    const sig = (arr) => JSON.stringify((arr || []).map(triple));
     if (parsedActions && sig(parsedActions) !== sig(finalActions)) {
       await supabaseAdmin.from('corrections').insert({
         user_id: userId, text: String(text).slice(0, 300),
-        parsed: parsedActions, final: finalActions,
+        parsed: parsedActions,
+        final: finalActions.map(({ accept_new_category, ...rest }) => rest),
       });
     }
   } catch (e) {
     console.error('learnFrom:', e.message); // o'rganish yiqilsa ham asosiy oqim buzilmaydi
+  }
+}
+
+// TESKARI o'rganish (2026-08-03 CRITICAL to'plamining bir qismi): yozuv o'chirilganda
+// yoki toifasi o'zgartirilganda eski so'z->toifa bog'lari BITTA pog'ona pasayadi
+// (hits-1; 0 ga tushsa qator O'CHIRILADI) — xato/zahar bog'lar tabiiy yemiriladi,
+// word_map ma'lumotiga qo'lda tegilmaydi. learnFrom kabi bloklamaydi (fail-soft).
+export async function unlearnFrom(userId, text, category) {
+  try {
+    const cat = String(category || '').trim();
+    if (!cat) return;
+    for (const w of meaningfulWords(text || '')) {
+      const { data } = await supabaseAdmin.from('word_map')
+        .select('hits').match({ user_id: userId, word: w, category: cat }).maybeSingle();
+      if (!data) continue;
+      if ((data.hits || 0) <= 1) {
+        await supabaseAdmin.from('word_map').delete()
+          .match({ user_id: userId, word: w, category: cat });
+      } else {
+        await supabaseAdmin.from('word_map')
+          .update({ hits: data.hits - 1, updated_at: new Date().toISOString() })
+          .match({ user_id: userId, word: w, category: cat });
+      }
+    }
+    // Lug'at o'zgardi — shu user'ning parse keshi ham eskirdi
+    const cachePrefix = `${userId}|`;
+    for (const k of parseCache.keys()) if (k.startsWith(cachePrefix)) parseCache.delete(k);
+  } catch (e) {
+    console.error('unlearnFrom:', e.message); // asosiy oqim buzilmaydi
   }
 }

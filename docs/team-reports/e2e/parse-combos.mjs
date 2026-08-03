@@ -9,6 +9,9 @@ import { dirname, join } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..');
 const RESULTS_PATH = join(HERE, 'parse-combos-results.json');
+// --round2 (2026-08-03 kech): yangilangan parser uchun deterministik guruhlar
+// (fallback-multi, 3-klass multiplikatorlar, 6-til CAT_RULES) + kutilayotgan LLM guruhlari
+const ROUND2 = process.argv.includes('--round2');
 
 const { config } = await import(pathToFileURL(join(ROOT, 'src', 'config.js')).href);
 const { supabaseAdmin } = await import(pathToFileURL(join(ROOT, 'src', 'lib', 'supabase.js')).href);
@@ -71,14 +74,19 @@ const SPAN_CASES = [
   { text: 'nonushta 25k obed 40k kechki 60k', expect: [25000, 40000, 60000] },
 ];
 
-const spanResults = [];
-for (const c of SPAN_CASES) {
-  const got = amountSpans(c.text).map((s) => s.amount);
-  const pass = JSON.stringify(got) === JSON.stringify(c.expect);
-  spanResults.push({ text: c.text.replace(new RegExp(NBSP, 'g'), '<NBSP>'), expect: c.expect, got, pass });
-  if (!pass) console.log(`SPAN FAIL: "${c.text}" expect ${JSON.stringify(c.expect)} got ${JSON.stringify(got)}`);
-}
-console.log(`amountSpans: ${spanResults.filter((r) => r.pass).length}/${spanResults.length} pass`);
+const runSpanCases = (cases, label) => {
+  const rows = [];
+  for (const c of cases) {
+    const got = amountSpans(c.text).map((s) => s.amount);
+    const pass = JSON.stringify(got) === JSON.stringify(c.expect);
+    rows.push({ text: c.text.replace(new RegExp(NBSP, 'g'), '<NBSP>'), expect: c.expect, got, pass });
+    if (!pass) console.log(`${label} FAIL: "${c.text}" expect ${JSON.stringify(c.expect)} got ${JSON.stringify(got)}`);
+  }
+  console.log(`${label}: ${rows.filter((r) => r.pass).length}/${rows.length} pass`);
+  return rows;
+};
+
+const spanResults = ROUND2 ? [] : runSpanCases(SPAN_CASES, 'amountSpans');
 
 // ---------- PART B: full pipeline cases ----------
 // Case shape:
@@ -320,20 +328,27 @@ const save = () => writeFileSync(RESULTS_PATH, JSON.stringify({
   spanResults, results,
 }, null, 2));
 
-let i = 0;
-for (const c of CASES) {
-  i++;
+const LLM_PROVIDERS = new Set(['anthropic', 'groq', 'openai']);
+async function parseWithRetry(text) {
   let res = null; let attempts = 0;
   for (const backoff of [0, 2500, 6000]) {
     if (backoff) await sleep(backoff);
     attempts++;
     try {
-      res = await parseText(c.text, USER_ID);
+      res = await parseText(text, USER_ID);
     } catch (e) {
       res = { actions: [], provider: 'error', errors: [e.message] };
     }
-    if (res.provider === 'groq' || res.provider === 'openai') break;
+    if (LLM_PROVIDERS.has(res.provider) || res.provider === 'dict') break;
   }
+  return { res, attempts };
+}
+
+if (!ROUND2) {
+let i = 0;
+for (const c of CASES) {
+  i++;
+  const { res, attempts } = await parseWithRetry(c.text);
   const s = score(c, res);
   results.push({
     n: i, group: c.group, text: c.text,
@@ -362,3 +377,172 @@ for (const g of groups) {
 }
 save();
 console.log('Natijalar:', RESULTS_PATH);
+} // end !ROUND2
+
+// ==================== ROUND 2 (2026-08-03 kech, yangilangan parser) ====================
+if (ROUND2) {
+  const { readFileSync } = await import('node:fs');
+  const R2 = { date: new Date().toISOString(), notes: [], multipliers: [], fallbackMulti: [], languageRules: [], llmGroups: [] };
+
+  // ---- R2-A: MULTIPLIKATORLAR (sof amountSpans, 3 qiymat klassi, 6 til) ----
+  const R2_SPANS = [
+    { text: '40 mil', expect: [40000] },              // es "mil" = ming
+    { text: '2 mille', expect: [2000] },              // fr
+    { text: '3 thousand', expect: [3000] },           // en
+    { text: '4万', expect: [40000] },                 // zh wan = x10 000 (YANGI klass)
+    { text: '5千', expect: [5000] },                  // zh qian = ming
+    { text: '1 百万', expect: [1000000] },            // zh bai wan = mln
+    { text: '2 millones', expect: [2000000] },        // es ko'plik
+    { text: '3 millón', expect: [3000000] },          // es aksent
+    { text: '3 million bilan 40 mil aralash', expect: [3000000, 40000] }, // "mil" million'ni yemasin
+    { text: '5 milk oldim', expect: [5] },            // "milk" ichidagi mil multiplikator EMAS
+    { text: `1${NBSP}500${NBSP}000`, expect: [1500000] }, // NBSP regressiya
+    { text: '5000 kofe', expect: [5000] },            // k-guard regressiya
+    { text: '4 миллион', expect: [4000000] },         // kirill regressiya
+    { text: '200к', expect: [200000] },               // kirill к regressiya
+    { text: '25 ming', expect: [25000] },             // uz regressiya
+    { text: 'comida 50 mil', expect: [50000] },
+  ];
+  R2.multipliers = runSpanCases(R2_SPANS, 'R2-multipliers');
+
+  // ---- LLM'ni o'chirish: kalitlarni runtime'da stub qilamiz (fayl EMAS) ----
+  const ORIG_KEYS = { a: config.llm.anthropicKey, g: config.llm.groqKey, o: config.llm.openaiKey };
+  const llmOff = () => { config.llm.anthropicKey = ''; config.llm.groqKey = ''; config.llm.openaiKey = ''; };
+  const llmOn = () => { config.llm.anthropicKey = ORIG_KEYS.a; config.llm.groqKey = ORIG_KEYS.g; config.llm.openaiKey = ORIG_KEYS.o; };
+
+  // Deterministik bo'lim uchun tekshiruvchi
+  const checkActions = (want, res, expectProvider) => {
+    const fails = [];
+    const actions = res.actions || [];
+    if (expectProvider && res.provider !== expectProvider) fails.push(`provider: kutildi ${expectProvider}, olindi ${res.provider}`);
+    if (res.needs_confirm !== true) fails.push('needs_confirm=true kutildi (fallback doim tasdiq bilan)');
+    if (actions.length !== want.length) fails.push(`${actions.length} ta action (${want.length} kutildi)`);
+    const used = new Set();
+    for (const w of want) {
+      const idx = actions.findIndex((a, i) => !used.has(i) && a.amount === w.amount
+        && (w.accept ? w.accept.some((x) => ci(x) === ci(a.category)) : true)
+        && a.direction === (w.dir || 'xarajat'));
+      if (idx === -1) fails.push(`${w.amount} (${(w.dir || 'xarajat')}/${w.accept?.join('|') || '*'}) topilmadi; actions=${JSON.stringify(actions.map((a) => [a.direction, a.amount, a.category]))}`);
+      else used.add(idx);
+    }
+    return fails;
+  };
+
+  // ---- R2-B: FALLBACK-MULTI (LLM o'chiq — ko'p summali zaxira, data-loss fix) ----
+  llmOff();
+  const R2_FB = [
+    { text: 'bozorga 200 ming taksiga 30 ming berdim',
+      want: [{ amount: 200000, accept: ['Oziq-ovqat'] }, { amount: 30000, accept: ['Transport'] }] },
+    { text: 'nonushta 25k obed 40k kechki 60k',
+      want: [{ amount: 25000, accept: ['Oziq-ovqat'] }, { amount: 40000, accept: ['Oziq-ovqat'] }, { amount: 60000, accept: ['Oziq-ovqat', 'Boshqa'] }] },
+    { text: 'non 5 ming sut 6 ming gosht 70 ming taksi 20 ming svet 80 ming gaz 60 ming', capNote: '6 summa -> cap 5',
+      want: [{ amount: 5000, accept: ['Oziq-ovqat'] }, { amount: 6000, accept: ['Oziq-ovqat'] }, { amount: 70000, accept: ['Oziq-ovqat'] }, { amount: 20000, accept: ['Transport'] }, { amount: 80000, accept: ['Kommunal'] }] },
+    { text: 'oylik keldi 4 mln kreditga 200 ming berdim',
+      want: [{ amount: 4000000, accept: ['Daromad'], dir: 'daromad' }, { amount: 200000, accept: ['Boshqa'], dir: 'xarajat' }] },
+    { text: 'Anvarga qarz berdim 500 ming', qarz: 'qarz_berdim', person: 'anvar', amounts: [500000] },
+  ];
+  for (const c of R2_FB) {
+    let res;
+    try { res = await parseText(c.text, USER_ID); }
+    catch (e) { res = { actions: [], provider: 'error', errors: [e.message] }; }
+    let fails;
+    if (c.qarz) {
+      fails = [];
+      const a = (res.actions || [])[0];
+      if ((res.actions || []).length !== 1) fails.push(`${(res.actions || []).length} ta action (1 kutildi — qarz yakka yo'l)`);
+      if (a?.direction !== c.qarz) fails.push(`direction: kutildi ${c.qarz}, olindi ${a?.direction}`);
+      if (a?.amount !== c.amounts[0]) fails.push(`amount: kutildi ${c.amounts[0]}, olindi ${a?.amount}`);
+      if (c.person && !ci(a?.person).includes(c.person)) fails.push(`person: kutildi "${c.person}", olindi "${a?.person}"`);
+      if (res.needs_confirm !== true) fails.push('needs_confirm=true kutildi');
+    } else {
+      fails = checkActions(c.want, res, 'rules');
+    }
+    const pass = !fails.length;
+    R2.fallbackMulti.push({ text: c.text, capNote: c.capNote || null, provider: res.provider, pass, fails,
+      got: (res.actions || []).map((a) => [a.direction, a.amount, a.category, a.person]) });
+    console.log(`R2-FB ${pass ? 'PASS' : 'FAIL'} ${c.text}${pass ? '' : '  => ' + fails.join(' | ')}`);
+    await sleep(150);
+  }
+
+  // ---- R2-C: TIL-QOIDALARI (LLM o'chiq — 6-til CAT_RULES + sheva) ----
+  const R2_LANG = [
+    { text: 'обед 40 тыс', amount: 40000, accept: ['Oziq-ovqat'] },
+    { text: 'аптека 30к', amount: 30000, accept: ['Salomatlik'] },
+    { text: 'taxi 20k', amount: 20000, accept: ['Transport'] },
+    { text: 'rent 500k', amount: 500000, accept: ['Kommunal'] },
+    { text: 'comida 50 mil', amount: 50000, accept: ['Oziq-ovqat'] },
+    { text: 'repas 30 mille', amount: 30000, accept: ['Oziq-ovqat'] },
+    { text: '吃饭 5万', amount: 50000, accept: ['Oziq-ovqat'] },
+    { text: 'bazarga barib 80 ming ishlatdim', amount: 80000, accept: ['Oziq-ovqat'] },
+    { text: 'shipoxonaga 60 ming', amount: 60000, accept: ['Salomatlik'] },
+    { text: 'gazing uchun 90 ming', amount: 90000, accept: ['Kommunal'] },
+  ];
+  for (const c of R2_LANG) {
+    let res;
+    try { res = await parseText(c.text, USER_ID); }
+    catch (e) { res = { actions: [], provider: 'error', errors: [e.message] }; }
+    const fails = checkActions([{ amount: c.amount, accept: c.accept }], res, 'rules');
+    const pass = !fails.length;
+    R2.languageRules.push({ text: c.text, provider: res.provider, pass, fails,
+      got: (res.actions || []).map((a) => [a.direction, a.amount, a.category]) });
+    console.log(`R2-LANG ${pass ? 'PASS' : 'FAIL'} ${c.text}${pass ? '' : '  => ' + fails.join(' | ')}`);
+    await sleep(150);
+  }
+  llmOn();
+
+  // ---- R2-D: LLM guruhlari (3-xorazm, 10-qarz, 12-yangi-papka, 14-valyuta) ----
+  // 1) Hujjatlash: PATCHSIZ holatda budget gate LLM'ni o'ldiradimi? (config.js'da
+  //    anthropicUserDailyMax YO'Q -> userLlmBudgetOk 0<undefined=false degan shubha)
+  const probeRaw = await parseText('sinov uchun taksi 7 ming', USER_ID);
+  R2.notes.push(`PATCHSIZ probe: provider=${probeRaw.provider}, errors=${JSON.stringify(probeRaw.errors)}`);
+  const budgetBug = config.llm.anthropicUserDailyMax === undefined;
+  if (budgetBug) {
+    R2.notes.push("BUG (P1): src/config.js'da llm.anthropicUserDailyMax/anthropicDailyTokenMax YO'Q — "
+      + 'userLlmBudgetOk() 0<undefined=false, LLM zanjiri (Groq ham) UMUMAN chaqirilmaydi. '
+      + 'Test davomi uchun runtime-patch qo\'llandi (faqat xotirada).');
+    config.llm.anthropicUserDailyMax = 1e9;
+    config.llm.anthropicDailyTokenMax = 1e12;
+  }
+  const R2_LLM_GROUPS = new Set(['3-xorazm', '10-qarz', '12-yangi-papka', '14-valyuta']);
+  const llmCases = CASES.filter((c) => R2_LLM_GROUPS.has(c.group));
+  // 2) Kvota probasi — birinchi case; 429 qolsa hammasi SKIPPED-QUOTA (vaqt yoqilmaydi)
+  let quotaDead = false;
+  let skippedRun = 0;
+  for (const c of llmCases) {
+    if (quotaDead) {
+      R2.llmGroups.push({ group: c.group, text: c.text, status: 'SKIPPED-QUOTA' });
+      continue;
+    }
+    const { res, attempts } = await parseWithRetry(c.text);
+    if (!LLM_PROVIDERS.has(res.provider) && res.provider !== 'dict') {
+      const quota429 = (res.errors || []).some((e) => /rate limit|429|TPD/i.test(e));
+      R2.llmGroups.push({ group: c.group, text: c.text, status: quota429 ? 'SKIPPED-QUOTA' : 'FALLBACK', provider: res.provider, errors: res.errors, attempts });
+      skippedRun++;
+      if (skippedRun >= 2 && quota429) { quotaDead = true; console.log('R2-LLM: kvota hali ham o\'lik — qolganlari SKIPPED-QUOTA'); }
+      console.log(`R2-LLM SKIP [${res.provider}] ${c.text} :: ${(res.errors || [])[0] || ''}`);
+      await sleep(1100);
+      continue;
+    }
+    skippedRun = 0;
+    const s = score(c, res);
+    R2.llmGroups.push({ group: c.group, text: c.text, status: 'RUN', provider: res.provider, attempts,
+      needs_confirm: res.needs_confirm, pass: s.pass, fails: s.fails, noteworthy: s.noteworthy || null, got: s.got });
+    console.log(`R2-LLM ${s.pass ? 'PASS' : 'FAIL'} [${res.provider}] ${c.text}${s.pass ? '' : '  => ' + s.fails.join(' | ')}`);
+    await sleep(1100);
+  }
+
+  // ---- yakun + JSON merge ----
+  const rate = (rows) => `${rows.filter((r) => r.pass).length}/${rows.length}`;
+  const ran = R2.llmGroups.filter((r) => r.status === 'RUN');
+  const skipped = R2.llmGroups.filter((r) => r.status !== 'RUN');
+  console.log('\n==== ROUND 2 YAKUN ====');
+  console.log(`Multiplikatorlar: ${rate(R2.multipliers)}`);
+  console.log(`Fallback-multi:   ${rate(R2.fallbackMulti)}`);
+  console.log(`Til-qoidalari:    ${rate(R2.languageRules)}`);
+  console.log(`LLM guruhlari:    ${ran.length ? rate(ran) + ' (run)' : 'RUN=0'}; skipped=${skipped.length}`);
+  for (const n of R2.notes) console.log('NOTE:', n);
+  const prev = JSON.parse(readFileSync(RESULTS_PATH, 'utf8'));
+  prev.round2 = R2;
+  writeFileSync(RESULTS_PATH, JSON.stringify(prev, null, 2));
+  console.log('Natijalar (round2 kaliti):', RESULTS_PATH);
+}

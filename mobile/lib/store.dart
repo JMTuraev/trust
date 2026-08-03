@@ -1663,6 +1663,15 @@ class TrustStore extends ChangeNotifier {
         final c = e['cat'] as String;
         if (!existing.contains(c)) ghosts[c] = e['kind'] == 'd';
       }
+      // Tartib MUZLATILADI (hali hech narsa qo'nmagan — joriy tartib olinadi):
+      // chip o'z papkasining HOZIRGI o'rniga qo'nsin, grid sakramasin.
+      // ??= — oldingi partiya hali muzlatgan bo'lsa, o'sha asl tartib qoladi.
+      // Oldingi partiyaning kutayotgan taymeri bekor — yangi chiplar uchayotganda
+      // otilib, grid ularning tagida siljib ketmasin; yangi qo'nishlar (yoki 8s
+      // _landFallback) taymerni qaytadan boshlaydi.
+      _xfReorderT?.cancel();
+      _xfReorderT = null;
+      _xfFrozenOrder ??= [for (final f in _xfFolders()) f['name'] as String];
       set({'xfNewCats': newCats, 'xfFly': fly, 'xfGhostCats': ghosts});
       // Zaxira: biror sabab bilan land bo'lmasa (ekran yopildi) — 8s dan keyin to'g'ridan-to'g'ri.
       // MUHIM (2026-08-02 audit): taymer maydonda saqlanadi va logout'da bekor qilinadi —
@@ -1704,6 +1713,13 @@ class TrustStore extends ChangeNotifier {
   // Idempotent: qayta chaqirilsa yoki undo qilingan bo'lsa hech narsa qilmaydi.
   final Set<String> _xfCancelledLand = {};
   void xfLandOne_(Map<String, dynamic> e) {
+    // Har qo'nish (urinishi) qayta-tartib taymerini QAYTA boshlaydi — tartib
+    // faqat oxirgi chip qo'nib, summa sanab bo'lgach (1000ms > _AnimNum 900ms)
+    // bo'shatiladi. Ko'p chipli yuborishda ham BIR marta siljiydi.
+    if (_xfFrozenOrder != null) {
+      _xfReorderT?.cancel();
+      _xfReorderT = Timer(const Duration(milliseconds: 1000), _xfUnfreeze);
+    }
     final id = e['id'] as String?;
     if (id != null && _xfCancelledLand.contains(id)) return;
     if (id != null && _xar().any((x) => x['id'] == id)) return;
@@ -1711,6 +1727,16 @@ class TrustStore extends ChangeNotifier {
     final ghosts = Map<String, bool>.from((S['xfGhostCats'] as Map).cast<String, bool>());
     ghosts.remove(e['cat']);
     set({'xarEntries': [e, ..._xar()], 'xfGhostCats': ghosts});
+  }
+
+  // Muzlatishni bo'shatish: grid yangi (summa bo'yicha) tartibga BIR marta o'tadi.
+  // Undo'da darhol chaqiriladi — yozuvlar o'chgach eski tartib o'z-o'zidan to'g'ri.
+  void _xfUnfreeze() {
+    _xfReorderT?.cancel();
+    _xfReorderT = null;
+    if (_xfFrozenOrder == null) return;
+    _xfFrozenOrder = null;
+    set({}); // Root rebuild — _xfFolders endi erkin tartibda saralaydi
   }
 
   // Lokal (dizayn uslubidagi) toast — o'zi yopiladi (default 5s)
@@ -1809,6 +1835,13 @@ class TrustStore extends ChangeNotifier {
   // ================= Xarajatlar v2 — papka (folder) UI =================
   Timer? _xfToastT;
 
+  // Papka tartibini MUZLATISH — xoreografiya: chip QO'NADI -> summa SANAYDI ->
+  // KEYIN grid siljiydi. Fly-chiplar uchayotganda tartib eskicha qoladi; har
+  // qo'nish taymerni qayta boshlaydi, shunda ko'p chipli yuborishda tartib faqat
+  // OXIRGI chip qo'nib, count-up (_AnimNum 900ms) tugagach BIR marta yangilanadi.
+  List<String>? _xfFrozenOrder; // muzlatilgan papka nomlari tartibi (null = erkin)
+  Timer? _xfReorderT;
+
   static const _monFull = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
     'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
 
@@ -1878,10 +1911,21 @@ class TrustStore extends ChangeNotifier {
           {'name': g.key, 'income': false, 'total': 0, 'entries': <Map<String, dynamic>>[], 'ghost': true});
     }
     final list = map.values.toList();
-    // Daromad BIRINCHI; qolganlari total bo'yicha kamayish tartibida
+    // Daromad BIRINCHI; qolganlari total bo'yicha kamayish tartibida.
+    // MUZLATILGAN payt (chip uchmoqda / summa sanalmoqda): eski tartib saqlanadi,
+    // muzlatishdan keyin tug'ilgan (ghost) papkalar oxiriga qo'shiladi — chip
+    // nishoni bo'lib ko'rinadi, grid esa qimirlamaydi.
+    final frozen = _xfFrozenOrder;
     list.sort((a, b) {
       if (a['name'] == 'Daromad') return -1;
       if (b['name'] == 'Daromad') return 1;
+      if (frozen != null) {
+        final ia = frozen.indexOf(a['name'] as String);
+        final ib = frozen.indexOf(b['name'] as String);
+        final ka = ia < 0 ? frozen.length : ia;
+        final kb = ib < 0 ? frozen.length : ib;
+        if (ka != kb) return ka - kb;
+      }
       return (b['total'] as int).compareTo(a['total'] as int);
     });
     return list;
@@ -2212,6 +2256,7 @@ class TrustStore extends ChangeNotifier {
       }
       // Bekor qilingan partiyaning kutayotgan ghost-kartalari ham tozalanadi
       set({'xarEntries': _xar().where((x) => !ids.contains(x['id'])).toList(), 'xfGhostCats': <String, bool>{}});
+      _xfUnfreeze(); // yozuvlar o'chdi — eski (muzlatilgan) tartib o'z-o'zidan to'g'ri
       toast_(L()['tCancelled']);
     }
   }
@@ -2313,6 +2358,8 @@ class TrustStore extends ChangeNotifier {
     SecureStore.writeMe(null, null); // shaxsiyat keshini ham tozalaymiz
     SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
     _landFallback?.cancel(); // chiqishdan keyin eski akkaunt yozuvlarini qaytarmasin
+    _xfReorderT?.cancel(); // muzlatilgan papka tartibi ham eski akkauntdan qolmasin
+    _xfFrozenOrder = null;
     set({
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
       'screen': 'hub', 'clientId': null, 'receiptId': null, 'sheetOpen': false,

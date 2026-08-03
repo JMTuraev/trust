@@ -2228,12 +2228,14 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 // kirim/chiqim heuristikasi ham, server preview so'rovi ham yo'q.
 class _HlController extends TextEditingController {
   // ---- SUMMA: tilga bog'liq EMAS — raqam + ko'p tilli multiplikator + valyuta ----
-  // (server parse.js amountSpans bilan sinxron: ming/минг/тыс/k/к = x1000,
-  // mln/million/млн/миллион/m/м = x1000000). Qisqa k|к|m|м faqat alohida
-  // turganda multiplikator ("5000 kofe"dagi "k" emas — lookahead bilan).
+  // (server parse.js amountSpans bilan sinxron, 3 sinf: MING x1e3 —
+  // ming/минг/тыс/thousand/mil(le)/千/k/к; WAN x1e4 — 万; MILLION x1e6 —
+  // mln/million/milion/millón/млн/миллион/百万/m/м). UZUNLARI OLDIN turadi —
+  // "million/milion/millón" hech qachon "mil"ga yutilmaydi. Qisqa k|к|m|м faqat
+  // alohida turganda multiplikator ("5000 kofe"dagi "k" emas — lookahead bilan).
   static final _amtRe = RegExp(
       r"(\d{1,3}(?:[  .]\d{3})+|\d{1,3}(?:,\d{3})+|\d+(?:[.,]\d+)?)"
-      r"(\s*(?:ming[a-z]*|минг[а-яё]*|тыс[а-яё]*|mln[a-z]*|million[a-z]*|milion[a-z]*|млн|миллион[а-яё]*|милион[а-яё]*|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9])))?"
+      r"(\s*(?:million[a-z]*|milion[a-z]*|mill[oó]n[a-z]*|миллион[а-яё]*|милион[а-яё]*|mln[a-z]*|млн|百万|ming[a-z]*|минг[а-яё]*|тыс[а-яё]*|thousand|mil(?:le)?(?![a-zа-яё])|千|万|[kк](?![a-zа-яё0-9])|[mм](?![a-zа-яё0-9])))?"
       r"(\s*(?:so['’ʻ`]?m|сум[а-яё]*|сўм[а-яё]*|uzs))?",
       caseSensitive: false);
   static final _catRe = RegExp(

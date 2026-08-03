@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { parseText, previewKinds, learnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
+import { parseText, previewKinds, learnFrom, unlearnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
 import { ensureCategories } from '../lib/categories.js';
 import { requireActiveSub, requireExpenseQuota } from '../lib/subscription.js';
 
@@ -166,6 +166,9 @@ router.post('/confirm', requireExpenseQuota, async (req, res, next) => {
           const { error: ce } = await supabaseAdmin.from('categories')
             .insert({ user_id: req.user.id, name: category });
           if (ce && !/duplicate/i.test(ce.message)) throw new Error(ce.message);
+          // learnFrom (b)-sharti (2026-08-03): user yangi toifani OCHIQ qabul qildi —
+          // bayroq final amalga o'tadi (learnFrom uni corrections'ga yozishdan oldin kesadi)
+          action.accept_new_category = true;
         } else if (!hit) category = 'Boshqa';
         else category = hit.name;
       }
@@ -222,6 +225,21 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
     if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     const { data, error } = await supabaseAdmin.from('expenses').update(patch).eq('id', e.id).select().single();
     if (error) throw new Error(error.message);
+    // O'rganish TUZATISHI (2026-08-03 CRITICAL to'plami): inline toifa tahriri — bu USER
+    // tuzatishi. Eski so'z->toifa bog'i pasayadi (unlearn), yangisi o'rganiladi va
+    // corrections qatori few-shot'ni ham davolaydi (learnFrom (a)-sharti: parsed=[eski]
+    // final=[yangi] farq qiladi). Bloklamaydi (fire-and-forget, learnFrom uslubi).
+    // Faqat XARAJAT bo'lib qolgan yozuvda, toifa HAQIQATAN o'zgarganda va note bo'lsa.
+    if (!e.income && !data.income && req.body?.category !== undefined
+        && data.category !== e.category && (data.note || e.note)) {
+      const mk = (category, note) => ({
+        direction: 'xarajat', amount: Math.round(Number(data.amount)), currency: 'UZS',
+        category, note: note || '', person: null,
+      });
+      unlearnFrom(req.user.id, e.note, e.category);
+      learnFrom(req.user.id, data.note || e.note || '',
+        [mk(data.category, data.note)], [mk(e.category, e.note)]);
+    }
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -229,9 +247,15 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
 // DELETE /api/expenses/:id — chatdan yozuvni o'chirish
 router.delete('/:id', async (req, res, next) => {
   try {
-    const { data: e } = await supabaseAdmin.from('expenses').select('user_id').eq('id', req.params.id).maybeSingle();
+    const { data: e } = await supabaseAdmin.from('expenses')
+      .select('user_id, income, category, note').eq('id', req.params.id).maybeSingle();
     if (!e || e.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Topilmadi' });
     await supabaseAdmin.from('expenses').delete().eq('id', req.params.id);
+    // TESKARI o'rganish (2026-08-03 CRITICAL to'plami): o'chirilgan xarajat o'z
+    // so'z->toifa bog'ini bitta pog'ona pasaytiradi (hits-1, 0 da qator o'chadi) —
+    // xato saqlanib keyin o'chirilgan yozuv lug'atda STRONG iz qoldirmaydi.
+    // Bloklamaydi — xatosi asosiy oqimni buzmaydi (unlearnFrom ichida try/catch).
+    if (!e.income && e.category && e.note) unlearnFrom(req.user.id, e.note, e.category);
     res.json({ success: true });
   } catch (e) { next(e); }
 });

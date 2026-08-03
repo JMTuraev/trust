@@ -106,3 +106,35 @@ Groq-yo'lda 6 ta taklif kuzatildi: **To'y, Savdo, Remont, Ta'lim, Chorvachilik, 
 3. **Prompt:** Xorazm/kirill misollari qo'shilsin (aldim=oldim, barib=borib, shipoxona=shifoxona, "минг"=ming x1000 — x10 EMAS, "mng"=ming typo — mln EMAS); "yo'l kira", "mol bozori" kabi iboralar uchun 1-2 few-shot.
 4. **Rules-parser (fallback sifati):** CAT_RULES'ga obed/tushlik/kofe/чой/somsa (Oziq-ovqat), ukol/shifoxona (Salomatlik) qo'shish arzon g'alaba; `qarzDirection`ga `qarzga\s+\d... berdim` oraliqli shakl; `personFromText`ga "Ism ... qaytardi" shakli.
 5. **Qayta-run:** ANTHROPIC_API_KEY kelgach `node docs/team-reports/e2e/parse-combos.mjs` o'zgarishsiz — 10/12/13/14-guruhlar LLM'da birinchi marta real o'lchanadi; natijani shu hisobotga provider=anthropic ustuni bilan qo'shish.
+
+---
+
+# ROUND 2 — yangilangan parser (2026-08-03, 14:02 UTC run)
+
+Sinov obyekti: commit qilinmagan `src/services/parse.js` (Anthropic-first, ko'p-amalli rules-fallback, 3-klass multiplikatorlar 万=×10 000 bilan, 6-til CAT_RULES, sheva shakllari, dict pog'onalari MIN=2/STRONG=6, `rankDictRows` deterministik tiebreak, `(?<!п)обед` guard, zero-amount filtri). Ishga tushirish: `node docs/team-reports/e2e/parse-combos.mjs --round2`. Natijalar JSON'da `round2` kaliti ostida.
+
+## R2.1 Xulosa
+
+| Bo'lim | Natija | Izoh |
+|---|---|---|
+| Multiplikatorlar (sof `amountSpans`, 16 case) | **16/16 = 100%** | 万=40 000, 千, 百万, mil/mille/millones/millón, thousand, "milk"/"5000 kofe" guardlari, NBSP, kirill — hammasi to'g'ri |
+| Fallback-multi (LLM o'chiq, 5 case) | **5/5 = 100%** | data-loss fix ishlaydi: 2/3/5 amal, cap 5 (6-summa to'g'ri tashlanadi), daromad+xarajat aralash, qarz yakka yo'l person bilan |
+| Til-qoidalari (LLM o'chiq, 10 case) | **9/10 qat'iy, 10/10 funksional** | yagona "fail" — `taxi 20k` `provider=dict` bilan keldi (STRONG lug'at hit): kategoriya/summa/yo'nalish TO'G'RI, scorer kutgan `rules` provider eskirgan kutish. ru/en/es/fr/zh va bazar/shipoxona/gazing sheva yo'llari ishladi |
+| Qo'shimcha sof tekshiruvlar (4 case) | **4/4** | `победа 50k`→Boshqa (обед-guard ishladi), `пообедал на 40к`→Oziq-ovqat (guard oshirib yubormagan), `обед 40 тыс` regressiyasi, zero-amount filtri (`0 som` amal yaratmaydi) |
+| LLM guruhlari (3-xorazm, 10-qarz, 12-yangi-papka, 14-valyuta; 33 case) | **RUN=2 (1 pass), SKIPPED-QUOTA=31** | Groq TPD hali ham o'lik (~99.6k/100k, "try again in 10m" — lekin har chaqiruv retry'lari kvotani qayta yeydi). 2 marta urinishdan keyin to'xtatildi, vaqt yoqilmadi |
+
+## R2.2 Deterministik bo'lim tafsiloti
+
+- **Fallback-multi (Round 1'dagi eng katta data-loss xavfi yopilgan):** "bozorga 200 ming taksiga 30 ming berdim" endi LLM'siz ham 2 ta amal (200k Oziq-ovqat + 30k Transport); "nonushta 25k obed 40k kechki 60k" 3 amal; 6-summali matn 5 ga cap'lanadi (yo'qolgan — oxirgi 60k, hujjatlangan xatti-harakat); "oylik keldi 4 mln kreditga 200 ming berdim" → daromad 4 000 000 + xarajat 200 000 (yo'nalishlar lokal kontekstdan); "Anvarga qarz berdim 500 ming" yakka `qarz_berdim` + person=Anvar. Hammasi `needs_confirm=true` bilan — to'g'ri.
+- **Til-qoidalari:** обед/аптека (ru), taxi/rent (en), comida/repas (es/fr), 吃饭 5万 (zh), bazar/shipoxona/gazing (Xorazm sheva) — CAT_RULES to'g'ri papkaga yo'naltirdi. `rent 500k` Kommunal'ga tushdi va yo'nalish xarajat bo'ldi (EXP_NOUN `\brent\b`).
+- **`taxi 20k` kuzatuvi:** yangi `dict` short-circuit (score≥6) LLM'siz, `needs_confirm=false` bilan to'g'ri natija berdi — token tejash yo'li jonli ishlayapti. Bu Round 1'dagi zahar-lug'at muammosining tuzatilgani bilan mos: STRONG pog'ona (≥6) haqiqiy takrorlangan signalni o'tkazadi, hits=1 zahar yozuvlar (score 3) endi o'ta olmaydi — buni R2-D'dagi "ekin dori aldim" ham tasdiqladi (endi dict majburlamadi; Salomatlik'ni LLM'ning o'zi tanladi).
+
+## R2.3 LLM guruhlari holati
+
+Groq'da faqat 2 case o'tdi, keyin 429 (TPD) qaytdi: "bazarga barib 100 ming savdo etdim" — PASS (promptdagi yangi 8-sheva qoidasi ishlagan ko'rinadi), "ekin dori aldim 60 ming" — FAIL (LLM Salomatlik dedi; dehqonchilik konteksti hali ham promptning zaif joyi). Qolgan 31 case **SKIPPED-QUOTA** deb belgilandi — bu holat parser sifati haqida hech narsa demaydi. Anthropic qayta-run hali ham lokal `.env`'dagi ANTHROPIC_API_KEY'ni kutmoqda.
+
+**TEST-OPS ogohlantirishi kelgusi qayta-run uchun:** `config.llm.anthropicUserDailyMax` default 40 — 112-case run 40-chaqiruvdan keyin `userLlmBudgetOk` tufayli jimgina rules'ga tushadi. Test oldidan `ANTHROPIC_USER_DAILY_MAX` env ko'tarilsin (yoki bir nechta test-user ishlatilsin), aks holda Round 1'dagi kvota-artefakt hikoyasi budjet-artefakt bo'lib qaytadi.
+
+## R2.4 Round 1 tavsiyalariga bog'lanish
+
+Round 1'dagi 1-tavsiya (lug'at gigienasi) — bajarilgan va sinovdan o'tdi (STRONG/MIN pog'onalar, deterministik tiebreak, learnFrom'da verified-only + unlearnFrom qo'shilgan — oxirgi ikkisi bu raundda alohida sinalmadi, keyingi raund uchun nomzod). 4-tavsiya (rules-fallback lug'ati) — qisman bajarilgan (obed/такси kabi so'zlar CAT_RULES'da, ko'p-amalli fallback bor); `qarzDirection` "qarzga <summa> berdim" oraliqli shakli va `personFromText` "Ism ... qaytardi" shakli hali ochiq. 2-tavsiya (ikkinchi provayder) — Anthropic-first arxitektura kirdi, kalit kutilmoqda.

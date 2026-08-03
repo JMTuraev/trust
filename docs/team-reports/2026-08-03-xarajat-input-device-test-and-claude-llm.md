@@ -73,3 +73,42 @@ Jamoa: lead + flutter-dev + qa-tester + backend-dev + reviewer (2 raund).
 
 Narx bahosi: parse ≈ $0.002/chaqiruv (Haiku 4.5); o'rgatilgan/takror iboralar $0;
 kunlik shift: user-cap 40 → ≈$0.08/user/kun maks; kill-switch 300k token ≈ $0.40-0.50/kun shift.
+
+---
+
+# Kechki raundlar (2026-08-03, v3.9'dan keyin, commit qilinmagan)
+
+## Qilingan ishlar
+
+1. **Ko'p summali fallback** — LLM'siz rejimda har summa alohida amal (cap 5), 2-summa endi
+   yo'qolmaydi; 0-summa spanlari filtrlangan. QA: 5/5.
+2. **6 til kuchaytirish** — birliklar: es mil, fr mille, en thousand, zh 千/万(×10k)/百万 (yangi
+   qiymat-klass, server+mobil sinxron); CAT_RULES va INC/EXP fe'llari ru/en/es/fr/zh; Xorazm
+   lahjasi (bazar, shipoxona) + prompt'ga ~50 tokenlik sheva qatori. QA: 16/16 birlik, til 10/10.
+3. **Papka xoreografiyasi** — kapalak ESKI joyga qo'nadi → summa sanaladi (900ms) → 1s'da BIR
+   marta qayta tartib; partiya ustma-tushishida eski taymer bekor. Qurilmada jonli tasdiqlandi.
+4. **O'Z-O'ZINI ZAHARLASH HALQASI topildi va yopildi** (eng muhim): LLM avto-javobi → avto-saqlash
+   → learnFrom → STRONG lug'at → xato abadiy ("svetga ... KOMMUNAL tuladim" ham Transport bo'lgan
+   edi). Davo: (a) learnFrom faqat USER tasdiqlagan amaldan (triple parsed'dan farq qilsa yoki
+   accept_new_category); (b) PATCH toifa o'zgarishi = tuzatish (unlearn+learn+corrections);
+   (c) DELETE = best-effort unlearn. Reviewer: APPROVE (2 polish bilan: (?<!п)обед, triple lowercase).
+5. **Ma'lumot tozalash (PO ruxsati bilan)**: zaharlangan word_map qatorlari (svet/gaz/kommunal→
+   Transport, bozor/kitob/sotib→Kiyim) o'chirildi; "gaz va svetga tuladim" 300k va 2 ta svet
+   yozuvi Kommunal'ga ko'chirildi.
+
+## Yangi ochiq masalalar
+
+- **Papka-ko'chirish UI yo'q** (muhim UX bo'shliq): folder-detail "Tahrirlash" faqat summa/izoh
+  PATCH qiladi — noto'g'ri avto-joylashgan yozuvni foydalanuvchi ko'chira olmaydi, demak AI ham
+  o'rganish signalini olmaydi. Keyingi feature-nomzod №1 (round-4 PATCH-learning bilan juftlikda).
+- "Svetga X tuladim" qisqa iborasini prod Claude toza lug'at bilan ham 1 marta Transport dedi —
+  svet→Kommunal STRONG bo'lgach deterministik hal bo'ladi (2-tasdiq kerak).
+- "ekin dori aldim" (dehqonchilik konteksti) — LLM zaifligi, prompt nomzodi.
+- QA Anthropic qayta-run kutilmoqda (lokal ANTHROPIC_API_KEY yo'q); qayta-runda
+  ANTHROPIC_USER_DAILY_MAX'ni vaqtincha ko'tarish kerak (40 chaqiruvdan keyin jim o'chadi).
+
+## Sifat darvozasi (kechki raundlar)
+
+- flutter analyze 0 / flutter test 14-14 (3 mobil raund); node --check toza
+- Backend testlar: fallback 43/43, learn-suite 12/12, dict-tier 10/10, Anthropic stub yashil
+- QA round-2: deterministik guruhlar 100%; LLM guruhlari SKIPPED-QUOTA (Groq); reviewer APPROVE ×2
