@@ -44,7 +44,7 @@ class TrustStore extends ChangeNotifier {
     'pinMode': 'set', // 'set' = onboardingda o'rnatish, 'check' = qayta kirishda tekshirish
     'pinErr': false, // noto'g'ri PIN — nuqtalar qizil chaqnaydi
     'xarTab': 'chat', 'xarPeriod': 'oy', 'voiceStage': null, 'vText': '', 'xarText': '',
-    'xcCats': <String>[], 'qarzDraft': null,
+    'xcCats': <String>[],
     // Xarajatlar v2 — papka (folder) UI holati (dizayn: Xarajatlar Trust.html)
     'xfDetail': null, // ochiq papka nomi
     'xfIncBusy': false, // #15: kirim qo'shilmoqda (spinner)
@@ -1692,15 +1692,10 @@ class TrustStore extends ChangeNotifier {
     // Matn AYNAN chip uchadigan framda tozalanadi — yozuv "inputdan uchib ketadi"
     set({'voiceStage': null, 'vText': '', 'xarText': _xarTextIfSame(txt)});
     if (routed.isNotEmpty) {
-      // Sahifadan ULOQTIRMAYMIZ: fly/kapalak o'ynab bo'lsin, foydalanuvchi Xarajatda
-      // qolsin. Qarz amali toast + "O'tish" tugmasi bilan taklif qilinadi — bosilsa
-      // _routeQarz eski oqimni (hamkor oynasi to'ldirilgan holda) ochadi.
-      final q = routed.first;
-      final person = ((q['person'] as String?) ?? '').trim();
-      _xfToastShow({
-        'text': "Qarz amali${person.isEmpty ? '' : ' ($person)'} — Hamkorlar bo'limida davom eting",
-        'kind': 'qarz', 'route': q,
-      }, seconds: 10);
+      // Xarajat menyusi qarzga ARALASHMAYDI (PO 2026-08-03): yo'naltirish ham,
+      // "O'tish" tugmasi ham yo'q — faqat tugmasiz ogohlantirish toasti.
+      // Qarz amallari xarajat bo'lib saqlanmaydi (server /confirm `routed` qaytaradi).
+      _xfToastShow({'text': L()['tDebtUsePartners'], 'kind': 'warn'});
     }
     return true;
   }
@@ -1718,42 +1713,11 @@ class TrustStore extends ChangeNotifier {
     set({'xarEntries': [e, ..._xar()], 'xfGhostCats': ghosts});
   }
 
-  // Lokal (dizayn uslubidagi) toast — o'zi yopiladi (default 5s; qarz taklifi uzunroq)
+  // Lokal (dizayn uslubidagi) toast — o'zi yopiladi (default 5s)
   void _xfToastShow(Map<String, dynamic> t, {int seconds = 5}) {
     set({'xfToast': t});
     _xfToastT?.cancel();
     _xfToastT = Timer(Duration(seconds: seconds), () => set({'xfToast': null}));
-  }
-
-  // Qarz amali — Xarajatga EMAS (XOTIRA §3: bitta mic — uch natija).
-  // Hamkor topilsa: operatsiya oynasi to'ldirilgan holda ochiladi.
-  // Topilmasa: yangi hamkor oynasi (ism bilan), qarz ma'lumotlari kutib turadi.
-  void _routeQarz(Map<String, dynamic> a) {
-    final type = _typeUz[a['direction']] ?? 'Qarz berdim';
-    final person = ((a['person'] as String?) ?? '').trim();
-    final amount = '${a['amount'] ?? ''}';
-    final note = (a['note'] as String?) ?? '';
-    final match = person.isEmpty
-        ? null
-        : _clients().where((c) =>
-            c['archived'] != true &&
-            (c['name'] as String).toLowerCase().contains(person.toLowerCase())).toList();
-    if (match != null && match.isNotEmpty) {
-      set({
-        'screen': 'home', 'clientId': match.first['id'], 'tab': 'chat', 'inLinkId': null,
-        'chAct': type == 'Qarz oldim' ? 'borrow' : 'lend',
-        'chA': amount, 'chCur': S['cur'] ?? 'UZS', 'chDue': '',
-        'chDate': _isoDate(DateTime.now()), 'chNote': note, 'chDebt': null,
-      });
-      openLedger_(match.first['id'] as String);
-      toast_(L()['tDebtFilled']);
-    } else {
-      set({
-        'screen': 'home', 'npOpen': true, 'npName': person, 'npPhone': '',
-        'qarzDraft': {'type': type, 'amount': amount, 'note': note},
-      });
-      toast_(L()['tDebtAddPartner']);
-    }
   }
 
   // Zaxira: server parse yiqilganda lokal qoida-parser bilan eski oqim
@@ -2222,17 +2186,13 @@ class TrustStore extends ChangeNotifier {
     _xfToastShow({'text': "O'chirildi", 'kind': 'del', 'entry': e});
   }
 
-  // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi;
-  // qarz -> Hamkorlar oqimiga o'tish (faqat foydalanuvchi O'ZI bosganda)
+  // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi
+  // (warn turida tugma yo'q — toast o'zi yopiladi)
   Future<void> xfUndo_() async {
     final t = S['xfToast'] as Map<String, dynamic>?;
     _xfToastT?.cancel();
     set({'xfToast': null});
     if (t == null) return;
-    if (t['kind'] == 'qarz') {
-      _routeQarz((t['route'] as Map).cast<String, dynamic>());
-      return;
-    }
     if (t['kind'] == 'del') {
       final e = t['entry'] as Map<String, dynamic>?;
       if (e == null) return;
@@ -3411,7 +3371,8 @@ class TrustStore extends ChangeNotifier {
           'xfCfNo': () => xfCfNo_(),
           'xfToastOpen': S['xfToast'] != null,
           'xfToastText': '${(S['xfToast'] as Map?)?['text'] ?? ''}',
-          'xfToastBtn': (S['xfToast'] as Map?)?['kind'] == 'qarz' ? "O'tish" : 'Bekor qilish',
+          // warn — tugmasiz ogohlantirish (bo'sh label: UI hech narsa chizmaydi)
+          'xfToastBtn': (S['xfToast'] as Map?)?['kind'] == 'warn' ? '' : 'Bekor qilish',
           'xfUndo': () => xfUndo_(),
           'xfBusy': S['voiceStage'] == 'parsing',
           'xfSend': () => xfSend_(),
@@ -4256,18 +4217,10 @@ class TrustStore extends ChangeNotifier {
           return;
         }
         final cl = _mapPartner(r.data as Map<String, dynamic>);
-        final qd = S['qarzDraft'] as Map<String, dynamic>?;
         set({
           'clients': [cl, ..._clients()],
           'npOpen': false, 'clientId': cl['id'], 'tab': 'chat', 'cMenuOpen': false, 'cRen': null,
           'pProfOpen': false, 'opsVis': 8, 'inLinkId': null,
-          // Ovozdan kelgan qarz kutib turgan bo'lsa — operatsiya oynasi to'ldirilgan holda ochiladi
-          if (qd != null) ...{
-            'qarzDraft': null,
-            'chAct': qd['type'] == 'Qarz oldim' ? 'borrow' : 'lend',
-            'chA': '${qd['amount']}', 'chCur': S['cur'] ?? 'UZS', 'chDue': '',
-            'chDate': _isoDate(DateTime.now()), 'chNote': '${qd['note']}', 'chDebt': null,
-          },
         });
         openLedger_(cl['id'] as String); // yangi (bo'sh) daftar + polling
         toast_(L()['tPartnerAdded']);

@@ -51,21 +51,34 @@ services:
       # (mahsulot qarori: FAQAT MATN, docs/ai-character.md §11). Mikrofon ruxsati ham yo'q.
       # LLM parsing (matn->xarajat/qarz) STT'ga BOG'LIQ EMAS — quyidagi kalitlar kerak.
       #
-      # MAJBURIY: LLM parsing (matn->xarajat/qarz, src/services/parse.js) uchun Groq kaliti.
-      # Bu kalitsiz Xarajat AI faqat qoida-parserga tushadi (ilova ishlaydi, aniqlik pasayadi).
+      # LLM parsing (matn->xarajat/qarz, src/services/parse.js) zanjiri (2026-08-03 PO):
+      # ASOSIY — Anthropic Claude (ANTHROPIC_API_KEY pastda, Trust AI bilan bitta kalit;
+      # parsing modeli ANTHROPIC_MODEL). Sabab: Groq bepul kvotasi (100k token/kun) tugab,
+      # parsing qoida-parserga tushib qolgan edi.
+      # Zaxira 1 — Groq (kvota tugasa avtomatik keyingisiga o'tadi).
       - key: GROQ_API_KEY
         sync: false
-      # Zaxira LLM (tavsiya) — Groq yiqilganda parsing shunga o'tadi
+      # Zaxira 2 — OpenAI (gpt-4o-mini)
       - key: OPENAI_API_KEY
         sync: false
       # LLM modellari (ixtiyoriy — defaultlari kodda bor)
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5
+      # Token tejash (2026-08-03 PO: balans kichik): per-user kunlik Anthropic chaqiruv
+      # limiti va butun servis bo'yicha kunlik token kill-switch (oshsa parsing
+      # Groq/OpenAI/qoidalar zanjiriga tushadi — xizmat TO'XTAMAYDI)
+      - key: ANTHROPIC_USER_DAILY_MAX
+        value: "40"
+      - key: ANTHROPIC_DAILY_TOKEN_MAX
+        value: "300000"
       - key: GROQ_LLM_MODEL
         value: llama-3.3-70b-versatile
       - key: OPENAI_LLM_MODEL
         value: gpt-4o-mini
       # ---- Trust AI (moliyaviy hamroh chat, docs/ai-character.md) ----
-      # MAJBURIY: Anthropic kaliti (Claude Opus 4.8). Dashboard'da qo'lda kiritiladi.
-      # Kalitsiz /api/ai/chat zaxiraga (Groq) tushadi; ikkalasi ham yo'q bo'lsa 503.
+      # MAJBURIY: Anthropic kaliti — Trust AI chat (Claude Opus 4.8, AI_MODEL) VA
+      # LLM parsing (claude-haiku-4-5, ANTHROPIC_MODEL, 2026-08-03) BITTA shu kalitdan.
+      # Dashboard'da qo'lda kiritiladi. Kalitsiz chat zaxiraga (Groq) tushadi.
       - key: ANTHROPIC_API_KEY
         sync: false
       # Favqulodda o'chirgich: "false" -> /api/ai/chat 503 (tarix o'qish ochiq qoladi)

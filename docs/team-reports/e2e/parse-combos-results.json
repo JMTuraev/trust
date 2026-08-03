@@ -1,0 +1,2899 @@
+{
+  "meta": {
+    "date": "2026-08-03T12:37:36.902Z",
+    "user": "48c3b085…",
+    "userCategories": [
+      "Oziq-ovqat",
+      "Transport",
+      "Kommunal",
+      "Kiyim",
+      "Salomatlik",
+      "Boshqa",
+      "Ko'ngilochar",
+      "Soliq",
+      "operatsionka"
+    ],
+    "groqModel": "llama-3.3-70b-versatile",
+    "openaiFallback": false
+  },
+  "spanResults": [
+    {
+      "text": "120 000 so'm",
+      "expect": [
+        120000
+      ],
+      "got": [
+        120000
+      ],
+      "pass": true
+    },
+    {
+      "text": "400<NBSP>000",
+      "expect": [
+        400000
+      ],
+      "got": [
+        400000
+      ],
+      "pass": true
+    },
+    {
+      "text": "1<NBSP>500<NBSP>000 remont",
+      "expect": [
+        1500000
+      ],
+      "got": [
+        1500000
+      ],
+      "pass": true
+    },
+    {
+      "text": "25,000",
+      "expect": [
+        25000
+      ],
+      "got": [
+        25000
+      ],
+      "pass": true
+    },
+    {
+      "text": "1,200,000 telefon",
+      "expect": [
+        1200000
+      ],
+      "got": [
+        1200000
+      ],
+      "pass": true
+    },
+    {
+      "text": "1.5 mln",
+      "expect": [
+        1500000
+      ],
+      "got": [
+        1500000
+      ],
+      "pass": true
+    },
+    {
+      "text": "200k",
+      "expect": [
+        200000
+      ],
+      "got": [
+        200000
+      ],
+      "pass": true
+    },
+    {
+      "text": "200к taksi",
+      "expect": [
+        200000
+      ],
+      "got": [
+        200000
+      ],
+      "pass": true
+    },
+    {
+      "text": "4m",
+      "expect": [
+        4000000
+      ],
+      "got": [
+        4000000
+      ],
+      "pass": true
+    },
+    {
+      "text": "4 млн",
+      "expect": [
+        4000000
+      ],
+      "got": [
+        4000000
+      ],
+      "pass": true
+    },
+    {
+      "text": "3 тыс",
+      "expect": [
+        3000
+      ],
+      "got": [
+        3000
+      ],
+      "pass": true
+    },
+    {
+      "text": "2 миллион uy",
+      "expect": [
+        2000000
+      ],
+      "got": [
+        2000000
+      ],
+      "pass": true
+    },
+    {
+      "text": "5000 kofe",
+      "expect": [
+        5000
+      ],
+      "got": [
+        5000
+      ],
+      "pass": true
+    },
+    {
+      "text": "чой 10 минг",
+      "expect": [
+        10000
+      ],
+      "got": [
+        10000
+      ],
+      "pass": true
+    },
+    {
+      "text": "10 dollar obed",
+      "expect": [
+        10
+      ],
+      "got": [
+        10
+      ],
+      "pass": true
+    },
+    {
+      "text": "obedga 35.5 ming ketdi",
+      "expect": [
+        35500
+      ],
+      "got": [
+        35500
+      ],
+      "pass": true
+    },
+    {
+      "text": "svetga 80000som",
+      "expect": [
+        80000
+      ],
+      "got": [
+        80000
+      ],
+      "pass": true
+    },
+    {
+      "text": "tkasi 15ming",
+      "expect": [
+        15000
+      ],
+      "got": [
+        15000
+      ],
+      "pass": true
+    },
+    {
+      "text": "taksga 12 mng ketdi",
+      "expect": [
+        12
+      ],
+      "got": [
+        12
+      ],
+      "pass": true
+    },
+    {
+      "text": "kamunalga 120 ping toladim",
+      "expect": [
+        120
+      ],
+      "got": [
+        120
+      ],
+      "pass": true
+    },
+    {
+      "text": "mingta odam keldi",
+      "expect": [],
+      "got": [],
+      "pass": true
+    },
+    {
+      "text": "bozorga 200 ming taksiga 30 ming",
+      "expect": [
+        200000,
+        30000
+      ],
+      "got": [
+        200000,
+        30000
+      ],
+      "pass": true
+    },
+    {
+      "text": "nonushta 25k obed 40k kechki 60k",
+      "expect": [
+        25000,
+        40000,
+        60000
+      ],
+      "got": [
+        25000,
+        40000,
+        60000
+      ],
+      "pass": true
+    }
+  ],
+  "results": [
+    {
+      "n": 1,
+      "group": "1-toshkent",
+      "text": "obed qivoldik 35 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 35000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "group": "1-toshkent",
+      "text": "marshrutkaga 3 ming ketti",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 3000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "group": "1-toshkent",
+      "text": "ishga borishga taksi chaqirdim 18 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 18000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "group": "1-toshkent",
+      "text": "magazindan narsa-qarsa olib keldim 95 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 95000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "group": "1-toshkent",
+      "text": "choyxonada o'tirdik 60 ming chiqdi",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "group": "1-toshkent",
+      "text": "telefonimga pul soldim 20 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 20000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "group": "1-toshkent",
+      "text": "bolalarga muzqaymoq oldim 12 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 12000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "group": "1-toshkent",
+      "text": "kechqurun kabobxonaga chiqdik 85 ming ketti",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 85000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "group": "2-fargona",
+      "text": "bozorga chiqib 80 mingni ishlatvordim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Kiyim\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 80000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "group": "2-fargona",
+      "text": "somsa yeb keldik 20 ming bo'pti",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 20000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 11,
+      "group": "2-fargona",
+      "text": "mashinaga moy aldirdim 120 ming bo'ldi",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 120000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 12,
+      "group": "2-fargona",
+      "text": "to'yga o'tqizdik 300 ming berdik",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 300000,
+          "category": "Boshqa",
+          "suggestion": "To'y",
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 13,
+      "group": "2-fargona",
+      "text": "palov damladik masalliq 70 ming bo'pti",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 70000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 14,
+      "group": "2-fargona",
+      "text": "adirga chiqib ketuvdik yo'lkira 25 ming bo'pti",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 15,
+      "group": "2-fargona",
+      "text": "do'konga tushib bugun 45 mingni ishlatvordim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 45000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 16,
+      "group": "2-fargona",
+      "text": "choyxonaga chiqib 90 ming sochvordik",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 90000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 17,
+      "group": "3-xorazm",
+      "text": "ekin dori aldim 60 ming",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Boshqa yoki taklif~/dehqon|qishloq|ekin|agro|bog'|hosil/, olindi \"Salomatlik\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Salomatlik",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 18,
+      "group": "3-xorazm",
+      "text": "bazarga barib 100 ming savdo etdim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 100000,
+          "category": "Boshqa",
+          "suggestion": "Savdo",
+          "person": null,
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "n": 19,
+      "group": "3-xorazm",
+      "text": "taksa minib galdim 15 ming berdim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 15000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 20,
+      "group": "3-xorazm",
+      "text": "o'g'limga kitob aldim 40 ming",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Boshqa yoki taklif~/ta'lim|talim|kitob|maktab|o'quv/, olindi \"Kiyim\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 40000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 21,
+      "group": "3-xorazm",
+      "text": "gazing pulini tuladim 95 ming",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Kommunal, olindi \"Transport\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 95000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 22,
+      "group": "3-xorazm",
+      "text": "shipoxonaga barib 50 ming to'ladim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Salomatlik, olindi \"Transport\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 23,
+      "group": "3-xorazm",
+      "text": "nabiramga shirinlik aldim 10 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 10000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 24,
+      "group": "3-xorazm",
+      "text": "moshinga benzin quydirdim 150 ming boldi",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 150000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 25,
+      "group": "4-qashqadaryo",
+      "text": "mol bozoriga borib 50 ming yo'l kira berdim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Transport, olindi \"Oziq-ovqat\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 26,
+      "group": "4-qashqadaryo",
+      "text": "qo'y sotib oldim 2 mln berdim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Boshqa/Oziq-ovqat yoki taklif~/chorva|mol|qishloq|hayvon/, olindi \"Kiyim\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 2000000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 27,
+      "group": "4-qashqadaryo",
+      "text": "bozor-o'char qildik 250 ming ketdi",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 250000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 28,
+      "group": "4-qashqadaryo",
+      "text": "usta chaqirtirdim tom yopishga 400 ming berdim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 400000,
+          "category": "Boshqa",
+          "suggestion": "Remont",
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 29,
+      "group": "4-qashqadaryo",
+      "text": "toyga bordik 200 ming solduk",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 30,
+      "group": "4-qashqadaryo",
+      "text": "bolamning maktabiga 100 ming to'lab keldim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 100000,
+          "category": "Boshqa",
+          "suggestion": "Ta'lim",
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 31,
+      "group": "4-qashqadaryo",
+      "text": "chorvaga yem oldim 180 ming",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 180000,
+          "category": "Boshqa",
+          "suggestion": "Chorvachilik",
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 32,
+      "group": "4-qashqadaryo",
+      "text": "shahardan kelishga 30 ming kira haqi berdim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 30000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 33,
+      "group": "5-kirill",
+      "text": "нонга 5 минг кетди",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "amount: kutildi [5000], olindi [50000]"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 34,
+      "group": "5-kirill",
+      "text": "таксига 15 минг тўладим",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 15000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 35,
+      "group": "5-kirill",
+      "text": "дорихонага 45 минг кетди",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Salomatlik, olindi \"Oziq-ovqat\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 45000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 36,
+      "group": "5-kirill",
+      "text": "болаларга кийим олдим 350 минг",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 350000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 37,
+      "group": "5-kirill",
+      "text": "светга 60 минг тўладим",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 38,
+      "group": "5-kirill",
+      "text": "бозордан мева олдим 75 минг",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 75000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 39,
+      "group": "5-kirill",
+      "text": "кинога бордик 50 минг сарфладик",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 40,
+      "group": "5-kirill",
+      "text": "интернетга 89 минг тўладим",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 89000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 41,
+      "group": "6-rus-aralash",
+      "text": "заправкага 200 ming benzin quydim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 42,
+      "group": "6-rus-aralash",
+      "text": "обед 40k stolovoyda",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 40000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 43,
+      "group": "6-rus-aralash",
+      "text": "проездга 10 минг кетди",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 10000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 44,
+      "group": "6-rus-aralash",
+      "text": "продукти olib keldim 320 ming",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 320000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 45,
+      "group": "6-rus-aralash",
+      "text": "аптекадан лекарство oldim 55 ming",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 55000,
+          "category": "Salomatlik",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 46,
+      "group": "6-rus-aralash",
+      "text": "за квартиру 1.2 mln to'ladim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 1200000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 47,
+      "group": "6-rus-aralash",
+      "text": "detskiy sadga 500 ming oplatit qildim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 500000,
+          "category": "Boshqa",
+          "suggestion": "Bolalar bog'chasi",
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 48,
+      "group": "6-rus-aralash",
+      "text": "мороженое bolalarga 18 ming",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Ko'ngilochar\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 18000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 49,
+      "group": "7-emotsional",
+      "text": "uf 20k taksi",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 20000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 50,
+      "group": "7-emotsional",
+      "text": "voy 150 ming ketti kiyimga",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 150000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 51,
+      "group": "7-emotsional",
+      "text": "yana dori 30k 😩",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 30000,
+          "category": "Salomatlik",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 52,
+      "group": "7-emotsional",
+      "text": "eh 500 ming ketdi bir pasda",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 500000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 53,
+      "group": "7-emotsional",
+      "text": "ufff obed 45k",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 45000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 54,
+      "group": "7-emotsional",
+      "text": "yana benzin 250k 💸",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 250000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 55,
+      "group": "7-emotsional",
+      "text": "internet tugadi yana 25k 😭",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 56,
+      "group": "7-emotsional",
+      "text": "bugun 90k ket di kafega",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 90000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 57,
+      "group": "8-typo",
+      "text": "tkasi 15ming",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 15000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 58,
+      "group": "8-typo",
+      "text": "kamunalga 120 ping to'ladim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 120,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 59,
+      "group": "8-typo",
+      "text": "svetga 80000som",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "category: kutildi Kommunal, olindi \"Transport\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 80000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 60,
+      "group": "8-typo",
+      "text": "aptkaga 25 mig dori oldim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Salomatlik",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 61,
+      "group": "8-typo",
+      "text": "taksga 12 mng ketdi",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "amount: kutildi [[12000],[12]], olindi [1200000]"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 1200000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 62,
+      "group": "8-typo",
+      "text": "obetga 38 ming ishlatim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 38000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 63,
+      "group": "8-typo",
+      "text": "bozorga borip 65 min ishlatdim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Kiyim\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 65000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 64,
+      "group": "8-typo",
+      "text": "kiyimga 220 000 som berdim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 220000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 65,
+      "group": "9-kop-amal",
+      "text": "bozorga 200 ming taksiga 30 ming berdim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "200000 uchun toifa: kutildi Oziq-ovqat, olindi [\"Kiyim\"]"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 30000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 66,
+      "group": "9-kop-amal",
+      "text": "nonushta 25k obed 40k kechki 60k",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 40000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 67,
+      "group": "9-kop-amal",
+      "text": "svetga 80 ming gazga 60 ming to'ladim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": false,
+      "fails": [
+        "80000 uchun toifa: kutildi Kommunal, olindi [\"Transport\"]",
+        "60000 uchun toifa: kutildi Kommunal, olindi [\"Transport\"]"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 80000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 68,
+      "group": "9-kop-amal",
+      "text": "dorixonaga 45 ming va taksiga 20 ming ketdi",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 45000,
+          "category": "Salomatlik",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 20000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 69,
+      "group": "9-kop-amal",
+      "text": "bola kiyimiga 150 ming o'zimga futbolka 80 ming oldim",
+      "provider": "groq",
+      "attempts": 2,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 150000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 80000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 70,
+      "group": "9-kop-amal",
+      "text": "kinoga 60 ming popkorn 35 ming",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 35000,
+          "category": "Ko'ngilochar",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 71,
+      "group": "9-kop-amal",
+      "text": "internetga 89 ming telefonga 30 ming soldim",
+      "provider": "groq",
+      "attempts": 1,
+      "errors": [],
+      "needs_confirm": false,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 89000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        },
+        {
+          "direction": "xarajat",
+          "amount": 30000,
+          "category": "Kommunal",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 72,
+      "group": "9-kop-amal",
+      "text": "ertalab non 6 ming tushlik 42 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98758, Requested 1298. Please try again in 48.383999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "amounts: kutildi [6000,42000], olindi [6000]"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 6000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 73,
+      "group": "10-qarz",
+      "text": "Anvarga qarz berdim 500 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98744, Requested 1351. Please try again in 1m22.08s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "qarz_berdim",
+          "amount": 500000,
+          "category": null,
+          "suggestion": null,
+          "person": "Anvar",
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 74,
+      "group": "10-qarz",
+      "text": "akamdan 1 mln qarz oldim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98729, Requested 1344. Please try again in 1m3.071999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "qarz_oldim",
+          "amount": 1000000,
+          "category": null,
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 75,
+      "group": "10-qarz",
+      "text": "Dilshod 200 mingni qaytardi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98715, Requested 1290. Please try again in 4.32s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "person: kutildi \"dilshod\", olindi \"null\""
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "menga_qaytarildi",
+          "amount": 200000,
+          "category": null,
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 76,
+      "group": "10-qarz",
+      "text": "Sardor bergan qarzimni qaytarib berdi 350 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98701, Requested 1350. Please try again in 44.064s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "person: kutildi \"sardor\", olindi \"null\""
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "menga_qaytarildi",
+          "amount": 350000,
+          "category": null,
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 77,
+      "group": "10-qarz",
+      "text": "Jasurdan olgan 400 ming qarzimni qaytardim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98687, Requested 1419. Please try again in 1m31.584s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "person: kutildi \"jasur\", olindi \"null\""
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "qaytardim",
+          "amount": 400000,
+          "category": null,
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 78,
+      "group": "10-qarz",
+      "text": "qo'shnimga 250 ming qarz berib turdim",
+      "provider": "groq",
+      "attempts": 3,
+      "errors": [],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "qarz_berdim",
+          "amount": 250000,
+          "category": null,
+          "suggestion": null,
+          "person": "qo'shnim",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "n": 79,
+      "group": "10-qarz",
+      "text": "Karimga qarzga 300 ming berdim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99955, Requested 1352. Please try again in 18m49.248s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "direction: kutildi qarz_berdim, olindi xarajat",
+        "person: kutildi \"karim\", olindi \"null\""
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 300000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 80,
+      "group": "10-qarz",
+      "text": "Anvarga 200 ming berdim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99939, Requested 1293. Please try again in 17m44.447999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 81,
+      "group": "10-qarz",
+      "text": "singlimga 100 ming berdim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99926, Requested 1410. Please try again in 19m14.304s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 100000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 82,
+      "group": "11-daromad-soz",
+      "text": "oylikdan 50 ming ishlatdim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99911, Requested 1295. Please try again in 17m21.983999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 83,
+      "group": "11-daromad-soz",
+      "text": "oylik oldim 4 mln",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99898, Requested 1348. Please try again in 17m56.544s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": "daromad chiqdi (mobil xarajatga aylantiradi)",
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 4000000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 84,
+      "group": "11-daromad-soz",
+      "text": "mijozdan 300 ming keldi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99883, Requested 1295. Please try again in 16m57.792s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": "daromad chiqdi (mobil xarajatga aylantiradi)",
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 300000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 85,
+      "group": "11-daromad-soz",
+      "text": "avans oldim 1.5 mln",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99869, Requested 1342. Please try again in 17m26.303999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": "daromad chiqdi (mobil xarajatga aylantiradi)",
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 1500000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 86,
+      "group": "11-daromad-soz",
+      "text": "sotuvdan 800 ming tushdi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99855, Requested 1350. Please try again in 17m21.119999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": "daromad chiqdi (mobil xarajatga aylantiradi)",
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 800000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 87,
+      "group": "11-daromad-soz",
+      "text": "bonusdan 200 mingini bolalarga sarfladim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99840, Requested 1345. Please try again in 17m3.839999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 88,
+      "group": "12-yangi-papka",
+      "text": "kursga 500 ming to'ladim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99826, Requested 1350. Please try again in 16m56.064s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 500000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 89,
+      "group": "12-yangi-papka",
+      "text": "mashinamni remontiga 800 ming ketdi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99811, Requested 1298. Please try again in 15m58.175999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 800000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 90,
+      "group": "12-yangi-papka",
+      "text": "singlimga sovg'a oldim 150 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99796, Requested 1352. Please try again in 16m31.872s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "direction: daromad (xarajat kutildi)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 150000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 91,
+      "group": "12-yangi-papka",
+      "text": "it ovqati 45 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99782, Requested 1347. Please try again in 16m15.456s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 45000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 92,
+      "group": "12-yangi-papka",
+      "text": "ukol qildirdim 25 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99768, Requested 1294. Please try again in 15m17.568s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Salomatlik, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 93,
+      "group": "12-yangi-papka",
+      "text": "parikmaxerga 50 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99753, Requested 1293. Please try again in 15m3.744s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 50000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 94,
+      "group": "12-yangi-papka",
+      "text": "sport zalga obuna 300 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99738, Requested 1203. Please try again in 13m33.024s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Salomatlik yoki taklif~/sport/, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 300000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 95,
+      "group": "12-yangi-papka",
+      "text": "telegram premium 60 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99723, Requested 1200. Please try again in 13m17.472s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 60000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 96,
+      "group": "12-yangi-papka",
+      "text": "bog'chaga oylik to'lov 450 ming",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99708, Requested 1353. Please try again in 15m16.704s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "direction: daromad (xarajat SHART edi)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 450000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 97,
+      "group": "13-format",
+      "text": "120 000 so'm ishlatdim bozorda",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99694, Requested 1206. Please try again in 12m57.599999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 120000,
+          "category": "Oziq-ovqat",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 98,
+      "group": "13-format",
+      "text": "25,000 taksi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99680, Requested 1200. Please try again in 12m40.32s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 25000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 99,
+      "group": "13-format",
+      "text": "1.5 mln kiyimga",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99665, Requested 1204. Please try again in 12m30.816s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 1500000,
+          "category": "Kiyim",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 100,
+      "group": "13-format",
+      "text": "200k obed qildik",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99652, Requested 1291. Please try again in 13m34.752s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 200000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 101,
+      "group": "13-format",
+      "text": "4m mashina remontiga berdim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99638, Requested 1204. Please try again in 12m7.488s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 4000000,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 102,
+      "group": "13-format",
+      "text": "5000 kofe",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99624, Requested 1290. Please try again in 13m9.696s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 5000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 103,
+      "group": "13-format",
+      "text": "чой 10 минг",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99611, Requested 1201. Please try again in 11m41.568s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 10000,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 104,
+      "group": "13-format",
+      "text": "1,200,000 telefon oldim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99597, Requested 1203. Please try again in 11m31.2s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "direction: daromad (xarajat kutildi)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 1200000,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 105,
+      "group": "13-format",
+      "text": "obedga 35.5 ming ketdi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99584, Requested 1205. Please try again in 11m21.695999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 35500,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 106,
+      "group": "14-valyuta",
+      "text": "10 dollar obed",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99570, Requested 1198. Please try again in 11m3.552s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "category: kutildi Oziq-ovqat, olindi \"Boshqa\" (taklif: —)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 10,
+          "category": "Boshqa",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 107,
+      "group": "14-valyuta",
+      "text": "100$ ga kurtka oldim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99555, Requested 1203. Please try again in 10m54.912s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "direction: daromad (xarajat kutildi)"
+      ],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "daromad",
+          "amount": 100,
+          "category": "Daromad",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 108,
+      "group": "14-valyuta",
+      "text": "20 baks taksi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99539, Requested 1200. Please try again in 10m38.496s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": true,
+      "fails": [],
+      "noteworthy": null,
+      "got": [
+        {
+          "direction": "xarajat",
+          "amount": 20,
+          "category": "Transport",
+          "suggestion": null,
+          "person": null,
+          "confidence": 0.55
+        }
+      ]
+    },
+    {
+      "n": 109,
+      "group": "14-valyuta",
+      "text": "yarim million to'y uchun",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99523, Requested 1202. Please try again in 10m26.4s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "actions bo'sh"
+      ],
+      "noteworthy": null,
+      "got": []
+    },
+    {
+      "n": 110,
+      "group": "14-valyuta",
+      "text": "ikki yuz ming benzinga ketdi",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99510, Requested 1208. Please try again in 10m20.352s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "actions bo'sh"
+      ],
+      "noteworthy": null,
+      "got": []
+    },
+    {
+      "n": 111,
+      "group": "14-valyuta",
+      "text": "besh ming so'mga non oldim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99494, Requested 1208. Please try again in 10m6.528s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "actions bo'sh"
+      ],
+      "noteworthy": null,
+      "got": []
+    },
+    {
+      "n": 112,
+      "group": "14-valyuta",
+      "text": "bir yarim million divan oldim",
+      "provider": "rules",
+      "attempts": 3,
+      "errors": [
+        "groq: Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kxgyzbz2eqk8etn8mcg2qy9z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99480, Requested 1207. Please try again in 9m53.568s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+      ],
+      "needs_confirm": true,
+      "pass": false,
+      "fails": [
+        "actions bo'sh"
+      ],
+      "noteworthy": null,
+      "got": []
+    }
+  ]
+}

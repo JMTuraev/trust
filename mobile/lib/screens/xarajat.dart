@@ -1,9 +1,8 @@
 // Xarajatlar — papka (folder) UI, dizayn "Xarajatlar Trust.html" bilan 1:1.
 // TO'LIQ EKRAN: bottom navsiz, header'da orqaga. Matn-birinchi: input -> AI -> papka.
-// Dinamika (dizayn kabi): input ichida rangli belgilash (summa yashil/qizil, toifa/buyruq/sana
+// Dinamika (dizayn kabi): input ichida rangli belgilash (summa qizil, toifa/buyruq/sana
 // fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
 // yangisida siljiydi), yangi papka "pop", tray "shake", toastlar "Bekor qilish" bilan.
-import 'dart:async' show Timer;
 import 'dart:convert' show jsonDecode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
@@ -18,8 +17,10 @@ import '../ui.dart';
 import '../theme.dart';
 
 // RANG QOIDASI (dizayn: Xarajatlar Trust / Trust_STT-off — redC/greenC):
-// summa raqamlari HAR DOIM brend rangda — chiqim = p.red, kirim = p.green.
-// Hech qayerda p.ink yoki Colors.red/green ishlatilmaydi (rang bugi tuzatildi).
+// INPUT'dagi summa HAR DOIM p.red — bu input FAQAT xarajat yozadi (store
+// xarPick_ 'daromad'ni ham 'xarajat'ga o'giradi), kirim esa Daromad paneli
+// ichidan kiritiladi. p.green boshqa joylarda ishlaydi (papkalar, yozuvlar,
+// kirim paneli). Hech qayerda p.ink yoki Colors.red/green ishlatilmaydi.
 
 class XarajatScreen extends StatefulWidget {
   const XarajatScreen({super.key});
@@ -2220,16 +2221,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 }
 
 // ================= RANGLI INPUT (dizayn: highlight) =================
-// Summa — yashil/qizil (+13% fon), toifa so'zi — card2 fon, buyruq/sana — hair2 fon.
-// RANG IKKI QATLAMDA: (1) lokal kalit so'z heuristikasi — DARHOL taxmin;
-// (2) server /api/expenses/preview (LLM, istalgan til) — 550ms debounce bilan
-// kelib rangni tasdiqlaydi/tuzatadi. Server saqlashda ishlaydigan parser bilan
-// BIR MANBA — input rangi endi yakuniy natijaga zid ko'rsatmaydi.
+// Summa — HAR DOIM qizil (+13% fon), toifa so'zi — card2 fon, buyruq/sana — hair2 fon.
+// Bu input FAQAT xarajat yozadi (store xarPick_ 'daromad' amalini ham
+// 'xarajat'ga o'giradi), kirim Daromad paneli ichidan kiritiladi — shuning
+// uchun yashil (kirim) taxmin bu yerda chalg'itardi va olib tashlandi:
+// kirim/chiqim heuristikasi ham, server preview so'rovi ham yo'q.
 class _HlController extends TextEditingController {
-  _HlController() {
-    addListener(_onEdit);
-  }
-
   // ---- SUMMA: tilga bog'liq EMAS — raqam + ko'p tilli multiplikator + valyuta ----
   // (server parse.js amountSpans bilan sinxron: ming/минг/тыс/k/к = x1000,
   // mln/million/млн/миллион/m/м = x1000000). Qisqa k|к|m|м faqat alohida
@@ -2245,220 +2242,6 @@ class _HlController extends TextEditingController {
   static final _cmdRe = RegExp(r"birlashtir\w*|o['’ʻ`]?chir\w*|keldi|tushdi|qaytdi",
       caseSensitive: false);
   static final _dateRe = RegExp(r"bugun|kechqurun|kecha|ertalab|ertaga", caseSensitive: false);
-  // Kirim/chiqim kalit so'zlari IKKI sinfda: OT (odatda summadan OLDIN keladi —
-  // "oylik 4 mln", "kreditga 200 ming" -> KEYINGI summaga bog'lanadi) va FE'L
-  // (summadan KEYIN keladi — "4 mln oldim", "200 ming berdim" -> OLDINGI summaga).
-  // Har summa uchun eng yaqin da'vogar kalit so'z g'olib — shu bilan
-  // "oylik oldim 4 mln kreditga 200 ming berdim" da 1-summa yashil, 2-si qizil.
-  // Bu faqat DARHOL taxmin (rus/ingliz/kirill tez-tez uchraydigan so'zlar bilan);
-  // yakuniy rang server LLM preview'idan keladi — lug'atni cheksiz kengaytirish shart emas.
-  static final _incNounRe = RegExp(
-      // 'foyda' server INC_NOUN bilan sinxronlandi (rang bugi: lokal taxmin qizil,
-      // server esa kirim derdi — endi ikkala qatlam bir xil)
-      r"\b(oylik|maosh|avans|daromad|bonus|kirim|foyda|salary|income|profit|revenue)\b"
-      r"|mijoz\w*|sotuv\w*|ойлик|маош|даромад|кирим|фойда|аванс|бонус|зарплат[а-яё]*|доход[а-яё]*|мижоз[а-яё]*|сотув[а-яё]*",
-      caseSensitive: false);
-  static final _incVerbRe = RegExp(
-      // \b anchor: "qaytardi" (u menga qaytardi = kirim) ichida "qaytardim"
-      // (men qaytardim = chiqim) yutilib ketmasin — 1-shaxs endi chiqim ro'yxatida
-      r"\boldim\b|\bsotdim\b|keldi|tushdi|qaytdi\b|qaytardi\b"
-      r"|\breceived\b|\bearned\b|\bgot\b|\bsold\b"
-      r"|олдим|сотдим|келди|тушди|қайтди|получил[а-яё]*|заработал[а-яё]*|пришл[а-яё]*|поступил[а-яё]*|продал[а-яё]*",
-      caseSensitive: false);
-  static final _expNounRe = RegExp(
-      r"kredit\w*|xarid\w*|\bqarzga\b|\brent\b|кредит[а-яё]*|аренд[а-яё]*|харид[а-яё]*",
-      caseSensitive: false);
-  static final _expVerbRe = RegExp(
-      r"berdim|sarfladim|ishlatdim|to['’ʻ`]?ladim|ketdi|sotib\s+oldim|qaytardim|qaytarib\s+berdim"
-      r"|\bspent\b|\bpaid\b|\bbought\b|\bgave\b"
-      r"|бердим|сарфладим|тўладим|туладим|кетди|сотиб\s+олдим|потратил[а-яё]*|купил[а-яё]*|заплатил[а-яё]*|оплатил[а-яё]*|отдал[а-яё]*",
-      caseSensitive: false);
-
-  // ---- SERVER PREVIEW: yakuniy rang manbai (saqlashdagi parser bilan bir xil) ----
-  Timer? _debTimer;
-  int _seq = 0;
-  String _lastKey = '';
-  bool _disposed = false;
-  // Kesh statik — field qayta qurilsa ham saqlanadi; qiymat: [[amount, 'in'|'out'], ...]
-  static final Map<String, List<List<dynamic>>> _srvCache = {};
-  List<List<dynamic>>? _srv;
-  String _srvKey = '';
-
-  static final _gapRe = RegExp(r"(\d)[  ](?=\d)");
-  static final _digitRe = RegExp(r"\d");
-
-  // Ko'rinishdagi "400 000" guruh bo'shliqlari tozalanadi (xfSend_ bilan bir xil) —
-  // server so'rovi va kesh kaliti shu.
-  String get _cleanKey =>
-      text.replaceAllMapped(_gapRe, (m) => m[1]!).trim().toLowerCase();
-
-  void _onEdit() {
-    final k = _cleanKey;
-    if (k == _lastKey) return; // selection/composing o'zgarishi — matn o'sha
-    _lastKey = k;
-    _debTimer?.cancel();
-    final hit = _srvCache[k];
-    if (hit != null) {
-      // Kesh — darhol (repaint shu notifikatsiya tsiklining o'zida bo'ladi)
-      _srv = hit;
-      _srvKey = k;
-      return;
-    }
-    if (k.isEmpty || !_digitRe.hasMatch(k)) return; // summasiz matnga so'rov yo'q
-    _debTimer = Timer(const Duration(milliseconds: 550), () => _fetchPreview(k));
-  }
-
-  Future<void> _fetchPreview(String k) async {
-    final id = ++_seq;
-    try {
-      final r = await Api.previewExpense(k);
-      if (!r.ok) return;
-      final list = [
-        for (final e in ((r.data?['amounts'] as List?) ?? const []))
-          [((e as Map)['amount'] as num).round(), '${e['kind']}'],
-      ];
-      _srvCache[k] = list;
-      if (_srvCache.length > 80) _srvCache.remove(_srvCache.keys.first);
-      if (_disposed || id != _seq || _cleanKey != k) return; // eskirgan javob
-      _srv = list;
-      _srvKey = k;
-      notifyListeners(); // rang yangilansin
-    } catch (_) {
-      // oflayn/server xatosi — lokal heuristika rangi qolaveradi
-    }
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    _debTimer?.cancel();
-    super.dispose();
-  }
-
-  // Match qiymati so'mda — server previewdagi amount bilan solishtirish uchun
-  static final _grpNumRe = RegExp(r"^\d{1,3}(?:[  .]\d{3})+$");
-  static final _grpSepRe = RegExp(r"[  .]");
-  static final _commaNumRe = RegExp(r"^\d{1,3}(?:,\d{3})+$");
-  static int _amtValue(RegExpMatch m) {
-    final raw = m.group(1)!;
-    double v;
-    if (_grpNumRe.hasMatch(raw)) {
-      v = double.parse(raw.replaceAll(_grpSepRe, ''));
-    } else if (_commaNumRe.hasMatch(raw)) {
-      v = double.parse(raw.replaceAll(',', ''));
-    } else {
-      v = double.parse(raw.replaceAll(',', '.'));
-    }
-    final mul = (m.group(2) ?? '').trim().toLowerCase();
-    if (mul.isNotEmpty) {
-      final thousand = mul.startsWith('ming') || mul.startsWith('минг') ||
-          mul.startsWith('тыс') || mul == 'k' || mul == 'к';
-      v *= thousand ? 1000 : 1000000;
-    }
-    return v.round();
-  }
-
-  /// Har bir summa (amts — [s, e, 'amt'] ro'yxati) kirimmi? Kalit so'zlar o'z
-  /// yo'nalishidagi eng yaqin summaga da'vo qiladi; masofada teng bo'lsa chiqim ustun.
-  static List<bool> _amtKinds(String t, List<List<dynamic>> amts) {
-    final n = amts.length;
-    final kind = List<bool>.filled(n, false); // sukut: chiqim (qizil)
-    final best = List<double>.filled(n, double.infinity);
-    if (n == 0) return kind;
-
-    final ms = <List<dynamic>>[]; // [start, end, inc, forward]
-    void collect(RegExp re, bool inc, bool forward) {
-      for (final m in re.allMatches(t)) {
-        // Chiqim avval yig'iladi — uning ichiga tushgan kirim matchi tashlanadi
-        // ("sotib oldim" ichidagi "oldim" kabi)
-        final overlapped =
-            ms.any((x) => !(m.end <= (x[0] as int) || m.start >= (x[1] as int)));
-        if (inc && overlapped) continue;
-        ms.add([m.start, m.end, inc, forward]);
-      }
-    }
-
-    collect(_expVerbRe, false, false);
-    collect(_expNounRe, false, true);
-    collect(_incVerbRe, true, false);
-    collect(_incNounRe, true, true);
-
-    for (final m in ms) {
-      final s = m[0] as int, e = m[1] as int;
-      final inc = m[2] as bool, fwd = m[3] as bool;
-      int? target;
-      var dist = double.infinity;
-      if (fwd) {
-        // Keyingi summa; topilmasa — oldingisi (kuchsizroq, +0.5)
-        for (var i = 0; i < n; i++) {
-          if ((amts[i][0] as int) >= e) {
-            target = i;
-            dist = ((amts[i][0] as int) - e).toDouble();
-            break;
-          }
-        }
-        if (target == null) {
-          for (var i = n - 1; i >= 0; i--) {
-            if ((amts[i][1] as int) <= s) {
-              target = i;
-              dist = (s - (amts[i][1] as int)) + 0.5;
-              break;
-            }
-          }
-        }
-      } else {
-        // Oldingi summa; topilmasa — keyingisi (kuchsizroq, +0.5)
-        for (var i = n - 1; i >= 0; i--) {
-          if ((amts[i][1] as int) <= s) {
-            target = i;
-            dist = (s - (amts[i][1] as int)).toDouble();
-            break;
-          }
-        }
-        if (target == null) {
-          for (var i = 0; i < n; i++) {
-            if ((amts[i][0] as int) >= e) {
-              target = i;
-              dist = ((amts[i][0] as int) - e) + 0.5;
-              break;
-            }
-          }
-        }
-      }
-      if (target == null) continue;
-      if (dist < best[target] || (dist == best[target] && !inc)) {
-        best[target] = dist;
-        kind[target] = inc;
-      }
-    }
-    return kind;
-  }
-
-  // Rang qarori: server preview javobi AYNAN shu matnga tegishli bo'lsa — u ustun
-  // (summalar qiymat bo'yicha moslanadi), aks holda lokal heuristika (darhol taxmin).
-  List<bool> _resolveKinds(String t, List<List<dynamic>> amts) {
-    final local = _amtKinds(t, amts);
-    final srv = (_srv != null && _srvKey == _cleanKey) ? _srv! : null;
-    if (srv == null) return local;
-    final used = List<bool>.filled(srv.length, false);
-    return List<bool>.generate(amts.length, (i) {
-      final v = amts[i][3] as int;
-      // 1) tartib bo'yicha to'g'ridan-to'g'ri moslik
-      if (i < srv.length && !used[i] && srv[i][0] == v) {
-        used[i] = true;
-        return srv[i][1] == 'in';
-      }
-      // 2) qiymati teng birinchi ishlatilmagan server yozuvi
-      for (var j = 0; j < srv.length; j++) {
-        if (!used[j] && srv[j][0] == v) {
-          used[j] = true;
-          return srv[j][1] == 'in';
-        }
-      }
-      // 3) mos kelmadi (sanoq farqi) — lokal taxmin
-      return local[i];
-    });
-  }
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
@@ -2466,9 +2249,9 @@ class _HlController extends TextEditingController {
     final t = text;
     if (t.isEmpty) return TextSpan(style: style);
 
-    final ranges = <List<dynamic>>[]; // [s, e, type, (amt uchun) so'mdagi qiymat]
+    final ranges = <List<dynamic>>[]; // [s, e, type]
     for (final m in _amtRe.allMatches(t)) {
-      if (m.end > m.start) ranges.add([m.start, m.end, 'amt', _amtValue(m)]);
+      if (m.end > m.start) ranges.add([m.start, m.end, 'amt']);
     }
     void push(RegExp re, String type) {
       for (final m in re.allMatches(t)) {
@@ -2491,22 +2274,17 @@ class _HlController extends TextEditingController {
       }
     }
 
-    // Har summa rangi: server preview (shu matnga kelgan bo'lsa) yoki lokal heuristika
-    final amts = kept.where((r) => r[2] == 'amt').toList();
-    final amtKinds = _resolveKinds(t, amts);
-
     final spans = <TextSpan>[];
     var pos = 0;
-    var amtIdx = 0;
     for (final r in kept) {
       final s = r[0] as int, e = r[1] as int, type = r[2] as String;
       if (s > pos) spans.add(TextSpan(text: t.substring(pos, s)));
       Color c;
       Color bg;
       if (type == 'amt') {
-        final cc = amtKinds[amtIdx++] ? p.green : p.red;
-        c = cc;
-        bg = cc.withValues(alpha: .13);
+        // Summa doim qizil — bu input faqat xarajat yozadi (RANG QOIDASI, fayl boshida)
+        c = p.red;
+        bg = p.red.withValues(alpha: .13);
       } else if (type == 'cat') {
         c = p.ink;
         bg = p.card2;

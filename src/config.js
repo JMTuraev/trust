@@ -34,6 +34,18 @@ export const config = {
   // uchun ular o'z uyiga — `llm` ga ko'chirildi.
   llm: {
     // Parsing (matn -> daromad/xarajat/qarz) + Trust AI zaxirasi.
+    // 2026-08-03 PO qarori: ASOSIY provayder — Anthropic Claude (to'langan Console hisobi).
+    // Sabab: Groq bepul kvotasi (100k token/kun) tugab, prod parsing qoida-parserga
+    // tushib qolgan edi. Zanjir endi: Anthropic -> Groq -> OpenAI -> qoidalar.
+    // Kalit Trust AI (config.ai.anthropicKey) bilan BITTA — model esa alohida:
+    // parsing arzon+tez Haiku 4.5 ($1/$5 per 1M token), chat Opus'da qoladi.
+    anthropicKey: process.env.ANTHROPIC_API_KEY,
+    anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
+    // Token tejash (PO: "balans kichik"): per-user kunlik Anthropic chaqiruv limiti
+    // (oshsa — o'sha user LLM'siz, lug'at/qoida yo'li) va butun servis bo'yicha kunlik
+    // token kill-switch (oshsa — Anthropic o'tkazib yuboriladi, Groq/OpenAI davom etadi).
+    anthropicUserDailyMax: parseInt(process.env.ANTHROPIC_USER_DAILY_MAX || '40', 10),
+    anthropicDailyTokenMax: parseInt(process.env.ANTHROPIC_DAILY_TOKEN_MAX || '300000', 10),
     groqKey: process.env.GROQ_API_KEY,
     openaiKey: process.env.OPENAI_API_KEY,
     groqModel: process.env.GROQ_LLM_MODEL || 'llama-3.3-70b-versatile',
@@ -102,12 +114,8 @@ export const config = {
   },
 };
 
-// ---- VAQTINCHA moslik aliasi (o'chirilishi kerak) ----
-// services/parse.js hali `config.stt.groqKey/openaiKey` ni o'qiydi. U fayl bu sub-sessiyaning
-// ruxsat ro'yxatida EMAS, shuning uchun alias qoldirildi: usiz parse.js da
-// "Cannot read properties of undefined" — ya'ni xarajat parsingi (asosiy funksiya) yiqilardi.
-// Hisobotdagi §NEW-PATCHES da parse.js uchun aniq patch bor; qo'llangach SHU 2 QATOR O'CHIRILSIN.
-config.stt = { groqKey: config.llm.groqKey, openaiKey: config.llm.openaiKey };
+// 2026-08-03: `config.stt` moslik aliasi O'CHIRILDI — parse.js endi to'g'ridan-to'g'ri
+// config.llm.* o'qiydi (aliasdagi ko'rsatma bo'yicha).
 
 export function assertConfig() {
   const missing = [];

@@ -1,8 +1,10 @@
 // Parsing (matn -> daromad/xarajat/qarz) — XOTIRA-ovoz-va-kategoriya.md §3–4.
-// Uch mustaqil signal: 1) LLM (Groq, zaxira OpenAI) — qat'iy JSON, massiv;
+// Uch mustaqil signal: 1) LLM (Anthropic Claude ASOSIY, zaxira Groq -> OpenAI) — qat'iy JSON;
 // 2) qoida-parser (validator); 3) kalit so'z lug'ati (o'z-o'zini to'ldiruvchi).
 // Qoidalar: LLM+qoida summasi mos va ishonch >= 0.8 -> to'g'ridan-to'g'ri;
 // aks holda tasdiqlash kartasi. Qarz iboralari Xarajatga emas, Hamkorlar oqimiga.
+// Token tejash (2026-08-03 PO): LLM — OXIRGI chora: lug'at short-circuit ('dict'),
+// natija keshi, per-user kunlik chaqiruv limiti, kunlik token kill-switch.
 import { config } from '../config.js';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { ensureCategories } from '../lib/categories.js';
@@ -130,6 +132,10 @@ For EACH listed amount decide the WRITER'S cash-flow direction:
 "out" — writer's money DECREASES: purchase, expense, bill, rent, payment, gave or lent money, repaid own debt.
 If context is ambiguous or absent, answer "out". Reply ONLY with JSON: {"kinds":["in"|"out",...]} — exactly one entry per amount, same order as listed.`;
 
+// Preview user-xabari — OpenAI-mos va Anthropic yo'llari BIR xil matndan foydalanadi
+const previewUserMsg = (text, amounts) =>
+  `Note: "${String(text).slice(0, 300)}"\nAmounts (${amounts.length}): ${amounts.map((a, i) => `${i + 1}) ${a}`).join('  ')}`;
+
 async function previewLlm({ url, key, model, text, amounts, timeoutMs }) {
   const res = await fetch(url, {
     method: 'POST',
@@ -138,7 +144,7 @@ async function previewLlm({ url, key, model, text, amounts, timeoutMs }) {
       model, temperature: 0, max_tokens: 80, response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PREVIEW_SYS },
-        { role: 'user', content: `Note: "${String(text).slice(0, 300)}"\nAmounts (${amounts.length}): ${amounts.map((a, i) => `${i + 1}) ${a}`).join('  ')}` },
+        { role: 'user', content: previewUserMsg(text, amounts) },
       ],
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -150,6 +156,134 @@ async function previewLlm({ url, key, model, text, amounts, timeoutMs }) {
   if (!Array.isArray(kinds) || kinds.length !== amounts.length
       || kinds.some((k) => k !== 'in' && k !== 'out')) throw new Error('kinds formati xato');
   return kinds;
+}
+
+// ---------- Anthropic Claude — ASOSIY provayder (2026-08-03 PO qarori) ----------
+// Sabab: Groq bepul kvotasi (100k token/kun) tugab, prod parsing qoida-parserga tushib
+// qolgan edi; PO'ning to'langan Claude Console hisobi bor. So'rov shakli OpenAI-mos EMAS:
+// system — alohida top-level maydon, sarlavhalar x-api-key + anthropic-version,
+// response_format yo'q — kafolatlangan JSON uchun MAJBURIY tool_choice (tool_use bloki).
+// `strict` maydoni ATAYIN yuborilmaydi (reviewer 2026-08-03): u beta-headerga bog'liq
+// bo'lishi mumkin — noma'lum maydon = 400 xavfi = jimgina zaxiraga qulash. Majburiy
+// tool_choice + sanitizeAction/kinds tekshiruvi baribir to'liq validatsiya qiladi.
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const NULLABLE_STR = { anyOf: [{ type: 'string' }, { type: 'null' }] };
+
+// Preview javobi: {"kinds":["in"|"out",...]} — PREVIEW_SYS'dagi shakl bilan 1:1
+const KINDS_TOOL = {
+  name: 'emit_kinds',
+  description: 'Report the cash-flow kind for each listed amount, in the same order.',
+  input_schema: {
+    type: 'object',
+    properties: { kinds: { type: 'array', items: { type: 'string', enum: ['in', 'out'] } } },
+    required: ['kinds'],
+    additionalProperties: false,
+  },
+};
+
+// Parse javobi: {"actions":[...]} — llmSystemPrompt'dagi JSON shakli bilan 1:1
+const ACTIONS_TOOL = {
+  name: 'emit_actions',
+  description: 'Report the finance actions parsed from the note.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      actions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            direction: { type: 'string', enum: DIRECTIONS },
+            amount: { type: 'integer' },
+            currency: { type: 'string' },
+            category: NULLABLE_STR,
+            note: { type: 'string' },
+            person: NULLABLE_STR,
+            new_category_suggestion: NULLABLE_STR,
+            confidence: { type: 'number' },
+          },
+          required: ['direction', 'amount', 'currency', 'category', 'note', 'person',
+            'new_category_suggestion', 'confidence'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['actions'],
+    additionalProperties: false,
+  },
+};
+
+// ---------- Token tejash (2026-08-03 PO: "balans kichik — juda tejamkor sarfla") ----------
+// 1) Butun servis bo'yicha kunlik token kill-switch — Groq-uslub kutilmagan uzilish VA
+//    kutilmagan hisob-kitobning oldini oladi (oshsa Anthropic o'tkazib yuboriladi,
+//    Groq/OpenAI/qoidalar zanjiri davom etadi);
+// 2) per-user kunlik Anthropic chaqiruv limiti (anti-abuse) — oshsa o'sha user uchun
+//    LLM umuman chaqirilmaydi, lug'at/qoida yo'li ishlaydi.
+// Hisoblagichlar xotirada — Render'da bitta instans; deploy'da nolga tushishi muammo emas.
+const dayKey = () => new Date().toISOString().slice(0, 10);
+let anthropicDayUsage = { day: dayKey(), tokens: 0 };
+
+function anthropicGlobalOk() {
+  if (anthropicDayUsage.day !== dayKey()) anthropicDayUsage = { day: dayKey(), tokens: 0 };
+  return anthropicDayUsage.tokens < config.llm.anthropicDailyTokenMax;
+}
+
+function anthropicLogUsage(usage) {
+  if (anthropicDayUsage.day !== dayKey()) anthropicDayUsage = { day: dayKey(), tokens: 0 };
+  const inTok = usage?.input_tokens || 0;
+  const outTok = usage?.output_tokens || 0;
+  anthropicDayUsage.tokens += inTok + outTok;
+  console.log(`[llm] anthropic in=${inTok} out=${outTok} day_total=${anthropicDayUsage.tokens}`);
+}
+
+const userLlmDay = new Map(); // userId -> { day, count }
+function userLlmBudgetOk(userId) {
+  const e = userLlmDay.get(userId);
+  const used = e && e.day === dayKey() ? e.count : 0;
+  return used < config.llm.anthropicUserDailyMax;
+}
+function userLlmBudgetSpend(userId) {
+  const d = dayKey();
+  const e = userLlmDay.get(userId);
+  if (!e || e.day !== d) {
+    // O'sishdan saqlanish: faqat ESKI kun yozuvlari o'chiriladi (reviewer — .clear()
+    // bugungi jonli hisoblagichlarni ham nolga tushirib yuborardi)
+    if (userLlmDay.size > 10_000) {
+      for (const [k, v] of userLlmDay) if (v.day !== d) userLlmDay.delete(k);
+    }
+    userLlmDay.set(userId, { day: d, count: 1 });
+  } else e.count += 1;
+}
+
+// Prompt caching (cache_control) ATAYIN ISHLATILMAYDI: Haiku 4.5'da keshlanadigan minimal
+// prefiks 4096 token, bizning system prompt (qoidalar + toifalar + 2 few-shot) ~1k token —
+// belgi qo'yilsa ham JIMGINA keshlanmaydi, sun'iy to'ldirish (padding) esa teskari samara.
+async function anthropicJson({ key, model, system, user, tool, maxTokens, timeoutMs }) {
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model, max_tokens: maxTokens, temperature: 0, system,
+      messages: [{ role: 'user', content: user }],
+      tools: [tool],
+      tool_choice: { type: 'tool', name: tool.name },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  anthropicLogUsage(data.usage); // kunlik hisob + bitta qator log (kalit YO'Q, faqat sonlar)
+  const block = (data.content || []).find((b) => b.type === 'tool_use');
+  if (block?.input && typeof block.input === 'object') return block.input;
+  // Zaxira: model tool o'rniga matn qaytarsa — JSON bo'lagini ajratib olamiz
+  const txt = (data.content || []).find((b) => b.type === 'text')?.text || '';
+  const m = /\{[\s\S]*\}/.exec(txt);
+  if (m) return JSON.parse(m[0]);
+  throw new Error("tool_use bloki yo'q");
 }
 
 // Multiplikator/valyuta so'zlari kontekst EMAS ("400 ming so'm"da yo'nalish so'zi yo'q)
@@ -169,17 +303,33 @@ export async function previewKinds(text) {
 
   const amounts = spans.map((s) => s.amount);
   let kinds = null; let provider = 'rules';
-  if (hasContext && config.stt.groqKey) {
+  if (hasContext && config.llm.anthropicKey && anthropicGlobalOk()) {
+    try {
+      const parsed = await anthropicJson({
+        key: config.llm.anthropicKey, model: config.llm.anthropicModel,
+        system: PREVIEW_SYS, user: previewUserMsg(text, amounts),
+        // Dinamik cap (reviewer): ko'p-summali matnda qat'iy 60 kesib qo'yardi
+        tool: KINDS_TOOL, maxTokens: Math.max(80, 20 + amounts.length * 8), timeoutMs: 3500,
+      });
+      const k = parsed.kinds;
+      if (!Array.isArray(k) || k.length !== amounts.length
+          || k.some((x) => x !== 'in' && x !== 'out')) throw new Error('kinds formati xato');
+      kinds = k; provider = 'anthropic';
+    } catch (e) {
+      console.warn(`[llm] anthropic preview: ${e.message}`); // jim yutmaymiz (reviewer)
+    }
+  }
+  if (hasContext && !kinds && config.llm.groqKey) {
     try {
       kinds = await previewLlm({ url: 'https://api.groq.com/openai/v1/chat/completions',
-        key: config.stt.groqKey, model: config.llm.groqModel, text, amounts, timeoutMs: 3500 });
+        key: config.llm.groqKey, model: config.llm.groqModel, text, amounts, timeoutMs: 3500 });
       provider = 'groq';
     } catch { /* zaxiraga o'tamiz */ }
   }
-  if (hasContext && !kinds && config.stt.openaiKey) {
+  if (hasContext && !kinds && config.llm.openaiKey) {
     try {
       kinds = await previewLlm({ url: 'https://api.openai.com/v1/chat/completions',
-        key: config.stt.openaiKey, model: config.llm.openaiModel, text, amounts, timeoutMs: 4500 });
+        key: config.llm.openaiKey, model: config.llm.openaiModel, text, amounts, timeoutMs: 4500 });
       provider = 'openai';
     } catch { /* rules zaxirasi */ }
   }
@@ -247,26 +397,69 @@ export function ruleParse(text) {
 }
 
 // ---------- 3-signal: KALIT SO'Z LUG'ATI ----------
-// User lug'ati kuchli (x3), global agregat kuchsiz. score>=2 bo'lsa ishonchli.
-async function dictLookup(userId, words) {
-  if (!words.length) return new Map();
-  const { data } = await supabaseAdmin
-    .from('word_map').select('user_id, word, category, hits').in('word', words).limit(500);
-  const scores = new Map(); // word -> Map(category -> score)
-  for (const r of data || []) {
-    const w = scores.get(r.word) || new Map();
-    w.set(r.category, (w.get(r.category) || 0) + r.hits * (r.user_id === userId ? 3 : 1));
-    scores.set(r.word, w);
+// User lug'ati kuchli (x3), global agregat kuchsiz.
+// Ishonch POG'ONALARI (2026-08-03 QA: prod word_map'da hits=1 "zahar" yozuvlar bor —
+// bozor->Kiyim, kitob->Kiyim: learnFrom yozuvning HAR BIR ma'noli so'zini o'rganadi,
+// bitta eski tasdiq LLM toifasini conf 0.9 bilan jimgina bosib ketardi). Yozuvlar
+// O'CHIRILMAYDI ham O'ZGARTIRILMAYDI — o'qish pog'onasi ularni neytrallaydi:
+//   STRONG (>=6) — LLM toifasini bosish yoki LLM'siz short-circuit ('dict') uchun:
+//     kamida 2 ta shu-user tasdig'i (og'irlik x3) yoki 6 global hit;
+//   MIN (>=2) — FAQAT rules-fallback'da (hech bir LLM ishlamaganda), doim needs_confirm=true.
+export const DICT_SCORE_MIN = 2;
+export const DICT_SCORE_STRONG = 6;
+
+// SOF funksiya (testlanadi): word_map qatorlari -> word -> {category, score}.
+// Tenglikni HECH QACHON Map/iteratsiya tartibi hal qilmaydi (2026-08-03 QA:
+// svet->Transport vs svet->Kommunal nodeterminizmi): score desc -> hits desc ->
+// updated_at desc; shunda ham to'liq teng bo'lsa — ISHONCHLI HIT YO'Q (so'z tashlanadi).
+export function rankDictRows(rows, userId) {
+  const agg = new Map(); // word -> Map(category -> {score, hits, updated})
+  for (const r of rows || []) {
+    const w = agg.get(r.word) || new Map();
+    const e = w.get(r.category) || { score: 0, hits: 0, updated: 0 };
+    e.score += r.hits * (r.user_id === userId ? 3 : 1);
+    e.hits += r.hits;
+    e.updated = Math.max(e.updated, Date.parse(r.updated_at) || 0);
+    w.set(r.category, e);
+    agg.set(r.word, w);
   }
   const best = new Map(); // word -> {category, score}
-  for (const [word, cats] of scores) {
-    const top = [...cats.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (top && top[1] >= 2) best.set(word, { category: top[0], score: top[1] });
+  for (const [word, cats] of agg) {
+    const ranked = [...cats.entries()].sort((a, b) =>
+      (b[1].score - a[1].score) || (b[1].hits - a[1].hits) || (b[1].updated - a[1].updated));
+    const top = ranked[0];
+    if (!top || top[1].score < DICT_SCORE_MIN) continue;
+    const nxt = ranked[1];
+    if (nxt && nxt[1].score === top[1].score && nxt[1].hits === top[1].hits
+        && nxt[1].updated === top[1].updated) continue; // to'liq teng -> hit yo'q
+    best.set(word, { category: top[0], score: top[1].score });
   }
   return best;
 }
 
-// ---------- 1-signal: LLM (Groq asosiy, OpenAI zaxira) ----------
+async function dictLookup(userId, words) {
+  if (!words.length) return new Map();
+  const { data } = await supabaseAdmin.from('word_map')
+    .select('user_id, word, category, hits, updated_at').in('word', words).limit(500);
+  return rankDictRows(data || [], userId);
+}
+
+// Lug'atdan toifa — UMUMIY guardlar (short-circuit, asosiy sikl va fallback uchalasi shu
+// yerdan o'tadi): minScore pog'onasi; 'Boshqa' TOIFANI MAJBURLAMAYDI (eski lug'atda
+// so'z->Boshqa yozuvlari to'planib qolgan — ular to'g'ri toifani va ✨ yangi-toifa
+// taklifini o'chirardi); arxivlangan/yo'q toifa ham majburlanmaydi.
+export function dictCategory(dict, words, categories, minScore) {
+  for (const w of words) {
+    const hit = dict.get(w);
+    if (!hit || hit.score < minScore) continue;
+    if (String(hit.category).trim().toLowerCase() === 'boshqa') continue;
+    if (!categories.some((c) => c.toLowerCase() === String(hit.category).toLowerCase())) continue;
+    return hit.category;
+  }
+  return null;
+}
+
+// ---------- 1-signal: LLM (Anthropic asosiy; Groq -> OpenAI zaxira) ----------
 // Baza toifalarga qisqa tavsif — noto'g'ri "Boshqa"ga tushishni kamaytiradi
 // (user o'zi ochgan papkalar tavsifsiz, nomi bilan qoladi)
 const CAT_HINTS = {
@@ -353,68 +546,125 @@ function sanitizeAction(a, categories, text) {
 
 // ---------- ORKESTR: uch signalni birlashtirish ----------
 export function llmReady() {
-  return !!(config.stt.groqKey || config.stt.openaiKey);
+  return !!(config.llm.anthropicKey || config.llm.groqKey || config.llm.openaiKey);
 }
+
+const parseCache = new Map(); // norm(matn)+toifalar -> LLM natijasi (token tejash keshi)
 
 export async function parseText(text, userId) {
   const words = meaningfulWords(text);
   const [cats, fewshotsRes, dict] = await Promise.all([
     ensureCategories(userId),
+    // Few-shot 4 -> 2 (2026-08-03 token tejash): eng so'nggi 2 tuzatish yetarli signal
     supabaseAdmin.from('corrections').select('text, final').eq('user_id', userId)
-      .order('created_at', { ascending: false }).limit(4),
+      .order('created_at', { ascending: false }).limit(2),
     dictLookup(userId, words),
   ]);
   const categories = cats.map((c) => c.name);
   const fewshots = (fewshotsRes.data || []).map((r) => ({ text: r.text, final: r.final })).reverse();
 
-  // LLM: Groq -> OpenAI zaxira
+  const rule = ruleParse(text);
+
+  // 0-signal: LUG'AT SHORT-CIRCUIT (2026-08-03 token tejash) — LLM oxirgi chora.
+  // KESHDAN OLDIN turadi (reviewer): tuzatishdan keyin lug'at kuchayganda eski keshlangan
+  // LLM natijasi ustun kelmasin — o'z-o'zini o'rgatish sikli ishlashi shart.
+  // Shartlar TOR: bitta summa, aniq xarajat yo'nalishi, qarz-signal yo'q va KUCHLI
+  // lug'at hit (score >= DICT_SCORE_STRONG) — hits=1 zahar yozuvlar bu yerga yetmaydi.
+  // Qarz va ko'p-summali matnlar LLM'ga boradi (bo'linish/person LLM ishi).
+  if (rule.amount > 0 && rule.direction === 'xarajat' && !QARZ_SIGNAL.test(String(text || ''))
+      && amountsFromText(text).length === 1) {
+    const cat = dictCategory(dict, words, categories, DICT_SCORE_STRONG);
+    if (cat) {
+      return {
+        actions: [{ ...rule, category: cat, new_category_suggestion: null,
+          confidence: Math.max(rule.confidence, 0.9) }],
+        needs_confirm: false, provider: 'dict', errors: [],
+      };
+    }
+  }
+
+  // KESH (2026-08-03 token tejash): bir xil user + matn + toifa ro'yxati -> 0 token.
+  // userId kalitda (reviewer): natija userlar aro sizib o'tmasin. FAQAT LLM natijasi
+  // keshlanadi; structuredClone — chaqiruvchi mutatsiyasi keshni zaharlamasin.
+  const cacheKey = `${userId}|${norm(text)}|${categories.join(',').toLowerCase()}`;
+  const cachedRes = parseCache.get(cacheKey);
+  if (cachedRes) return structuredClone(cachedRes);
+
+  // LLM: Anthropic (asosiy, 2026-08-03) -> Groq -> OpenAI zaxira.
+  // Per-user kunlik budjet oshgan bo'lsa LLM UMUMAN chaqirilmaydi -> lug'at/qoida yo'li.
+  // Sarf zanjir BOSHIDA hisoblanadi (reviewer): Anthropic o'tkazib yuborilganda ham
+  // Groq/OpenAI urinishi limitga kiradi — aks holda cap amalda ishlamay qolardi.
   let actions = null; let provider = 'rules'; const errors = [];
-  if (config.stt.groqKey) {
+  const userOk = userLlmBudgetOk(userId);
+  if (!userOk) errors.push('budget: user kunlik LLM limiti');
+  else if (llmReady()) userLlmBudgetSpend(userId);
+  if (userOk && config.llm.anthropicKey) {
+    if (!anthropicGlobalOk()) {
+      errors.push('budget: anthropic kunlik token limiti'); // kill-switch; zaxira davom etadi
+    } else {
+      try {
+        const parsed = await anthropicJson({
+          key: config.llm.anthropicKey, model: config.llm.anthropicModel,
+          system: llmSystemPrompt(categories, fewshots),
+          user: String(text).slice(0, 300),
+          tool: ACTIONS_TOOL, maxTokens: 500, timeoutMs: 7000,
+        });
+        if (!Array.isArray(parsed.actions)) throw new Error("actions massivi yo'q");
+        actions = parsed.actions;
+        provider = 'anthropic';
+      } catch (e) { errors.push(`anthropic: ${e.message}`); }
+    }
+  }
+  if (userOk && !actions && config.llm.groqKey) {
     try {
       actions = await callLlm({
         url: 'https://api.groq.com/openai/v1/chat/completions',
-        key: config.stt.groqKey, model: config.llm.groqModel,
+        key: config.llm.groqKey, model: config.llm.groqModel,
         text, categories, fewshots, timeoutMs: 7000,
       });
       provider = 'groq';
     } catch (e) { errors.push(`groq: ${e.message}`); }
   }
-  if (!actions && config.stt.openaiKey) {
+  if (userOk && !actions && config.llm.openaiKey) {
     try {
       actions = await callLlm({
         url: 'https://api.openai.com/v1/chat/completions',
-        key: config.stt.openaiKey, model: config.llm.openaiModel,
+        key: config.llm.openaiKey, model: config.llm.openaiModel,
         text, categories, fewshots, timeoutMs: 9000,
       });
       provider = 'openai';
     } catch (e) { errors.push(`openai: ${e.message}`); }
   }
 
-  const rule = ruleParse(text);
   let clean = (actions || []).map((a) => sanitizeAction(a, categories, text)).filter(Boolean);
 
   // LLM yiqilsa -> qoida-parser natijasi MAJBURIY tasdiq bilan (XOTIRA §3)
   if (!clean.length) {
-    if (rule.amount > 0) clean = [{ ...rule, new_category_suggestion: null }];
+    if (rule.amount > 0) {
+      const fb = { ...rule, new_category_suggestion: null };
+      // Lug'at FALLBACK'da ham qo'llanadi (2026-08-03): ilgari bu return lug'at siklidan
+      // OLDIN turgani uchun hech bir LLM ishlamay qolganda user o'rgatgan so'zlar
+      // (somsa -> Oziq-ovqat, dori -> Salomatlik) e'tiborsiz qolib, hammasi 'Boshqa'ga
+      // tushardi. Guardlar dictCategory'da (short-circuit bilan umumiy); topilganda
+      // ishonch >= 0.9, lekin needs_confirm=true QOLADI (LLM tekshiruvisiz avto-saqlash yo'q).
+      if (fb.direction === 'xarajat') {
+        // MIN pog'ona yetarli: baribir MAJBURIY tasdiq bor, LLM'siz eng yaxshi taxmin shu
+        const cat = dictCategory(dict, words, categories, DICT_SCORE_MIN);
+        if (cat) { fb.category = cat; fb.confidence = Math.max(fb.confidence, 0.9); }
+      }
+      clean = [fb];
+    }
     return { actions: clean, needs_confirm: true, provider: clean.length ? 'rules' : provider, errors };
   }
 
-  // Lug'at: tanish so'z -> toifani lug'atdan (LLM'siz to'g'ri tushadi)
+  // Lug'at: tanish so'z -> toifani lug'atdan. LLM toifasini FAQAT KUCHLI hit bosadi
+  // (score >= DICT_SCORE_STRONG) — hits=1 zahar yozuv LLM'ni indira olmaydi (2026-08-03 QA)
   for (const a of clean) {
     if (a.direction !== 'xarajat') continue;
-    for (const w of meaningfulWords(a.note)) {
-      const hit = dict.get(w);
-      if (!hit) continue;
-      // 'Boshqa' TOIFANI MAJBURLAMAYDI (2026-08-03): eski lug'atda so'z->Boshqa yozuvlari
-      // to'planib qolgan (learnFrom ilgari Boshqa'ni ham o'rganardi). Ular LLM topgan to'g'ri
-      // toifani va yangi toifa taklifini (✨) o'chirib, foydalanuvchiga "kerakli toifa
-      // yaratilmayapti" bo'lib ko'rinardi. Arxivlangan/yo'q toifa ham majburlanmaydi.
-      if (String(hit.category).trim().toLowerCase() === 'boshqa') continue;
-      if (!categories.some((c) => c.toLowerCase() === String(hit.category).toLowerCase())) continue;
-      if (hit.category !== a.category) { a.category = hit.category; a.new_category_suggestion = null; }
-      a.confidence = Math.max(a.confidence, 0.9);
-      break;
-    }
+    const cat = dictCategory(dict, meaningfulWords(a.note), categories, DICT_SCORE_STRONG);
+    if (!cat) continue;
+    if (cat !== a.category) { a.category = cat; a.new_category_suggestion = null; }
+    a.confidence = Math.max(a.confidence, 0.9);
   }
 
   // Validator: qoida-parser topgan har bir summa LLM natijasida bo'lishi kerak
@@ -429,12 +679,23 @@ export async function parseText(text, userId) {
     || clean.some((a) => a.new_category_suggestion) // yangi toifa JIMGINA yaratilmaydi (§4)
     || clean.some((a) => isQarz(a.direction));      // qarz -> Hamkorlar oqimi, user ishtiroki shart
 
-  return { actions: clean, needs_confirm: needsConfirm, provider, errors };
+  const result = { actions: clean, needs_confirm: needsConfirm, provider, errors };
+  // Faqat LLM natijasi keshlanadi (previewCache siyosati) — takror ibora 0 token.
+  // errors keshga YOZILMAYDI (reviewer): eski fallback ogohlantirishlari hitda takrorlanmasin
+  if (provider !== 'rules') {
+    parseCache.set(cacheKey, structuredClone({ ...result, errors: [] }));
+    if (parseCache.size > 500) parseCache.delete(parseCache.keys().next().value);
+  }
+  return result;
 }
 
 // ---------- O'RGANISH: tasdiqlangan yozuvdan lug'at + tuzatish (few-shot) ----------
 export async function learnFrom(userId, text, finalActions, parsedActions) {
   try {
+    // 0. Kesh invalidatsiyasi (reviewer 2026-08-03): yangi o'rganish shu user'ning eski
+    // keshlangan parse natijalarini bekor qiladi (arzon: kesh <= 500 yozuv)
+    const cachePrefix = `${userId}|`;
+    for (const k of parseCache.keys()) if (k.startsWith(cachePrefix)) parseCache.delete(k);
     // 1. so'z -> toifa lug'ati (faqat xarajat)
     const rows = [];
     for (const a of finalActions) {
