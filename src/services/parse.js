@@ -24,6 +24,11 @@ const STOP = new Set([
   'uchun', 'bilan', 'dan', 'ga', 'da', 'ni', 'va', 'ham', 'esa', 'edi',
   'bugun', 'kecha', 'ertaga', 'oldim', 'berdim', 'qarz', "to'ladim", 'toladim',
   'ketdi', 'tushdi', 'keldi', 'qildim', 'boldi', "bo'ldi", 'menga', 'unga',
+  // 2026-08-03 kech: umumiy fe'l IMLO VARIANTLARI lug'atga o'rganilib STRONG bo'lib
+  // olgan (tuladim->Transport hits=7 "svetga ... tuladim"ni doim Transportga majburlagan).
+  // Fe'l toifa signali EMAS — barcha keng tarqalgan yozilishlari STOP'da tursin.
+  'tuladim', 'tulladim', 'tulash', 'tolash', "to'lash", 'sarfladim', 'ishlatdim',
+  'bedim', 'berdm', 'ketti', 'qilish', 'qivordim', 'qildik', 'yedim', 'yedik',
 ]);
 
 // Lug'at uchun ma'noli so'zlar (raqam/stop-so'z/qisqa so'zlar chiqariladi)
