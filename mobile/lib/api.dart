@@ -161,7 +161,16 @@ class Api {
   static Future<ApiRes> archiveOp(String id) => _req('POST', '/api/operations/$id/archive');
 
   // ---- Expenses / Limits ----
-  static Future<ApiRes> expenses() => _req('GET', '/api/expenses');
+  // Davr filtri (Xarajatlar ekrani): from/to — ISO sana, limit — maksimal soni
+  // (server tomonda 1000 bilan cheklanadi). Parametrsiz — server standarti.
+  static Future<ApiRes> expenses({String? from, String? to, int? limit}) {
+    final q = [
+      if (from != null) 'from=$from',
+      if (to != null) 'to=$to',
+      if (limit != null) 'limit=$limit',
+    ];
+    return _req('GET', '/api/expenses${q.isEmpty ? '' : '?${q.join('&')}'}');
+  }
   static Future<ApiRes> addExpense(num amount, bool income, String category, String note) =>
       _req('POST', '/api/expenses', body: {
         'amount': amount, 'income': income,

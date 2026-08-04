@@ -1,4 +1,5 @@
-// DebtLedger domen testlari — spec 6-bo'lim qabul mezonlari (10 ta).
+// DebtLedger domen testlari — spec 6-bo'lim qabul mezonlari (10 ta)
+// + chat-style lenta alignment (sideFor/sideOf) testlari.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_mobile/ledger/debt_ledger.dart';
 
@@ -182,5 +183,100 @@ void main() {
     expect(l.entries[1].status, EntryStatus.pending);
     l.cancel('mine'); // o'ziniki
     expect(l.entries[0].status, EntryStatus.cancelled);
+  });
+
+  // ---------- Chat-style feed alignment (sideFor / sideOf) ----------
+  // Rule: value OUTFLOW from the viewer -> right, INFLOW -> left; flip inverts.
+  group('sideFor', () {
+    DebtEntry op({
+      required EntryKind kind,
+      String by = 'me',
+      String? ref,
+      CloseReason? reason,
+    }) =>
+        DebtEntry(
+          id: 'op', kind: kind, createdBy: by, amount: 100,
+          date: today, ref: ref, reason: reason,
+        );
+
+    test('debt toMe (I lent) -> right; debt fromMe (I borrowed) -> left', () {
+      expect(sideFor(debt(id: 'd', dir: DebtDir.toMe), flipped: false), LedgerSide.right);
+      expect(sideFor(debt(id: 'd', dir: DebtDir.fromMe), flipped: false), LedgerSide.left);
+    });
+
+    test('repay: on toMe debt (they repay me) -> left; on fromMe debt (I repay) -> right', () {
+      expect(
+        sideFor(op(kind: EntryKind.repay, by: 'them'), flipped: false, refDirection: DebtDir.toMe),
+        LedgerSide.left,
+      );
+      expect(
+        sideFor(op(kind: EntryKind.repay), flipped: false, refDirection: DebtDir.fromMe),
+        LedgerSide.right,
+      );
+    });
+
+    test('settle by CREDITOR on own toMe debt -> still left (owner spec: self-close)', () {
+      // Viewer is the creditor and records the settle themselves — the money
+      // notionally returned to them, so it stays LEFT regardless of author.
+      final s = op(kind: EntryKind.settle, by: 'me', ref: 'd1', reason: CloseReason.returned);
+      expect(sideFor(s, flipped: false, refDirection: DebtDir.toMe, mine: true), LedgerSide.left);
+      // Forgiven variant follows the same flow rule.
+      final f = op(kind: EntryKind.settle, by: 'me', ref: 'd1', reason: CloseReason.forgiven);
+      expect(sideFor(f, flipped: false, refDirection: DebtDir.toMe, mine: true), LedgerSide.left);
+    });
+
+    test('settle on fromMe debt (I owed, debt closed) -> right', () {
+      final s = op(kind: EntryKind.settle, by: 'them', ref: 'd1', reason: CloseReason.returned);
+      expect(sideFor(s, flipped: false, refDirection: DebtDir.fromMe, mine: false), LedgerSide.right);
+    });
+
+    test('flip inverts all four cases', () {
+      expect(sideFor(debt(id: 'd', dir: DebtDir.toMe), flipped: true), LedgerSide.left);
+      expect(sideFor(debt(id: 'd', dir: DebtDir.fromMe), flipped: true), LedgerSide.right);
+      expect(
+        sideFor(op(kind: EntryKind.repay, by: 'them'), flipped: true, refDirection: DebtDir.toMe),
+        LedgerSide.right,
+      );
+      expect(
+        sideFor(op(kind: EntryKind.settle, by: 'me'), flipped: true, refDirection: DebtDir.fromMe),
+        LedgerSide.left,
+      );
+    });
+
+    test('orphan op (no resolvable ref direction): author fallback, flip inverts', () {
+      expect(sideFor(op(kind: EntryKind.repay), flipped: false, mine: true), LedgerSide.right);
+      expect(sideFor(op(kind: EntryKind.repay, by: 'them'), flipped: false, mine: false), LedgerSide.left);
+      expect(sideFor(op(kind: EntryKind.repay), flipped: true, mine: true), LedgerSide.left);
+    });
+  });
+
+  group('DebtLedger.sideOf', () {
+    test('resolves ref debt direction from entries (viewer perspective)', () {
+      final l = led(e: [debt(id: 'd1', dir: DebtDir.toMe)]);
+      final r = l.openOp(id: 'r1', kind: EntryKind.repay, refDebtId: 'd1', amount: 100, date: today);
+      expect(l.sideOf(l.entries.first), LedgerSide.right); // debt toMe -> right
+      expect(l.sideOf(r), LedgerSide.left); // repayment flows to me -> left
+      expect(l.sideOf(r, flipped: true), LedgerSide.right); // second-side view mirrors
+    });
+
+    test('settle recorded by creditor herself on toMe debt -> left', () {
+      final l = led(e: [debt(id: 'd1', dir: DebtDir.toMe)]);
+      final s = l.openOp(
+          id: 's1', kind: EntryKind.settle, refDebtId: 'd1', amount: 1000,
+          reason: CloseReason.returned, date: today);
+      expect(s.createdBy, 'me'); // viewer (creditor) recorded it...
+      expect(l.sideOf(s), LedgerSide.left); // ...but the flow is TO the viewer
+    });
+
+    test('orphan repay (missing ref) falls back to author side', () {
+      final l = led(e: [
+        DebtEntry(id: 'r1', kind: EntryKind.repay, createdBy: 'me', amount: 100,
+            date: today, ref: 'ghost'),
+        DebtEntry(id: 'r2', kind: EntryKind.repay, createdBy: 'them', amount: 100,
+            date: today, ref: 'ghost'),
+      ]);
+      expect(l.sideOf(l.entries[0]), LedgerSide.right);
+      expect(l.sideOf(l.entries[1]), LedgerSide.left);
+    });
   });
 }

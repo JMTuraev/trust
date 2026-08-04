@@ -69,6 +69,71 @@ class _GroupFmt extends TextInputFormatter {
   }
 }
 
+/// Chat-style alignment wrapper for ledger feed cards (public for widget tests).
+///
+/// Side comes from the store feed map ('right' = value outflow from the viewer,
+/// 'left' = inflow; see `sideFor` in debt_ledger.dart). Unknown/empty side
+/// falls back to the legacy full-width card so the feed never breaks.
+/// Visuals (monochrome system):
+/// - right ("sent"): subtle [Pal.card2] tint, no border, small bottom-right corner;
+/// - left ("received"): [Pal.bg] with hairline border, small bottom-left corner.
+class LedgerFeedBubble extends StatelessWidget {
+  final String side; // 'right' | 'left' | '' (unknown -> full-width)
+  final Pal pal;
+  final VoidCallback? onTap;
+  final Widget child;
+
+  /// Bubble width as a fraction of the feed width (spec: ~78-80%; interactive
+  /// cards may pass up to ~0.92 for usability).
+  final double widthFactor;
+
+  const LedgerFeedBubble({
+    super.key,
+    required this.side,
+    required this.pal,
+    required this.child,
+    this.onTap,
+    this.widthFactor = 0.80,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isRight = side == 'right';
+    final isLeft = side == 'left';
+    final aligned = isRight || isLeft;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      child: Align(
+        alignment: isRight
+            ? Alignment.centerRight
+            : isLeft
+                ? Alignment.centerLeft
+                : Alignment.center,
+        child: FractionallySizedBox(
+          widthFactor: aligned ? widthFactor : 1.0,
+          child: Tap(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+              decoration: BoxDecoration(
+                color: isRight ? pal.card2 : pal.bg,
+                border: isRight ? null : Border.all(color: pal.hair2),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(14),
+                  topRight: const Radius.circular(14),
+                  bottomLeft: Radius.circular(isLeft ? 5 : 14),
+                  bottomRight: Radius.circular(isRight ? 5 : 14),
+                ),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ClientScreen extends StatefulWidget {
   const ClientScreen({super.key});
 
@@ -194,29 +259,27 @@ class _ClientScreenState extends State<ClientScreen> {
     );
   }
 
-  // ---------------- Lenta: qarz kartochkasi ----------------
+  // ---------------- Lenta: qarz kartochkasi (chat-style bubble) ----------------
   Widget _feedCard(Map<String, dynamic> m, Pal p) {
     final dead = m['isDead'] == true;
+    final side = m['side'] as String? ?? '';
+    // Tinted ("sent") bubble: p.field blends into p.card2 — use the stronger
+    // neutral fill for the progress track and neutral tag chips there.
+    final fill = side == 'right' ? p.barbg : p.field;
     final progW = (m['progW'] as int).toDouble();
     final tags = <Widget>[];
     if (m['oneSided'] == true) tags.add(_chip(store.L()['tagUnconfirmed'] as String, _amber, _amber.withValues(alpha: .12)));
-    if (m['reviewing'] == true) tags.add(_chip(store.L()['tagReviewing'] as String, p.t2, p.field));
+    if (m['reviewing'] == true) tags.add(_chip(store.L()['tagReviewing'] as String, p.t2, fill));
     if (m['disputed'] == true) tags.add(_chip(store.L()['tagDisputed'] as String, p.red, p.red.withValues(alpha: .12)));
-    if (m['edited'] == true) tags.add(_chip(store.L()['tagEdited'] as String, p.t3, p.field));
+    if (m['edited'] == true) tags.add(_chip(store.L()['tagEdited'] as String, p.t3, fill));
 
     return Opacity(
       opacity: dead ? 0.5 : 1,
-      child: Tap(
+      child: LedgerFeedBubble(
+        side: side,
+        pal: p,
         onTap: m['open'] as VoidCallback,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-          decoration: BoxDecoration(
-            color: p.bg,
-            border: Border.all(color: p.hair2),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
@@ -253,7 +316,7 @@ class _ClientScreenState extends State<ClientScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(3),
                 child: Stack(children: [
-                  Container(height: 5, color: p.field),
+                  Container(height: 5, color: fill),
                   FractionallySizedBox(
                     widthFactor: (progW / 100).clamp(0.0, 1.0),
                     child: Container(height: 5, color: m['isClosed'] == true ? p.green : p.ink),
@@ -282,8 +345,7 @@ class _ClientScreenState extends State<ClientScreen> {
                 child: Tx(store.L()['btnCancelFull'] as String, size: 12.5, w: FontWeight.w600, color: p.red),
               ),
             ],
-          ]),
-        ),
+        ]),
       ),
     );
   }

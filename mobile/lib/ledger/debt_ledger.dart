@@ -211,6 +211,45 @@ class DebtEntry {
       EntryStatus.pending;
 }
 
+// ---------- Chat-style feed alignment (viewer-relative value flow) ----------
+
+/// Feed bubble side. Chat-style ledger: value OUTFLOW from the viewer sits on
+/// the RIGHT (like a sent message), value INFLOW to the viewer on the LEFT.
+enum LedgerSide { left, right }
+
+/// PURE alignment decision for one feed entry (product spec, viewer-relative):
+///
+/// - debt toMe   (I lent money out)      -> outflow -> right
+/// - debt fromMe (I took a debt)         -> inflow  -> left
+/// - repay/settle on a toMe debt         -> money returns to me -> left,
+///   REGARDLESS of who recorded it (creditor closing the debt themselves
+///   still shows left — money notionally returned to them)
+/// - repay/settle on a fromMe debt       -> I pay back -> outflow -> right
+/// - [flipped] (second-side view) mirrors the perspective, so sides invert.
+///
+/// [refDirection] is the referenced debt's direction for repay/settle entries
+/// (already normalized to the viewer's perspective). When the flow cannot be
+/// determined (orphan op, direction missing) the author fallback applies:
+/// [mine] records sit on the right, the partner's on the left.
+LedgerSide sideFor(
+  DebtEntry e, {
+  required bool flipped,
+  DebtDir? refDirection,
+  bool mine = true,
+}) {
+  final dir = e.isDebt ? e.direction : refDirection;
+  bool outflow;
+  if (dir == null) {
+    outflow = mine; // fallback: author's record on the author's side
+  } else if (e.isDebt) {
+    outflow = dir == DebtDir.toMe;
+  } else {
+    outflow = dir == DebtDir.fromMe;
+  }
+  if (flipped) outflow = !outflow;
+  return outflow ? LedgerSide.right : LedgerSide.left;
+}
+
 int _max0(int v) => v < 0 ? 0 : v;
 int _min(int a, int b) => a < b ? a : b;
 
@@ -523,6 +562,15 @@ class DebtLedger {
     byCur.removeWhere((_, v) => v == 0);
     return byCur;
   }
+
+  /// Chat-style side of [e] for the current viewer ([meId] perspective).
+  /// Resolves the referenced debt (repay/settle) from [entries]; see [sideFor].
+  LedgerSide sideOf(DebtEntry e, {bool flipped = false}) => sideFor(
+        e,
+        flipped: flipped,
+        refDirection: e.ref != null ? _byId(e.ref!)?.direction : null,
+        mine: e.createdBy == meId,
+      );
 
   /// Tasdiqsiz (oneSided, active) qoldiq — header'da alohida ko'rsatiladi
   Map<String, int> unverifiedBalances() {

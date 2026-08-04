@@ -72,6 +72,87 @@ async function balancesFor(partnerIds) {
   return map;
 }
 
+// Kontragent profillari ichidan O'CHIRILGANLARI (soft-delete: profiles.deleted_at)
+// yoki umuman yo'qlari. Mobil "in Trust" belgisini shu bayroq bilan yashiradi —
+// aks holda hisobini o'chirgan odam abadiy "Trust'da" bo'lib ko'rinardi.
+// Natija: Set<counterparty_id>. Bitta so'rov (N+1 yo'q).
+async function deletedCounterpartySet(cpIds) {
+  const ids = [...new Set((cpIds || []).filter(Boolean))];
+  if (!ids.length) return new Set();
+  const { data } = await supabaseAdmin
+    .from('profiles').select('id, deleted_at').in('id', ids);
+  const byId = new Map((data || []).map((r) => [r.id, r.deleted_at]));
+  const out = new Set();
+  for (const id of ids) {
+    if (!byId.has(id) || byId.get(id)) out.add(id); // qator yo'q YOKI deleted_at bor
+  }
+  return out;
+}
+
+// Davr agregatlari — GET /api/partners?period_from&period_to uchun.
+// [fromMs, toMs) oralig'ida YARATILGAN (created_at) debts + operations yozuvlari.
+// Yo'nalish SO'ROVCHI foydalanuvchiga nisbatan (canonicalDir naqshi — debts.direction
+// created_by nuqtai nazarida saqlanadi). Chegaralar mobil tomonda hisoblanadi (epoch ms,
+// mahalliy yarim tun) — server kun chegarasini HISOBLAMAYDI, faqat filtrlaydi.
+// 3 ta guruh so'rov (N+1 yo'q): debts oralig'i, ref qarzlar (yo'nalish uchun), operations.
+// Natija: Map<partnerId, {to_me, by_me, repaid_to_me, repaid_by_me, count}>.
+async function periodAggregates(partnerIds, userId, fromMs, toMs) {
+  const empty = () => ({ to_me: 0, by_me: 0, repaid_to_me: 0, repaid_by_me: 0, count: 0 });
+  const map = new Map(partnerIds.map((id) => [id, empty()]));
+  if (!partnerIds.length) return map;
+  const fromIso = new Date(fromMs).toISOString();
+  const toIso = new Date(toMs).toISOString();
+  const [debts, ops] = await Promise.all([
+    supabaseAdmin.from('debts')
+      .select('partner_id, kind, status, direction, created_by, amount, ref_id')
+      .in('partner_id', partnerIds)
+      .gte('created_at', fromIso).lt('created_at', toIso)
+      .not('status', 'in', '(cancelled,rejected)'),
+    supabaseAdmin.from('operations')
+      .select('partner_id, delta')
+      .in('partner_id', partnerIds)
+      .gte('created_at', fromIso).lt('created_at', toIso)
+      .in('status', ['active', 'archived']), // balancesFor bilan bir xil filtr
+  ]);
+  const rows = debts.data || [];
+  // repay/settle yo'nalishi BOG'LIQ qarzdan olinadi (bola yozuvda direction yo'q)
+  const refIds = [...new Set(rows
+    .filter((r) => (r.kind === 'repay' || r.kind === 'settle') && r.ref_id)
+    .map((r) => r.ref_id))];
+  const refById = new Map();
+  if (refIds.length) {
+    const { data: refs } = await supabaseAdmin
+      .from('debts').select('id, direction, created_by').in('id', refIds);
+    for (const r of refs || []) refById.set(r.id, r);
+  }
+  for (const r of rows) {
+    const agg = map.get(r.partner_id);
+    if (!agg) continue;
+    agg.count += 1;
+    const amt = Number(r.amount || 0);
+    if (r.kind === 'debt') {
+      // canonicalDir so'rovchi nuqtai nazariga normallashtiradi
+      const dir = canonicalDir(r, userId);
+      if (dir === 'toMe') agg.to_me += amt; else agg.by_me += amt;
+    } else if (r.kind === 'repay' || r.kind === 'settle') {
+      const ref = refById.get(r.ref_id);
+      if (!ref) continue; // ref o'chgan — yo'nalishsiz, faqat count'da qoladi
+      const dir = canonicalDir(ref, userId);
+      if (dir === 'toMe') agg.repaid_to_me += amt; else agg.repaid_by_me += amt;
+    }
+  }
+  // Eski daftar (operations): delta EGA nuqtai nazarida (+ = menga). Bu endpoint
+  // faqat owner ro'yxatida ishlatiladi, shuning uchun ishora to'g'ridan-to'g'ri o'qiladi.
+  for (const o of ops.data || []) {
+    const agg = map.get(o.partner_id);
+    if (!agg) continue;
+    agg.count += 1;
+    const d = Number(o.delta || 0);
+    if (d >= 0) agg.to_me += d; else agg.by_me += -d;
+  }
+  return map;
+}
+
 // Eslatma matni uchun asosiy valyuta — absolyut qiymati eng kattasi (bo'sh bo'lsa UZS/0)
 function mainBalance(balances) {
   let cur = 'UZS', val = balances.UZS || 0;
@@ -98,9 +179,24 @@ function maskStatus(p, sentIds) {
   return { ...p, link_status: masked };
 }
 
-// GET /api/partners
+// GET /api/partners[?period_from=<epoch_ms>&period_to=<epoch_ms>]
+// period_from/period_to IKKALASI berilsa har hamkorga `period` agregati qo'shiladi;
+// berilmasa `period` maydoni UMUMAN bo'lmaydi (mobil graceful degradation'ga tayanadi).
 router.get('/', async (req, res, next) => {
   try {
+    const { period_from: rawFrom, period_to: rawTo } = req.query;
+    const hasPeriod = rawFrom !== undefined && rawTo !== undefined;
+    let fromMs = 0, toMs = 0;
+    if (hasPeriod) {
+      fromMs = Number(rawFrom); toMs = Number(rawTo);
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) {
+        return res.status(400).json({
+          success: false,
+          error: 'period_from/period_to epoch millisekund bo\'lishi kerak (from <= to)',
+        });
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('partners')
       .select('*')
@@ -108,13 +204,21 @@ router.get('/', async (req, res, next) => {
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
     const ids = (data || []).map((p) => p.id);
-    const [sentIds, balances] = await Promise.all([sentSignalIds(ids), balancesFor(ids)]);
+    const [sentIds, balances, deletedCps, periods] = await Promise.all([
+      sentSignalIds(ids),
+      balancesFor(ids),
+      deletedCounterpartySet((data || []).map((p) => p.counterparty_id)),
+      hasPeriod ? periodAggregates(ids, req.user.id, fromMs, toMs) : Promise.resolve(null),
+    ]);
     const rows = (data || []).map((p) => {
       const b = balances.get(p.id) || {};
       return {
         ...maskStatus(p, sentIds),
         balance: b.UZS || 0, // orqaga moslik: faqat UZS yig'indisi
         balances: b, // valyuta bo'yicha, masalan {"UZS": 150000, "USD": -20}
+        // Kontragent hisobini o'chirgan — mobil "in Trust" belgisini yashiradi
+        counterparty_deleted: !!(p.counterparty_id && deletedCps.has(p.counterparty_id)),
+        ...(periods ? { period: periods.get(p.id) } : {}),
       };
     });
     res.json({ success: true, data: rows });
@@ -188,7 +292,7 @@ async function notifyLinkNew(sellerId, cpId, partnerId) {
   pushToUser(cpId, {
     title: 'Sizni kontragent qilib qo\'shishdi',
     body: `${displayName(seller)} sizni kontragent qilib qo'shgan — qabul qilasizmi?`,
-    data: { type: 'link_new', link_id: partnerId },
+    data: { type: 'link_new', link_id: partnerId, partner_id: partnerId },
   });
 }
 
@@ -268,10 +372,18 @@ router.get('/:id', async (req, res, next) => {
       .from('operations').select('*').eq('partner_id', p.id)
       .in('status', ['active', 'archived', 'cancelled'])
       .order('created_at', { ascending: false });
-    const [sentIds, { balance, balances }] = await Promise.all([sentSignalIds([p.id]), balanceOf(p.id)]);
+    const [sentIds, { balance, balances }, deletedCps] = await Promise.all([
+      sentSignalIds([p.id]),
+      balanceOf(p.id),
+      deletedCounterpartySet([p.counterparty_id]),
+    ]);
     res.json({
       success: true,
-      data: { ...maskStatus(p, sentIds), balance, balances, operations: ops || [] },
+      data: {
+        ...maskStatus(p, sentIds), balance, balances,
+        counterparty_deleted: !!(p.counterparty_id && deletedCps.has(p.counterparty_id)),
+        operations: ops || [],
+      },
     });
   } catch (e) { next(e); }
 });
@@ -380,20 +492,29 @@ router.post('/:id/remind', requireActiveSub, async (req, res, next) => {
 
     const { balances } = await balanceOf(p.id);
     const main = mainBalance(balances); // asosiy (eng katta absolyut) valyuta
-    const { error } = await supabaseAdmin.from('notifications').insert({
+    const remAmount = Math.abs(main.val);
+    const base = {
       user_id: p.counterparty_id,
       sender_id: req.user.id,
       type: 'rem',
       title: 'Eslatma',
-      detail: `${Math.abs(main.val).toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
+      detail: `${remAmount.toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
       link_id: p.id,
-    });
+    };
+    // amount/currency — hamkor kartasi badge'i uchun (019 migratsiya). Ustun hali
+    // bo'lmasa summasiz qayta urinamiz — eslatma yo'qolmasin.
+    let { error } = await supabaseAdmin.from('notifications')
+      .insert({ ...base, amount: remAmount || null, currency: main.cur });
+    if (error) ({ error } = await supabaseAdmin.from('notifications').insert(base));
     if (error) throw new Error(error.message);
     // Telefonga push — mahsulotning yadro va'dasi (eslatish). await EMAS.
     pushToUser(p.counterparty_id, {
       title: 'Eslatma',
-      body: `${Math.abs(main.val).toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
-      data: { type: 'rem', link_id: p.id },
+      body: `${remAmount.toLocaleString('ru-RU')} ${main.cur} — hisobni ko'rib chiqing`,
+      data: {
+        type: 'rem', link_id: p.id, partner_id: p.id,
+        amount: remAmount, currency: main.cur,
+      },
     });
     res.json({ success: true });
   } catch (e) { next(e); }

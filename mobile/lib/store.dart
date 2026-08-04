@@ -2,8 +2,10 @@
 // Barcha state, hodisalar va hosilaviy qiymatlar (vals) prototip bilan 1:1.
 // vals() Map qaytaradi — kalitlar prototip template placeholderlari bilan bir xil.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:image_picker/image_picker.dart';
@@ -35,6 +37,89 @@ const List<Map<String, dynamic>> ccList = [
   {'f': '🇩🇪', 'n': 'Germaniya', 'd': '+49', 'len': 10, 'ph': '1512 345 6789'},
 ];
 
+// ---------------- Home qidiruv/filtr sof funksiyalari (unit-test: test/home_*) ----------------
+
+/// Qidiruv normalizatsiyasi: kichik harf, apostrof variantlari (’ ʻ ʼ ‘ ` ´ -> ')
+/// birxillashadi, o'zbek kirillcha matn lotinga o'giriladi — so'rov qaysi
+/// yozuvda bo'lsa ham ism topiladi ("Азиз" ↔ "Aziz", "Ғани" ↔ "G'ani").
+String searchNorm(String s) {
+  var t = s.toLowerCase();
+  t = t.replaceAll(RegExp('[‘’ʻʼ`´]'), "'");
+  if (!RegExp(r'[Ѐ-ӿ]').hasMatch(t)) return t;
+  const cyr = {
+    // Digraflar / o'zbekcha maxsus harflar
+    'ш': 'sh', 'ч': 'ch', 'ё': 'yo', 'ю': 'yu', 'я': 'ya', 'ц': 'ts', 'щ': 'sh',
+    'ў': "o'", 'ғ': "g'", 'қ': 'q', 'ҳ': 'h',
+    // Yakka harflar
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ж': 'j',
+    'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f',
+    'х': 'x', 'ъ': "'", 'ь': '', 'э': 'e',
+  };
+  final b = StringBuffer();
+  for (final ch in t.split('')) {
+    b.write(cyr[ch] ?? ch);
+  }
+  return b.toString();
+}
+
+/// Faqat raqamlar ('+998 90 703-44-44' -> '998907034444')
+String digitsOf(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+
+/// Hamkor qatori qidiruvga mos keladimi:
+/// - ism: searchNorm bilan (apostrof + kirill/lotin bardoshli), qism-satr;
+/// - telefon: ikkala tomondan raqam ajratiladi, so'rovda >=3 raqam bo'lsa qism-satr;
+/// - summa: so'rov faqat raqam (bo'shliq/nuqta/vergul ajratkichlariga ruxsat)
+///   bo'lsa balans raqamlariga qism-satr ("500" -> 1 500 000 mos).
+bool partnerMatch(String query,
+    {required String name, String phone = '', Iterable<int> amounts = const []}) {
+  final q = query.trim();
+  if (q.isEmpty) return true;
+  if (searchNorm(name).contains(searchNorm(q))) return true;
+  final qd = digitsOf(q);
+  if (qd.length >= 3 && digitsOf(phone).contains(qd)) return true;
+  final numericOnly =
+      qd.isNotEmpty && q.replaceAll(RegExp('[\\s.,  ]'), '') == qd;
+  if (numericOnly) {
+    for (final a in amounts) {
+      if ('${a.abs()}'.contains(qd)) return true;
+    }
+  }
+  return false;
+}
+
+/// Davr chegaralari — QURILMA-LOKAL vaqtda, [fromMs, toMs], ikkalasi INKLYUZIV.
+/// Loyihaviy saboq: kun chegarasi hech qachon serverda hisoblanmaydi (±1 kun
+/// timezone xatosi). Hafta dushanbadan boshlanadi. 'all' -> [0, 0] (filtr yo'q).
+List<int> homePeriodRange(String filter, DateTime now,
+    {int customFrom = 0, int customTo = 0}) {
+  int startOf(DateTime d) => DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+  int endOf(DateTime d) => DateTime(d.year, d.month, d.day + 1).millisecondsSinceEpoch - 1;
+  switch (filter) {
+    case 'today':
+      return [startOf(now), endOf(now)];
+    case 'yesterday':
+      final y = DateTime(now.year, now.month, now.day - 1);
+      return [startOf(y), endOf(y)];
+    case 'week':
+      final mon = DateTime(now.year, now.month, now.day - (now.weekday - 1));
+      return [startOf(mon), endOf(now)];
+    case 'month':
+      return [DateTime(now.year, now.month, 1).millisecondsSinceEpoch, endOf(now)];
+    case 'custom':
+      var f = DateTime.fromMillisecondsSinceEpoch(customFrom);
+      var t = DateTime.fromMillisecondsSinceEpoch(customTo);
+      if (customFrom > customTo) {
+        final tmp = f;
+        f = t;
+        t = tmp;
+      }
+      return [startOf(f), endOf(t)];
+    default:
+      return [0, 0];
+  }
+}
+
 class TrustStore extends ChangeNotifier {
   final Map<String, dynamic> S = {
     // 'boot' — sessiya tekshirilgunicha splash (welcome "miltillab" o'tib ketmasin)
@@ -64,6 +149,8 @@ class TrustStore extends ChangeNotifier {
     // OLDIN xira karta paydo bo'ladi, qo'nganda haqiqiy yozuv bilan to'ladi.
     'xfGhostCats': <String, bool>{},
     'xfFly': <Map<String, dynamic>>[], // papkaga "uchish" animatsiya hodisalari (UI iste'mol qiladi)
+    'xfReorderFrom': null, // qayta-tartib siljishi uchun ESKI tartib (bir martalik, UI iste'mol qiladi)
+    'xfPeriod': <String, dynamic>{'kind': 'month'}, // davr filtri: today/yesterday/week/month/all/custom(from,to)
     // Chatdagi yozuvni inline tahrirlash (bubble bosilganda)
     'xEditId': null, 'xEditVals': null,
     'xarLimit': 0, 'limEdit': null,
@@ -82,6 +169,15 @@ class TrustStore extends ChangeNotifier {
     'swipeId': null, 'swipeDx': 0.0, 'swipeSnap': null,
     'npOpen': false, 'npName': '', 'npPhone': '',
     'homeLoadingMore': false, 'opsLoadingMore': false,
+    // Home davr filtri (header dropdown): 'all'|'today'|'yesterday'|'week'|'month'|'custom'
+    'homeFilter': 'all', 'homeFilterFrom': 0, 'homeFilterTo': 0,
+    'homeFilterOpen': false, 'homeMenuOpen': false,
+    // Davr summalari (server): partnerId -> {to_me, by_me, repaid_to_me, repaid_by_me, count}
+    'homePeriod': <String, Map<String, int>>{},
+    // Server javobida 'period' bor-yo'qligi — eski backend'da false: filtr o'chadi
+    // (ro'yxat to'liq, umumiy summalar) — graceful degradation, hech qachon yiqilmaydi.
+    'homePeriodOk': false,
+    'homePeriodLoading': false,
     'onbCc': '+998', 'npCc': '+998', 'ccOpen': null, 'ccSearch': '',
     'form': <String, dynamic>{'type': 'Qarz berdim', 'amount': '', 'currency': 'UZS', 'note': '', 'name': ''},
     // Real ma'lumotlar serverdan hydrate() orqali yuklanadi
@@ -453,8 +549,10 @@ class TrustStore extends ChangeNotifier {
     if (_hydrating) return;
     _hydrating = true;
     try {
+      // Xarajatlar tanlangan davr bo'yicha tortiladi (polling ham shu davrni
+      // saqlaydi — aks holda filtrlangan ro'yxat standart javob bilan yuvilardi)
       final rs = await Future.wait(
-          [Api.partners(), Api.notifications(), Api.expenses(), Api.getLimit(), Api.links(), Api.unreadCounts()]);
+          [Api.partners(), Api.notifications(), _xfFetchExpenses(), Api.getLimit(), Api.links(), Api.unreadCounts()]);
       final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4], ur = rs[5];
       var plist = <Map<String, dynamic>>[];
       final patch = <String, dynamic>{};
@@ -479,6 +577,10 @@ class TrustStore extends ChangeNotifier {
         patch['links'] = (kr.data as List).cast<Map<String, dynamic>>().map(_mapLink).toList();
       }
       if (patch.isNotEmpty) set(patch);
+
+      // Davr filtri faol bo'lsa — summalari ham polling bilan birga yangilanadi
+      // (kun almashsa chegaralar qurilma-lokal qayta hisoblanadi)
+      if (S['homeFilter'] != 'all') unawaited(loadHomePeriod_());
 
       // Ochiq kiruvchi daftar bo'lsa — operatsiyalarini yangilab turamiz
       if (S['inLinkId'] != null) _loadLinkOps(S['inLinkId'] as String, silent: true);
@@ -532,6 +634,121 @@ class TrustStore extends ChangeNotifier {
     _poll = Timer.periodic(const Duration(seconds: 15), (_) {
       if (S['stage'] == 'app') hydrate(full: false);
     });
+  }
+
+  // ---------------- Home davr filtri (period) ----------------
+  // Yangi so'rov eski javobni bekor qiladi (poyga bardoshi)
+  int _periodSeq = 0;
+
+  /// GET /api/partners?period_from=..&period_to=.. — davr summalari bilan.
+  /// api.dart (umumiy fayl) tegilmasin deb shu yerda — circles_data._circlesReq
+  /// naqshi (auth header, 401 -> markazlashgan logout). Xato jim qaytadi:
+  /// loadHomePeriod_ degradatsiyani o'zi boshqaradi.
+  Future<ApiRes> _partnersPeriodReq(int from, int to) async {
+    try {
+      final uri = Uri.parse('$apiUrl/api/partners?period_from=$from&period_to=$to');
+      final headers = {
+        'Content-Type': 'application/json',
+        if (Api.token != null) 'Authorization': 'Bearer ${Api.token}',
+      };
+      final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 20));
+      Map<String, dynamic> map;
+      try {
+        final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+        map = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      } catch (_) {
+        map = <String, dynamic>{};
+      }
+      if (res.statusCode >= 400 || map['success'] == false) {
+        if (res.statusCode == 401 && Api.token != null) Api.onUnauthorized?.call();
+        return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})', res.statusCode);
+      }
+      return ApiRes(true, map['data'], '', res.statusCode);
+    } catch (_) {
+      return ApiRes(false, null, '', 0);
+    }
+  }
+
+  /// Faol filtr uchun davr summalarini yuklaydi. Chegaralar FAQAT qurilma-lokal
+  /// hisoblanadi (homePeriodRange). Muvaffaqiyatsiz so'rov yoki 'period'siz javob
+  /// (eski backend) -> homePeriodOk=false: ro'yxat TO'LIQ, umumiy summalar qoladi.
+  Future<void> loadHomePeriod_() async {
+    if (S['homeFilter'] == 'all') return;
+    final r = homePeriodRange(S['homeFilter'] as String, DateTime.now(),
+        customFrom: S['homeFilterFrom'] as int, customTo: S['homeFilterTo'] as int);
+    final seq = ++_periodSeq;
+    set({'homePeriodLoading': true});
+    final res = await _partnersPeriodReq(r[0], r[1]);
+    if (seq != _periodSeq || S['homeFilter'] == 'all') return; // eskirgan javob
+    if (!res.ok || res.data is! List) {
+      set({'homePeriodLoading': false, 'homePeriodOk': false, 'homePeriod': <String, Map<String, int>>{}});
+      return;
+    }
+    final rows = (res.data as List).whereType<Map>().toList();
+    final per = <String, Map<String, int>>{};
+    var has = false;
+    for (final p in rows) {
+      final pd = p['period'];
+      if (pd is Map) {
+        has = true;
+        per['${p['id']}'] = pd.map((k, v) => MapEntry('$k', _numToInt(v)));
+      }
+    }
+    // Bo'sh ro'yxat -> filtr baribir bo'sh; qatorlar bor-u 'period' yo'q -> eski backend
+    set({'homePeriodLoading': false, 'homePeriodOk': rows.isEmpty || has, 'homePeriod': per});
+  }
+
+  /// Davr filtri tanlovi ('custom' uchun from/to — epoch ms, qurilma-lokal kunlar)
+  void setHomeFilter_(String f, {int from = 0, int to = 0}) {
+    _periodSeq++; // uchayotgan eski javob endi qo'llanilmaydi
+    set({
+      'homeFilter': f, 'homeFilterFrom': from, 'homeFilterTo': to,
+      'homeFilterOpen': false, 'homeMenuOpen': false,
+      'homeVis': 6, // sahifalash boshidan (onSearch bilan bir xil)
+      'homePeriod': <String, Map<String, int>>{},
+      'homePeriodOk': false,
+      'homePeriodLoading': f != 'all',
+    });
+    if (f != 'all') loadHomePeriod_();
+  }
+
+  /// Faol filtr chip yorlig'i ('Shu hafta' / '12.07 – 03.08' ...)
+  String fltLabel_(Map<String, dynamic> L0) {
+    String dm(int ms) {
+      final d = DateTime.fromMillisecondsSinceEpoch(ms);
+      return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
+    }
+
+    return switch (S['homeFilter']) {
+      'today' => L0['fltToday'] as String,
+      'yesterday' => L0['fltYesterday'] as String,
+      'week' => L0['fltWeek'] as String,
+      'month' => L0['fltMonth'] as String,
+      'custom' => '${dm(S['homeFilterFrom'] as int)} – ${dm(S['homeFilterTo'] as int)}',
+      _ => L0['fltAll'] as String,
+    };
+  }
+
+  /// Home ro'yxati filtri — kuchli qidiruv + faol davr (period.count > 0).
+  /// vals() va homeMore sahifalashi BIR XIL manbadan foydalanadi.
+  List<Map<String, dynamic>> _homeClients() {
+    final q = (S['search'] as String).trim();
+    final fActive = S['homeFilter'] != 'all' && S['homePeriodOk'] == true;
+    final per = S['homePeriod'] as Map;
+    return _clients().where((c) {
+      if (c['archived'] == true) return false;
+      if (!partnerMatch(q,
+          name: (c['name'] ?? '') as String,
+          phone: (c['phone'] ?? '') as String,
+          amounts: ((c['srvBal'] as Map?)?.values ?? const <dynamic>[]).map(_numToInt))) {
+        return false;
+      }
+      if (fActive) {
+        final pd = per[c['id']];
+        if (pd is! Map || _numToInt(pd['count']) <= 0) return false;
+      }
+      return true;
+    }).toList();
   }
 
   /// Ilova fonga o'tganda BARCHA pollinglar to'xtaydi, qaytganda tiklanadi.
@@ -1735,8 +1952,12 @@ class TrustStore extends ChangeNotifier {
     _xfReorderT?.cancel();
     _xfReorderT = null;
     if (_xfFrozenOrder == null) return;
+    // ESKI (ko'rinib turgan) tartib UI'ga BIR MARTALIK uzatiladi (flyEvents kabi):
+    // ekran har karta eski o'rnidan yangi o'rniga SILJIB borishini ko'rsatadi —
+    // joy almashuvi sezilarli bo'ladi, sakrash emas.
+    final from = [for (final f in _xfFolders()) f['name'] as String];
     _xfFrozenOrder = null;
-    set({}); // Root rebuild — _xfFolders endi erkin tartibda saralaydi
+    set({'xfReorderFrom': from}); // Root rebuild — yangi tartib + siljish manbai
   }
 
   // Lokal (dizayn uslubidagi) toast — o'zi yopiladi (default 5s)
@@ -1867,9 +2088,51 @@ class TrustStore extends ChangeNotifier {
     'transport': '🚌', 'taksi': '🚕', 'kofe': '☕️', 'oziq-ovqat': '🍜',
     'kommunal': '💡', 'xaridlar': '🛍️', 'kiyim': '🛍️', 'salomatlik': '💊',
     "ko'ngilochar": '🎬', 'sport': '🏋️', 'kitoblar': '📚', 'uy': '🏠',
-    'aloqa': '📱', "ta'lim": '🎓', 'boshqa': '📦',
+    'aloqa': '📱', "ta'lim": '🎓', 'talim': '🎓', 'boshqa': '📦',
+    // 2026-08-04: real toifalar to'plami (CatIcon.glyphFor bilan sinxron)
+    "sovg'a": '🎁', "to'y": '💍', 'marosim': '💍', 'dehqonchilik': '🌱',
+    'remont': '🔧', 'avto': '🚗', "go'zallik": '✂️', 'hayvonot': '🐾',
+    'bolalar': '👶', 'soliq': '🧾', 'ijara': '🔑', 'safar': '✈️',
+    'sayohat': '✈️', 'kitob': '📚', 'telefon': '📱', 'internet': '📱',
+    'choyxona': '🍵', 'qahva': '☕️',
   };
-  String xfEmoji(String cat) => _xfEmojiMap[_xfNorm(cat)] ?? '📁';
+
+  // KALIT SO'Z zaxirasi — CatIcon._kw bilan SEMANTIK sinxron (papka glifi va
+  // emoji bir ma'noda chiqsin); birinchi moslik g'olib.
+  static const List<List<String>> _xfEmojiKw = [
+    ["ta'lim", '🎓'], ['talim', '🎓'], ['kurs', '🎓'], ['maktab', '🎓'],
+    ['sovg', '🎁'],
+    ["to'y", '💍'], ['marosim', '💍'], ['nikoh', '💍'],
+    ['sport', '🏋️'], ['fitnes', '🏋️'], ['zal', '🏋️'],
+    ['dehqon', '🌱'], ["bog'", '🌱'], ['ekin', '🌱'],
+    ['remont', '🔧'], ['usta', '🔧'], ["ta'mir", '🔧'],
+    ['avto', '🚗'], ['mashina', '🚗'], ['benzin', '🚗'],
+    ["go'zallik", '✂️'], ['gozallik', '✂️'], ['salon', '✂️'], ['soch', '✂️'],
+    ['hayvon', '🐾'], ['mushuk', '🐾'],
+    ['bola', '👶'], ['farzand', '👶'],
+    ['soliq', '🧾'], ['jarima', '🧾'],
+    ['ijara', '🔑'], ['arenda', '🔑'], ['kvartira', '🔑'],
+    ['safar', '✈️'], ['sayohat', '✈️'],
+    ['kitob', '📚'],
+    ['telefon', '📱'], ['internet', '📱'], ['aloqa', '📱'],
+    ['choy', '🍵'], ['kofe', '☕️'], ['qahva', '☕️'], ['kafe', '☕️'],
+    ['taksi', '🚕'], ['transport', '🚌'],
+    ['ovqat', '🍜'], ['oziq', '🍜'], ['bozor', '🍜'], ['market', '🍜'],
+    ['kommunal', '💡'], ['svet', '💡'], ['gaz', '💡'],
+    ['kiyim', '🛍️'], ['xarid', '🛍️'], ["do'kon", '🛍️'], ['dokon', '🛍️'],
+    ['dori', '💊'], ['shifokor', '💊'], ['apteka', '💊'], ['salomatlik', '💊'],
+    ['uy', '🏠'],
+  ];
+
+  String xfEmoji(String cat) {
+    final n = _xfNorm(cat);
+    final hit = _xfEmojiMap[n];
+    if (hit != null) return hit;
+    for (final e in _xfEmojiKw) {
+      if (n.contains(e[0])) return e[1];
+    }
+    return '📁';
+  }
 
   String _xfNorm(String s) => s.toLowerCase()
       .replaceAll('’', "'").replaceAll('ʻ', "'").replaceAll('`', "'").replaceAll('ʼ', "'");
@@ -1885,11 +2148,81 @@ class TrustStore extends ChangeNotifier {
     return b.toString();
   }
 
-  // Joriy oy yozuvlari (papka UI faqat shu oy bilan ishlaydi — "IYUL BALANSI")
-  List<Map<String, dynamic>> _xfMonthEntries() {
+  // ---- DAVR FILTRI (2026-08-04): butun Xarajatlar ekrani tanlangan davr
+  // bo'yicha ishlaydi (ilgari qat'iy joriy oy edi). [from, to) — lokal kun
+  // boshlari; ikkalasi null = Jami (chegarasiz).
+  List<DateTime?> _xfRange() {
+    final p = (S['xfPeriod'] as Map?)?.cast<String, dynamic>() ?? const {'kind': 'month'};
     final now = DateTime.now();
-    final ym = '${now.year}-${now.month}';
-    return _xar().where((e) => e['ym'] == ym).toList();
+    final today = DateTime(now.year, now.month, now.day);
+    switch ('${p['kind']}') {
+      case 'today':
+        return [today, today.add(const Duration(days: 1))];
+      case 'yesterday':
+        return [today.subtract(const Duration(days: 1)), today];
+      case 'week':
+        final start = today.subtract(Duration(days: today.weekday - 1)); // dushanbadan
+        return [start, start.add(const Duration(days: 7))];
+      case 'all':
+        return [null, null];
+      case 'custom':
+        final f = DateTime.tryParse('${p['from'] ?? ''}');
+        final t = DateTime.tryParse('${p['to'] ?? ''}');
+        if (f == null || t == null) return [null, null];
+        return [
+          DateTime(f.year, f.month, f.day),
+          DateTime(t.year, t.month, t.day).add(const Duration(days: 1)),
+        ];
+      default: // month (standart)
+        return [DateTime(now.year, now.month, 1), DateTime(now.year, now.month + 1, 1)];
+    }
+  }
+
+  // Tanlangan davr yozuvlari (papka UI, balans, sub-daromadlar — hammasi shu manbadan)
+  List<Map<String, dynamic>> _xfPeriodEntries() {
+    final r = _xfRange();
+    final from = r[0], to = r[1];
+    if (from == null && to == null) return _xar();
+    return _xar().where((e) {
+      final ts = (e['ts'] as int?) ?? 0;
+      if (ts == 0) return false;
+      final d = DateTime.fromMillisecondsSinceEpoch(ts);
+      if (from != null && d.isBefore(from)) return false;
+      if (to != null && !d.isBefore(to)) return false;
+      return true;
+    }).toList();
+  }
+
+  // Davrga mos server so'rovi. from — davr boshidan 1 KUN OLDIN (superset):
+  // sana-only satrni server UTC yarim tun deb o'qiydi, UZ(+5)da lokal kun boshi
+  // UTC'da oldingi kunga tushadi — 1 kunlik zaxira bo'lmasa "Bugun"ning
+  // 00:00-05:00 yozuvlari javobga kirmay qolardi (reviewer, 2026-08-04).
+  // Aniq kesim baribir _xfPeriodEntries'da lokal qilinadi. limit 1000 — server
+  // maksimumi; unga urilish xfSetPeriod_'da halol toast bilan bildiriladi.
+  Future<ApiRes> _xfFetchExpenses() {
+    final from = _xfRange()[0];
+    if (from == null) return Api.expenses(limit: 1000);
+    final f = from.subtract(const Duration(days: 1));
+    return Api.expenses(from: f.toIso8601String().substring(0, 10), limit: 1000);
+  }
+
+  // Davrni almashtirish: darhol lokal qayta chizish (data swap — reorder
+  // animatsiyasisiz), keyin server'dan to'liq davr yozuvlari tortiladi.
+  Future<void> xfSetPeriod_(Map<String, dynamic> p) async {
+    set({'xfPeriod': p});
+    final r = await _xfFetchExpenses();
+    if (!identical(S['xfPeriod'], p)) return; // davr yana almashgan — eskirgan javob
+    if (!r.ok || r.data is! List) {
+      if (!r.ok) toast_(r.error);
+      return;
+    }
+    final list = (r.data as List).cast<Map<String, dynamic>>().map(_mapExpense).toList();
+    set({'xarEntries': list});
+    // 1000 ta server-cheklovga urilish — HAR davr uchun halol ogohlantirish
+    // (katta oy/uzun custom ham jim kesilmasin; reviewer, 2026-08-04)
+    if (list.length >= 1000) {
+      toast_(Lf('fltTruncated', {'n': '1000'}));
+    }
   }
 
   // Papkalar: joriy oy yozuvlaridan toifa bo'yicha.
@@ -1903,7 +2236,7 @@ class TrustStore extends ChangeNotifier {
       'name': 'Daromad', 'income': true, 'total': 0,
       'entries': <Map<String, dynamic>>[], 'hard': true,
     };
-    for (final e in _xfMonthEntries()) {
+    for (final e in _xfPeriodEntries()) {
       final isInc = e['kind'] == 'd';
       // Kirim -> hammasi 'Daromad' papkasiga (sub-manba entry'ning o'z 'cat'ida saqlanadi);
       // chiqim -> o'z toifasiga.
@@ -1958,7 +2291,7 @@ class TrustStore extends ChangeNotifier {
     for (final s in (S['xfIncSubsMade'] as List).cast<String>()) {
       ensure(s);
     }
-    for (final e in _xfMonthEntries()) {
+    for (final e in _xfPeriodEntries()) {
       if (e['kind'] == 'd') {
         final c = (e['cat'] as String?) ?? 'Daromad';
         if (!c.startsWith('@')) continue; // 'Daromad' umumiy — sub emas
@@ -2237,7 +2570,7 @@ class TrustStore extends ChangeNotifier {
     _xfLogAdd('del', cat: e['cat'] as String,
         desc: (e['note'] as String?)?.isNotEmpty == true ? e['note'] as String : e['cat'] as String,
         amount: e['a'] as int, income: e['kind'] == 'd');
-    _xfToastShow({'text': "O'chirildi", 'kind': 'del', 'entry': e});
+    _xfToastShow({'text': L()['tDeletedOk'], 'kind': 'del', 'entry': e});
   }
 
   // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi;
@@ -3025,8 +3358,9 @@ class TrustStore extends ChangeNotifier {
   // Hub kartalaridan bo'limga o'tish (vals() ichidagi goHome/goXarajat bilan bir xil patch)
   void goHome_() =>
       // #31: npOpen:false — eski/ochiq qolgan "yangi hamkor" oynasi bo'limga kirganda
-      // avtomatik ochilib qolmasin.
-      set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false});
+      // avtomatik ochilib qolmasin. Header dropdownlari ham yopiq holda ochiladi.
+      set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false,
+           'homeFilterOpen': false, 'homeMenuOpen': false});
   void goXarajat_() =>
       set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null});
 
@@ -3188,6 +3522,34 @@ class TrustStore extends ChangeNotifier {
       ...(() {
         try {
         final xfNow = DateTime.now();
+        // ---- Davr filtri yorlig'i (sarlavha/balans/hisoblagichlar shu bilan) ----
+        final xfPer = ((S['xfPeriod'] as Map?)?.cast<String, dynamic>()) ?? const {'kind': 'month'};
+        final xfPerKind = '${xfPer['kind'] ?? 'month'}';
+        String xfPerLabelOf() {
+          switch (xfPerKind) {
+            case 'today':
+              return L()['fltToday'] as String;
+            case 'yesterday':
+              return L()['fltYesterday'] as String;
+            case 'week':
+              return L()['fltWeek'] as String;
+            case 'all':
+              return L()['fltAll'] as String;
+            case 'custom':
+              final f = DateTime.tryParse('${xfPer['from'] ?? ''}');
+              final t = DateTime.tryParse('${xfPer['to'] ?? ''}');
+              if (f == null || t == null) return L()['fltCustom'] as String;
+              // "12–18 avg" (bir oy ichida) yoki "28 iyul – 3 avg" uslubi
+              final mf = _monFull[f.month - 1].substring(0, 3).toLowerCase();
+              final mt = _monFull[t.month - 1].substring(0, 3).toLowerCase();
+              return (f.month == t.month && f.year == t.year)
+                  ? '${f.day}–${t.day} $mf'
+                  : '${f.day} $mf – ${t.day} $mt';
+            default: // month
+              return '${_monFull[xfNow.month - 1]} ${xfNow.year}';
+          }
+        }
+        final xfPerLabel = xfPerLabelOf();
         final xfFs = _xfFolders();
         final xfNew = (S['xfNewCats'] as List).cast<String>();
         int xfTin = 0, xfTout = 0;
@@ -3254,7 +3616,7 @@ class TrustStore extends ChangeNotifier {
         // #15v2: Daromad oqimi — kirim (hammasi/sub) + @tegli chiqimlar, yangi->eski
         final incFlow = <Map<String, dynamic>>[];
         if (xfDIsInc && xfDF != null) {
-          for (final e in _xfMonthEntries()) {
+          for (final e in _xfPeriodEntries()) {
             final isInc = e['kind'] == 'd';
             if (isInc) {
               final c = (e['cat'] as String?) ?? 'Daromad';
@@ -3281,7 +3643,9 @@ class TrustStore extends ChangeNotifier {
                         ? '${e['cat']}'
                         : (L()['xfIncGeneral'] as String? ?? 'Umumiy kirim'))
                     : '${e['cat'] ?? ''}'),
-            'when': '${e['dom']}-${_monFull[xfNow.month - 1].toLowerCase()} · ${e['t']}',
+            // Oy YOZUVNING O'ZIDAN (ts): davr filtri bir necha oyni qamrashi mumkin
+            'when':
+                '${e['dom']}-${_monFull[(((e['ts'] as int?) ?? 0) != 0 ? DateTime.fromMillisecondsSinceEpoch(e['ts'] as int).month : xfNow.month) - 1].toLowerCase()} · ${e['t']}',
             'chip': isInc ? '' : '${e['cat'] ?? ''}', // chiqimda: qaysi xarajat papkasi
             'amtTxt': (isInc ? '+' : '−') + _fx(e['a'] as int),
             'deleting': xfDel.contains(e['id']),
@@ -3294,7 +3658,9 @@ class TrustStore extends ChangeNotifier {
         String xfDPrefixV = xfDF?['income'] == true ? '+' : '−';
         String xfDCountV = xfDF == null
             ? ''
-            : Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'});
+            : (xfPerKind == 'month'
+                ? Lf('monthYearCount', {'month': '${_monFull[xfNow.month - 1]}', 'year': '${xfNow.year}', 'n': '${(xfDF['entries'] as List).length}'})
+                : Lf('periodCount', {'p': xfPerLabel, 'n': '${(xfDF['entries'] as List).length}'}));
         if (xfDIsInc && subF != null) {
           final left = subF['left'] as int;
           xfDNameV = '${subF['name']}';
@@ -3312,8 +3678,28 @@ class TrustStore extends ChangeNotifier {
             ? ['Transport', 'Oziq-ovqat', 'Kommunal', 'Xaridlar', 'Salomatlik']
             : xfChipCats;
         return <String, dynamic>{
-          'xfMonth': '${_monFull[xfNow.month - 1]} ${xfNow.year}',
-          'xfBalCap': Lf('balOfMonth', {'month': '${_monFull[xfNow.month - 1].toUpperCase()}'}),
+          // Sarlavha va balans yorlig'i — tanlangan davrga dinamik ergashadi
+          'xfMonth': xfPerLabel,
+          'xfBalCap': xfPerKind == 'month'
+              ? Lf('balOfMonth', {'month': '${_monFull[xfNow.month - 1].toUpperCase()}'})
+              : Lf('balOfPeriod', {'p': xfPerLabel.toUpperCase()}),
+          // Davr filtri (header dropdown UI shulardan quradi)
+          'xfPerKind': xfPerKind,
+          'xfPerLabel': xfPerLabel,
+          'xfPerOpts': [
+            {'k': 'today', 'label': L()['fltToday']},
+            {'k': 'yesterday', 'label': L()['fltYesterday']},
+            {'k': 'week', 'label': L()['fltWeek']},
+            {'k': 'month', 'label': L()['fltMonth']},
+            {'k': 'all', 'label': L()['fltAll']},
+            {'k': 'custom', 'label': L()['fltCustom']},
+          ],
+          'xfPerPick': (String k) => xfSetPeriod_({'kind': k}),
+          'xfPerCustom': (DateTime f, DateTime t) => xfSetPeriod_({
+                'kind': 'custom',
+                'from': f.toIso8601String().substring(0, 10),
+                'to': t.toIso8601String().substring(0, 10),
+              }),
           'xfBalTxt': (xfBal >= 0 ? '+' : '−') + _fx(xfBal.abs()),
           // Count-up animatsiya uchun xom qiymatlar
           'xfBalVal': xfBal.abs(),
@@ -3447,7 +3833,9 @@ class TrustStore extends ChangeNotifier {
           'xfToastOpen': S['xfToast'] != null,
           'xfToastText': '${(S['xfToast'] as Map?)?['text'] ?? ''}',
           // warn — tugmasiz ogohlantirish (bo'sh label: UI hech narsa chizmaydi)
-          'xfToastBtn': (S['xfToast'] as Map?)?['kind'] == 'warn' ? '' : 'Bekor qilish',
+          'xfToastBtn': (S['xfToast'] as Map?)?['kind'] == 'warn'
+              ? ''
+              : (L()['btnCancelFull'] as String? ?? 'Bekor qilish'),
           'xfUndo': () => xfUndo_(),
           'xfBusy': S['voiceStage'] == 'parsing',
           'xfSend': () => xfSend_(),
@@ -3464,6 +3852,11 @@ class TrustStore extends ChangeNotifier {
               }).toList(),
           'xfFlyDone': () {
             if ((S['xfFly'] as List).isNotEmpty) S['xfFly'] = <Map<String, dynamic>>[];
+          },
+          // Qayta-tartib siljish animatsiyasi uchun ESKI tartib (bir martalik)
+          'xfReorderFrom': S['xfReorderFrom'],
+          'xfReorderTaken': () {
+            S['xfReorderFrom'] = null; // notifysiz iste'mol belgisi (flyEvents kabi)
           },
         };
         } catch (err) {
@@ -3494,6 +3887,9 @@ class TrustStore extends ChangeNotifier {
             'xfBusy': false, 'xfSend': () {},
             'xfBack': () => goHub_(),
             'xfFlyEvents': <Map<String, dynamic>>[], 'xfFlyDone': () {},
+            'xfReorderFrom': null, 'xfReorderTaken': () {},
+            'xfPerKind': 'month', 'xfPerLabel': '', 'xfPerOpts': <Map<String, dynamic>>[],
+            'xfPerPick': (String k) {}, 'xfPerCustom': (DateTime f, DateTime t) {},
           };
         }
       })(),
@@ -3579,12 +3975,15 @@ class TrustStore extends ChangeNotifier {
       };
     }
 
-    // Home
-    final q = (S['search'] as String).trim().toLowerCase();
-    final homeFiltered = _clients()
-        .where((c) => c['archived'] != true && (c['name'] as String).toLowerCase().contains(q))
-        .toList();
-    final visible = S['skelHome'] == true
+    // Home — kuchli qidiruv (ism-normalizatsiya/telefon/summa: partnerMatch)
+    // + davr filtri (homeFilter). fActive faqat server 'period' bergandagina true.
+    final q = (S['search'] as String).trim();
+    final fActive = S['homeFilter'] != 'all' && S['homePeriodOk'] == true;
+    // Filtr summalari yuklanayotganda skelet — filtrsiz ro'yxat "miltillamasin"
+    final homeSkel = S['skelHome'] == true ||
+        (S['homeFilter'] != 'all' && S['homePeriodLoading'] == true);
+    final homeFiltered = _homeClients();
+    final visible = homeSkel
         ? <Map<String, dynamic>>[]
         : homeFiltered.take(S['homeVis'] as int).toList();
     final clientRows = visible.map((c) {
@@ -3627,12 +4026,17 @@ class TrustStore extends ChangeNotifier {
       };
     }).toList();
 
-    // Meni kontragent qilib qo'shganlar (qabul qilinganlari) — teskari balans bilan ro'yxatga qo'shiladi
+    // Meni kontragent qilib qo'shganlar (qabul qilinganlari) — teskari balans bilan ro'yxatga qo'shiladi.
+    // Faol davr filtrida link qatorlari YASHIRILADI: /api/links davr summalarini
+    // bermaydi, "davrda harakat bor" va'dasini buzmaslik uchun (chip reset bilan qaytadi).
     final linksAll = List<Map<String, dynamic>>.from(S['links'] as List);
-    final inRows = S['skelHome'] == true
+    final inRows = homeSkel || fActive
         ? <Map<String, dynamic>>[]
         : linksAll
-            .where((l) => l['status'] == 'accepted' && (l['name'] as String).toLowerCase().contains(q))
+            .where((l) => l['status'] == 'accepted' && partnerMatch(q,
+                name: (l['name'] ?? '') as String,
+                phone: (l['phone'] ?? '') as String,
+                amounts: [_numToInt(l['total'])]))
             .map((l) {
             final tot = l['total'] as int;
             final lid = l['id'] as String;
@@ -3672,6 +4076,22 @@ class TrustStore extends ChangeNotifier {
       if (tot < 0) byMe += -tot;
     }
     final net = toMeUZS - byMe;
+
+    // Faol davr filtri: SOF BALANS bloki davr summalariga o'tadi.
+    // pToMe/pByMe — davrda YARATILGAN qarzlar (berilgan/olingan) yig'indisi;
+    // pNet — davrdagi sof o'zgarish (qaytarilganlar ayirilgan holda).
+    int pToMe = 0, pByMe = 0, pNet = 0;
+    if (fActive) {
+      for (final c in _clients()) {
+        if (c['archived'] == true) continue;
+        final pd = (S['homePeriod'] as Map)[c['id']];
+        if (pd is! Map) continue;
+        final tm = _numToInt(pd['to_me']), bm = _numToInt(pd['by_me']);
+        pToMe += tm;
+        pByMe += bm;
+        pNet += (tm - _numToInt(pd['repaid_to_me'])) - (bm - _numToInt(pd['repaid_by_me']));
+      }
+    }
 
     // Client detail: o'z hamkorim (sotuvchi ko'rinishi) YOKI meni qo'shgan sotuvchi (mijoz ko'rinishi)
     final client = _client(S['clientId']);
@@ -4199,12 +4619,55 @@ class TrustStore extends ChangeNotifier {
       'isAi': S['screen'] == 'ai' && noClient,
       'isXarajat': S['screen'] == 'xarajat' && noClient,
       'isProfil': S['screen'] == 'profil' && noClient,
-      'netText': (net >= 0 ? '+' : '−') + money(net.abs(), 'UZS'),
-      'netColor': net > 0 ? green : (net < 0 ? red : ink),
-      'owedToMe': money(toMeUZS, 'UZS') + (toMeUSD != 0 ? ' · ${money(toMeUSD, 'USD')}' : ''),
-      'owedByMe': money(byMe, 'UZS'),
+      'netText': fActive
+          ? (pNet >= 0 ? '+' : '−') + money(pNet.abs(), 'UZS')
+          : (net >= 0 ? '+' : '−') + money(net.abs(), 'UZS'),
+      'netColor': (fActive ? pNet : net) > 0 ? green : ((fActive ? pNet : net) < 0 ? red : ink),
+      'owedToMe': fActive
+          ? money(pToMe, 'UZS')
+          : money(toMeUZS, 'UZS') + (toMeUSD != 0 ? ' · ${money(toMeUSD, 'USD')}' : ''),
+      'owedByMe': money(fActive ? pByMe : byMe, 'UZS'),
       'search': S['search'],
       'onSearch': (String t) => set({'search': t, 'homeVis': 6}),
+      // Header: sarlavha (menyu nomi) + davr filtri dropdown + ⋮ menyu
+      'homeTitle': L0['homeTitle'] as String,
+      'homeFilter': S['homeFilter'],
+      'homeFilterActive': S['homeFilter'] != 'all',
+      'homeFilterOpen': S['homeFilterOpen'] == true,
+      'homeFilterTap': () => set({'homeFilterOpen': S['homeFilterOpen'] != true, 'homeMenuOpen': false}),
+      'homeFilterClose': () => set({'homeFilterOpen': false}),
+      'homeFilterCap': L0['fltCap'] as String,
+      'homeFilterLabel': fltLabel_(L0),
+      'homeFilterReset': () => setHomeFilter_('all'),
+      'homeFilterOpts': [
+        for (final o in const [
+          ['all', 'fltAll'], ['today', 'fltToday'], ['yesterday', 'fltYesterday'],
+          ['week', 'fltWeek'], ['month', 'fltMonth'],
+        ])
+          {
+            'id': o[0],
+            'label': L0[o[1]] as String,
+            'on': S['homeFilter'] == o[0],
+            'pick': () => setHomeFilter_(o[0]),
+          },
+      ],
+      'homeFilterCustomLabel': L0['fltCustom'] as String,
+      'homeFilterCustomOn': S['homeFilter'] == 'custom',
+      // Ekran (home.dart) custom bosilganda: avval shu yopadi, so'ng sana oralig'i
+      // tanlagichi ochiladi va natija homeFilterCustom(from, to) ga keladi.
+      'homeFilterCustomPick': () => set({'homeFilterOpen': false}),
+      'homeFilterFrom': S['homeFilterFrom'],
+      'homeFilterTo': S['homeFilterTo'],
+      'homeFilterCustom': (int from, int to) => setHomeFilter_('custom', from: from, to: to),
+      // ⋮ menyu — Xarajatlar ('hubOpenXar' bilan bir xil goXarajat_ yo'li)
+      'homeMenuOpen': S['homeMenuOpen'] == true,
+      'homeMenuTap': () => set({'homeMenuOpen': S['homeMenuOpen'] != true, 'homeFilterOpen': false}),
+      'homeMenuClose': () => set({'homeMenuOpen': false}),
+      'homeMenuXarLabel': L0['menuXar'] as String,
+      'homeMenuXar': () {
+        set({'homeMenuOpen': false});
+        goXarajat_();
+      },
       'clientRows': homeRows,
       'hasArch': S['skelHome'] != true && _clients().any((c) => c['archived'] == true),
       'archCount': _clients().where((c) => c['archived'] == true).length,
@@ -4227,7 +4690,7 @@ class TrustStore extends ChangeNotifier {
           'restore': () => restore_(cid),
         };
       }).toList(),
-      'skelHome': S['skelHome'],
+      'skelHome': homeSkel,
       'skelRows': const [
         {'key': 'sk1', 'w1': 0.46, 'w2': 0.30}, {'key': 'sk2', 'w1': 0.58, 'w2': 0.26},
         {'key': 'sk3', 'w1': 0.40, 'w2': 0.34}, {'key': 'sk4', 'w1': 0.52, 'w2': 0.24},
@@ -4236,8 +4699,8 @@ class TrustStore extends ChangeNotifier {
       'homeLoadingMore': S['homeLoadingMore'],
       'homeMore': () {
         if (S['skelHome'] == true || S['homeLoadingMore'] == true) return;
-        final cq2 = (S['search'] as String).trim().toLowerCase();
-        final flt = _clients().where((c) => c['archived'] != true && (c['name'] as String).toLowerCase().contains(cq2)).toList();
+        // vals() ro'yxati bilan BIR XIL filtr (qidiruv + davr) — _homeClients
+        final flt = _homeClients();
         if (flt.length <= (S['homeVis'] as int)) return;
         set({'homeLoadingMore': true});
         Timer(const Duration(milliseconds: 550), () => set({'homeVis': (S['homeVis'] as int) + 10, 'homeLoadingMore': false}));
@@ -4301,7 +4764,8 @@ class TrustStore extends ChangeNotifier {
         toast_(L()['tPartnerAdded']);
         hydrate(full: false);
       },
-      'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false}),
+      'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false,
+          'homeFilterOpen': false, 'homeMenuOpen': false}),
       'goCircles': () {
         set({'screen': 'circles', 'clientId': null, 'receiptId': null, 'inLinkId': null});
         loadCircles();
@@ -4570,6 +5034,7 @@ class TrustStore extends ChangeNotifier {
             final paidPct = e.amount > 0 ? (e.paid / e.amount * 100).clamp(0, 100).round() : 0;
             return {
               'id': e.id,
+              'side': led.sideOf(e).name, // 'left' | 'right' — chat alignment (debt_ledger.dart)
               'title': _debtTitle(e, led),
               'amount': isDebtEntry ? ((signPos ? '+' : '−') + fmtAmt(e.amount, e.currency)) : fmtAmt(e.amount, e.currency),
               'amountColor': isDebtEntry ? (signPos ? green : red) : mut,

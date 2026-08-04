@@ -4,7 +4,11 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
-// Obuna read-only qoidasi: yangi yozuv/tahrir — 402; confirm/reject/cancel OCHIQ (qarshi tomon qulflanmasin)
+// Obuna qoidasi (PO 2026-07-28, subscription.js'ga qarang): YANGI qarz yozuvi daftar
+// EGASI kvotasi bilan gate qilinadi (requireNewDebtQuota, 402 SUB_EXPIRED /
+// OWNER_SUB_EXPIRED). Qarshi tomon (qarzdor) hech qachon paket olmaydi: ko'rish,
+// confirm/reject, repay/settle — HAMMAGA bepul; requireActiveSub esa pass-through
+// (faqat o'chirilgan profil 403). Pul qaytishi HECH QACHON obuna bilan bloklanmaydi.
 import { requireActiveSub, requireNewDebtQuota } from '../lib/subscription.js';
 import { displayName, notifEnabled } from '../lib/links.js';
 import {
@@ -54,7 +58,17 @@ async function loadDebtWithPartner(debtId, userId) {
 }
 
 // Hamkor Trust'da va bog'lanish qabul qilinganmi -> twoSided; aks holda oneSided (off-Trust).
-const provOf = (p) => (p.counterparty_id && p.link_status === 'accepted') ? 'twoSided' : 'oneSided';
+// cpDeleted (2026-08-04 audit): kontragent hisobini O'CHIRGAN bo'lsa YANGI yozuv twoSided
+// bo'lolmaydi — tasdiqlaydigan odam yo'q, "tasdiqlangan dalil" statusi soxta bo'lardi.
+const provOf = (p, cpDeleted = false) =>
+  (p.counterparty_id && p.link_status === 'accepted' && !cpDeleted) ? 'twoSided' : 'oneSided';
+// Kontragent profili o'chirilganmi (soft-delete: profiles.deleted_at) yoki umuman yo'qmi.
+async function counterpartyDeleted(p) {
+  if (!p?.counterparty_id) return false;
+  const { data } = await supabaseAdmin
+    .from('profiles').select('id, deleted_at').eq('id', p.counterparty_id).maybeSingle();
+  return !data || !!data.deleted_at;
+}
 // Amalni bajaruvchidan boshqa taraf (xabar oluvchi).
 const otherParty = (p, actorId) => (p.owner_id === actorId ? p.counterparty_id : p.owner_id);
 
@@ -64,15 +78,30 @@ async function meName(userId) {
 }
 
 // Bildirishnoma (profil sozlamasiga bo'ysunadi, op_new naqshi bilan bir xil). link_id = partner_id.
-async function notify(userId, senderId, type, title, detail, partnerId) {
+// extra = { amount, currency } — hamkor kartasidagi badge (GET /api/notifications/counts)
+// summalarni detail matnidan emas, alohida ustundan oladi (019 migratsiya).
+async function notify(userId, senderId, type, title, detail, partnerId, extra = {}) {
   if (!userId) return;
   if (!(await notifEnabled(userId))) return;
-  await supabaseAdmin.from('notifications').insert({
+  const base = {
     user_id: userId, sender_id: senderId, type, title, detail, link_id: partnerId || null,
-  });
+  };
+  const row = extra.amount != null
+    ? { ...base, amount: Number(extra.amount), currency: extra.currency || null }
+    : base;
+  const { error } = await supabaseAdmin.from('notifications').insert(row);
+  // 019 migratsiya hali qo'llanmagan bo'lsa (amount ustuni yo'q) — bildirishnoma
+  // YO'QOLMASIN: summasiz qayta urinamiz.
+  if (error && row !== base) await supabaseAdmin.from('notifications').insert(base);
   // Telefonga push — barcha qarz bildirishnomalari (debt_new/confirm/repay/settle/edit/review)
   // shu bitta joydan o'tadi. await EMAS — javobni kechiktirmasin.
-  pushToUser(userId, { title, body: detail, data: { type, link_id: partnerId || '' } });
+  // data.partner_id + data.amount: mobil push'ni hamkor kartasiga realtime bog'laydi.
+  const data = { type, link_id: partnerId || '', partner_id: partnerId || '' };
+  if (extra.amount != null) {
+    data.amount = extra.amount;
+    data.currency = extra.currency || '';
+  }
+  pushToUser(userId, { title, body: detail, data });
 }
 
 // Shu qarzga bog'liq repay/settle bolalari (band tekshiruvi uchun).
@@ -171,7 +200,8 @@ router.post('/:partnerId', requireNewDebtQuota, async (req, res, next) => {
       });
     }
 
-    const prov = provOf(p);
+    // O'chirilgan kontragent yangi yozuvga twoSided (tasdiq kutish) berolmaydi — oneSided.
+    const prov = provOf(p, await counterpartyDeleted(p));
     const status = prov === 'oneSided' ? 'active' : 'pending'; // oneSided -> DARHOL active
     const { data, error } = await supabaseAdmin.from('debts').insert({
       partner_id: p.id, kind: 'debt', direction, created_by: req.user.id,
@@ -183,7 +213,8 @@ router.post('/:partnerId', requireNewDebtQuota, async (req, res, next) => {
     if (prov === 'twoSided') {
       const name = await meName(req.user.id);
       await notify(otherParty(p, req.user.id), req.user.id, 'debt_new',
-        `${name} yangi qarz kiritdi`, `Qarz yozuvi · ${fmt(amount)} ${cur} — tasdiqlaysizmi?`, p.id);
+        `${name} yangi qarz kiritdi`, `Qarz yozuvi · ${fmt(amount)} ${cur} — tasdiqlaysizmi?`, p.id,
+        { amount: Number(amount), currency: cur });
     }
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
@@ -211,7 +242,8 @@ router.post('/:id/confirm', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(debt.created_by, req.user.id, 'debt_confirm', `${name} qarzni tasdiqladi`,
-      `${fmt(debt.amount)} ${debt.currency} — faollashdi`, partner.id);
+      `${fmt(debt.amount)} ${debt.currency} — faollashdi`, partner.id,
+      { amount: debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -234,7 +266,8 @@ router.post('/:id/reject', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(debt.created_by, req.user.id, 'debt_reject', `${name} qarzni rad etdi`,
-      `${fmt(debt.amount)} ${debt.currency}`, partner.id);
+      `${fmt(debt.amount)} ${debt.currency}`, partner.id,
+      { amount: debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -296,7 +329,8 @@ async function createRepaySettle(req, res, next, kind) {
   // IKKI TOMON TASDIQLAGAN qarz "oneSided" bo'lib qolar va muallif uni bir o'zi
   // "kechirilgan" deb yopib yuborishi mumkin edi. Endi qaror QARZ YOZUVINING O'ZIDAN
   // olinadi: twoSided qarz umrbod twoSided bo'lib qoladi.
-  const prov = ref.prov === 'twoSided' ? 'twoSided' : provOf(p);
+  // O'chirilgan kontragent bilan YANGI amal ham twoSided bo'lolmaydi (tasdiqlovchi yo'q).
+  const prov = ref.prov === 'twoSided' ? 'twoSided' : provOf(p, await counterpartyDeleted(p));
   const baseRow = {
     partner_id: p.id, kind, created_by: req.user.id, amount: Number(amount),
     currency: ref.currency, acted_at: todayStr(), note: note || null,
@@ -324,7 +358,8 @@ async function createRepaySettle(req, res, next, kind) {
   const name = await meName(req.user.id);
   await notify(otherParty(p, req.user.id), req.user.id, kind === 'repay' ? 'repay_new' : 'settle_new',
     `${name} ${kind === 'repay' ? 'qaytarish' : 'hisob-kitob'} kiritdi`,
-    `${fmt(amount)} ${ref.currency} — tasdiqlaysizmi?`, p.id);
+    `${fmt(amount)} ${ref.currency} — tasdiqlaysizmi?`, p.id,
+    { amount: Number(amount), currency: ref.currency });
   res.status(201).json({ success: true, data: rec });
 }
 router.post('/:partnerId/repay', requireActiveSub, (req, res, next) => createRepaySettle(req, res, next, 'repay').catch(next));
@@ -383,7 +418,8 @@ router.post('/:id/confirm-op', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(op.created_by, req.user.id, 'debt_confirm', `${name} amalni tasdiqladi`,
-      `${fmt(op.amount)} ${ref.currency} — qarzga qo'llandi`, partner.id);
+      `${fmt(op.amount)} ${ref.currency} — qarzga qo'llandi`, partner.id,
+      { amount: op.amount, currency: ref.currency });
     res.json({ success: true, data: okRow });
   } catch (e) { next(e); }
 });
@@ -413,7 +449,8 @@ router.post('/:id/reject-op', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(op.created_by, req.user.id, 'debt_reject', `${name} amalni rad etdi`,
-      `${fmt(op.amount)} ${op.currency}`, partner.id);
+      `${fmt(op.amount)} ${op.currency}`, partner.id,
+      { amount: op.amount, currency: op.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -510,7 +547,8 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
     if (error) throw new Error(error.message);
     const name = await meName(req.user.id);
     await notify(otherParty(partner, req.user.id), req.user.id, 'edit_req', `${name} tahrir so'radi`,
-      `${fmt(debt.amount)} ${debt.currency} yozuviga o'zgartirish — tasdiqlaysizmi?`, partner.id);
+      `${fmt(debt.amount)} ${debt.currency} yozuviga o'zgartirish — tasdiqlaysizmi?`, partner.id,
+      { amount: changes.amount ?? debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -548,7 +586,8 @@ router.post('/:id/edit-confirm', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(debt.created_by, req.user.id, 'debt_confirm', `${name} tahrirni tasdiqladi`,
-      `Yangi qiymat qo'llandi`, partner.id);
+      `Yangi qiymat qo'llandi`, partner.id,
+      { amount: patch.amount ?? debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -570,7 +609,8 @@ router.post('/:id/edit-reject', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(debt.created_by, req.user.id, 'debt_reject', `${name} tahrirni rad etdi`,
-      `${fmt(debt.amount)} ${debt.currency} — eski holida qoldi`, partner.id);
+      `${fmt(debt.amount)} ${debt.currency} — eski holida qoldi`, partner.id,
+      { amount: debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -602,7 +642,8 @@ router.post('/:partnerId/review-confirm', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(d.created_by, req.user.id, 'debt_confirm', `${name} yozuvni tasdiqladi`,
-      `${fmt(d.amount)} ${d.currency} — ikki tomonlama bo'ldi`, p.id);
+      `${fmt(d.amount)} ${d.currency} — ikki tomonlama bo'ldi`, p.id,
+      { amount: d.amount, currency: d.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });
@@ -624,7 +665,8 @@ router.post('/:id/review-reject', async (req, res, next) => {
 
     const name = await meName(req.user.id);
     await notify(debt.created_by, req.user.id, 'debt_reject', `${name} yozuvni rad etdi`,
-      `${fmt(debt.amount)} ${debt.currency} — bahsli (balansdan chiqdi)`, partner.id);
+      `${fmt(debt.amount)} ${debt.currency} — bahsli (balansdan chiqdi)`, partner.id,
+      { amount: debt.amount, currency: debt.currency });
     res.json({ success: true, data });
   } catch (e) { next(e); }
 });

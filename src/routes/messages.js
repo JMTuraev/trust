@@ -59,7 +59,7 @@ async function notifyMessage(partner, senderId, preview) {
   pushToUser(recipient, {
     title: `${displayName(me)} xabar yubordi`,
     body: partner.link_status === 'accepted' ? preview : 'Yangi xabar — ko\'rish uchun bog\'lanishni qabul qiling',
-    data: { type: 'msg', link_id: partner.id },
+    data: { type: 'msg', link_id: partner.id, partner_id: partner.id },
   });
 }
 

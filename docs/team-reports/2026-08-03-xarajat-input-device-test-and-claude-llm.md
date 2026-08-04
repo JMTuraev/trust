@@ -141,6 +141,25 @@ kunlik shift: user-cap 40 → ≈$0.08/user/kun maks; kill-switch 300k token ≈
      lekin prompt bandi kerak). Mayda: sport-zal/obuna hint to'qnashuvi, USD kurs
      nomuvofiqligi (kursni LLM'ga qoldirmaslik), "chorvaga yem" konteksti.
 
+## 2026-08-04: UX-jilo raundi (7 talab) + qo'shma commit
+
+1. Papka qayta-tartibi endi KO'RINADIGAN animatsiya (real RenderBox o'lchovidan px siljish,
+   380ms easeInOutCubic; filtr almashuvi animatsiyasiz — data swap).
+2. Folder-detail "tahrirlash · o'chirish" hint qatori olib tashlandi (rename/arxiv long-press'da qoladi).
+3. L10n sweep: 26 ta faqat-o'zbekcha fallback + 2 store literal — endi 6 tilda.
+4. Sparkline audit: chiziqlar HAQIQIY summalardan (oxirgi 8 yozuv, max-normallashgan) — soxta emas.
+5. Smart ikonkalar: 10 yangi painter (gift/ring/leaf/wrench/scissors/paw/baby/plane/receipt/key)
+   + kalit-so'z fallback, emoji↔painter sinxron. Talim 🎓, Sovg'a 🎁 jonli tasdiqlandi.
+6. Davr filtri: header dropdown (Bugun/Kecha/Shu hafta/Shu oy/Jami/Maxsus davr, 6 til),
+   BARCHA papka/subpapka/balans/chart'larga ta'sir; sarlavhalar dinamik (BUGUN/JAMI BALANSI);
+   timezone superset fix (from−1 kun) + har davrda 1000-lim halol toasti. Qurilmada tasdiqlandi.
+7. Qo'nish haptikasi (light/medium) + SystemSound.click — paketsiz, iOS+Android.
+
+**Parallel sessiya bilan kelishuv**: fayl egaliklari + store.dart bo'lim-egalik + umumiy fayllarda
+navbat/e'lon + "har turn analyze yashil" qoidasi sessiyalararo xabar kanali orqali imzolandi;
+l10n flt* kalitlari yagona to'plamga birlashtirildi. Umumiy fayllar chatishgani sabab (PO ruxsati
+bilan) qarz-lenta bosqichi bilan QO'SHMA commit qilindi (gate: analyze 0, 59/59 test, node --check 7/7).
+
 ## Sifat darvozasi (kechki raundlar)
 
 - flutter analyze 0 / flutter test 14-14 (3 mobil raund); node --check toza

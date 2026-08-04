@@ -58,16 +58,28 @@ async function sweep() {
       if (!marked?.length) continue;
 
       const detail = `Qarz muddati keldi: ${remaining.toLocaleString('ru-RU')} ${d.currency} — hisobni ko'rib chiqing`;
-      const { error: nErr } = await supabaseAdmin.from('notifications').insert({
+      const base = {
         user_id: debtor, type: 'rem', title: 'Eslatma', detail, link_id: d.partner_id,
-      });
+      };
+      // amount/currency — hamkor kartasi badge'i uchun (019 migratsiya).
+      // Ustun hali bo'lmasa summasiz qayta urinamiz — eslatma yo'qolmasin.
+      let { error: nErr } = await supabaseAdmin.from('notifications')
+        .insert({ ...base, amount: remaining, currency: d.currency });
+      if (nErr) ({ error: nErr } = await supabaseAdmin.from('notifications').insert(base));
       if (nErr) {
         // Yuborilmadi — belgini qaytarib, keyingi sweep qayta urinsin.
         console.error('dueReminder notif xatosi:', nErr.message);
         await supabaseAdmin.from('debts').update({ due_reminder_sent_at: null }).eq('id', d.id);
         continue;
       }
-      pushToUser(debtor, { title: 'Eslatma', body: detail, data: { type: 'rem', link_id: d.partner_id } });
+      pushToUser(debtor, {
+        title: 'Eslatma',
+        body: detail,
+        data: {
+          type: 'rem', link_id: d.partner_id, partner_id: d.partner_id,
+          amount: remaining, currency: d.currency,
+        },
+      });
     }
   } catch (e) {
     console.error('dueReminder sweep xatosi:', e.message);

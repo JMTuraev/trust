@@ -14,12 +14,12 @@ const fmt = (n) => Number(n).toLocaleString('ru-RU');
 // Mijozga yangi yozuv xabari (profil sozlamasiga bo'ysunadi).
 // accepted — to'liq tafsilot (tur · summa); pending — UMUMIY xabar (summa OSHKOR QILINMAYDI,
 // chunki mijoz tafsilotni faqat bog'lanishni qabul qilgach ko'radi — link modeli).
-async function notifyCounterparty(partner, sellerId, title, detail, operationId) {
+async function notifyCounterparty(partner, sellerId, title, detail, operationId, extra = {}) {
   if (!partner?.counterparty_id) return;
   if (partner.link_status === 'rejected') return; // rad etgan mijozga xabar yubormaymiz
   if (!(await notifEnabled(partner.counterparty_id))) return;
   const accepted = partner.link_status === 'accepted';
-  await supabaseAdmin.from('notifications').insert({
+  const base = {
     user_id: partner.counterparty_id,
     sender_id: sellerId,
     type: 'op_new',
@@ -27,7 +27,14 @@ async function notifyCounterparty(partner, sellerId, title, detail, operationId)
     detail: accepted ? detail : "Yangi yozuv kiritildi — ko'rish uchun bog'lanishni qabul qiling",
     operation_id: accepted ? (operationId ?? null) : null,
     link_id: partner.id,
-  });
+  };
+  // amount faqat ACCEPTED bog'lanishda saqlanadi (pending'da summa oshkor qilinmaydi —
+  // link modeli). 019 migratsiya qo'llanmagan bo'lsa summasiz qayta urinamiz.
+  const row = accepted && extra.amount != null
+    ? { ...base, amount: Number(extra.amount), currency: extra.currency || null }
+    : base;
+  const { error } = await supabaseAdmin.from('notifications').insert(row);
+  if (error && row !== base) await supabaseAdmin.from('notifications').insert(base);
 }
 
 // POST /api/operations  { partner_id, type, amount, currency?, note? }
@@ -64,7 +71,7 @@ router.post('/', requireActiveSub, requireNewOpQuota, async (req, res, next) => 
 
     const { data: me } = await supabaseAdmin.from('profiles').select('full_name, phone').eq('id', req.user.id).maybeSingle();
     await notifyCounterparty(p, req.user.id, `${displayName(me)} yozuv kiritdi`,
-      `${typeLabel(type)} · ${fmt(amount)} ${cur}`, data.id);
+      `${typeLabel(type)} · ${fmt(amount)} ${cur}`, data.id, { amount: amt, currency: cur });
 
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }

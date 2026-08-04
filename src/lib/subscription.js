@@ -16,6 +16,13 @@
 //   - Mavjud qarzga repay/settle/tasdiq — HAR DOIM ochiq (pul qaytishi bloklanmasin).
 import { supabaseAdmin } from './supabase.js';
 
+// Test hook (node:test): unit tests stub the DB instead of hitting live Supabase.
+// Production code path is untouched — db stays supabaseAdmin unless a test swaps it.
+let db = supabaseAdmin;
+export function __setDbForTests(stub) {
+  db = stub || supabaseAdmin;
+}
+
 export const PRICE_USD_MONTHLY = 9;
 export const PREMIUM_PRODUCT_ID = 'trust_premium_monthly';
 // ≤ WARN_DAYS kun qolganda mobil "To'lov muddati yaqinlashdi" bannerini ko'rsatadi (faqat premium)
@@ -84,7 +91,7 @@ export function computeSubscription(profile, now = new Date()) {
  *  ham cheksiz bepul ishlata olardi. Endi kvota daftar EGALIGI bo'yicha hisoblanadi —
  *  bu "daftar egasi to'laydi" qoidasiga ham aynan mos. */
 async function countOwnerDebts(ownerId) {
-  const { data: partners } = await supabaseAdmin
+  const { data: partners } = await db
     .from('partners').select('id').eq('owner_id', ownerId).limit(2000);
   const ids = (partners || []).map((p) => p.id);
   if (!ids.length) return 0;
@@ -93,13 +100,13 @@ async function countOwnerDebts(ownerId) {
   // `debts` bo'yicha edi, ya'ni bepul foydalanuvchi cheksiz oldi-berdi kiritaverardi
   // va paywall hech qachon ko'rinmasdi.
   const [d, o] = await Promise.all([
-    supabaseAdmin
+    db
       .from('debts')
       .select('id', { count: 'exact', head: true })
       .in('partner_id', ids)
       .eq('kind', 'debt')
       .not('status', 'in', '(cancelled,rejected)'),
-    supabaseAdmin
+    db
       .from('operations')
       .select('id', { count: 'exact', head: true })
       .eq('owner_id', ownerId)
@@ -112,7 +119,7 @@ async function countOwnerDebts(ownerId) {
 export async function countUsage(userId) {
   const [debts_used, e] = await Promise.all([
     countOwnerDebts(userId),
-    supabaseAdmin
+    db
       .from('expenses')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId),
@@ -122,7 +129,7 @@ export async function countUsage(userId) {
 
 /** Foydalanuvchi obunasi: profiles'dan o'qib hisoblaydi. null = profil topilmadi. */
 export async function getSubscription(userId) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await db
     .from('profiles')
     .select('id, created_at, premium_until, deleted_at')
     .eq('id', userId)
@@ -134,7 +141,7 @@ export async function getSubscription(userId) {
 
 /** userId premiummi? (tez, bitta select) */
 async function isPremiumUser(userId) {
-  const { data } = await supabaseAdmin
+  const { data } = await db
     .from('profiles').select('premium_until').eq('id', userId).maybeSingle();
   return !!(data?.premium_until && new Date(data.premium_until) > new Date());
 }
@@ -181,7 +188,7 @@ export function requireNewOpQuota(req, res, next) {
   (async () => {
     const partnerId = req.body?.partner_id;
     if (!partnerId) return next(); // handler o'zi 400 beradi
-    const { data: p } = await supabaseAdmin
+    const { data: p } = await db
       .from('partners').select('owner_id').eq('id', partnerId).maybeSingle();
     if (!p) return next();
     if (await isPremiumUser(p.owner_id)) return next();
@@ -202,7 +209,7 @@ export function requireNewOpQuota(req, res, next) {
  *  POST /api/debts/:partnerId dan OLDIN turadi. */
 export function requireNewDebtQuota(req, res, next) {
   (async () => {
-    const { data: p } = await supabaseAdmin
+    const { data: p } = await db
       .from('partners').select('owner_id').eq('id', req.params.partnerId).maybeSingle();
     // Hamkor topilmasa handler o'zi 404 beradi — bu yerda bloklamaymiz
     if (!p) return next();

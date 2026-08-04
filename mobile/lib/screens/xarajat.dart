@@ -3,12 +3,14 @@
 // Dinamika (dizayn kabi): input ichida rangli belgilash (summa qizil, toifa/buyruq/sana
 // fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
 // yangisida siljiydi), yangi papka "pop", tray "shake", toastlar "Bekor qilish" bilan.
+import 'dart:async' show Timer;
 import 'dart:convert' show jsonDecode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue;
+import 'package:flutter/services.dart'
+    show TextInputFormatter, TextEditingValue, HapticFeedback, SystemSound, SystemSoundType;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../api.dart';
@@ -35,6 +37,11 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   final GlobalKey _inputKey = GlobalKey();
   final Map<String, int> _pulse = {};
 
+  // Qayta-tartib siljish animatsiyasi: nom -> eski o'rnidan px farqi (bir martalik)
+  Map<String, Offset> _reShift = {};
+  int _reEpoch = 0; // har bo'shatishda yangi animatsiya kaliti
+  Timer? _reClearT;
+
   // ---- Papka tahriri (rename/arxiv) va yozuvni ko'chirish holati ----
   // Ekran-lokal holat: store'ga tegilmaydi (store faqat public API orqali yangilanadi)
   Map<String, dynamic>? _fEdit; // {name, inc, renaming: bool}
@@ -52,6 +59,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   // ---- #15v2/#35/#36: modal holatlari (ekran-lokal) ----
   Map<String, dynamic>? _rowMenu; // ⋮ menyu: {'edit': fn?, 'move': fn?, 'del': fn}
+  bool _perMenu = false; // davr filtri dropdown modali
   Map<String, dynamic>? _delAsk; // o'chirish tasdiqi: {'title', 'run': fn}
   Map<String, dynamic>? _incEdit; // kirim tahriri: {'id'}
   bool _incNew = false; // yangi sub-papka modali
@@ -62,6 +70,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   @override
   void dispose() {
+    _reClearT?.cancel();
     _fCtl.dispose();
     _mvCtl.dispose();
     _ieAmt.dispose();
@@ -292,6 +301,28 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       WidgetsBinding.instance.addPostFrameCallback((_) => _launchFly(events));
     }
 
+    // Qayta-tartib: muzlatish bo'shagach store ESKI tartibni bir martalik beradi —
+    // har karta eski o'rnidan yangi o'rniga siljib borishi uchun px farqini hisoblaymiz.
+    // Filtr/davr almashuvi bu yo'ldan O'TMAYDI (u data swap — darhol qayta chiziladi).
+    final reFrom = (v['xfReorderFrom'] as List?)?.cast<String>();
+    if (reFrom != null) {
+      (v['xfReorderTaken'] as Function)();
+      final newOrder = [
+        for (final f in (v['xfInFolders'] as List).cast<Map<String, dynamic>>()) '${f['name']}',
+        for (final f in (v['xfOutFolders'] as List).cast<Map<String, dynamic>>()) '${f['name']}',
+      ];
+      final shifts = _calcReorderShifts(reFrom, newOrder);
+      if (shifts.isNotEmpty) {
+        _reShift = shifts;
+        _reEpoch++;
+        // Animatsiya tugagach siljish xaritasi tozalanadi (ortiqcha wrap qolmasin)
+        _reClearT?.cancel();
+        _reClearT = Timer(const Duration(milliseconds: 450), () {
+          if (mounted && _reShift.isNotEmpty) setState(() => _reShift = {});
+        });
+      }
+    }
+
     return Stack(
       children: [
         // ------- Asosiy sahifa -------
@@ -336,6 +367,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         Positioned(left: 0, right: 0, bottom: 0, child: _bottomOverlay(v, p)),
 
         // ------- #15v2/#35/#36: modallar (hamma narsaning ustida) -------
+        if (_perMenu) _perMenuModal(v, p),
         if (_rowMenu != null) _menuModal(p),
         if (_delAsk != null) _delModal(p),
         if (_incEdit != null) _incEditModal(v, p),
@@ -368,6 +400,65 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         borderRadius: BorderRadius.circular(18),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16))],
       );
+
+  /// Davr filtri menyusi — ⋮ menyu uslubidagi modal ro'yxat; joriy davr ✓ bilan.
+  /// "Maxsus davr" — tizim date-range picker'i (yangi paket/asset yo'q).
+  Widget _perMenuModal(Map<String, dynamic> v, Pal p) {
+    final cur = '${v['xfPerKind']}';
+    final opts = (v['xfPerOpts'] as List).cast<Map<String, dynamic>>();
+    return _scrimCard(
+      p,
+      () => setState(() => _perMenu = false),
+      Container(
+        width: 240,
+        decoration: _modalDeco(p),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < opts.length; i++) ...[
+              if (i > 0) Container(height: 1, color: p.hair2),
+              Tap(
+                onTap: () => _perPick(v, '${opts[i]['k']}'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Tx('${opts[i]['label']}', size: 14,
+                            w: cur == opts[i]['k'] ? FontWeight.w700 : FontWeight.w500,
+                            color: cur == opts[i]['k'] ? p.ink : p.t1),
+                      ),
+                      if (cur == opts[i]['k']) Tx('✓', size: 13, w: FontWeight.w700, color: p.ink),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _perPick(Map<String, dynamic> v, String k) async {
+    setState(() => _perMenu = false);
+    if (k != 'custom') {
+      (v['xfPerPick'] as Function)(k);
+      return;
+    }
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3, 1, 1),
+      lastDate: now,
+      initialDateRange: DateTimeRange(
+        start: now.subtract(const Duration(days: 6)),
+        end: now,
+      ),
+    );
+    if (range == null || !mounted) return;
+    (v['xfPerCustom'] as Function)(range.start, range.end);
+  }
 
   /// #36: ⋮ menyu — Tahrirlash / Ko'chirish / O'chirish
   Widget _menuModal(Pal p) {
@@ -619,6 +710,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       await _flyOne(events[i], i); // chip qo'nguncha kutamiz
       // Qo'nish: yozuv kiritiladi -> papka summasi va balans sanay boshlaydi + puls
       (events[i]['land'] as Function?)?.call();
+      // His-tuyg'u: qo'nish zarbi + yumshoq tizim tovushi (emotsiya). Partiyaning
+      // OXIRGI qo'nishi kuchliroq (medium) — "yakunlandi" hissi. Ikkala platformada
+      // bir xil API (HapticFeedback/SystemSound), qo'shimcha paket/asset yo'q.
+      if (i == events.length - 1) {
+        HapticFeedback.mediumImpact();
+      } else {
+        HapticFeedback.lightImpact();
+      }
+      SystemSound.play(SystemSoundType.click);
       if (mounted) {
         setState(() => _pulse[cat] = (_pulse[cat] ?? 0) + 1);
       }
@@ -759,6 +859,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               ],
             ),
           ),
+          // Davr filtri (dropdown) — jurnal tugmasidan OLDIN
+          Tap(
+            onTap: () => setState(() => _perMenu = true),
+            child: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: p.bd),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 110),
+                    child: Tx('${v['xfPerLabel']}', size: 11.5, w: FontWeight.w600,
+                        color: p.ink, maxLines: 1, ellipsis: true),
+                  ),
+                  const SizedBox(width: 5),
+                  Tx('▾', size: 9, color: p.t3),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           // Jurnal tugmasi (soat + yangilik nuqtasi)
           Tap(
             onTap: v['xfLogToggle'],
@@ -836,6 +961,32 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         padding: const EdgeInsets.only(left: 4),
         child: Tx(t, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
       );
+
+  /// Eski/yangi indekslardan px siljish: grid 2 ustunli, kartalar bir xil
+  /// o'lchamda — qadam AVVALGI kadrda chizilgan real karta RenderBox'idan
+  /// o'lchanadi (taxminiy konstanta emas). Karta topilmasa — animatsiyasiz.
+  Map<String, Offset> _calcReorderShifts(List<String> from, List<String> to) {
+    RenderBox? sample;
+    for (final n in to) {
+      final b = _fk[n]?.currentContext?.findRenderObject();
+      if (b is RenderBox && b.hasSize) {
+        sample = b;
+        break;
+      }
+    }
+    if (sample == null) return {};
+    final stepX = sample.size.width + 10; // ustunlar orasi (SizedBox width: 10)
+    final stepY = sample.size.height + 10; // qatorlar orasi (SizedBox height: 10)
+    final res = <String, Offset>{};
+    for (var ni = 0; ni < to.length; ni++) {
+      final oi = from.indexOf(to[ni]);
+      if (oi < 0 || oi == ni) continue; // yangi karta yoki joyi o'zgarmagan
+      final dx = ((oi % 2) - (ni % 2)) * stepX;
+      final dy = ((oi ~/ 2) - (ni ~/ 2)) * stepY;
+      if (dx != 0 || dy != 0) res[to[ni]] = Offset(dx, dy);
+    }
+    return res;
+  }
 
   Widget _grid(List<Map<String, dynamic>> fs, Pal p) {
     final rows = <Widget>[];
@@ -993,6 +1144,23 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             lerpDouble(0.86, 1.0, t)!, // bo'yi: bosilgan -> normal
             1,
           ),
+          child: child,
+        ),
+        child: card,
+      );
+    }
+
+    // Qayta-tartib siljishi: karta ESKI o'rnidan joriy o'rniga suriladi (sanash
+    // tugagach muzlatish bo'shaganda) — joy almashuvi ko'zga ko'rinadi
+    final sh = _reShift[name];
+    if (sh != null) {
+      card = TweenAnimationBuilder<double>(
+        key: ValueKey('reorder-$name-$_reEpoch'),
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeInOutCubic,
+        builder: (_, t, child) => Transform.translate(
+          offset: Offset(sh.dx * (1 - t), sh.dy * (1 - t)),
           child: child,
         ),
         child: card,
@@ -1229,8 +1397,6 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Tx(store.L()['folderDetailHint'] as String, size: 11, color: p.t4),
               ],
             ),
           ),
@@ -2933,10 +3099,50 @@ class CatIcon extends StatelessWidget {
       'transport': 'bus', 'taksi': 'taxi', 'kofe': 'coffee', 'oziq-ovqat': 'bowl',
       'kommunal': 'bulb', 'xaridlar': 'bag', 'kiyim': 'bag', 'salomatlik': 'cross',
       "ko'ngilochar": 'play', 'sport': 'dumbbell', 'kitoblar': 'book', 'uy': 'home',
-      'aloqa': 'phone', "ta'lim": 'cap', 'boshqa': 'box',
+      'aloqa': 'phone', "ta'lim": 'cap', 'talim': 'cap', 'boshqa': 'box',
+      // 2026-08-04: real toifalar to'plami (Talim/Sovg'a default papka bo'lib qolardi)
+      "sovg'a": 'gift', "to'y": 'ring', 'marosim': 'ring', 'dehqonchilik': 'leaf',
+      'remont': 'wrench', 'avto': 'taxi', "go'zallik": 'scissors', 'hayvonot': 'paw',
+      'bolalar': 'baby', 'soliq': 'receipt', 'ijara': 'key', 'safar': 'plane',
+      'sayohat': 'plane', 'kitob': 'book', 'telefon': 'phone', 'internet': 'phone',
+      'choyxona': 'coffee', 'qahva': 'coffee',
     };
-    return map[_norm(cat)] ?? 'folder';
+    final n = _norm(cat);
+    final hit = map[n];
+    if (hit != null) return hit;
+    // KALIT SO'Z zaxirasi: foydalanuvchi yaratgan nomlar ("To'y xarajatlari",
+    // "Talim kurslari") ham mazmunli glif olsin — birinchi moslik g'olib.
+    // store._xfEmojiKw bilan SEMANTIK sinxron (emoji va glif bir ma'noda).
+    for (final e in _kw) {
+      if (n.contains(e[0])) return e[1];
+    }
+    return 'folder';
   }
+
+  static const List<List<String>> _kw = [
+    ["ta'lim", 'cap'], ['talim', 'cap'], ['kurs', 'cap'], ['maktab', 'cap'],
+    ['sovg', 'gift'],
+    ["to'y", 'ring'], ['marosim', 'ring'], ['nikoh', 'ring'],
+    ['sport', 'dumbbell'], ['fitnes', 'dumbbell'], ['zal', 'dumbbell'],
+    ['dehqon', 'leaf'], ["bog'", 'leaf'], ['ekin', 'leaf'],
+    ['remont', 'wrench'], ['usta', 'wrench'], ["ta'mir", 'wrench'],
+    ['avto', 'taxi'], ['mashina', 'taxi'], ['benzin', 'taxi'],
+    ["go'zallik", 'scissors'], ['gozallik', 'scissors'], ['salon', 'scissors'], ['soch', 'scissors'],
+    ['hayvon', 'paw'], ['mushuk', 'paw'],
+    ['bola', 'baby'], ['farzand', 'baby'],
+    ['soliq', 'receipt'], ['jarima', 'receipt'],
+    ['ijara', 'key'], ['arenda', 'key'], ['kvartira', 'key'],
+    ['safar', 'plane'], ['sayohat', 'plane'],
+    ['kitob', 'book'],
+    ['telefon', 'phone'], ['internet', 'phone'], ['aloqa', 'phone'],
+    ['choy', 'coffee'], ['kofe', 'coffee'], ['qahva', 'coffee'], ['kafe', 'coffee'],
+    ['taksi', 'taxi'], ['transport', 'bus'],
+    ['ovqat', 'bowl'], ['oziq', 'bowl'], ['bozor', 'bowl'], ['market', 'bowl'],
+    ['kommunal', 'bulb'], ['svet', 'bulb'], ['gaz', 'bulb'],
+    ['kiyim', 'bag'], ['xarid', 'bag'], ["do'kon", 'bag'], ['dokon', 'bag'],
+    ['dori', 'cross'], ['shifokor', 'cross'], ['apteka', 'cross'], ['salomatlik', 'cross'],
+    ['uy', 'home'],
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -3069,6 +3275,70 @@ class _CatIconPainter extends CustomPainter {
           ..lineTo(12, 19.6)..lineTo(4.6, 16)..close(), st);
         canvas.drawPath(Path()..moveTo(4.6, 8)..lineTo(12, 11.6)..lineTo(19.4, 8), st);
         canvas.drawLine(const Offset(12, 11.6), const Offset(12, 19.6), st);
+        break;
+      case 'gift': // sovg'a qutisi — sovg'a
+        canvas.drawRRect(RRect.fromLTRBR(4.6, 10.4, 19.4, 19.6, const Radius.circular(2)), st);
+        canvas.drawRRect(RRect.fromLTRBR(3.6, 7.2, 20.4, 10.4, const Radius.circular(1.4)), st);
+        canvas.drawLine(const Offset(12, 7.2), const Offset(12, 19.6), st);
+        canvas.drawCircle(const Offset(9.6, 5.4), 1.9, st);
+        canvas.drawCircle(const Offset(14.4, 5.4), 1.9, st);
+        break;
+      case 'ring': // uzuk (olmos bilan) — to'y/marosim
+        canvas.drawCircle(const Offset(12, 14.2), 5.2, st);
+        canvas.drawPath(Path()..moveTo(12, 3.8)..lineTo(14.6, 6.4)..lineTo(12, 9)
+          ..lineTo(9.4, 6.4)..close(), st);
+        break;
+      case 'leaf': // barg — dehqonchilik
+        canvas.drawPath(Path()..moveTo(5.4, 18.6)..cubicTo(5.4, 10, 10.4, 5.4, 18.6, 5.4)
+          ..cubicTo(18.6, 13.8, 13.8, 18.6, 5.4, 18.6)..close(), st);
+        canvas.drawLine(const Offset(6.8, 17.2), const Offset(15.2, 8.8), st);
+        break;
+      case 'wrench': // gayka kaliti — remont
+        canvas.drawArc(Rect.fromCircle(center: const Offset(15.8, 8.2), radius: 3.4),
+            0.6, 4.9, false, st);
+        canvas.drawLine(const Offset(13.2, 10.8), const Offset(6.4, 17.6), st);
+        canvas.drawCircle(const Offset(6.4, 17.6), 1.6, st);
+        break;
+      case 'scissors': // qaychi — go'zallik
+        canvas.drawCircle(const Offset(7, 7.4), 2.4, st);
+        canvas.drawCircle(const Offset(7, 16.6), 2.4, st);
+        canvas.drawLine(const Offset(9, 8.6), const Offset(19.4, 17.6), st);
+        canvas.drawLine(const Offset(9, 15.4), const Offset(19.4, 6.4), st);
+        break;
+      case 'paw': // panja izi — hayvonot
+        canvas.drawCircle(const Offset(6.6, 10.6), 1.7, fl);
+        canvas.drawCircle(const Offset(10.2, 7.4), 1.7, fl);
+        canvas.drawCircle(const Offset(13.8, 7.4), 1.7, fl);
+        canvas.drawCircle(const Offset(17.4, 10.6), 1.7, fl);
+        canvas.drawPath(Path()..moveTo(12, 11.6)..cubicTo(15, 11.6, 17, 13.6, 17, 15.6)
+          ..cubicTo(17, 17.8, 14.8, 19, 12, 19)..cubicTo(9.2, 19, 7, 17.8, 7, 15.6)
+          ..cubicTo(7, 13.6, 9, 11.6, 12, 11.6)..close(), st);
+        break;
+      case 'baby': // chaqaloq yuzi — bolalar
+        canvas.drawCircle(const Offset(12, 13), 6.4, st);
+        canvas.drawCircle(const Offset(9.8, 12.4), 0.9, fl);
+        canvas.drawCircle(const Offset(14.2, 12.4), 0.9, fl);
+        canvas.drawArc(Rect.fromCircle(center: const Offset(12, 14.2), radius: 2.6),
+            0.5, 2.1, false, st);
+        canvas.drawPath(Path()..moveTo(12, 6.6)..cubicTo(11.6, 4.8, 13.4, 4, 14.2, 5.2), st);
+        break;
+      case 'plane': // qog'oz samolyot — safar/sayohat
+        canvas.drawPath(Path()..moveTo(3.6, 12.6)..lineTo(20.4, 4.6)..lineTo(14.6, 19.4)
+          ..lineTo(11.4, 13.8)..close(), st);
+        canvas.drawLine(const Offset(11.4, 13.8), const Offset(20.4, 4.6), st);
+        break;
+      case 'receipt': // chek (tishli pastki) — soliq
+        canvas.drawPath(Path()..moveTo(6, 4.6)..lineTo(18, 4.6)..lineTo(18, 19.4)
+          ..lineTo(16, 18)..lineTo(14, 19.4)..lineTo(12, 18)..lineTo(10, 19.4)
+          ..lineTo(8, 18)..lineTo(6, 19.4)..close(), st);
+        canvas.drawLine(const Offset(8.6, 9), const Offset(15.4, 9), st);
+        canvas.drawLine(const Offset(8.6, 12.2), const Offset(13.4, 12.2), st);
+        break;
+      case 'key': // kalit — ijara
+        canvas.drawCircle(const Offset(8, 8), 3.4, st);
+        canvas.drawLine(const Offset(10.4, 10.4), const Offset(18.6, 18.6), st);
+        canvas.drawLine(const Offset(16.6, 16.6), const Offset(14.8, 18.4), st);
+        canvas.drawLine(const Offset(13.6, 13.6), const Offset(12.2, 15), st);
         break;
       default: // papka — noma'lum toifa
         canvas.drawPath(Path()..moveTo(4, 16.6)..lineTo(4, 7.4)..cubicTo(4, 6.3, 4.9, 5.4, 6, 5.4)
