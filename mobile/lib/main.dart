@@ -22,6 +22,8 @@ import 'screens/circle_pay_sheet.dart';
 import 'screens/circle_confirm_sheet.dart';
 import 'screens/circle_invite_sheet.dart';
 import 'screens/xarajat.dart';
+import 'screens/toyxona.dart';
+import 'screens/ijara.dart';
 import 'screens/profil.dart';
 import 'screens/tab_bar.dart';
 import 'screens/client_screen.dart';
@@ -36,6 +38,7 @@ import 'screens/link_decision_sheet.dart';
 import 'screens/rejected_links.dart';
 import 'screens/archive.dart';
 import 'screens/lang_sheet.dart';
+import 'screens/paywall_sheet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -138,6 +141,14 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
               (v['closeTopLayer'] as bool Function())();
               return;
             }
+            // Modul ekranining O'Z qatlami (Ijaradagi uylar / To'yxona: uy
+            // tafsiloti, forma modallari, oy menyusi) store'da ko'rinmaydi —
+            // modul uni initState'da store.setModuleBack_ orqali ro'yxatdan
+            // o'tkazadi. Hub'ga qaytishdan OLDIN chaqiriladi, aks holda ochiq
+            // forma bilan birga kiritilgan ma'lumot yo'qolardi (review
+            // 2026-08-04, FINDING 2). Qatlam yo'q bo'lsa false qaytadi va
+            // odatdagi "hub'ga qaytish" davom etadi.
+            if ((v['moduleBack'] as bool Function())()) return;
             if (backToHub) {
               v['hubBack']();
               return;
@@ -190,6 +201,27 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                               // Xarajat — o'z header'ida orqaga bor (xfBack -> hub)
                               if (v['isXarajat'] == true)
                                 Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
+                              // Ijaradagi uylar / To'yxona — hub kartasidan ochiladigan
+                              // TO'LIQ EKRAN modullar. `handleSystemBack` UZATILMAYDI
+                              // (false bo'lib qoladi): apparat "orqaga" tugmasini FAQAT
+                              // yuqoridagi Root PopScope boshqaradi — ikkita PopScope
+                              // birga ishlasa bir bosishda ikki qavat orqaga ketardi.
+                              // Modulning O'Z qatlamlari esa store.setModuleBack_ hook'i
+                              // orqali yopiladi (yuqoridagi `moduleBack` chaqiruvi).
+                              if (v['isIjara'] == true)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: p.bg,
+                                    child: IjaraScreen(onBack: () => v['goHub']()),
+                                  ),
+                                ),
+                              if (v['isToyxona'] == true)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: p.bg,
+                                    child: ToyxonaScreen(onBack: () => v['goHub']()),
+                                  ),
+                                ),
                               // Circles bayroq ostida (flags.dart) — tabdan olib tashlandi,
                               // kod va ekran joyida: kCirclesEnabled=true qilsang qaytadi.
                               if (kCirclesEnabled && v['isCircles'] == true)
@@ -260,6 +292,20 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                 if (v['ccOpen'] == true) CcSheet(),
                 // Til tanlash sheet (z:62)
                 if (v['langOpen'] == true) LangSheet(),
+                // Modul obunasi paywall'i (z:64) — GLOBAL, ilovadagi eng ustki
+                // modal (faqat toast undan yuqori).
+                //
+                // NEGA BU YERDA: paywall'ni store'ning 402 ishlovchisi ISTALGAN
+                // ekrandan ochadi (Xarajat, hamkor daftari, yangi operatsiya
+                // sheet'i...). Ilgari u faqat home_hub.dart ichida chizilardi —
+                // hub'dan tashqarida foydalanuvchi hech narsa ko'rmasdi (modulli
+                // 402'da global qizil banner ham ataylab o'chirilgan), ammo
+                // S['paywall'] null bo'lmay qolar va sheet keyinroq hub'ga
+                // o'tilganda kutilmaganda "otilib chiqardi".
+                //
+                // DIQQAT: `const` EMAS — const instance kanonik bo'lgani uchun
+                // qayta qurishda Element rebuild'ni o'tkazib yuborardi (yuqoridagi izoh).
+                if (v['paywall'] is Map) PaywallSheet(),
                 // Toast (z:70)
                 ToastView(open: v['toastOpen'] == true, text: v['toast'] as String),
               ],

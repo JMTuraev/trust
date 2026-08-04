@@ -112,6 +112,15 @@ services:
         value: "0.5"
       - key: AI_PRICE_OUT
         value: "25"
+      # ---- Bepul kvota (modul obunalari, PO 2026-08-04) ----
+      # Kod defaulti 5 (har modulda 5 ta bepul yozuv, mobil "0/5" kartasi). Ammo
+      # PRODUCTION hali TEST rejimida: Play Billing ulanmaguncha mavjud foydalanuvchilar
+      # to'satdan paywallga urilmasin — shuning uchun bu yerda 300 turibdi.
+      # LAUNCH'da: shu ikki qatorni O'CHIRING (yoki "5" qiling) — paywall o'sha zahoti kuchga kiradi.
+      - key: FREE_DEBT_ENTRIES
+        value: "300"
+      - key: FREE_EXPENSE_ENTRIES
+        value: "300"
       # Link modeli sozlamalari (ixtiyoriy — defaultlari kodda bor)
       - key: REJECT_SIGNAL_DELAY_HOURS
         value: "24"

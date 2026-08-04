@@ -58,13 +58,13 @@ class CcSheet extends StatelessWidget {
                           Tx(cc['flag'], size: 20, color: p.ink, lh: 20),
                           const SizedBox(width: 12),
                           Expanded(
+                            // Davlat nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
                             child: Tx(
                               cc['name'],
                               size: 14.5,
                               w: FontWeight.w500,
                               color: p.ink,
-                              maxLines: 1,
-                              ellipsis: true,
+                              maxLines: 2,
                             ),
                           ),
                           const SizedBox(width: 12),

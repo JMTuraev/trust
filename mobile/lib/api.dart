@@ -11,6 +11,10 @@ import 'secure.dart';
 // Lokal test: flutter run --dart-define=API_URL=http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000).
 const String apiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://trust-backend-ft1s.onrender.com');
 
+/// Eski (butun ilova) premium obunasining App Store mahsuloti — backend
+/// PREMIUM_PRODUCT_ID bilan AYNAN bir xil. Modul obunalari iap.dart'da.
+const String kPremiumProductId = 'trust_premium_monthly';
+
 class ApiRes {
   final bool ok;
   final dynamic data;
@@ -33,7 +37,9 @@ class Api {
   static void Function()? onUnauthorized;
   // 402 — obuna/kvota to'sig'i. Kod uzatiladi: 'SUB_EXPIRED' (o'zimniki) yoki
   // 'OWNER_SUB_EXPIRED' (daftar egasiniki) — store faqat birinchisida holatni o'zgartiradi.
-  static void Function(String code)? onPaymentRequired;
+  // module — 2026-08-04 dan: qaysi modul kvotasi tugagani ('xarajat'|'qarz'|...).
+  // Eski backend uni yubormaydi — bo'sh satr keladi va store bugungidek ishlaydi.
+  static void Function(String code, String module)? onPaymentRequired;
   // Xato matnlari l10n'dan (store init paytida o'rnatiladi). null bo'lsa o'zbekcha zaxira.
   static String? errNetwork;
   static String? errWaking;
@@ -100,7 +106,7 @@ class Api {
         // Obuna tugagan (402) — kod bilan: SUB_EXPIRED (o'zimniki) / OWNER_SUB_EXPIRED (egasi)
         final code = (map['code'] as String?) ?? '';
         if (res.statusCode == 402) {
-          onPaymentRequired?.call(code);
+          onPaymentRequired?.call(code, (map['module'] as String?) ?? '');
         }
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})',
             res.statusCode, code, map);
@@ -295,14 +301,58 @@ class Api {
 
   // ---- Obuna: Apple IAP cheki (StoreKit app receipt) ----
   // iap.dart chaqiradi: StoreKit base64 chekini serverga yuboradi; server Apple'da
-  // tekshirib profiles.premium_until ni o'rnatadi. Timeout uzun — Render cold-start +
-  // Apple'ga (ba'zan sandbox'ga qayta) so'rov.
-  static Future<ApiRes> verifyApple(String receipt) =>
-      _req('POST', '/api/profile/me/subscription/verify', body: {
+  // tekshirib obunani yoqadi. Timeout uzun — Render cold-start + Apple'ga
+  // (ba'zan sandbox'ga qayta) so'rov.
+  //
+  // Tana AYRIM quriladi (verifyAppleBody) va shu yerdan yuboriladi — bitta yo'l:
+  // "modulni unutgan" ikkinchi kirish nuqtasi bo'lmasin (FINDING 1 aynan shundan
+  // kelib chiqqan). Chaqiruvchi: IapService.verifyBodyFor().
+  static Future<ApiRes> verifyAppleRaw(Map<String, dynamic> body) =>
+      _req('POST', '/api/profile/me/subscription/verify', body: body, timeoutSec: 45);
+
+  /// Chek tasdig'i so'rovining TANASI (sof funksiya — test/iap_verify_body_test.dart).
+  ///
+  /// MUHIM (2026-08-04 review, FINDING 1): qaysi obuna yoqilishini server FAQAT
+  /// `module` kaliti bo'yicha hal qiladi (src/routes/profile.js:
+  /// `const pid = modKey ? MODULES[modKey].product_id : PREMIUM_PRODUCT_ID`).
+  /// Klient yuborgan `product_id` ATAYLAB E'TIBORSIZ QOLDIRILADI (firibgarlikka
+  /// qarshi: arzon SKU cheki qimmat modulni ochmasin) va serverda
+  /// product_id -> module xaritasi YO'Q. Shu sabab modul xaridida `module`
+  /// yuborish SHART — aks holda server eski premium mahsuloti bo'yicha tekshiradi,
+  /// chekda mos yozuv topilmaydi va 400 qaytadi (pul ketgan, modul ochilmagan).
+  ///
+  /// `product_id` faqat ESKI moslik uchun qoladi (server o'qimaydi, loglarda foydali).
+  /// module == null — eski yagona premium oqimi: tana AYNAN avvalgidek qoladi.
+  static Map<String, dynamic> verifyAppleBody(String receipt,
+          {String productId = kPremiumProductId, String? module}) =>
+      <String, dynamic>{
         'platform': 'app_store',
-        'product_id': 'trust_premium_monthly',
+        if (module != null) 'module': module,
+        'product_id': productId,
         'receipt_data': receipt,
-      }, timeoutSec: 45);
+      };
+
+  // ---- Modul obunalari (per-module subscriptions) ----
+  // Javob: {success, legacy_premium:{active,until}, modules:[{module, active,
+  // active_until, soon, price_usd, product_id, used, free_limit}]}.
+  // DIQQAT: endpoint eski serverda YO'Q (404) — chaqiruvchi buni jim yutishi va
+  // ilovani bugungi holatida qoldirishi SHART (store._loadSubs shunday qiladi).
+  static Future<ApiRes> subsStatus() => _req('GET', '/api/subs/status');
+
+  // ---- Modul yakunlari (bosh ekran kartasidagi RAQAM) ----
+  // Ijara:   {count, countActive, charged, paid, left, byStatus{kutilmoqda,tolangan,bekor}}
+  // To'yxona:{count, countActive, total, paid, left, cancelledPaid, byStatus{band,tasdiq,yakun,bekor}}
+  //
+  // ORALIQ ATAYLAB YUBORILMAYDI: server bo'sh so'rovda Toshkent vaqtidagi JORIY
+  // OYni oladi (ijara.js/toyxona.js monthBounds). Oraliqni qurilma hisoblasa,
+  // soati/mintaqasi boshqacha telefon oyning 1-sanasida "o'tgan oy" summasini
+  // ko'rsatardi — bir xil hisob ikki qurilmada har xil raqam berardi.
+  //
+  // DIQQAT: bu endpointlar bugungi production'da YO'Q (404) — chaqiruvchi buni
+  // JIM yutishi va kartani tinch nol holatida qoldirishi SHART (subsStatus bilan
+  // bir xil shartnoma; store.refreshHubMods_ shunday qiladi).
+  static Future<ApiRes> ijaraSummary() => _req('GET', '/api/ijara/summary');
+  static Future<ApiRes> toyxonaSummary() => _req('GET', '/api/toyxona/summary');
 
   // ---- Push token (FCM) ----
   // Qurilma tokenini akkauntga bog'lash (push.dart chaqiradi — login/startap/refresh'da)

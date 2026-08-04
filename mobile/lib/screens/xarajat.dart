@@ -559,7 +559,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           children: [
             Tx(_t('xfDelAskTitle', "Yozuv o'chirilsinmi?"), size: 16, w: FontWeight.w700, color: p.ink),
             const SizedBox(height: 6),
-            Tx('${d['title']}', size: 13, color: p.t1, lh: 18, maxLines: 3, ellipsis: true),
+            // Yozuv nomi to'liq ko'rinsin — "..." bilan kesilmaydi
+            Tx('${d['title']}', size: 13, color: p.t1, lh: 18),
             const SizedBox(height: 4),
             Tx(_t('xfDelAskSub', "Tasdiqlasangiz yozuv o'chiriladi."), size: 12, color: p.t3),
             const SizedBox(height: 16),
@@ -912,8 +913,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 children: [
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 110),
-                    child: Tx('${v['xfPerLabel']}', size: 11.5, w: FontWeight.w600,
-                        color: p.ink, maxLines: 1, ellipsis: true),
+                    // Davr nomi to'liq ko'rinsin — torlik qilsa kichraytiriladi
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Tx('${v['xfPerLabel']}', size: 11.5, w: FontWeight.w600,
+                          color: p.ink, maxLines: 1),
+                    ),
                   ),
                   const SizedBox(width: 5),
                   Tx('▾', size: 9, color: p.t3),
@@ -964,11 +969,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _AnimNum(
-                value: v['xfBalVal'] as int? ?? 0,
-                prefix: v['xfBalPos'] == true ? '+' : '−',
-                size: 30, weight: FontWeight.w700,
-                color: v['xfBalPos'] == true ? p.green : p.red, ls: -0.6,
+              // Flexible — FittedBox chegaralangan slotda ishlasin (aks holda Row
+              // cheksiz kenglik beradi va uzun summa baribir overflow bo'ladi)
+              Flexible(
+                child: _AnimNum(
+                  value: v['xfBalVal'] as int? ?? 0,
+                  prefix: v['xfBalPos'] == true ? '+' : '−',
+                  size: 30, weight: FontWeight.w700,
+                  color: v['xfBalPos'] == true ? p.green : p.red, ls: -0.6,
+                ),
               ),
               const SizedBox(width: 7),
               Padding(
@@ -981,12 +990,16 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           Row(
             children: [
               Tx(store.L()['income'] as String, size: 12, color: p.t2),
-              _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
-                  size: 12, weight: FontWeight.w600, color: p.green),
+              Flexible(
+                child: _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
+                    size: 12, weight: FontWeight.w600, color: p.green),
+              ),
               const SizedBox(width: 18),
               Tx(store.L()['expense'] as String, size: 12, color: p.t2),
-              _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
-                  size: 12, weight: FontWeight.w600, color: p.red),
+              Flexible(
+                child: _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
+                    size: 12, weight: FontWeight.w600, color: p.red),
+              ),
             ],
           ),
         ],
@@ -1410,23 +1423,25 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    _AnimNum(
-                      // 2026-08-03: har papka/manba O'Z animatsiya holatini oladi (key) —
-                      // ilgari Daromad -> manba (yoki papka -> papka) o'tishda widget holati
-                      // qayta ishlatilib, raqam OLDINGI sahifa summasidan PASTGA "sanab"
-                      // tushardi. Endi sahifaga kirilganda doim 0 dan n ga O'SIB chiqadi;
-                      // shu sahifada yangi kirim qo'shilsa — eski qiymatdan silliq davom etadi.
-                      key: ValueKey('xfDSum|${v['xfDName']}|${v['xfIncMain']}'),
-                      value: v['xfDTotalVal'] as int? ?? 0,
-                      fromZero: true,
-                      // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
-                      prefix: '${v['xfDPrefix'] ?? (v['xfDInc'] == true ? '+' : '−')}',
-                      size: 28, weight: FontWeight.w700,
-                      // RANG BUGI TUZATILDI: chiqim jami p.ink emas — brend qizil
-                      color: v['xfDInc'] == true
-                          ? (('${v['xfDPrefix'] ?? '+'}' == '−') ? p.red : p.green)
-                          : p.red,
-                      ls: -0.5,
+                    Flexible(
+                      child: _AnimNum(
+                        // 2026-08-03: har papka/manba O'Z animatsiya holatini oladi (key) —
+                        // ilgari Daromad -> manba (yoki papka -> papka) o'tishda widget holati
+                        // qayta ishlatilib, raqam OLDINGI sahifa summasidan PASTGA "sanab"
+                        // tushardi. Endi sahifaga kirilganda doim 0 dan n ga O'SIB chiqadi;
+                        // shu sahifada yangi kirim qo'shilsa — eski qiymatdan silliq davom etadi.
+                        key: ValueKey('xfDSum|${v['xfDName']}|${v['xfIncMain']}'),
+                        value: v['xfDTotalVal'] as int? ?? 0,
+                        fromZero: true,
+                        // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
+                        prefix: '${v['xfDPrefix'] ?? (v['xfDInc'] == true ? '+' : '−')}',
+                        size: 28, weight: FontWeight.w700,
+                        // RANG BUGI TUZATILDI: chiqim jami p.ink emas — brend qizil
+                        color: v['xfDInc'] == true
+                            ? (('${v['xfDPrefix'] ?? '+'}' == '−') ? p.red : p.green)
+                            : p.red,
+                        ls: -0.5,
+                      ),
                     ),
                     const SizedBox(width: 7),
                     Padding(
@@ -1574,13 +1589,19 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Tx('${f['name']}', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+            // Manba nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
+            Tx('${f['name']}', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
             const SizedBox(height: 6),
             Tx('${f['leftTxt']}', size: 16, w: FontWeight.w700,
                 color: f['neg'] == true ? p.red : p.green, tab: true),
             const SizedBox(height: 2),
-            Tx('${f['n']} ${_t('xfIncCardN', 'ta kirim')} · ${f['inTxt']}',
-                size: 10.5, color: p.t4, maxLines: 1, ellipsis: true),
+            // Summali qator "..." bilan kesilmasin — torlik qilsa kichraytiriladi
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Tx('${f['n']} ${_t('xfIncCardN', 'ta kirim')} · ${f['inTxt']}',
+                  size: 10.5, color: p.t4, maxLines: 1),
+            ),
           ],
         ),
       ),
@@ -1630,9 +1651,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               children: [
                 Tx('${r['title']}', size: 13.5, w: FontWeight.w500, color: p.ink),
                 const SizedBox(height: 2),
+                // Sana + papka nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
                 Tx(
                   '${r['when']}${(r['chip'] as String? ?? '').isNotEmpty ? ' · ${r['chip']}' : ''}',
-                  size: 11, color: p.t4, maxLines: 1, ellipsis: true,
+                  size: 11, color: p.t4, maxLines: 2,
                 ),
               ],
             ),
@@ -2071,8 +2093,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 child: Row(
                   children: [
                     Expanded(
+                      // Papka/manba nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
                       child: Tx('${list[i]['name']}', size: 13.5, w: FontWeight.w600, color: p.ink,
-                          maxLines: 1, ellipsis: true),
+                          maxLines: 2),
                     ),
                     const SizedBox(width: 10),
                     Tx('${list[i]['leftTxt']}', size: 12.5, w: FontWeight.w600,
@@ -2827,16 +2850,21 @@ class _AnimNumState extends State<_AnimNum> with SingleTickerProviderStateMixin 
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _c,
-      builder: (_, __) => Text(
-        '${widget.prefix}${_fmt(_now())}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.inter(
-          fontSize: widget.size,
-          fontWeight: widget.weight,
-          color: widget.color,
-          letterSpacing: widget.ls,
-          fontFeatures: const [FontFeature.tabularFigures()],
+      // Moliyaviy qoida: summa hech qachon "..." bilan kesilmaydi —
+      // torlik qilsa FittedBox butun raqamni kichraytirib sig'diradi.
+      builder: (_, __) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '${widget.prefix}${_fmt(_now())}',
+          maxLines: 1,
+          style: GoogleFonts.inter(
+            fontSize: widget.size,
+            fontWeight: widget.weight,
+            color: widget.color,
+            letterSpacing: widget.ls,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ),
     );

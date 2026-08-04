@@ -86,12 +86,23 @@ void main() {
     final toMe = led(e: [debt(id: 'd1', dir: DebtDir.toMe)]);
     expect(toMe.canGive, true);
     expect(toMe.canTake, false); // u menga qarzdor -> olish yo'q
-    expect(toMe.takeDisabledReason('Ali'), contains('qarzdor'));
+    expect(toMe.takeDisabledCode(), 'cantTake'); // semantik kod — matn UI qatlamida
+    expect(toMe.sumActive(DebtDir.toMe), isNotEmpty);
 
     final fromMe = led(e: [debt(id: 'd2', dir: DebtDir.fromMe)]);
     expect(fromMe.canTake, true);
     expect(fromMe.canGive, false); // men unga qarzdorman -> berish yo'q
-    expect(fromMe.giveDisabledReason('Ali'), contains('qarzdorsiz'));
+    expect(fromMe.giveDisabledCode(), 'cantGive');
+    expect(fromMe.sumActive(DebtDir.fromMe), isNotEmpty);
+
+    // closeDisabledCode shoxlari: faol qarz yo'q -> noActive; hammasi pending
+    // bilan band -> pendingWait; yopiladigan faol qarz bor -> null (tugma faol)
+    expect(led(e: []).closeDisabledCode(), 'noActive');
+    final locked = led(e: [debt(id: 'd3', dir: DebtDir.toMe, amount: 500)]);
+    expect(locked.closeDisabledCode(), isNull);
+    locked.openOp(id: 'p1', kind: EntryKind.settle, refDebtId: 'd3', amount: 500,
+        reason: CloseReason.returned, date: today);
+    expect(locked.closeDisabledCode(), 'pendingWait');
   });
 
   test('6) Yopish oqimi: fromMe->repay, toMe->settle', () {

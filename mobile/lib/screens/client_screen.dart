@@ -142,15 +142,6 @@ class ClientScreen extends StatefulWidget {
 }
 
 class _ClientScreenState extends State<ClientScreen> {
-  Widget _plus(double s, Color c) => SizedBox(
-        width: s,
-        height: s,
-        child: Stack(children: [
-          Positioned(left: (s - 2) / 2, top: 0, child: Container(width: 2, height: s, color: c)),
-          Positioned(top: (s - 2) / 2, left: 0, child: Container(width: s, height: 2, color: c)),
-        ]),
-      );
-
   Widget _menuItem(Pal p, String label, VoidCallback onTap, {bool top = false}) {
     return Tap(
       onTap: onTap,
@@ -196,10 +187,12 @@ class _ClientScreenState extends State<ClientScreen> {
               child: Row(children: [
                 SizedBox(width: 58, child: Tx(d['label'] as String, size: 12, color: p.t3)),
                 Expanded(
+                  // Eski→yangi qiymatlar (summa/muddat/izoh) — moliyaviy diff
+                  // "..." bilan kesilmaydi, sig'masa qatorga o'raladi.
                   child: Row(children: [
-                    Flexible(child: Tx(d['old'] as String, size: 12.5, color: p.t4, maxLines: 1, ellipsis: true)),
+                    Flexible(child: Tx(d['old'] as String, size: 12.5, color: p.t4)),
                     Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: ChevRight(color: p.t4)),
-                    Flexible(child: Tx(d['new'] as String, size: 12.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true)),
+                    Flexible(child: Tx(d['new'] as String, size: 12.5, w: FontWeight.w600, color: p.ink)),
                   ]),
                 ),
               ]),
@@ -288,7 +281,8 @@ class _ClientScreenState extends State<ClientScreen> {
                   child: Row(children: [
                     Container(width: 6, height: 6, decoration: BoxDecoration(color: m['stColor'] as Color, shape: BoxShape.circle)),
                     const SizedBox(width: 8),
-                    Flexible(child: Tx(m['title'] as String, size: 14.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true)),
+                    // Yozuv sarlavhasi — "..." bilan kesilmaydi, 2 qatorga o'raladi
+                    Flexible(child: Tx(m['title'] as String, size: 14.5, w: FontWeight.w600, color: p.ink, maxLines: 2)),
                     const SizedBox(width: 8),
                     Tx(m['stLabel'] as String, size: 10.5, w: FontWeight.w600, color: m['stColor'] as Color, ls: .2),
                   ]),
@@ -751,9 +745,11 @@ class _ClientScreenState extends State<ClientScreen> {
                             decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(8)),
                             child: Row(children: [
                               Expanded(
+                                // Versiya qatori (summa · muddat · izoh) — moliyaviy
+                                // qiymat "..." bilan kesilmaydi, o'raladi.
                                 child: Tx(
                                   [ver['amount'], if ((ver['due'] as String).isNotEmpty) ver['due'], if ((ver['note'] as String).isNotEmpty) ver['note']].join(' · '),
-                                  size: 12, color: p.t2, tab: true, maxLines: 1, ellipsis: true,
+                                  size: 12, color: p.t2, tab: true,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -871,23 +867,46 @@ class _ClientScreenState extends State<ClientScreen> {
             if (v['notRenaming'] == true)
               Tap(
                 onTap: () => v['menuTap'](),
-                child: Tx(v['cName'] as String, size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                // Hamkor nomi — "..." bilan kesilmaydi (moliyaviy ilova qoidasi)
+                child: Tx(v['cName'] as String, size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
               ),
             const SizedBox(height: 2),
+            // Balans qatorlari — moliyaviy qiymat HECH QACHON qisqartirilmaydi:
+            // sig'masa FittedBox butun matnni kichraytirib to'liq ko'rsatadi.
             for (final b in balLines)
               Padding(
                 padding: const EdgeInsets.only(top: 1),
-                child: Tx(b['text'] as String, size: 11.5, w: FontWeight.w500, color: b['color'] as Color, tab: true, maxLines: 1, ellipsis: true),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Tx(b['text'] as String, size: 11.5, w: FontWeight.w500, color: b['color'] as Color, tab: true),
+                ),
               ),
           ]),
         ),
         const SizedBox(width: 10),
+        // "Ko'proq" tugmasi — kontekst menyu ochadi (rename/archive/profil);
+        // avvalgi "+" belgisi chalg'itardi (hech narsa qo'shmaydi).
+        // Prototip bilan 1:1: uchta 3px nuqta, 2.5px oraliq (Material glif emas).
         Tap(
           onTap: () => v['menuTap'](),
           child: Container(
             width: 34, height: 34,
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
-            child: Center(child: _plus(12, p.ink)),
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < 3; i++) ...[
+                    if (i > 0) const SizedBox(width: 2.5),
+                    Container(
+                      width: 3, height: 3,
+                      decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ]),
@@ -972,9 +991,11 @@ class _ClientScreenState extends State<ClientScreen> {
             child: const SizedBox.expand(),
           ),
         ),
+        // Menyu "ko'proq" tugmasi ostida ochiladi (o'ng tomonda) — foydalanuvchi
+        // dropdown aynan shu ikonkaga tegishli ekanini ko'radi; nom bosilganda ham shu menyu.
         Positioned(
           top: 56,
-          left: 62,
+          right: 16,
           child: Container(
             constraints: const BoxConstraints(minWidth: 186),
             decoration: BoxDecoration(

@@ -35,7 +35,7 @@ const Map<String, dynamic> lUz = {
   'profTil': 'Til', 'profTilVal': "O'zbek", 'profCur': 'Asosiy valyuta', 'profPin': 'PIN-kod',
   'profNotif': 'Bildirishnomalar', 'profArch': 'Arxivlangan yozuvlar', 'on': 'Yoqilgan',
   'archTitle': 'Arxiv', 'archSub': 'Arxivlangan hamkorlar — istalgan payt qaytariladi',
-  'archEmpty': "Arxiv bo'sh", 'restoreBtn': 'Qaytarish',
+  'archEmpty': "Arxiv bo'sh", 'restoreBtn': 'Arxivdan chiqarish',
   'langTitle': 'Tilni tanlang',
   'you': '(siz)',
   'readOnly': "Faqat o'qish — yozuvlarni daftar egasi kiritadi",
@@ -89,7 +89,13 @@ const Map<String, dynamic> lUz = {
   'tMerged': 'Birlashtirildi: {from} → {to}',
   'tDeletedName': 'O\'chirildi: {name}',
   'tReminderSent': 'Eslatma yuborildi — {name} push oladi',
-  'subInfo': '7 kun bepul, keyin \$9/oy — to\'lov tez orada ulanadi',
+  // OBUNA MATNLARI — 2026-08-04: eski «7 kun bepul, keyin $9/oy» modeli
+  // yopildi (TRIAL_DAYS=0 · 2026-07-28), narx endi HAR BO'LIMGA alohida
+  // (xarajat $5, qarz $8, ijarachi $13, to'yxona $24). Shu sababli profil
+  // kartasi va bu satrlar BITTA narxni ATAMAYDI: aniq summa faqat modul
+  // paywall'ida va do'kon (StoreKit) narxi bo'lganda ko'rsatiladi.
+  'subInfo': 'Har bo\'lim alohida obuna — bepul limitdan keyin faqat kerakli '
+      'bo\'limni ochasiz. To\'lov tez orada ulanadi',
   // --- Tier-2 UI labels ---
   'capAmount': 'SUMMA',
   'capNote': 'IZOH',
@@ -164,6 +170,10 @@ const Map<String, dynamic> lUz = {
   'lendDebt': 'Qarz berish',
   'borrowDebt': 'Qarz olish',
   'closeDebt': 'Qarzni yopish',
+  'ledgerCantGive': 'Siz «{name}»ga {sum} qarzdorsiz — yana qarz berish mantiqsiz, avval hisobni yoping',
+  'ledgerCantTake': '«{name}» sizga {sum} qarzdor — qarz olish o\'rniga «Qarzni yopish»dan foydalaning',
+  'ledgerNoActive': 'Faol qarz yo\'q',
+  'ledgerPendingWait': 'Amal tasdiqlanishi kutilmoqda',
   'noClosable': 'Yopiladigan faol qarz yo\'q',
   'gotMoney': 'Pulni oldim',
   'forgave': 'Kechirdim',
@@ -238,15 +248,50 @@ const Map<String, dynamic> lUz = {
   'errWaking': "Server uyg'onmoqda — biroz kuting va qayta urinib ko'ring",
   'errServer': "Server xatosi — birozdan keyin urinib ko'ring",
   'subTrialLeft': 'Sinov · {n} kun qoldi',
-  'subExpired9': 'Sinov tugagan · \$9/oy',
+  // Profil «Obuna» qatorining qiymati, holat = expired — QISQA yorliq, narxsiz.
+  // Ilgari kalit `subExpired9` va qiymati «Sinov tugagan · $9/oy» edi: kalit
+  // nomi o'z qiymati haqida YOLG'ON gapirgani uchun eski $9 tarifi shuncha
+  // vaqt sezilmay omon qoldi. Yangi nom narxni ATAMAYDI (per-modul narxlar).
+  'subExpiredShort': 'Tugagan',
   'subTrialTitle': 'Sinov davri',
   'subPremiumUntil': 'Premium · {d} gacha',
   'subExpiredTitle': 'To\'lov muddati tugagan',
   'subExpiredBody': 'Yangi yozuv kirita olmaysiz — obunani yangilang',
   'subWarnSoon': 'To\'lov muddati yaqinlashdi — {n} kun qoldi',
   'subRenew': 'Obunani yangilash',
-  'subPriceMonthly': '\$9/oy',
-  'errSubExpired': 'To\'lov muddati tugagan — yangi yozuv kirita olmaysiz. Obunani yangilang (\$9/oy)',
+  // Do'kon (StoreKit) narxining oylik yorlig'i: {price} — Apple bergan
+  // lokalizatsiyalangan summa. Qotirilgan zaxira narx YO'Q (eski
+  // 'subPriceMonthly' = «$9/oy» olib tashlandi): do'kon narx bermasa
+  // profilda summa umuman chizilmaydi.
+  'subPerMonth': '{price}/oy',
+  'subFreeTitle': 'Bepul reja',
+  'subPitch': 'Cheksiz qarz va xarajat yozuvlari — {price}.',
+  'subPremiumBody': 'Cheksiz qarz va xarajat yozuvlari yoqilgan. Rahmat!',
+  'subManage': 'Obunani boshqarish',
+  // --- Profil > Obuna: HAR BO'LIM uchun alohida qator (screens/profil.dart) ---
+  // Bu qatorlarda NARX YO'Q: aniq summa modul paywall'ida (do'kon narxi bo'lsa
+  // do'kondan) ko'rsatiladi — qotirilgan summa hech qayerda chizilmaydi.
+  'subModActive': 'Faol',
+  'subModActiveUntil': 'Faol · {d} gacha',
+  'subModLimitOut': 'Bepul limit tugagan',
+  'subModLegacy': 'Premium obunangizga kiritilgan',
+  'subModSubscribe': 'Obuna bo\'lish',
+  // Apple 3.1.2 oshkorligining NARXSIZ varianti — modullar ro'yxati uchun
+  // (har modulning summasi har xil, bitta summa yozib bo'lmaydi).
+  'subAutoRenewNoteMod': 'Har bo\'lim obunasi avtomatik yangilanadi. Aniq summa '
+      'o\'sha bo\'limning obuna oynasida ko\'rsatiladi. Istalgan vaqtda bekor '
+      'qilish: App Store → Apple ID → Obunalar.',
+  'subRestore': 'Xaridni tiklash',
+  'subTerms': 'Foydalanish shartlari',
+  'subPrivacy': 'Maxfiylik siyosati',
+  'delOtpTitle': 'Profil o\'chirilsinmi?',
+  'delOtpWarn': 'Diqqat: profilingiz o\'chiriladi va barcha yozuvlaringizga kirish yopiladi.',
+  'delOtpSentTo': 'Raqamingizga yuborilgan SMS kodni kiriting:',
+  'delOtpSentTo2': 'SMS kod yuborildi:',
+  'delOtpBtn': 'O\'chirish',
+  // Narx ATAYLAB yo'q (2026-08-04): tarif endi modul-boshiga ($5/$8/$13/$24) —
+  // bitta qotirilgan narx har doim noto'g'ri bo'ladi. Narx faqat do'kondan keladi.
+  'errSubExpired': 'Bepul limit tugagan — davom etish uchun shu bo\'lim obunasi kerak',
   'profPinChange': 'PIN kodni o\'zgartirish',
   'profSub': 'Obuna',
   'profDelete': 'Profilni o\'chirish',
@@ -401,10 +446,13 @@ const Map<String, dynamic> lUz = {
   'hubXarSec': 'XARAJATLAR', 'hubDebtSec': 'QARZ DAFTAR',
   'hubToMe': 'Sizga qaytishi kerak',
   'hubDebtsPartners': '{d} faol qarz · {p} hamkor',
+  // Modul kartalari (Ijaradagi uylar / To'yxona) — summa EGAGA kelishi kerak
+  // bo'lgan pul (kirim), shuning uchun Qarz daftar bilan bir xil yashil.
+  'hubIjaraCap': "Yig'ilishi kerak",
+  'hubIjaraSub': '{n} hisob-kitob · {w} kutilmoqda',
+  'hubToyCap': "To'lanmagan qoldiq",
+  'hubToySub': "Bu oyda {n} to'y",
   'hubNoAnswer': '{name} · {n} kun javobsiz',
-  'hubAiEmpty': 'Bir necha yozuvdan so\'ng pulingiz qayoqqa ketayotganini aniq ko\'rsatib beraman — qayerdan tejash mumkinligini birga topamiz.',
-  'hubAiSub': 'Bugungi kuzatuv · yana {n} ta', 'hubAiSubOne': 'Bugungi kuzatuv',
-  'hubAiSee': 'Ko\'rish →',
   'hubAddExpense': 'Xarajat yozish', 'hubAddDebt': 'Qarz qo\'shish',
   'hubRecent': 'SO\'NGGI', 'hubToday': 'Bugun: ',
   'hubEmptyExpCap': 'Xarajat kundaligi', 'hubEmptyExpTitle': 'Har so\'m — ko\'z oldingizda',
@@ -418,7 +466,92 @@ const Map<String, dynamic> lUz = {
   // Davr variantlari mavjud flt* kalitlarini (fltToday..fltCustom) qayta ishlatadi.
   'homeTitle': 'Qarz daftari',
   'fltCap': 'DAVR',
-  'menuXar': 'Xarajatlar',
+  // --- MODUL OBUNALARI (hub chiplari + screens/paywall_sheet.dart) ---
+  // Narxlar: xarajat $5, qarz $8, ijarachi $13, to'yxona $24 (oyiga).
+  // PO 2026-08-04: 'modIjarachi' EGA tomonidan o'qiladi — «Ijarachi» (tenant)
+  // noto'g'ri edi, chunki obunani UY EGASI sotib oladi. Kalit NOMI o'zgarmaydi
+  // (backend modul kaliti 'ijarachi', DB check constraint) — faqat QIYMAT.
+  // Limitlar tarifda: ijarachi — 5 uygacha, to'yxona — 1 to'yxona.
+  'modXarajat': 'Xarajatlar', 'modQarz': 'Qarz daftar',
+  'modIjarachi': 'Ijaradagi uylar', 'modToyxona': 'To\'yxona',
+  'modSoon': 'Tez kunda', 'modPerMonth': '\${price}/oy',
+  // «Cur» variantlari: narx DO'KONDAN kelganda ishlatiladi — u o'z valyuta belgisini
+  // o'zi olib keladi ("24 000 so'm", "$4.99"), shuning uchun bu yerda $ QO'YILMAYDI.
+  // Aks holda UZS'da to'laydigan foydalanuvchiga "$24 000 so'm/oy" ko'rinardi.
+  'modPerMonthCur': '{price}/oy',
+  'pwCtaCur': 'Obuna bo\'lish — {price}/oy',
+  'modIjarachiDesc': '5 tagacha ijaradagi uy — ijara va kommunal to\'lovlar',
+  'modToyxonaDesc': 'Bitta to\'yxona — bron, avans va xizmatlar smetasi',
+  'pwTitleXarajat': 'Xarajatlar — cheksiz yozuv',
+  'pwTitleQarz': 'Qarz daftar — cheksiz yozuv',
+  'pwTitleIjarachi': 'Ijaradagi uylar — ijara nazorati',
+  'pwTitleToyxona': 'To\'yxona — bron va smeta',
+  // ==== FOYDA QATORLARI — FAQAT ISHLAYDIGAN NARSA (review 2026-08-04) ====
+  // Bu varaq — PULLIK xarid ekrani. Har qator ORTIDA ishlaydigan kod yo'li
+  // bo'lishi SHART: "qurilmoqda" yoki "o'lik view-model" qator = qaytarim va
+  // do'kon tekshiruvi xavfi. Qator o'zgartirsangiz avval kod yo'lini toping.
+  'pwBenXar1': 'Cheksiz xarajat yozuvi',
+  // Ilgari «...va oylik chegara nazorati» edi — CHEGARA UI'si YO'Q: store.dart
+  // dagi limit view-model'ini (limPct/limSpentTxt/...) HECH BIR ekran o'qimaydi,
+  // yagona o'rnatgich AI-chat bloki. Papkalar esa to'liq ishlaydi
+  // (routes/categories.js: POST /, PATCH /:id — nom + arxiv; nom o'zgarsa
+  // tarix va lug'at ham ko'chadi).
+  'pwBenXar2': 'Xarajatlarni papkalarga bo\'lish — nomlash, arxivlash',
+  'pwBenXar3': 'Matndan avtomatik toifalash',
+  // Ilgari «Oylik hisobot va grafiklar» edi — HISOBOT TABI VA DIAGRAMMALAR
+  // O'LIK: xTrend/xarCats/xtHisobot/xarTabs'ni hech bir ekran o'qimaydi,
+  // moliya.dart main.dart'ga import qilinmagan, GET /summary/month mobil'dan
+  // hech qachon chaqirilmaydi. HAQIQATDA chiziladigani — davr yakuni
+  // (screens/xarajat.dart: xfInVal/xfOutVal/xfBalVal).
+  'pwBenXar4': 'Davr yakuni: kirim, chiqim, balans',
+  'pwBenQarz1': 'Cheksiz qarz yozuvi',
+  'pwBenQarz2': 'Ikki tomonlama tasdiq — dalil saqlanadi',
+  'pwBenQarz3': 'Muddat nazorati va avto-eslatmalar',
+  // Ilgari «PDF dalil va arxiv» edi — PDF UMUMAN YO'Q: tugma tPdfSoon
+  // toast'ini chiqaradi ("PDF hisobot — tez orada"), src/ da eksport yo'li yo'q.
+  // O'rniga HAQIQIY narsa: har hamkor bo'yicha balans (routes/partners.js:
+  // balancesFor — valyuta bo'yicha ajratilgan; mobil store.dart 'srvBal' ->
+  // bal()) va arxiv (PATCH {archived} + screens/archive.dart).
+  'pwBenQarz4': 'Har hamkor bo\'yicha balans va arxiv',
+  'pwBenIjara1': 'Bir nechta uy yoki obyekt — 5 tagacha',
+  'pwBenIjara2': 'Ijara va kommunal to\'lovlar nazorati',
+  // DIQQAT (review 2026-08-04, MEDIUM): bu ikki qator ilgari BO'LMAGAN
+  // imkoniyatni va'da qilardi — «ijarachi tasdiqlaydi» (ijarachida akkaunt
+  // YO'Q: 022 da u faqat tenant_name/tenant_phone matni) va «avto-eslatmalar»
+  // (src/services/dueReminder.js faqat `debts` jadvalini o'qiydi, rent_charges
+  // hech qaysi servisda yo'q). Pulli obuna varag'idagi yolg'on va'da = qaytarim
+  // va do'kon tekshiruvi xavfi. Endi FAQAT bugun ishlaydigan narsa yoziladi:
+  //   3 — qisman to'lov va qoldiq (src/routes/ijara.js: chargeTotals -> left;
+  //       screens/ijara.dart: 'leftShort' qatori),
+  //   4 — muddati o'tganlarni ajratish (screens/ijara.dart: overdueOf ->
+  //       'overdueN' + qizil chiziq). ESLATMA YUBORILMAYDI — faqat ko'rinadi.
+  'pwBenIjara3': 'Bo\'lib to\'lash — qoldiq o\'zi hisoblanadi',
+  'pwBenIjara4': 'Muddati o\'tgan hisoblar ajratib ko\'rsatiladi',
+  'pwBenToy1': 'Bron kalendari — kun va smena bo\'yicha (1 to\'yxona)',
+  'pwBenToy2': 'Avans va bo\'lib to\'lash',
+  // Ilgari «Zal yoki kishi boshiga» edi — YALPI ZAL NARXI YO'Q: computeTotals
+  // (routes/toyxona.js) har doim mehmon soni × bir mehmon narxi. Zal bo'yicha
+  // farq MENYU TOIFALARIDA (hall_menus: "Oddiy — 150 000", "Lyuks — 200 000").
+  'pwBenToy3': 'Kishi boshiga narx — menyu toifalari bilan',
+  // Ilgari «...xonalar» edi — XONA tushunchasi yo'q (faqat erkin matn bo'lib
+  // yozilishi mumkin). Haqiqiy tez-qo'shish presetlari (toyxona_data.dart:
+  // kToyQuickServiceKeys): Musiqa, Fotograf, Videograf, Tort, Bezash, Otashbozlik.
+  'pwBenToy4': 'Xizmatlar smetasi — tort, bezash, musiqa',
+  'pwUsed': '{used}/{limit} bepul yozuv ishlatildi',
+  'pwCta': 'Obuna bo\'lish — \${price}/oy',
+  'pwSoonNote': 'Bu bo\'lim tez orada ochiladi — narx: \${price}/oy',
+  // Obyekt chegarasi siyosati (PO 2026-08-04). NARX YOZILMAYDI — u paywall'ning
+  // tepasida turadi. {n} — src/lib/subscription.js: MODULES.ijarachi.max_units.
+  'pwCapIjara': 'Bitta obuna — {n} tagacha uy. Ko\'proq kerak bo\'lsa, boshqa '
+      'telefon raqamiga alohida hisob oching.',
+  'pwCapToy': 'Bitta obuna — bitta to\'yxona. Yana to\'yxona kerak bo\'lsa, boshqa '
+      'telefon raqamiga alohida hisob oching.',
+  // To'lov kanali (Play/App Store) hali ulanmagan — paywall CTA javobi.
+  // DIQQAT: bu yerda NARX yozilmaydi (modulga qarab har xil).
+  'pwPayComingSoon': 'To\'lov hali ulanmagan — obuna tez orada ishlaydi',
+  // Modul obunasi yoqilgandagi toast. {module} — tarjimadagi modul nomi
+  // (modXarajat / modQarz / modIjarachi / modToyxona).
+  'subModuleThanks': '{module} obunasi yoqildi — rahmat!',
 };
 
 const Map<String, dynamic> lRu = {
@@ -455,7 +588,7 @@ const Map<String, dynamic> lRu = {
   'profTil': 'Язык', 'profTilVal': 'Русский', 'profCur': 'Основная валюта', 'profPin': 'PIN-код',
   'profNotif': 'Уведомления', 'profArch': 'Записи в архиве', 'on': 'Включено',
   'archTitle': 'Архив', 'archSub': 'Архивные партнёры — можно вернуть в любой момент',
-  'archEmpty': 'Архив пуст', 'restoreBtn': 'Вернуть',
+  'archEmpty': 'Архив пуст', 'restoreBtn': 'Убрать из архива',
   'langTitle': 'Выберите язык',
   'you': '(вы)',
   'readOnly': 'Только чтение — записи вносит владелец тетради',
@@ -509,7 +642,8 @@ const Map<String, dynamic> lRu = {
   'tMerged': 'Объединено: {from} → {to}',
   'tDeletedName': 'Удалено: {name}',
   'tReminderSent': 'Напоминание отправлено — {name} получит push',
-  'subInfo': '7 дней бесплатно, затем \$9/мес — оплата подключится скоро',
+  'subInfo': 'Каждый раздел — отдельная подписка: после бесплатного лимита '
+      'открываете только нужный. Оплата подключится скоро',
   // --- Tier-2 UI labels ---
   'capAmount': 'СУММА',
   'capNote': 'ЗАМЕТКА',
@@ -584,6 +718,10 @@ const Map<String, dynamic> lRu = {
   'lendDebt': 'Дать в долг',
   'borrowDebt': 'Взять в долг',
   'closeDebt': 'Закрыть долг',
+  'ledgerCantGive': 'Вы должны «{name}» {sum} — давать в долг ещё нелогично, сначала закройте счёт',
+  'ledgerCantTake': '«{name}» должен вам {sum} — вместо нового долга используйте «Закрыть долг»',
+  'ledgerNoActive': 'Нет активного долга',
+  'ledgerPendingWait': 'Ожидается подтверждение действия',
   'noClosable': 'Нет активного долга для закрытия',
   'gotMoney': 'Деньги получил',
   'forgave': 'Простил',
@@ -658,15 +796,35 @@ const Map<String, dynamic> lRu = {
   'errWaking': "Сервер просыпается — подождите немного и повторите",
   'errServer': "Ошибка сервера — попробуйте позже",
   'subTrialLeft': 'Пробный · осталось {n} дн.',
-  'subExpired9': 'Пробный истёк · \$9/мес',
+  'subExpiredShort': 'Истекла',
   'subTrialTitle': 'Пробный период',
   'subPremiumUntil': 'Premium · до {d}',
   'subExpiredTitle': 'Срок оплаты истёк',
   'subExpiredBody': 'Новые записи недоступны — продлите подписку',
   'subWarnSoon': 'Срок оплаты подходит — осталось {n} дн.',
   'subRenew': 'Продлить подписку',
-  'subPriceMonthly': '\$9/мес',
-  'errSubExpired': 'Срок оплаты истёк — новые записи недоступны. Продлите подписку (\$9/мес)',
+  'subPerMonth': '{price}/мес',
+  'subFreeTitle': 'Бесплатный план',
+  'subPitch': 'Безлимитные записи долгов и расходов — {price}.',
+  'subPremiumBody': 'Безлимитные записи долгов и расходов включены. Спасибо!',
+  'subManage': 'Управлять подпиской',
+  'subModActive': 'Активна',
+  'subModActiveUntil': 'Активна · до {d}',
+  'subModLimitOut': 'Бесплатный лимит исчерпан',
+  'subModLegacy': 'Входит в вашу подписку Premium',
+  'subModSubscribe': 'Оформить',
+  'subAutoRenewNoteMod': 'Подписка на каждый раздел продлевается автоматически. '
+      'Точная сумма показана в окне подписки этого раздела. Отменить можно в '
+      'любой момент: App Store → Apple ID → Подписки.',
+  'subRestore': 'Восстановить покупку',
+  'subTerms': 'Условия использования',
+  'subPrivacy': 'Политика конфиденциальности',
+  'delOtpTitle': 'Удалить профиль?',
+  'delOtpWarn': 'Внимание: профиль будет удалён, и доступ ко всем вашим записям закроется.',
+  'delOtpSentTo': 'Введите код из SMS, отправленного на ваш номер:',
+  'delOtpSentTo2': 'SMS-код отправлен:',
+  'delOtpBtn': 'Удалить',
+  'errSubExpired': 'Бесплатный лимит исчерпан — нужна подписка на этот раздел',
   'profPinChange': 'Изменить PIN',
   'profSub': 'Подписка',
   'profDelete': 'Удалить профиль',
@@ -821,10 +979,11 @@ const Map<String, dynamic> lRu = {
   'hubXarSec': 'РАСХОДЫ', 'hubDebtSec': 'ДОЛГОВАЯ КНИГА',
   'hubToMe': 'Вам должны вернуть',
   'hubDebtsPartners': '{d} активных долга · {p} партнёров',
+  'hubIjaraCap': 'К получению',
+  'hubIjaraSub': '{n} начислений · {w} в ожидании',
+  'hubToyCap': 'Остаток к оплате',
+  'hubToySub': '{n} торжеств в этом месяце',
   'hubNoAnswer': '{name} · {n} дн. без ответа',
-  'hubAiEmpty': 'После нескольких записей я точно покажу, куда уходят ваши деньги — и вместе найдём, на чём сэкономить.',
-  'hubAiSub': 'Наблюдение дня · ещё {n}', 'hubAiSubOne': 'Наблюдение дня',
-  'hubAiSee': 'Смотреть →',
   'hubAddExpense': 'Записать расход', 'hubAddDebt': 'Добавить долг',
   'hubRecent': 'ПОСЛЕДНЕЕ', 'hubToday': 'Сегодня: ',
   'hubEmptyExpCap': 'Дневник расходов', 'hubEmptyExpTitle': 'Каждый сум — на виду',
@@ -837,7 +996,43 @@ const Map<String, dynamic> lRu = {
   // --- Home (Qarz daftari) header ---
   'homeTitle': 'Долговая книга',
   'fltCap': 'ПЕРИОД',
-  'menuXar': 'Расходы',
+  // --- ПОДПИСКИ ПО МОДУЛЯМ (чипы хаба + screens/paywall_sheet.dart) ---
+  'modXarajat': 'Расходы', 'modQarz': 'Долговая книга',
+  'modIjarachi': 'Сдаваемые дома', 'modToyxona': 'Банкетный зал',
+  'modSoon': 'Скоро', 'modPerMonth': '\${price}/мес',
+  'modPerMonthCur': '{price}/мес',
+  'pwCtaCur': 'Оформить — {price}/мес',
+  'modIjarachiDesc': 'До 5 сдаваемых домов — аренда и коммунальные платежи',
+  'modToyxonaDesc': 'Один зал — брони, аванс и смета услуг',
+  'pwTitleXarajat': 'Расходы — без ограничений',
+  'pwTitleQarz': 'Долговая книга — без ограничений',
+  'pwTitleIjarachi': 'Сдаваемые дома — аренда под контролем',
+  'pwTitleToyxona': 'Банкетный зал — брони и сметы',
+  'pwBenXar1': 'Неограниченные записи расходов',
+  'pwBenXar2': 'Расходы по папкам — переименование и архив',
+  'pwBenXar3': 'Автокатегории прямо из текста',
+  'pwBenXar4': 'Итог за период: приход, расход, баланс',
+  'pwBenQarz1': 'Неограниченные записи долгов',
+  'pwBenQarz2': 'Подтверждение двумя сторонами — далил сохраняется',
+  'pwBenQarz3': 'Контроль сроков и автонапоминания',
+  'pwBenQarz4': 'Баланс по каждому партнёру и архив',
+  'pwBenIjara1': 'Несколько домов или объектов — до 5',
+  'pwBenIjara2': 'Контроль аренды и коммунальных платежей',
+  'pwBenIjara3': 'Оплата частями — остаток считается сам',
+  'pwBenIjara4': 'Просроченные начисления выделяются',
+  'pwBenToy1': 'Календарь броней — по дням и сменам (1 зал)',
+  'pwBenToy2': 'Аванс и оплата частями',
+  'pwBenToy3': 'Цена за человека — с категориями меню',
+  'pwBenToy4': 'Смета услуг — торт, оформление, музыка',
+  'pwUsed': 'Использовано {used}/{limit} бесплатных записей',
+  'pwCta': 'Оформить — \${price}/мес',
+  'pwSoonNote': 'Раздел откроется совсем скоро — цена: \${price}/мес',
+  'pwCapIjara': 'Одна подписка — до {n} домов. Нужно больше — заведите отдельный '
+      'аккаунт на другой номер телефона.',
+  'pwCapToy': 'Одна подписка — один зал. Нужен ещё зал — заведите отдельный '
+      'аккаунт на другой номер телефона.',
+  'pwPayComingSoon': 'Оплата пока не подключена — подписка заработает совсем скоро',
+  'subModuleThanks': 'Подписка «{module}» включена — спасибо!',
 };
 
 const Map<String, dynamic> lEn = {
@@ -874,7 +1069,7 @@ const Map<String, dynamic> lEn = {
   'profTil': 'Language', 'profTilVal': 'English', 'profCur': 'Main currency', 'profPin': 'PIN code',
   'profNotif': 'Notifications', 'profArch': 'Archived entries', 'on': 'On',
   'archTitle': 'Archive', 'archSub': 'Archived partners — restore anytime',
-  'archEmpty': 'Archive is empty', 'restoreBtn': 'Restore',
+  'archEmpty': 'Archive is empty', 'restoreBtn': 'Unarchive',
   'langTitle': 'Choose a language',
   'you': '(you)',
   'readOnly': 'Read only — entries are added by the ledger owner',
@@ -928,7 +1123,8 @@ const Map<String, dynamic> lEn = {
   'tMerged': 'Merged: {from} → {to}',
   'tDeletedName': 'Deleted: {name}',
   'tReminderSent': 'Reminder sent — {name} gets a push',
-  'subInfo': '7 days free, then \$9/mo — payment coming soon',
+  'subInfo': 'Each section has its own subscription — after the free limit you '
+      'unlock only the one you need. Payments are coming soon',
   // --- Tier-2 UI labels ---
   'capAmount': 'AMOUNT',
   'capNote': 'NOTE',
@@ -1003,6 +1199,10 @@ const Map<String, dynamic> lEn = {
   'lendDebt': 'Lend',
   'borrowDebt': 'Borrow',
   'closeDebt': 'Close debt',
+  'ledgerCantGive': 'You owe «{name}» {sum} — lending more makes no sense, settle up first',
+  'ledgerCantTake': '«{name}» owes you {sum} — instead of borrowing, use «Close debt»',
+  'ledgerNoActive': 'No active debt',
+  'ledgerPendingWait': 'Waiting for the action to be confirmed',
   'noClosable': 'No active debt to close',
   'gotMoney': 'Got the money',
   'forgave': 'Forgave',
@@ -1077,15 +1277,35 @@ const Map<String, dynamic> lEn = {
   'errWaking': "The server is waking up — wait a moment and try again",
   'errServer': "Server error — please try again later",
   'subTrialLeft': 'Trial · {n} days left',
-  'subExpired9': 'Trial ended · \$9/mo',
+  'subExpiredShort': 'Expired',
   'subTrialTitle': 'Trial period',
   'subPremiumUntil': 'Premium · until {d}',
   'subExpiredTitle': 'Payment period ended',
   'subExpiredBody': 'You can\'t add new entries — renew your subscription',
   'subWarnSoon': 'Payment due soon — {n} days left',
   'subRenew': 'Renew subscription',
-  'subPriceMonthly': '\$9/mo',
-  'errSubExpired': 'Payment period ended — you can\'t add new entries. Renew your subscription (\$9/mo)',
+  'subPerMonth': '{price}/mo',
+  'subFreeTitle': 'Free plan',
+  'subPitch': 'Unlimited debt and expense records — {price}.',
+  'subPremiumBody': 'Unlimited debt and expense records enabled. Thank you!',
+  'subManage': 'Manage subscription',
+  'subModActive': 'Active',
+  'subModActiveUntil': 'Active · until {d}',
+  'subModLimitOut': 'Free limit reached',
+  'subModLegacy': 'Included in your Premium subscription',
+  'subModSubscribe': 'Subscribe',
+  'subAutoRenewNoteMod': 'Each section\'s subscription renews automatically. The '
+      'exact amount is shown on that section\'s subscription screen. Cancel any '
+      'time: App Store → Apple ID → Subscriptions.',
+  'subRestore': 'Restore purchase',
+  'subTerms': 'Terms of Use',
+  'subPrivacy': 'Privacy Policy',
+  'delOtpTitle': 'Delete profile?',
+  'delOtpWarn': 'Warning: your profile will be deleted and access to all your records will be closed.',
+  'delOtpSentTo': 'Enter the SMS code sent to your number:',
+  'delOtpSentTo2': 'SMS code sent to:',
+  'delOtpBtn': 'Delete',
+  'errSubExpired': 'Free limit reached — a subscription for this section is required',
   'profPinChange': 'Change PIN',
   'profSub': 'Subscription',
   'profDelete': 'Delete profile',
@@ -1240,10 +1460,11 @@ const Map<String, dynamic> lEn = {
   'hubXarSec': 'EXPENSES', 'hubDebtSec': 'DEBT LEDGER',
   'hubToMe': 'Owed back to you',
   'hubDebtsPartners': '{d} active debts · {p} partners',
+  'hubIjaraCap': 'To collect',
+  'hubIjaraSub': '{n} charges · {w} pending',
+  'hubToyCap': 'Outstanding balance',
+  'hubToySub': '{n} bookings this month',
   'hubNoAnswer': '{name} · {n} days no reply',
-  'hubAiEmpty': 'After a few records I\'ll show you exactly where your money goes — and together we\'ll find where to save.',
-  'hubAiSub': 'Today\'s insight · {n} more', 'hubAiSubOne': 'Today\'s insight',
-  'hubAiSee': 'View →',
   'hubAddExpense': 'Add expense', 'hubAddDebt': 'Add debt',
   'hubRecent': 'RECENT', 'hubToday': 'Today: ',
   'hubEmptyExpCap': 'Expense diary', 'hubEmptyExpTitle': 'Every so\'m — in plain sight',
@@ -1256,7 +1477,43 @@ const Map<String, dynamic> lEn = {
   // --- Home (Debt ledger) header ---
   'homeTitle': 'Debt ledger',
   'fltCap': 'PERIOD',
-  'menuXar': 'Expenses',
+  // --- PER-MODULE SUBSCRIPTIONS (hub chips + screens/paywall_sheet.dart) ---
+  'modXarajat': 'Expenses', 'modQarz': 'Debt ledger',
+  'modIjarachi': 'Rental properties', 'modToyxona': 'Banquet hall',
+  'modSoon': 'Coming soon', 'modPerMonth': '\${price}/mo',
+  'modPerMonthCur': '{price}/mo',
+  'pwCtaCur': 'Subscribe — {price}/mo',
+  'modIjarachiDesc': 'Up to 5 rental properties — rent and utilities',
+  'modToyxonaDesc': 'One venue — bookings, deposits and service quotes',
+  'pwTitleXarajat': 'Expenses — unlimited entries',
+  'pwTitleQarz': 'Debt ledger — unlimited entries',
+  'pwTitleIjarachi': 'Rental properties — rent under control',
+  'pwTitleToyxona': 'Banquet hall — bookings and quotes',
+  'pwBenXar1': 'Unlimited expense entries',
+  'pwBenXar2': 'Expenses by folder — rename and archive',
+  'pwBenXar3': 'Automatic categories straight from text',
+  'pwBenXar4': 'Period totals: in, out, balance',
+  'pwBenQarz1': 'Unlimited debt entries',
+  'pwBenQarz2': 'Both sides confirm — the proof is kept',
+  'pwBenQarz3': 'Due-date tracking and auto reminders',
+  'pwBenQarz4': 'Per-partner balance and archive',
+  'pwBenIjara1': 'Several homes or properties — up to 5',
+  'pwBenIjara2': 'Rent and utility payments under control',
+  'pwBenIjara3': 'Partial payments — the remainder is tracked',
+  'pwBenIjara4': 'Overdue charges are highlighted',
+  'pwBenToy1': 'Booking calendar — by day and shift (1 venue)',
+  'pwBenToy2': 'Deposits and payment in parts',
+  'pwBenToy3': 'Per-guest pricing with menu tiers',
+  'pwBenToy4': 'Services estimate — cake, decor, music',
+  'pwUsed': '{used}/{limit} free entries used',
+  'pwCta': 'Subscribe — \${price}/mo',
+  'pwSoonNote': 'This module opens very soon — price: \${price}/mo',
+  'pwCapIjara': 'One subscription covers up to {n} properties. Need more? Open a '
+      'separate account with another phone number.',
+  'pwCapToy': 'One subscription covers one venue. Need another venue? Open a '
+      'separate account with another phone number.',
+  'pwPayComingSoon': 'Payments are not connected yet — the subscription will work very soon',
+  'subModuleThanks': '{module} subscription is active — thank you!',
 };
 
 const Map<String, dynamic> lEs = {
@@ -1293,7 +1550,7 @@ const Map<String, dynamic> lEs = {
   'profTil': 'Idioma', 'profTilVal': 'Español', 'profCur': 'Moneda principal', 'profPin': 'Código PIN',
   'profNotif': 'Notificaciones', 'profArch': 'Registros archivados', 'on': 'Activado',
   'archTitle': 'Archivo', 'archSub': 'Socios archivados — restaurar en cualquier momento',
-  'archEmpty': 'El archivo está vacío', 'restoreBtn': 'Restaurar',
+  'archEmpty': 'El archivo está vacío', 'restoreBtn': 'Quitar del archivo',
   'langTitle': 'Elige un idioma',
   'you': '(tú)',
   'readOnly': 'Solo lectura — los registros los añade el dueño del cuaderno',
@@ -1347,7 +1604,8 @@ const Map<String, dynamic> lEs = {
   'tMerged': 'Combinado: {from} → {to}',
   'tDeletedName': 'Eliminado: {name}',
   'tReminderSent': 'Recordatorio enviado — {name} recibirá un push',
-  'subInfo': '7 días gratis, luego \$9/mes — el pago se activará muy pronto',
+  'subInfo': 'Cada sección tiene su propia suscripción: tras el límite gratuito '
+      'activas solo la que necesitas. El pago se conectará muy pronto',
   // --- Tier-2 UI labels ---
   'capAmount': 'IMPORTE',
   'capNote': 'NOTA',
@@ -1422,6 +1680,10 @@ const Map<String, dynamic> lEs = {
   'lendDebt': 'Prestar',
   'borrowDebt': 'Pedir prestado',
   'closeDebt': 'Cerrar deuda',
+  'ledgerCantGive': 'Le debes {sum} a «{name}» — no tiene sentido prestar más, primero cierra la cuenta',
+  'ledgerCantTake': '«{name}» te debe {sum} — en lugar de pedir prestado, usa «Cerrar deuda»',
+  'ledgerNoActive': 'No hay deuda activa',
+  'ledgerPendingWait': 'Esperando la confirmación de la acción',
   'noClosable': 'No hay deuda activa para cerrar',
   'gotMoney': 'Recibí el dinero',
   'forgave': 'Perdoné',
@@ -1496,15 +1758,36 @@ const Map<String, dynamic> lEs = {
   'errWaking': "El servidor está despertando: espera un momento e inténtalo de nuevo",
   'errServer': "Error del servidor: inténtalo más tarde",
   'subTrialLeft': 'Prueba · quedan {n} días',
-  'subExpired9': 'Prueba finalizada · \$9/mes',
+  'subExpiredShort': 'Vencida',
   'subTrialTitle': 'Período de prueba',
   'subPremiumUntil': 'Premium · hasta {d}',
   'subExpiredTitle': 'El plazo de pago venció',
   'subExpiredBody': 'No puedes añadir registros — renueva la suscripción',
   'subWarnSoon': 'El pago vence pronto — quedan {n} días',
   'subRenew': 'Renovar suscripción',
-  'subPriceMonthly': '\$9/mes',
-  'errSubExpired': 'El plazo de pago venció — no puedes añadir registros. Renueva la suscripción (\$9/mes)',
+  'subPerMonth': '{price}/mes',
+  'subFreeTitle': 'Plan gratuito',
+  'subPitch': 'Registros ilimitados de deudas y gastos — {price}.',
+  'subPremiumBody': 'Registros ilimitados de deudas y gastos activados. ¡Gracias!',
+  'subManage': 'Gestionar suscripción',
+  'subModActive': 'Activa',
+  'subModActiveUntil': 'Activa · hasta {d}',
+  'subModLimitOut': 'Límite gratuito alcanzado',
+  'subModLegacy': 'Incluido en tu suscripción Premium',
+  'subModSubscribe': 'Suscribirse',
+  'subAutoRenewNoteMod': 'La suscripción de cada sección se renueva '
+      'automáticamente. El importe exacto se muestra en la pantalla de '
+      'suscripción de esa sección. Cancela cuando quieras: App Store → Apple ID '
+      '→ Suscripciones.',
+  'subRestore': 'Restaurar compra',
+  'subTerms': 'Términos de uso',
+  'subPrivacy': 'Política de privacidad',
+  'delOtpTitle': '¿Eliminar el perfil?',
+  'delOtpWarn': 'Atención: tu perfil será eliminado y se cerrará el acceso a todos tus registros.',
+  'delOtpSentTo': 'Introduce el código SMS enviado a tu número:',
+  'delOtpSentTo2': 'Código SMS enviado:',
+  'delOtpBtn': 'Eliminar',
+  'errSubExpired': 'Límite gratuito alcanzado — se necesita la suscripción de esta sección',
   'profPinChange': 'Cambiar PIN',
   'profSub': 'Suscripción',
   'profDelete': 'Eliminar perfil',
@@ -1659,10 +1942,11 @@ const Map<String, dynamic> lEs = {
   'hubXarSec': 'GASTOS', 'hubDebtSec': 'LIBRO DE DEUDAS',
   'hubToMe': 'Te deben devolver',
   'hubDebtsPartners': '{d} deudas activas · {p} socios',
+  'hubIjaraCap': 'Por cobrar',
+  'hubIjaraSub': '{n} cargos · {w} pendientes',
+  'hubToyCap': 'Saldo pendiente',
+  'hubToySub': '{n} reservas este mes',
   'hubNoAnswer': '{name} · {n} días sin respuesta',
-  'hubAiEmpty': 'Tras unas cuantas anotaciones te mostraré exactamente adónde va tu dinero — y juntos veremos dónde ahorrar.',
-  'hubAiSub': 'Observación de hoy · {n} más', 'hubAiSubOne': 'Observación de hoy',
-  'hubAiSee': 'Ver →',
   'hubAddExpense': 'Anotar gasto', 'hubAddDebt': 'Añadir deuda',
   'hubRecent': 'RECIENTE', 'hubToday': 'Hoy: ',
   'hubEmptyExpCap': 'Diario de gastos', 'hubEmptyExpTitle': 'Cada som — a la vista',
@@ -1675,7 +1959,43 @@ const Map<String, dynamic> lEs = {
   // --- Home (Libro de deudas) header ---
   'homeTitle': 'Libro de deudas',
   'fltCap': 'PERÍODO',
-  'menuXar': 'Gastos',
+  // --- SUSCRIPCIONES POR MÓDULO (chips del hub + screens/paywall_sheet.dart) ---
+  'modXarajat': 'Gastos', 'modQarz': 'Libro de deudas',
+  'modIjarachi': 'Propiedades en alquiler', 'modToyxona': 'Salón de eventos',
+  'modSoon': 'Muy pronto', 'modPerMonth': '\${price}/mes',
+  'modPerMonthCur': '{price}/mes',
+  'pwCtaCur': 'Suscribirse — {price}/mes',
+  'modIjarachiDesc': 'Hasta 5 propiedades en alquiler — alquiler y servicios',
+  'modToyxonaDesc': 'Un salón — reservas, anticipo y presupuesto',
+  'pwTitleXarajat': 'Gastos — registros ilimitados',
+  'pwTitleQarz': 'Libro de deudas — registros ilimitados',
+  'pwTitleIjarachi': 'Propiedades en alquiler — alquiler bajo control',
+  'pwTitleToyxona': 'Salón de eventos — reservas y presupuestos',
+  'pwBenXar1': 'Registros de gastos ilimitados',
+  'pwBenXar2': 'Gastos por carpetas — renombrar y archivar',
+  'pwBenXar3': 'Categorías automáticas desde el texto',
+  'pwBenXar4': 'Totales del período: ingresos, gastos, saldo',
+  'pwBenQarz1': 'Registros de deudas ilimitados',
+  'pwBenQarz2': 'Ambas partes confirman — la prueba se guarda',
+  'pwBenQarz3': 'Control de plazos y recordatorios automáticos',
+  'pwBenQarz4': 'Saldo por cada socio y archivo',
+  'pwBenIjara1': 'Varias viviendas u objetos — hasta 5',
+  'pwBenIjara2': 'Alquiler y servicios públicos bajo control',
+  'pwBenIjara3': 'Pagos parciales — el saldo se calcula solo',
+  'pwBenIjara4': 'Los cargos vencidos se destacan',
+  'pwBenToy1': 'Calendario de reservas — por día y turno (1 salón)',
+  'pwBenToy2': 'Anticipo y pago en partes',
+  'pwBenToy3': 'Precio por persona con categorías de menú',
+  'pwBenToy4': 'Presupuesto de servicios — tarta, decoración, música',
+  'pwUsed': '{used}/{limit} registros gratis usados',
+  'pwCta': 'Suscribirse — \${price}/mes',
+  'pwSoonNote': 'Esta sección se abre muy pronto — precio: \${price}/mes',
+  'pwCapIjara': 'Una suscripción cubre hasta {n} propiedades. ¿Necesitas más? Abre '
+      'otra cuenta con un número de teléfono distinto.',
+  'pwCapToy': 'Una suscripción cubre un solo salón. ¿Necesitas otro? Abre otra '
+      'cuenta con un número de teléfono distinto.',
+  'pwPayComingSoon': 'El pago aún no está conectado — la suscripción funcionará muy pronto',
+  'subModuleThanks': 'La suscripción «{module}» está activa — ¡gracias!',
 };
 
 const Map<String, dynamic> lFr = {
@@ -1712,7 +2032,7 @@ const Map<String, dynamic> lFr = {
   'profTil': 'Langue', 'profTilVal': 'Français', 'profCur': 'Devise principale', 'profPin': 'Code PIN',
   'profNotif': 'Notifications', 'profArch': 'Écritures archivées', 'on': 'Activé',
   'archTitle': 'Archives', 'archSub': 'Partenaires archivés — restaurez à tout moment',
-  'archEmpty': 'Les archives sont vides', 'restoreBtn': 'Restaurer',
+  'archEmpty': 'Les archives sont vides', 'restoreBtn': 'Retirer de l\'archive',
   'langTitle': 'Choisissez une langue',
   'you': '(vous)',
   'readOnly': 'Lecture seule — les écritures sont ajoutées par le propriétaire du carnet',
@@ -1766,7 +2086,8 @@ const Map<String, dynamic> lFr = {
   'tMerged': 'Fusionné : {from} → {to}',
   'tDeletedName': 'Supprimé : {name}',
   'tReminderSent': 'Rappel envoyé — {name} recevra un push',
-  'subInfo': '7 jours gratuits, puis \$9/mois — le paiement sera bientôt disponible',
+  'subInfo': 'Chaque section a son propre abonnement : après la limite gratuite, '
+      'vous activez uniquement celle dont vous avez besoin. Le paiement arrive bientôt',
   // --- Tier-2 UI labels ---
   'capAmount': 'MONTANT',
   'capNote': 'NOTE',
@@ -1841,6 +2162,10 @@ const Map<String, dynamic> lFr = {
   'lendDebt': 'Prêter',
   'borrowDebt': 'Emprunter',
   'closeDebt': 'Clôturer la dette',
+  'ledgerCantGive': 'Vous devez {sum} à «{name}» — prêter davantage n\'a pas de sens, soldez d\'abord le compte',
+  'ledgerCantTake': '«{name}» vous doit {sum} — au lieu d\'emprunter, utilisez «Clôturer la dette»',
+  'ledgerNoActive': 'Aucune dette active',
+  'ledgerPendingWait': 'En attente de confirmation de l\'action',
   'noClosable': 'Aucune dette active à clôturer',
   'gotMoney': 'J\'ai reçu l\'argent',
   'forgave': 'J\'ai remis la dette',
@@ -1915,15 +2240,36 @@ const Map<String, dynamic> lFr = {
   'errWaking': "Le serveur se réveille — patientez un instant et réessayez",
   'errServer': "Erreur du serveur — réessayez plus tard",
   'subTrialLeft': 'Essai · {n} jours restants',
-  'subExpired9': 'Essai terminé · \$9/mois',
+  'subExpiredShort': 'Expiré',
   'subTrialTitle': 'Période d\'essai',
   'subPremiumUntil': 'Premium · jusqu\'au {d}',
   'subExpiredTitle': 'Le délai de paiement a expiré',
   'subExpiredBody': 'Impossible d\'ajouter des écritures — renouvelez l\'abonnement',
   'subWarnSoon': 'Échéance de paiement proche — {n} jours restants',
   'subRenew': 'Renouveler l\'abonnement',
-  'subPriceMonthly': '\$9/mois',
-  'errSubExpired': 'Le délai de paiement a expiré — impossible d\'ajouter des écritures. Renouvelez l\'abonnement (\$9/mois)',
+  'subPerMonth': '{price}/mois',
+  'subFreeTitle': 'Forfait gratuit',
+  'subPitch': 'Enregistrements illimités de dettes et dépenses — {price}.',
+  'subPremiumBody': 'Enregistrements illimités de dettes et dépenses activés. Merci !',
+  'subManage': 'Gérer l\'abonnement',
+  'subModActive': 'Actif',
+  'subModActiveUntil': 'Actif · jusqu\'au {d}',
+  'subModLimitOut': 'Limite gratuite atteinte',
+  'subModLegacy': 'Inclus dans votre abonnement Premium',
+  'subModSubscribe': 'S\'abonner',
+  'subAutoRenewNoteMod': 'L\'abonnement de chaque section se renouvelle '
+      'automatiquement. Le montant exact est indiqué sur l\'écran d\'abonnement '
+      'de cette section. Annulation à tout moment : App Store → Apple ID → '
+      'Abonnements.',
+  'subRestore': 'Restaurer l\'achat',
+  'subTerms': 'Conditions d\'utilisation',
+  'subPrivacy': 'Politique de confidentialité',
+  'delOtpTitle': 'Supprimer le profil ?',
+  'delOtpWarn': 'Attention : votre profil sera supprimé et l\'accès à tous vos enregistrements sera fermé.',
+  'delOtpSentTo': 'Saisissez le code SMS envoyé à votre numéro :',
+  'delOtpSentTo2': 'Code SMS envoyé :',
+  'delOtpBtn': 'Supprimer',
+  'errSubExpired': 'Limite gratuite atteinte — un abonnement à cette section est requis',
   'profPinChange': 'Changer le PIN',
   'profSub': 'Abonnement',
   'profDelete': 'Supprimer le profil',
@@ -2078,10 +2424,11 @@ const Map<String, dynamic> lFr = {
   'hubXarSec': 'DÉPENSES', 'hubDebtSec': 'CARNET DE DETTES',
   'hubToMe': 'On doit vous rendre',
   'hubDebtsPartners': '{d} dettes actives · {p} partenaires',
+  'hubIjaraCap': 'À encaisser',
+  'hubIjaraSub': '{n} charges · {w} en attente',
+  'hubToyCap': 'Solde à encaisser',
+  'hubToySub': '{n} réservations ce mois',
   'hubNoAnswer': '{name} · {n} jours sans réponse',
-  'hubAiEmpty': 'Après quelques écritures, je vous montrerai exactement où va votre argent — et nous verrons ensemble où économiser.',
-  'hubAiSub': 'Observation du jour · {n} autres', 'hubAiSubOne': 'Observation du jour',
-  'hubAiSee': 'Voir →',
   'hubAddExpense': 'Noter une dépense', 'hubAddDebt': 'Ajouter une dette',
   'hubRecent': 'RÉCENT', 'hubToday': 'Aujourd\'hui : ',
   'hubEmptyExpCap': 'Journal des dépenses', 'hubEmptyExpTitle': 'Chaque sum — sous vos yeux',
@@ -2094,7 +2441,43 @@ const Map<String, dynamic> lFr = {
   // --- Home (Carnet de dettes) header ---
   'homeTitle': 'Carnet de dettes',
   'fltCap': 'PÉRIODE',
-  'menuXar': 'Dépenses',
+  // --- ABONNEMENTS PAR MODULE (puces du hub + screens/paywall_sheet.dart) ---
+  'modXarajat': 'Dépenses', 'modQarz': 'Carnet de dettes',
+  'modIjarachi': 'Biens en location', 'modToyxona': 'Salle des fêtes',
+  'modSoon': 'Bientôt', 'modPerMonth': '\${price}/mois',
+  'modPerMonthCur': '{price}/mois',
+  'pwCtaCur': 'S\'abonner — {price}/mois',
+  'modIjarachiDesc': 'Jusqu\'à 5 biens en location — loyers et charges',
+  'modToyxonaDesc': 'Une salle — réservations, acompte et devis',
+  'pwTitleXarajat': 'Dépenses — écritures illimitées',
+  'pwTitleQarz': 'Carnet de dettes — écritures illimitées',
+  'pwTitleIjarachi': 'Biens en location — loyers maîtrisés',
+  'pwTitleToyxona': 'Salle des fêtes — réservations et devis',
+  'pwBenXar1': 'Écritures de dépenses illimitées',
+  'pwBenXar2': 'Dépenses par dossier — renommer et archiver',
+  'pwBenXar3': 'Catégories automatiques depuis le texte',
+  'pwBenXar4': 'Bilan de la période : entrées, sorties, solde',
+  'pwBenQarz1': 'Écritures de dettes illimitées',
+  'pwBenQarz2': 'Les deux parties confirment — la preuve est gardée',
+  'pwBenQarz3': 'Suivi des échéances et rappels automatiques',
+  'pwBenQarz4': 'Solde par partenaire et archives',
+  'pwBenIjara1': 'Plusieurs logements ou biens — jusqu\'à 5',
+  'pwBenIjara2': 'Loyers et charges maîtrisés',
+  'pwBenIjara3': 'Paiements partiels — le reste est calculé',
+  'pwBenIjara4': 'Les échéances dépassées sont signalées',
+  'pwBenToy1': 'Calendrier des réservations — par jour et service (1 salle)',
+  'pwBenToy2': 'Acompte et paiement en plusieurs fois',
+  'pwBenToy3': 'Tarif par convive avec catégories de menu',
+  'pwBenToy4': 'Devis des prestations — gâteau, décor, musique',
+  'pwUsed': '{used}/{limit} écritures gratuites utilisées',
+  'pwCta': 'S\'abonner — \${price}/mois',
+  'pwSoonNote': 'Cette section ouvre très bientôt — prix : \${price}/mois',
+  'pwCapIjara': 'Un abonnement couvre jusqu\'à {n} biens. Il vous en faut plus ? '
+      'Ouvrez un compte séparé avec un autre numéro de téléphone.',
+  'pwCapToy': 'Un abonnement couvre une seule salle. Il vous en faut une autre ? '
+      'Ouvrez un compte séparé avec un autre numéro de téléphone.',
+  'pwPayComingSoon': 'Le paiement n\'est pas encore activé — l\'abonnement fonctionnera très bientôt',
+  'subModuleThanks': 'L\'abonnement « {module} » est activé — merci !',
 };
 
 const Map<String, dynamic> lZh = {
@@ -2131,7 +2514,7 @@ const Map<String, dynamic> lZh = {
   'profTil': '语言', 'profTilVal': '中文', 'profCur': '主要货币', 'profPin': 'PIN 码',
   'profNotif': '通知', 'profArch': '归档记录', 'on': '已开启',
   'archTitle': '归档', 'archSub': '已归档的伙伴 — 随时可恢复',
-  'archEmpty': '归档为空', 'restoreBtn': '恢复',
+  'archEmpty': '归档为空', 'restoreBtn': '移出归档',
   'langTitle': '选择语言',
   'you': '（我）',
   'readOnly': '只读 — 记录由账本所有者添加',
@@ -2185,7 +2568,7 @@ const Map<String, dynamic> lZh = {
   'tMerged': '已合并：{from} → {to}',
   'tDeletedName': '已删除：{name}',
   'tReminderSent': '提醒已发送 — {name} 将收到推送',
-  'subInfo': '7 天免费，之后 \$9/月 — 支付即将开通',
+  'subInfo': '每个板块单独订阅 — 免费额度用完后只需开通所需板块。支付即将开通',
   // --- Tier-2 UI labels ---
   'capAmount': '金额',
   'capNote': '备注',
@@ -2260,6 +2643,10 @@ const Map<String, dynamic> lZh = {
   'lendDebt': '借出',
   'borrowDebt': '借入',
   'closeDebt': '结清债务',
+  'ledgerCantGive': '您欠«{name}»{sum} — 再借出并不合理，请先结清账目',
+  'ledgerCantTake': '«{name}»欠您{sum} — 与其借入，不如使用«结清债务»',
+  'ledgerNoActive': '没有进行中的债务',
+  'ledgerPendingWait': '等待操作确认',
   'noClosable': '没有可结清的活跃债务',
   'gotMoney': '已收到钱',
   'forgave': '已免除',
@@ -2334,15 +2721,34 @@ const Map<String, dynamic> lZh = {
   'errWaking': "服务器正在启动 — 请稍候再试",
   'errServer': "服务器错误 — 请稍后再试",
   'subTrialLeft': '试用 · 剩 {n} 天',
-  'subExpired9': '试用已结束 · \$9/月',
+  'subExpiredShort': '已到期',
   'subTrialTitle': '试用期',
   'subPremiumUntil': '高级版 · 至 {d}',
   'subExpiredTitle': '付款期限已到',
   'subExpiredBody': '无法添加新记录 — 请续订',
   'subWarnSoon': '付款期限临近 — 剩 {n} 天',
   'subRenew': '续订',
-  'subPriceMonthly': '\$9/月',
-  'errSubExpired': '付款期限已到 — 无法添加新记录。请续订（\$9/月）',
+  'subPerMonth': '{price}/月',
+  'subFreeTitle': '免费方案',
+  'subPitch': '无限量债务和支出记录 — {price}。',
+  'subPremiumBody': '已启用无限量债务和支出记录。谢谢！',
+  'subManage': '管理订阅',
+  'subModActive': '已开通',
+  'subModActiveUntil': '已开通 · 至 {d}',
+  'subModLimitOut': '免费额度已用完',
+  'subModLegacy': '已包含在您的 Premium 订阅中',
+  'subModSubscribe': '订阅',
+  'subAutoRenewNoteMod': '每个板块的订阅将自动续期。具体金额显示在该板块的订阅页面。'
+      '随时可取消：App Store → Apple ID → 订阅。',
+  'subRestore': '恢复购买',
+  'subTerms': '使用条款',
+  'subPrivacy': '隐私政策',
+  'delOtpTitle': '删除个人资料？',
+  'delOtpWarn': '注意：您的个人资料将被删除，所有记录的访问权限将被关闭。',
+  'delOtpSentTo': '请输入发送到您号码的短信验证码：',
+  'delOtpSentTo2': '短信验证码已发送：',
+  'delOtpBtn': '删除',
+  'errSubExpired': '免费额度已用完 — 需要订阅此板块',
   'profPinChange': '修改 PIN',
   'profSub': '订阅',
   'profDelete': '删除资料',
@@ -2497,10 +2903,11 @@ const Map<String, dynamic> lZh = {
   'hubXarSec': '支出', 'hubDebtSec': '欠款账本',
   'hubToMe': '别人应还您',
   'hubDebtsPartners': '{d} 笔活跃欠款 · {p} 位伙伴',
+  'hubIjaraCap': '待收租金',
+  'hubIjaraSub': '{n} 笔账单 · {w} 待付',
+  'hubToyCap': '未付余额',
+  'hubToySub': '本月 {n} 场婚礼',
   'hubNoAnswer': '{name} · {n} 天未回应',
-  'hubAiEmpty': '记上几笔后，我会告诉你钱到底花在哪儿 — 再一起找出能省的地方。',
-  'hubAiSub': '今日观察 · 还有 {n} 条', 'hubAiSubOne': '今日观察',
-  'hubAiSee': '查看 →',
   'hubAddExpense': '记一笔支出', 'hubAddDebt': '添加欠款',
   'hubRecent': '最近', 'hubToday': '今天：',
   'hubEmptyExpCap': '支出日记', 'hubEmptyExpTitle': '每一分钱都看得见',
@@ -2513,7 +2920,41 @@ const Map<String, dynamic> lZh = {
   // --- Home (欠款账本) header ---
   'homeTitle': '欠款账本',
   'fltCap': '期间',
-  'menuXar': '支出',
+  // --- 分模块订阅（主页标签 + screens/paywall_sheet.dart） ---
+  'modXarajat': '支出', 'modQarz': '欠款账本',
+  'modIjarachi': '出租房产', 'modToyxona': '宴会厅',
+  'modSoon': '即将推出', 'modPerMonth': '\${price}/月',
+  'modPerMonthCur': '{price}/月',
+  'pwCtaCur': '订阅 — {price}/月',
+  'modIjarachiDesc': '最多 5 套出租房产 — 租金与水电费',
+  'modToyxonaDesc': '一个宴会厅 — 预订、订金与服务报价',
+  'pwTitleXarajat': '支出 — 记录不限量',
+  'pwTitleQarz': '欠款账本 — 记录不限量',
+  'pwTitleIjarachi': '出租房产 — 租金尽在掌握',
+  'pwTitleToyxona': '宴会厅 — 预订与报价',
+  'pwBenXar1': '支出记录不限量',
+  'pwBenXar2': '按文件夹分类 — 可重命名与归档',
+  'pwBenXar3': '从文字自动归类',
+  'pwBenXar4': '周期结算：收入、支出、余额',
+  'pwBenQarz1': '欠款记录不限量',
+  'pwBenQarz2': '双方确认 — 凭证长期保存',
+  'pwBenQarz3': '到期跟踪与自动提醒',
+  'pwBenQarz4': '按每位伙伴结算余额与归档',
+  'pwBenIjara1': '多套房产或场所 — 最多 5 套',
+  'pwBenIjara2': '租金与水电费尽在掌握',
+  'pwBenIjara3': '分次收款 — 自动结算余额',
+  'pwBenIjara4': '逾期账目醒目标出',
+  'pwBenToy1': '预订日历 — 按天与场次（1 个宴会厅）',
+  'pwBenToy2': '订金与分期付款',
+  'pwBenToy3': '按人头计价 — 支持菜单档位',
+  'pwBenToy4': '服务清单 — 蛋糕、布置、音乐',
+  'pwUsed': '已使用 {used}/{limit} 条免费记录',
+  'pwCta': '订阅 — \${price}/月',
+  'pwSoonNote': '该模块即将开放 — 价格：\${price}/月',
+  'pwCapIjara': '一个订阅最多管理 {n} 套房产。需要更多，请用另一个手机号单独开一个账号。',
+  'pwCapToy': '一个订阅只含一个宴会厅。需要再开一个，请用另一个手机号单独开一个账号。',
+  'pwPayComingSoon': '支付尚未接入 — 订阅很快就会开放',
+  'subModuleThanks': '「{module}」订阅已开通 — 谢谢！',
 };
 
 /// Til kodi → lug'at

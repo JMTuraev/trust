@@ -42,11 +42,13 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   BackBtn(onTap: () => v['goHub']()),
                   const SizedBox(width: 8),
-                  // Sarlavha — menyu nomi (logo/brend hub headerida qoladi)
+                  // Sarlavha — menyu nomi (logo/brend hub headerida qoladi).
+                  // Moliyaviy ilova qoidasi: sarlavha "..." bilan KESILMAYDI —
+                  // sig'masa 2 qatorga o'raladi.
                   Expanded(
                     child: Tx(v['homeTitle'] as String,
                         size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3,
-                        maxLines: 1, ellipsis: true),
+                        maxLines: 2),
                   ),
                   const SizedBox(width: 8),
                   _filterBtn(v, p),
@@ -54,8 +56,6 @@ class HomeScreen extends StatelessWidget {
                   _archBtn(v, p),
                   const SizedBox(width: 8),
                   _bellBtn(v, p),
-                  const SizedBox(width: 8),
-                  _dotsBtn(v, p),
                 ],
               ),
             ),
@@ -223,31 +223,6 @@ class HomeScreen extends StatelessWidget {
             ]),
           ),
         ],
-
-        // ⋮ menyu — Xarajatlar
-        if (v['homeMenuOpen'] == true) ...[
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => v['homeMenuClose'](),
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Positioned(
-            top: 56,
-            right: 24,
-            child: _menuCard(p, [
-              Tap(
-                onTap: () => v['homeMenuXar'](),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  child: Tx(v['homeMenuXarLabel'] as String,
-                      size: 13.5, w: FontWeight.w500, color: p.ink),
-                ),
-              ),
-            ]),
-          ),
-        ],
       ],
     );
   }
@@ -395,35 +370,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// ⋮ tugmasi (header) — qo'shimcha menyu (Xarajatlar)
-  Widget _dotsBtn(Map<String, dynamic> v, Pal p) {
-    Widget dot() => Container(
-          width: 3,
-          height: 3,
-          decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-        );
-    return Tap(
-      onTap: () => v['homeMenuTap'](),
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              dot(),
-              const SizedBox(height: 2.5),
-              dot(),
-              const SizedBox(height: 2.5),
-              dot(),
-            ],
-          ),
         ),
       ),
     );
@@ -683,7 +629,8 @@ class _SwipeRowState extends State<_SwipeRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx(r['name'], size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                // Hamkor nomi — "..." bilan kesilmaydi (moliyaviy ilova qoidasi)
+                Tx(r['name'], size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
                 const SizedBox(height: 2),
                 Tx(r['sub'], size: 12, color: p.t3),
               ],

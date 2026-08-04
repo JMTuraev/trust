@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { parseText, previewKinds, learnFrom, unlearnFrom, isQarz, DIRECTIONS } from '../services/parse.js';
 import { ensureCategories } from '../lib/categories.js';
-import { requireActiveSub, requireExpenseQuota } from '../lib/subscription.js';
+import { requireActiveSub, requireExpenseQuota, expenseQuotaBlock } from '../lib/subscription.js';
 
 const router = Router();
 
@@ -139,13 +139,26 @@ router.post('/preview', rateLimit({ windowMs: 60_000, max: 60 }), perUserLlmLimi
 // daromad/xarajat -> expenses'ga yoziladi; qarz_* -> saqlanmaydi, `routed` bo'lib qaytadi
 // (mobil Hamkorlar oqimiga yo'naltiradi). O'rganish: lug'at + tuzatishlar (few-shot).
 // YANGI TARIF: confirm ham expenses'ga YOZADI — xuddi shu kvota gate'i
-router.post('/confirm', requireExpenseQuota, async (req, res, next) => {
+// KVOTA MIDDLEWARE ATAYLAB YO'Q (review 2026-08-04): u n=1 bilan ishlab, `willSave`ni
+// ko'rmasdi — natijada FAQAT qarz amallaridan iborat to'plam ham 402 olardi va mobil
+// XARAJAT paywall'ini ochardi (qarz amali uchun $5 xarajat obunasi so'ralardi).
+// Gate handler ichida: expenseQuotaBlock(userId, willSave) — aniq va to'liq.
+router.post('/confirm', async (req, res, next) => {
   try {
     const text = String(req.body?.text || '').trim();
     const source = req.body?.source === 'voice' ? 'voice' : 'text';
     const list = Array.isArray(req.body?.actions) ? req.body.actions : [];
     if (!list.length) return res.status(400).json({ success: false, error: 'actions kerak' });
     if (list.length > 5) return res.status(400).json({ success: false, error: "Bitta gapda ko'pi bilan 5 amal" });
+
+    // Kvota BUTUN TO'PLAM bo'yicha (review 2026-08-04 #12): middleware faqat "1 ta joy
+    // bormi" deb tekshiradi, bu yerda esa haqiqatda saqlanadigan yozuvlar soni sanaladi
+    // (qarz_* amallari expenses'ga yozilmaydi — kvotani yemaydi).
+    const willSave = list.filter(
+      (r) => !isQarz(DIRECTIONS.includes(r?.direction) ? r.direction : 'xarajat'),
+    ).length;
+    const block = await expenseQuotaBlock(req.user.id, willSave);
+    if (block) return res.status(402).json(block);
 
     const cats = await ensureCategories(req.user.id);
     const saved = []; const routed = []; const finals = [];

@@ -337,17 +337,22 @@ class _AiCountUpState extends State<AiCountUp> with SingleTickerProviderStateMix
     final tail = suf.isEmpty ? '' : (suf.length <= 1 ? suf : ' $suf'); // "480k" / "2.1 mln"
     return AnimatedBuilder(
       animation: _c,
-      builder: (_, __) => Text(
-        '${widget.prefix}${_fmt(_now())}$tail',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textScaler: TextScaler.noScaling,
-        style: GoogleFonts.inter(
-          fontSize: widget.size,
-          fontWeight: widget.weight,
-          color: widget.color,
-          letterSpacing: widget.ls,
-          fontFeatures: const [FontFeature.tabularFigures()],
+      // Moliyaviy qoida: summa hech qachon "..." bilan kesilmaydi —
+      // torlik qilsa FittedBox butun raqamni kichraytirib sig'diradi.
+      builder: (_, __) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '${widget.prefix}${_fmt(_now())}$tail',
+          maxLines: 1,
+          textScaler: TextScaler.noScaling,
+          style: GoogleFonts.inter(
+            fontSize: widget.size,
+            fontWeight: widget.weight,
+            color: widget.color,
+            letterSpacing: widget.ls,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ),
     );
@@ -544,16 +549,22 @@ class _StatBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (label.isNotEmpty) ...[
-            Tx(label.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 1, ellipsis: true),
+            // Yorliq to'liq ko'rinsin — 2 qatorgacha o'raladi
+            Tx(label.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 2),
             const SizedBox(height: 7),
           ],
           Row(
             children: [
               Flexible(
                 child: parts == null
-                    // Raqam emas (masalan "yaqin") — shunchaki matn, animatsiyasiz
-                    ? Tx('${b['value']}', size: 24, w: FontWeight.w700, color: tone ?? p.ink,
-                        ls: -0.5, maxLines: 1, ellipsis: true)
+                    // Raqam emas (masalan "yaqin") — shunchaki matn, animatsiyasiz;
+                    // qiymat "..." bilan kesilmaydi, torlik qilsa kichraytiriladi
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Tx('${b['value']}', size: 24, w: FontWeight.w700, color: tone ?? p.ink,
+                            ls: -0.5, maxLines: 1),
+                      )
                     : AiCountUp(
                         value: parts['n'] as num,
                         prefix: parts['plus'] == true ? '+' : '',
@@ -619,7 +630,8 @@ class _ChartBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (title.isNotEmpty) ...[
-            Tx(title.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 1, ellipsis: true),
+            // Sarlavha to'liq ko'rinsin — 2 qatorgacha o'raladi
+            Tx(title.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 2),
             const SizedBox(height: 11),
           ],
           for (final r in rows)
@@ -629,7 +641,8 @@ class _ChartBlock extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 84,
-                    child: Tx('${r[0]}', size: 12, color: p.t1, maxLines: 1, ellipsis: true),
+                    // Toifa nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
+                    child: Tx('${r[0]}', size: 12, color: p.t1, maxLines: 2),
                   ),
                   Expanded(
                     child: _ChartBar(
@@ -750,7 +763,8 @@ class _DebtCardBlockState extends State<_DebtCardBlock> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Tx(_name, size: 14.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                    // Hamkor nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
+                    Tx(_name, size: 14.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
                     if (days > 0) ...[
                       const SizedBox(height: 2),
                       Tx(store.Lf('aiDaysFrozen', {'n': '$days'}), size: 11.5, color: p.t2),
@@ -759,12 +773,16 @@ class _DebtCardBlockState extends State<_DebtCardBlock> {
                 ),
               ),
               const SizedBox(width: 8),
-              AiCountUp(
-                value: amount,
-                suffix: '${store.L()['som']}',
-                size: 15,
-                weight: FontWeight.w700,
-                color: iOwe ? p.red : p.green,
+              // Flexible — FittedBox chegaralangan slotda ishlasin (unbounded Row slotida
+              // scaleDown kuchga kirmaydi va uzun summa overflow beradi)
+              Flexible(
+                child: AiCountUp(
+                  value: amount,
+                  suffix: '${store.L()['som']}',
+                  size: 15,
+                  weight: FontWeight.w700,
+                  color: iOwe ? p.red : p.green,
+                ),
               ),
             ],
           ),
@@ -960,8 +978,9 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
               child: Row(
                 children: [
                   Expanded(
+                    // Yozuv matni to'liq ko'rinsin — 2 qatorgacha o'raladi
                     child: Tx(note.isEmpty ? '—' : note, size: 13, w: FontWeight.w500, color: p.ink,
-                        maxLines: 1, ellipsis: true),
+                        maxLines: 2),
                   ),
                   if (amount != null) ...[
                     const SizedBox(width: 8),
@@ -973,7 +992,8 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
           Row(
             children: [
               if (from.isNotEmpty) ...[
-                Flexible(child: Tx(from, size: 13, color: p.t3, maxLines: 1, ellipsis: true)),
+                // Manba toifa nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
+                Flexible(child: Tx(from, size: 13, color: p.t3, maxLines: 2)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Tx('→', size: 14, color: p.t3),
@@ -986,7 +1006,8 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
                     border: Border.all(color: p.ink, width: 1.5),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Tx(cat, size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                  // Maqsad toifa nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
+                  child: Tx(cat, size: 13, w: FontWeight.w600, color: p.ink, maxLines: 2),
                 ),
               ),
             ],
@@ -1042,7 +1063,8 @@ class _ProgressBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (label.isNotEmpty)
-                  Tx(label, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 2, ellipsis: true),
+                  // Yorliq to'liq ko'rinsin — "..." bilan kesilmaydi
+                  Tx(label, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 2),
                 if (caption.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Tx(caption, size: 12, color: p.t2, lh: 16, maxLines: 3, ellipsis: true),
@@ -1106,7 +1128,14 @@ class _AiDoneStrip extends StatelessWidget {
         children: [
           Icon(Icons.check_rounded, size: 16, color: p.green),
           const SizedBox(width: 7),
-          Flexible(child: Tx(text, size: 13, w: FontWeight.w600, color: p.green, maxLines: 1, ellipsis: true)),
+          // Matn (toifa nomi bilan) to'liq ko'rinsin — balandlik qat'iy (42),
+          // shuning uchun o'rash o'rniga torlik qilsa kichraytiriladi
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Tx(text, size: 13, w: FontWeight.w600, color: p.green, maxLines: 1),
+            ),
+          ),
         ],
       ),
     );

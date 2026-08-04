@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { computeSubscription, getSubscription, countUsage, PREMIUM_PRODUCT_ID } from '../lib/subscription.js';
+import {
+  computeSubscription, getSubscription, countUsage,
+  getModulesStatus, productIdForModule,
+} from '../lib/subscription.js';
 import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
 import { sendOtp, checkOtpCode } from '../services/otp.js';
 
@@ -80,40 +83,50 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Idempotent audit yozuvi + profiles.premium_until ni newUntilIso ga o'rnatish.
 // Mavjud (kelajakdagi) premium_until ni QISQARTIRMAYDI — max(joriy, yangi) olinadi
 // (boshqa platformadagi uzoqroq obuna tasodifan kesilmasin).
+// Xarid auditi — purchase_token bo'yicha UNIQUE. MUHIM (2026-08-02 audit): avval bu yerda
+// ignoreDuplicates:true ishlatilardi va natija TEKSHIRILMASDI — ya'ni bitta Apple cheki
+// cheksiz akkauntga premium berardi (chek mobil klientda ochiq yotadi, uni tarqatish oson).
+// Endi chek EGASIGA bog'lanadi: takror bo'lsa, egasini tekshirib, boshqa bo'lsa RAD etamiz.
+// Premium va MODUL xaridlari ayni shu yo'ldan o'tadi (bitta chek — bitta akkaunt).
+async function auditPurchase(userId, provider, productId, token, untilIso) {
+  if (!token) return;
+  const { error: insErr } = await supabaseAdmin.from('subscription_events').insert({
+    user_id: userId,
+    provider,
+    product_id: productId,
+    purchase_token: token,
+    premium_until_after: untilIso,
+  });
+  if (!insErr) return;
+  const dup = insErr.code === '23505' || /duplicate|unique/i.test(insErr.message || '');
+  if (!dup) throw new Error(insErr.message);
+  const { data: owner } = await supabaseAdmin
+    .from('subscription_events')
+    .select('user_id, product_id')
+    .eq('purchase_token', token)
+    .maybeSingle();
+  if (owner && owner.user_id !== userId) {
+    const err = new Error("Bu xarid boshqa akkauntga bog'langan");
+    err.status = 409;
+    throw err;
+  }
+  // Chek AYNAN o'z mahsulotiga bog'langan: bitta token bilan boshqa (qimmatroq) modulni
+  // ochib bo'lmaydi. Apple tomonida bu chek-filtri bilan ham himoyalangan, ammo dev/Play
+  // yo'lida yagona himoya shu — QA aynan shu bog'lanishni sinay olsin.
+  if (owner && owner.product_id && owner.product_id !== productId) {
+    const err = new Error("Bu xarid boshqa obuna uchun ishlatilgan");
+    err.status = 409;
+    throw err;
+  }
+  // O'sha foydalanuvchining takroriy so'rovi (yangilash/restore) — idempotent, davom etamiz.
+}
+
 async function grantPremium(userId, curSub, provider, productId, token, newUntilMs) {
-  const now = Date.now();
   const curUntil = curSub.premium_until ? new Date(curSub.premium_until).getTime() : 0;
   const finalMs = Math.max(curUntil, newUntilMs);
   const newUntilIso = new Date(finalMs).toISOString();
 
-  // Audit — purchase_token bo'yicha UNIQUE. MUHIM (2026-08-02 audit): avval bu yerda
-  // ignoreDuplicates:true ishlatilardi va natija TEKSHIRILMASDI — ya'ni bitta Apple cheki
-  // cheksiz akkauntga premium berardi (chek mobil klientda ochiq yotadi, uni tarqatish oson).
-  // Endi chek EGASIGA bog'lanadi: takror bo'lsa, egasini tekshirib, boshqa bo'lsa RAD etamiz.
-  if (token) {
-    const { error: insErr } = await supabaseAdmin.from('subscription_events').insert({
-      user_id: userId,
-      provider,
-      product_id: productId,
-      purchase_token: token,
-      premium_until_after: newUntilIso,
-    });
-    if (insErr) {
-      const dup = insErr.code === '23505' || /duplicate|unique/i.test(insErr.message || '');
-      if (!dup) throw new Error(insErr.message);
-      const { data: owner } = await supabaseAdmin
-        .from('subscription_events')
-        .select('user_id')
-        .eq('purchase_token', token)
-        .maybeSingle();
-      if (owner && owner.user_id !== userId) {
-        const err = new Error("Bu xarid boshqa akkauntga bog'langan");
-        err.status = 409;
-        throw err;
-      }
-      // O'sha foydalanuvchining takroriy so'rovi (yangilash/restore) — idempotent, davom etamiz.
-    }
-  }
+  await auditPurchase(userId, provider, productId, token, newUntilIso);
 
   // premium_until faqat oldinga siljisa yozamiz (bekorga updated_at o'zgarmasin)
   if (finalMs > curUntil) {
@@ -129,6 +142,47 @@ async function grantPremium(userId, curSub, provider, productId, token, newUntil
   return curSub;
 }
 
+// MODUL obunasini berish (PO 2026-08-04): module_subs.active_until oldinga siljiydi.
+// grantPremium bilan bir xil qoidalar — audit (chek bir akkauntga), max(joriy, yangi).
+// 020 migratsiya qo'llanmagan bo'lsa jadval yo'q -> aniq 409 (jimgina "muvaffaqiyat" EMAS:
+// foydalanuvchi pul to'lab, obunasiz qolib ketmasin).
+async function grantModule(userId, module, provider, productId, token, newUntilMs) {
+  const { data: cur, error: selErr } = await supabaseAdmin
+    .from('module_subs')
+    .select('active_until')
+    .eq('user_id', userId)
+    .eq('module', module)
+    .maybeSingle();
+  if (selErr && !/does not exist|schema cache/i.test(selErr.message || '')) {
+    throw new Error(selErr.message);
+  }
+  const curUntil = cur?.active_until ? new Date(cur.active_until).getTime() : 0;
+  const finalIso = new Date(Math.max(curUntil, newUntilMs)).toISOString();
+
+  await auditPurchase(userId, provider, productId, token, finalIso);
+
+  const { error: upErr } = await supabaseAdmin.from('module_subs').upsert({
+    user_id: userId,
+    module,
+    active_until: finalIso,
+    product_id: productId,
+    updated_at: new Date().toISOString(),
+  });
+  if (upErr) {
+    const missing = /module_subs/.test(upErr.message || '')
+      && /does not exist|schema cache/i.test(upErr.message || '');
+    const err = new Error(missing
+      ? "Obuna bazasi hali tayyor emas — qo'llab-quvvatlashga murojaat qiling (020)"
+      : upErr.message);
+    err.status = missing ? 409 : 500;
+    // Mobil shu kod bo'yicha tranzaksiyani YOPMAYDI (qayta urinadi) — pul olinib
+    // obuna berilmay qolmasin (review 2026-08-04 #2).
+    err.code = missing ? 'SUB_DB_NOT_READY' : undefined;
+    throw err;
+  }
+  return finalIso;
+}
+
 router.post(
   '/me/subscription/verify',
   rateLimit({ windowMs: 60_000, max: 10 }),
@@ -138,7 +192,14 @@ router.post(
       // MUHIM: product_id KLIENTDAN OLINMAYDI. Ilgari klient yuborgan qiymat Apple chekini
       // filtrlashda ishlatilardi — bu bir developer akkauntidagi BOSHQA ilovaning arzon
       // obunasi bilan premium olish yo'lini ochardi. Doim server konstantasi.
-      const pid = PREMIUM_PRODUCT_ID;
+      //
+      // MODUL xaridi (2026-08-04): klient FAQAT `module` kalitini yuboradi ('xarajat' va h.k.),
+      // product_id esa shu yerdagi MODULES katalogidan olinadi. Ya'ni arzon modul cheki bilan
+      // qimmat modulni ololmaydi — chek AYNAN shu product_id bo'yicha tekshiriladi.
+      // `module` bo'lmasa — eski premium oqimi (orqaga moslik: joriy mobil versiyalar).
+      const modKey = String(req.body?.module ?? '').trim();
+      const pid = productIdForModule(modKey);
+      if (!pid) return res.status(400).json({ success: false, error: "Noma'lum modul" });
 
       // ===================== Apple App Store (TIRIK) =====================
       if (platform === 'app_store') {
@@ -166,18 +227,28 @@ router.post(
         if (!ver.expiryMs) {
           return res.status(400).json({ success: false, error: 'Bu chekda faol obuna topilmadi' });
         }
+        // Muddati O'TGAN chek — "muvaffaqiyat" deb qabul qilinmasin: aks holda o'tmishdagi
+        // active_until yozilib, mobil "obuna yoqildi — rahmat!" deb ko'rsatardi, modul esa qulf.
+        if (ver.expiryMs <= Date.now()) {
+          return res.status(400).json({
+            success: false,
+            code: 'SUB_EXPIRED_RECEIPT',
+            error: "Bu obunaning muddati tugagan — App Store'da yangilang",
+          });
+        }
         const r = await getSubscription(req.user.id);
         if (!r) return res.status(403).json({ success: false, error: 'Profil topilmadi' });
-        const sub = await grantPremium(
-          req.user.id,
-          r.sub,
-          'app_store',
-          pid,
-          // Barqaror identifikator: original_transaction_id yangilanishda o'zgarmaydi,
-          // shuning uchun chek AYNAN bitta akkauntga bog'lanib qoladi.
-          ver.originalTxnId ? `apple:${ver.originalTxnId}` : (ver.txnId ? `apple:${ver.txnId}` : null),
-          ver.expiryMs
-        );
+        // Barqaror identifikator: original_transaction_id yangilanishda o'zgarmaydi,
+        // shuning uchun chek AYNAN bitta akkauntga bog'lanib qoladi.
+        const appleTok = ver.originalTxnId ? `apple:${ver.originalTxnId}`
+          : (ver.txnId ? `apple:${ver.txnId}` : null);
+        if (modKey) {
+          await grantModule(req.user.id, modKey, 'app_store', pid, appleTok, ver.expiryMs);
+          return res.json({
+            success: true, data: r.sub, modules: await getModulesStatus(req.user.id),
+          });
+        }
+        const sub = await grantPremium(req.user.id, r.sub, 'app_store', pid, appleTok, ver.expiryMs);
         return res.json({ success: true, data: sub });
       }
 
@@ -195,14 +266,15 @@ router.post(
         }
         const r = await getSubscription(req.user.id);
         if (!r) return res.status(403).json({ success: false, error: 'Profil topilmadi' });
-        const sub = await grantPremium(
-          req.user.id,
-          r.sub,
-          'google_play_dev',
-          pid,
-          tok,
-          Date.now() + PREMIUM_DAYS * DAY_MS
-        );
+        const untilMs = Date.now() + PREMIUM_DAYS * DAY_MS;
+        // QA/E2E: `module` berilgan bo'lsa AYNAN o'sha modul 30 kunga uzayadi
+        if (modKey) {
+          await grantModule(req.user.id, modKey, 'google_play_dev', pid, tok, untilMs);
+          return res.json({
+            success: true, data: r.sub, modules: await getModulesStatus(req.user.id),
+          });
+        }
+        const sub = await grantPremium(req.user.id, r.sub, 'google_play_dev', pid, tok, untilMs);
         return res.json({ success: true, data: sub });
       }
 

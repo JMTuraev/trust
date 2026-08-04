@@ -1,11 +1,17 @@
 // Obuna (subscription) — YAGONA haqiqat manbai (server-side).
 //
-// YANGI TARIF (PO 2026-07-28) — vaqtga asoslangan 7 kunlik trial OLIB TASHLANDI:
-//   Bepul kvota: 3 ta QARZ yozuvi (debts, kind='debt', o'zi yaratgan, bekor/rad
-//   qilinganlar sanalmaydi) + 3 ta XARAJAT yozuvi (expenses jadvalidagi yozuvlar).
-//   Kvota tugagach — $9/oy premium (premium_until, Play Billing keyin ulanadi).
-//   Limitlar FAQAT serverda (env): FREE_DEBT_ENTRIES, FREE_EXPENSE_ENTRIES (default 3).
+// MODUL OBUNALARI (PO 2026-08-04) — yagona $9 premium o'rniga HAR MODUL alohida:
+//   xarajat $5/oy · qarz $8/oy · ijarachi (Ijaradagi uylar) $13/oy · toyxona $24/oy.
+//   Chegaralar: ijarachi maks 5 uy, toyxona 1 ta to'yxona (MODULES.max_units) —
+//   ko'proq kerak bo'lsa alohida akkaunt (PO 2026-08-04, «har zalga» modeli bekor).
+//   Bepul tarif: har modulda 5 ta yozuv (mobil menyu kartalarida "0/5"), keyin paywall.
+//   ESKI premium (profiles.premium_until, trust_premium_monthly) — muddati tugaguncha
+//   BARCHA modullarga kirish (grandfather). Modul obunalari: module_subs jadvali (020).
+//   Limitlar FAQAT serverda (env): FREE_DEBT_ENTRIES, FREE_EXPENSE_ENTRIES (default 5).
 //   UI hech narsa hardcode qilmaydi — o'zgartirsak update shart emas.
+//
+// ESKI TARIF TARIXI (PO 2026-07-28): vaqtga asoslangan 7 kunlik trial olib tashlangan,
+//   kvota 3+3 edi; 2026-08-03 jonli test uchun 300 ga ko'tarilgan (endi render.yaml env'da).
 //
 // Kim to'laydi (PO):
 //   - Daftar (partner) EGASI to'laydi. Egasi premium yoki kvota ichida bo'lsa —
@@ -25,13 +31,34 @@ export function __setDbForTests(stub) {
 
 export const PRICE_USD_MONTHLY = 9;
 export const PREMIUM_PRODUCT_ID = 'trust_premium_monthly';
+
+// Modul katalogi (PO 2026-08-04) — narx/mahsulot ID'lari FAQAT shu yerda.
+// soon:true — modul hali chiqmagan (mobil "Tez orada" ko'rsatadi, sotib bo'lmaydi... hozircha
+// verify uni ham qabul qiladi — Play Console'da mahsulot oldindan yaratiladi).
+//
+// NARX QAROR (PO 2026-08-04): "har zalga $24" g'oyasi BEKOR QILINDI — do'konlar miqdorli
+// obunani qo'llab-quvvatlamaydi (docs/team-reports/2026-08-04-iap-per-unit-research.md).
+// Yechim: bitta obuna = QAT'IY CHEGARA. Ko'proq kerak bo'lsa foydalanuvchi boshqa raqamga
+// alohida ro'yxatdan o'tadi (PO: "bu bizga muammo emas") — ya'ni tiered SKU ham kerak emas.
+//   max_units — obuna qoplaydigan obyektlar soni. Majburlash MODUL route'larida
+//   (toyxona: halls, ijarachi: rent_houses) — bu yerda faqat yagona manba sifatida turadi.
+export const MODULES = {
+  xarajat:  { price_usd: 5,  product_id: 'trust_xarajat_monthly' },
+  qarz:     { price_usd: 8,  product_id: 'trust_qarz_monthly' },
+  // "Ijaradagi uylar" (PO 2026-08-04 nomi) — kalit 'ijarachi' saqlanadi: u 020 dagi
+  // check-constraint'da qatnashadi va ko'rinadigan nom l10n'dan keladi.
+  ijarachi: { price_usd: 13, product_id: 'trust_ijarachi_monthly', max_units: 5 },
+  toyxona:  { price_usd: 24, product_id: 'trust_toyxona_monthly', max_units: 1 },
+};
 // ≤ WARN_DAYS kun qolganda mobil "To'lov muddati yaqinlashdi" bannerini ko'rsatadi (faqat premium)
 export const WARN_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Bepul kvotalar — faqat env orqali boshqariladi (UI'da yo'q).
-// VAQTINCHA (PO 2026-08-03): default 300 — jonli TEST davri uchun (avval 30 edi).
-// Test tugagach 3 ga qaytariladi (env FREE_*=3 qo'yish YOKI defaultlarni tushirish).
+// PO 2026-08-04: kod defaulti 5 (har modulda 5 ta bepul yozuv, mobil "0/5" karta).
+// MUHIM: production hali TEST rejimida — render.yaml FREE_*="300" qo'yadi (Play billing
+// ulanmaguncha mavjud foydalanuvchilar qulflanmasin); launch'da o'sha ikki env qatori
+// olib tashlanadi va shu defaultlar (5) kuchga kiradi.
 // MUHIM (2026-08-02 audit): ilgari `parseInt(env || '30') || 30` yozilgan edi — parseInt('0')
 // = 0 va u FALSY, shuning uchun FREE_DEBT_ENTRIES=0 qo'yilsa ham jimgina 30 bo'lib qolardi
 // (ya'ni "bepul tarifni yopish" sozlamasi umuman ishlamas edi).
@@ -45,10 +72,8 @@ function intEnv(name, def) {
   }
   return n;
 }
-// PO 2026-08-03: sinov davri uchun 30 -> 300 (auditda operations ham kvotaga
-// qo'shilgani sabab mavjud foydalanuvchilar paywallga urilmasin).
-export const FREE_DEBT_ENTRIES = intEnv('FREE_DEBT_ENTRIES', 300);
-export const FREE_EXPENSE_ENTRIES = intEnv('FREE_EXPENSE_ENTRIES', 300);
+export const FREE_DEBT_ENTRIES = intEnv('FREE_DEBT_ENTRIES', 5);
+export const FREE_EXPENSE_ENTRIES = intEnv('FREE_EXPENSE_ENTRIES', 5);
 
 // Orqaga moslik: eski kod TRIAL_DAYS import qilsa yiqilmasin (endi ma'nosi yo'q)
 export const TRIAL_DAYS = 0;
@@ -146,6 +171,188 @@ async function isPremiumUser(userId) {
   return !!(data?.premium_until && new Date(data.premium_until) > new Date());
 }
 
+// ============ Modul obunalari (PO 2026-08-04, 020 migratsiya) ============
+
+/** Migratsiya hali qo'llanmaganmi? (jadval topilmadi xatosi)
+ *  TOR TUTILGAN (review 2026-08-04): ilgari HAR QANDAY "does not exist"/"schema cache"
+ *  xabari mos kelardi — jumladan USTUN topilmadi (42703 / PGRST204). Bunday doimiy xato
+ *  kvota gate'ini HAMMA uchun cheksiz ochiq qoldirar va faqat bitta log qatori bilan
+ *  bildirilardi (jimgina daromad yo'qolishi). Endi: jadval kodlari YOKI xabar aynan shu
+ *  jadval nomini o'z ichiga olishi shart. */
+function isMissingTableError(error, table) {
+  const code = error?.code || '';
+  // 42P01 = undefined_table (Postgres), PGRST205 = jadval schema cache'da yo'q (PostgREST)
+  if (code === '42P01' || code === 'PGRST205') return true;
+  const msg = error?.message || '';
+  return !!table && msg.includes(table) && /does not exist|schema cache/i.test(msg);
+}
+
+// 020 migratsiya qo'llanganmi — oxirgi so'rov natijasi (null = hali noma'lum).
+// XAVFSIZLIK KLAPANI: jadval yo'q bo'lsa obunani SOTIB BO'LMAYDI (grantModule 409 beradi),
+// demak kvota ham majburlanmasligi kerak — aks holda limit tushirilgan (FREE_*=5) va
+// migratsiya qo'llanmagan holatda foydalanuvchilar TO'LASH IMKONIYATISIZ qulflanib qolardi.
+// Shuning uchun kvota middleware'lari `moduleSubsReady === false` bo'lsa OCHIQ o'tkazadi.
+let moduleSubsReady = null;
+let moduleSubsWarnedAt = 0;
+
+/** Foydalanuvchining module_subs qatorlari. 020 hali qo'llanmagan bo'lsa — bo'sh ro'yxat
+ *  (notify() debts.js:93 dagi kabi bardoshlilik: yangi ustun/jadval deploy'ni yiqitmasin).
+ *  BOSHQA xatolar tashlanadi — modul obunasini sotib olgan foydalanuvchi tranzit DB
+ *  xatosi tufayli jimgina 402 ga urilmasin (aniq 500 yaxshiroq). */
+async function getModuleSubRows(userId) {
+  const { data, error } = await db
+    .from('module_subs')
+    .select('module, active_until')
+    .eq('user_id', userId);
+  if (error) {
+    if (isMissingTableError(error, 'module_subs')) {
+      // Klapan OCHIQ turgan har daqiqada bitta ERROR — Render loglarida ko'rinsin
+      // (bir marta warn qilib jim qolish = jimgina daromad yo'qolishi).
+      const now = Date.now();
+      if (now - moduleSubsWarnedAt > 60_000) {
+        moduleSubsWarnedAt = now;
+        console.error('[obuna] module_subs jadvali YO\'Q (020 qo\'llanmagan) — kvota MAJBURLANMAYAPTI');
+      }
+      moduleSubsReady = false;
+      return [];
+    }
+    throw new Error(error.message);
+  }
+  moduleSubsReady = true;
+  return data || [];
+}
+
+/** Modul obunalari sotuvga tayyormi (020 qo'llanganmi)? Kvota shu bilan gate qilinadi.
+ *  Hali tekshirilmagan bo'lsa — bitta yengil so'rov bilan aniqlanadi. */
+async function moduleSubsAvailable(userId) {
+  if (moduleSubsReady === null) await getModuleSubRows(userId);
+  return moduleSubsReady !== false;
+}
+
+/** Kvotani MAJBURLASH mumkinmi? false = `module_subs` (020) yo'q, ya'ni obunani sotib
+ *  bo'lmaydi — bunday holatda hech kimni bloklamaymiz (xavfsizlik klapani).
+ *  Modul route'lari (toyxona, ijara) O'Z kvota middleware'ida shuni chaqiradi —
+ *  aks holda 022/021 avval qo'llanib 020 keyin qolsa foydalanuvchilar TO'LASH
+ *  IMKONIYATISIZ qulflanib qolardi (review 2026-08-04). */
+export async function isQuotaEnforceable(userId) {
+  return moduleSubsAvailable(userId);
+}
+
+/** Faqat testlar uchun: keshlangan holatni tozalash. */
+export function __resetModuleSubsReady() {
+  moduleSubsReady = null;
+}
+
+/** Xarid tekshiruvida ishlatiladigan product_id — YAGONA joy.
+ *  XAVFSIZLIK: klient product_id yubormaydi, faqat modul kalitini beradi; SKU shu
+ *  yerdan olinadi. Ya'ni arzon modul cheki bilan qimmatini ochib bo'lmaydi (chek
+ *  aynan shu product_id bo'yicha tekshiriladi).
+ *  '' / null  -> eski $9 premium (orqaga moslik: `module` yubormaydigan mobil versiyalar)
+ *  noma'lum   -> null (chaqiruvchi 400 qaytaradi) */
+export function productIdForModule(module) {
+  if (!module) return PREMIUM_PRODUCT_ID;
+  return MODULES[module]?.product_id ?? null;
+}
+
+/** userId uchun `module` faolmi? Legacy premium (profiles.premium_until kelajakda) —
+ *  grandfather: BARCHA modullar uchun faol hisoblanadi. */
+export async function isModuleActive(userId, module) {
+  if (await isPremiumUser(userId)) return true;
+  const rows = await getModuleSubRows(userId);
+  const row = rows.find((r) => r.module === module);
+  return !!(row?.active_until && new Date(row.active_until) > new Date());
+}
+
+/** To'yxona bepul kvotasi — routes/toyxona.js dagi majburlash bilan BIR XIL env
+ *  (aks holda mobil "3/5" ko'rsatib, server 5-chida to'sib qo'yardi yoki aksincha). */
+export const FREE_TOYXONA_BOOKINGS = intEnv('FREE_TOYXONA_BOOKINGS', 5);
+
+/** Ijaradagi uylar moduli bepul kvotasi — routes/ijara.js bilan BIR XIL env. */
+export const FREE_IJARA_CHARGES = intEnv('FREE_IJARA_CHARGES', 5);
+
+/** Ijara modulida ishlatilgan kvota: bekor qilinmagan hisob-kitob yozuvlari.
+ *  022 migratsiya hali qo'llanmagan bo'lsa 0 (module_subs bilan bir xil bardoshlilik). */
+async function countIjaraCharges(userId) {
+  const { count, error } = await db
+    .from('rent_charges')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .neq('status', 'bekor');
+  if (error) {
+    if (isMissingTableError(error, 'rent_charges')) return 0;
+    throw new Error(error.message);
+  }
+  return count || 0;
+}
+
+/** To'yxona modulida ishlatilgan kvota: bekor qilinmagan bronlar soni (To'yxona
+ *  sessiyasi bilan kelishilgan qoida — bekor qilingan bron kvotani YEMAYDI).
+ *  021 migratsiya hali qo'llanmagan bo'lsa 0 (module_subs bilan bir xil bardoshlilik). */
+async function countBookings(userId) {
+  const { count, error } = await db
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .neq('status', 'bekor');
+  if (error) {
+    if (isMissingTableError(error, 'bookings')) return 0;
+    throw new Error(error.message);
+  }
+  return count || 0;
+}
+
+/** Barcha modullar holati bitta chaqiruvda (GET /api/subs/status — MOBIL KONTRAKT).
+ *  Har element: { module, active, active_until, soon, price_usd, product_id, used, free_limit }.
+ *  used: xarajat -> expenses soni, qarz -> daftar EGASI bo'yicha debts+operations,
+ *  toyxona -> bekor qilinmagan bronlar, ijarachi -> bekor qilinmagan hisob-kitoblar.
+ *  (Ikkala modul ham 2026-08-04 da ishga tushdi — «kelajak modul» holati qolmadi.) */
+export async function getModulesStatus(userId, now = new Date()) {
+  const [prof, rows, usage, bookings, ijara] = await Promise.all([
+    db.from('profiles').select('premium_until').eq('id', userId).maybeSingle(),
+    getModuleSubRows(userId),
+    countUsage(userId),
+    countBookings(userId),
+    countIjaraCharges(userId),
+  ]);
+  const legacyUntil = prof?.data?.premium_until ? new Date(prof.data.premium_until) : null;
+  const legacyActive = !!(legacyUntil && legacyUntil > now);
+  const byModule = new Map(rows.map((r) => [r.module, r]));
+
+  return Object.entries(MODULES).map(([module, cfg]) => {
+    const own = byModule.get(module);
+    const ownUntil = own?.active_until ? new Date(own.active_until) : null;
+    const ownActive = !!(ownUntil && ownUntil > now);
+    const active = legacyActive || ownActive;
+    // active_until — ko'rsatish uchun eng uzoq muddat (legacy va modul obunasidan kattasi)
+    let activeUntil = null;
+    if (active) {
+      const ms = Math.max(legacyActive ? legacyUntil.getTime() : 0, ownActive ? ownUntil.getTime() : 0);
+      activeUntil = new Date(ms).toISOString();
+    }
+    const used = module === 'xarajat' ? usage.expenses_used
+      : module === 'qarz' ? usage.debts_used
+      : module === 'toyxona' ? bookings
+      : module === 'ijarachi' ? ijara
+      : 0;
+    // MUHIM: ko'rsatiladigan limit SERVER MAJBURLAYOTGAN limit bilan bir xil bo'lsin.
+    const freeLimit = module === 'xarajat' ? FREE_EXPENSE_ENTRIES
+      : module === 'qarz' ? FREE_DEBT_ENTRIES
+      : module === 'toyxona' ? FREE_TOYXONA_BOOKINGS
+      : module === 'ijarachi' ? FREE_IJARA_CHARGES
+      : 0;
+    return {
+      module,
+      active,
+      active_until: activeUntil,
+      soon: !!cfg.soon,
+      price_usd: cfg.price_usd,
+      product_id: cfg.product_id,
+      used,
+      free_limit: freeLimit,
+    };
+  });
+}
+
 // ============ Express middleware'lar ============
 
 /** ESKI vaqt-gate endi PASS-THROUGH: faqat o'chirilgan profil bloklanadi.
@@ -167,18 +374,33 @@ export function requireActiveSub(req, res, next) {
 }
 export const requireWriteAccess = requireActiveSub;
 
-/** XARAJAT yozuvi kvotasi: premium YOKI expenses soni < FREE_EXPENSE_ENTRIES. */
+/** Shu so'rovda YANA `n` ta xarajat yozuvi sig'adimi?
+ *  null = sig'adi (yoki gate qo'llanmaydi); aks holda 402 javob tanasi qaytadi.
+ *  MUHIM (review 2026-08-04 #12): `/confirm` bitta so'rovda 5 tagacha amal yozadi —
+ *  faqat "1 ta joy bormi" deb tekshirilsa, 4/5 da turgan user 9 tagacha chiqib ketardi
+ *  ("5 bepul" va'dasi buzilardi). Shuning uchun kvota BUTUN TO'PLAM bo'yicha sanaladi. */
+export async function expenseQuotaBlock(userId, n = 1) {
+  if (n <= 0) return null;
+  if (await isModuleActive(userId, 'xarajat')) return null;
+  // 020 qo'llanmagan -> obuna sotib bo'lmaydi -> kvota majburlanmaydi (xavfsizlik klapani)
+  if (!(await moduleSubsAvailable(userId))) return null;
+  const { expenses_used } = await countUsage(userId);
+  if (expenses_used + n <= FREE_EXPENSE_ENTRIES) return null;
+  return {
+    success: false,
+    code: 'SUB_EXPIRED',
+    // `module` — mobil aynan shu modul paywall'ini ochadi (2026-08-04 kontrakt)
+    module: 'xarajat',
+    error: `Bepul ${FREE_EXPENSE_ENTRIES} ta xarajat yozuvi ishlatildi — davom etish uchun obuna kerak ($${MODULES.xarajat.price_usd}/oy)`,
+  };
+}
+
+/** XARAJAT yozuvi kvotasi (bitta yozuv): 'xarajat' moduli obunasi (yoki legacy premium)
+ *  YOKI expenses soni < FREE_EXPENSE_ENTRIES. To'plamli yo'l uchun expenseQuotaBlock(n). */
 export function requireExpenseQuota(req, res, next) {
-  (async () => {
-    if (await isPremiumUser(req.user.id)) return next();
-    const { expenses_used } = await countUsage(req.user.id);
-    if (expenses_used < FREE_EXPENSE_ENTRIES) return next();
-    return res.status(402).json({
-      success: false,
-      code: 'SUB_EXPIRED',
-      error: `Bepul ${FREE_EXPENSE_ENTRIES} ta xarajat yozuvi ishlatildi — davom etish uchun obuna kerak ($${PRICE_USD_MONTHLY}/oy)`,
-    });
-  })().catch(next);
+  expenseQuotaBlock(req.user.id, 1)
+    .then((block) => (block ? res.status(402).json(block) : next()))
+    .catch(next);
 }
 
 /** YANGI OPERATSIYA kvotasi — POST /api/operations uchun (partner_id BODY'da).
@@ -191,15 +413,18 @@ export function requireNewOpQuota(req, res, next) {
     const { data: p } = await db
       .from('partners').select('owner_id').eq('id', partnerId).maybeSingle();
     if (!p) return next();
-    if (await isPremiumUser(p.owner_id)) return next();
+    if (await isModuleActive(p.owner_id, 'qarz')) return next();
+    // 020 qo'llanmagan -> obuna sotib bo'lmaydi -> kvota majburlanmaydi (xavfsizlik klapani)
+    if (!(await moduleSubsAvailable(p.owner_id))) return next();
     const { debts_used } = await countUsage(p.owner_id);
     if (debts_used < FREE_DEBT_ENTRIES) return next();
     const isOwner = p.owner_id === req.user.id;
     return res.status(402).json({
       success: false,
       code: isOwner ? 'SUB_EXPIRED' : 'OWNER_SUB_EXPIRED',
+      module: 'qarz',
       error: isOwner
-        ? `Bepul ${FREE_DEBT_ENTRIES} ta yozuv ishlatildi — davom etish uchun obuna kerak ($${PRICE_USD_MONTHLY}/oy)`
+        ? `Bepul ${FREE_DEBT_ENTRIES} ta yozuv ishlatildi — davom etish uchun obuna kerak ($${MODULES.qarz.price_usd}/oy)`
         : "Daftar egasining obunasi faol emas — bu daftarga hozircha yangi yozuv kiritib bo'lmaydi",
     });
   })().catch(next);
@@ -213,7 +438,9 @@ export function requireNewDebtQuota(req, res, next) {
       .from('partners').select('owner_id').eq('id', req.params.partnerId).maybeSingle();
     // Hamkor topilmasa handler o'zi 404 beradi — bu yerda bloklamaymiz
     if (!p) return next();
-    if (await isPremiumUser(p.owner_id)) return next();
+    if (await isModuleActive(p.owner_id, 'qarz')) return next();
+    // 020 qo'llanmagan -> obuna sotib bo'lmaydi -> kvota majburlanmaydi (xavfsizlik klapani)
+    if (!(await moduleSubsAvailable(p.owner_id))) return next();
     const { debts_used } = await countUsage(p.owner_id);
     if (debts_used < FREE_DEBT_ENTRIES) return next();
     const isOwner = p.owner_id === req.user.id;
@@ -223,8 +450,9 @@ export function requireNewDebtQuota(req, res, next) {
     return res.status(402).json({
       success: false,
       code: isOwner ? 'SUB_EXPIRED' : 'OWNER_SUB_EXPIRED',
+      module: 'qarz',
       error: isOwner
-        ? `Bepul ${FREE_DEBT_ENTRIES} ta qarz yozuvi ishlatildi — davom etish uchun obuna kerak ($${PRICE_USD_MONTHLY}/oy)`
+        ? `Bepul ${FREE_DEBT_ENTRIES} ta qarz yozuvi ishlatildi — davom etish uchun obuna kerak ($${MODULES.qarz.price_usd}/oy)`
         : "Daftar egasining obunasi faol emas — bu daftarga hozircha yangi yozuv kiritib bo'lmaydi",
     });
   })().catch(next);

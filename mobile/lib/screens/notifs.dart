@@ -101,7 +101,8 @@ class NotifsScreen extends StatelessWidget {
                               Row(
                                 children: [
                                   Flexible(
-                                    child: Tx(n['title'], size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                                    // Sarlavha to'liq ko'rinsin — 2 qatorgacha o'raladi
+                                    child: Tx(n['title'], size: 14, w: FontWeight.w600, color: p.ink, maxLines: 2),
                                   ),
                                   if (n['unread'] == true) ...[
                                     const SizedBox(width: 8),

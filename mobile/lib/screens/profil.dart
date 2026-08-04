@@ -1,15 +1,21 @@
-// Profil ekrani — prototype/template.html 654–681 bilan 1:1
-// Qo'shimcha (prototipdan keyingi mahsulot qarori): obuna holati kartasi —
-// sinov kunlari / premium sanasi / tugagan holat + $9/oy narxi (SubInfo: tab_bar.dart).
+// Profil ekrani — prototype/template.html «isProfil» bloki bilan 1:1
+// (avatar + ism + telefon sarlavhasi, profRows qatorlari, «Chiqish», versiya).
+// Qo'shimcha (prototipdan keyingi mahsulot qarori): obuna bo'limi — 2026-08-04
+// dan HAR BO'LIM uchun alohida qator (_SubCard izohiga qarang).
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 import '../iap.dart';
 import '../api.dart' show apiUrl;
 import 'tab_bar.dart' show SubInfo, subTr, subWarnInk;
+
+/// Apple obunalarni boshqarish sahifasi (App Store → Apple ID → Obunalar).
+/// Modul obunalarini bekor qilish/almashtirish faqat shu yerda bo'ladi.
+const String _kAppleSubsUrl = 'https://apps.apple.com/account/subscriptions';
 
 /// Tashqi havolani ochish (Apple 3.1.2 — Shartlar / Maxfiylik). Ochib bo'lmasa jim o'tadi.
 Future<void> _openUrl(String url) async {
@@ -144,9 +150,9 @@ class ProfilScreen extends StatelessWidget {
             ],
           ),
         ),
-        // Obuna bo'limi — holat kartasi (sinov/premium/tugagan) + $9/oy + CTA.
+        // Obuna bo'limi — har bo'lim uchun alohida qator (_SubCard).
         // DIQQAT: const EMAS — store o'zgarganda qayta qurilishi kerak.
-        _SubCard(),
+        _SubCard(v: v),
         for (final pr in rows)
           Tap(
             onTap: pr['tap'],
@@ -341,22 +347,193 @@ class _DelOtpModalState extends State<_DelOtpModal> {
   }
 }
 
-/// Obuna holati kartasi — profildagi "obuna bo'limi" + Apple IAP paywall.
+/// Obuna bo'limi — profil ekranidagi karta. 2026-08-04 dan HAR BO'LIM uchun
+/// alohida qator (PO qarori).
 ///
-/// iOS: StoreKit orqali $9/oy premium sotib olish (store.buyPremium) + Apple
-///   Guideline 3.1.2 MAJBURIY ma'lumotlari: avtomatik yangilanish, narx/davr,
-///   bekor qilish yo'li, "Xaridni tiklash", Foydalanish shartlari + Maxfiylik havolalari.
-///   Bularsiz App Store rad etadi.
-/// Android: hozircha halol xabar (Play Billing keyin) — kvota modeli serverda (402).
+/// NEGA RO'YXAT: tarif bitta $9 lik "butun ilova" premiumidan har bo'lim
+/// obunasiga o'tdi (xarajat, qarz, ijaradagi uylar, to'yxona). Profil esa
+/// bitta umumiy karta ko'rsatib turardi va hech qachon obuna bo'lmagan odamga
+/// «Obunani yangilash» CTAsini chiqarardi — ma'nosiz.
+///
+/// NARX QOIDASI (o'zgarmadi, ATAYLAB): bu ekranda HECH QACHON qotirilgan summa
+/// chizilmaydi. Modul qatorlarida summa UMUMAN yo'q — aniq narx modul
+/// paywall'ida (`openPaywall`) ko'rsatiladi. Eski premium ko'rinishida summa
+/// faqat do'kondan (StoreKit `IapService.priceLabel`) kelsa chiziladi.
+///
+/// UCH KO'RINISH:
+///   1) `modSubs` bor, legacy yo'q  -> MODUL RO'YXATI (asosiy holat)
+///   2) `modSubsLegacy` = true      -> eski «Premium · {sana} gacha» kartasi
+///        AYNAN avvalgidek + har bir modul «Premium obunangizga kiritilgan»
+///        deb ko'rsatiladi (legacy egasi hech narsa yo'qotmaydi)
+///   3) `modSubs` BO'SH             -> eski umumiy karta (narxsiz): server
+///        /api/subs/status ni qo'llamasa yoki bayroq o'chiq bo'lsa
+///
+/// iOS: Apple Guideline 3.1.2 MAJBURIY ma'lumotlari har uchala ko'rinishda
+///   qoladi — "Xaridni tiklash", avtomatik yangilanish sharti + bekor qilish
+///   yo'li, Foydalanish shartlari + Maxfiylik havolalari.
+/// Android: to'lov kanali hali ulanmagan — paywall halol xabar beradi.
 class _SubCard extends StatelessWidget {
-  const _SubCard();
+  /// store.vals() — ProfilScreen bir marta hisoblab beradi (ikki marta emas).
+  final Map<String, dynamic> v;
+  const _SubCard({required this.v});
 
   String _d2(int x) => x.toString().padLeft(2, '0');
 
+  /// ISO sana -> «04.09.2026». Sana yo'q yoki buzuq bo'lsa — bo'sh satr
+  /// (qatorda sanasiz «Faol» ko'rinadi, xato sana emas).
+  String _fmtDate(dynamic raw) {
+    final d = raw is String ? DateTime.tryParse(raw)?.toLocal() : null;
+    return d == null ? '' : '${_d2(d.day)}.${_d2(d.month)}.${d.year}';
+  }
+
+  /// Modul nomi joriy tilda. Notanish modulda modul KODI qaytadi —
+  /// paywall_sheet.dart bilan bir xil qoida: boshqa modulning nomiga
+  /// zaxira QILINMAYDI (pul ekranida jim xato bo'lmasin).
+  String _modName(String module) {
+    final k = kSubModuleNameKey[module];
+    final s = k == null ? null : store.L()[k];
+    return s is String && s.isNotEmpty ? s : module;
+  }
+
   void _renewTap() {
-    // Android / IAP mavjud emas — halol xabar (yangi tarif: 3 ta yozuv bepul).
-    store.toast_(store.L()['subInfo'] as String? ??
-        "3 ta yozuv bepul, keyin \$9/oy — to'lov tez orada ulanadi");
+    // To'lov kanali yo'q — halol xabar. Matnda narx YO'Q: obuna endi
+    // per-modul, aniq summa modul paywall'ida ko'rsatiladi.
+    store.toast_(subTr('subInfo',
+        "Har bo'lim alohida obuna — bepul limitdan keyin faqat kerakli "
+        "bo'limni ochasiz. To'lov tez orada ulanadi"));
+  }
+
+  /// Modul paywall'i — YAGONA umumiy sheet (store: openPaywall_ -> S['paywall'],
+  /// ko'rinishi main.dart overlay'ida). Bu yerda IKKINCHI paywall qurilmaydi.
+  /// Store kaliti hali yo'q bo'lsa — halol xabar (ekran "o'lik" bo'lib qolmaydi).
+  void _openPaywall(String module) {
+    final f = v['openPaywall'];
+    if (f is Function) {
+      f(module);
+      return;
+    }
+    _renewTap();
+  }
+
+  /// Ko'rsatiladigan modul qatorlari.
+  ///
+  /// Asos — server ro'yxati (`modSubs`). Unda yo'q, lekin bizga MA'LUM
+  /// modullar ham qo'shiladi: backend bosqichma-bosqich yoyilganda profilda
+  /// 2 ta, bosh hubda 4 ta bo'lim ko'rinib qolmasin. Server ro'yxati bo'sh
+  /// bo'lsa — bo'sh qaytadi (zaxira karta chiziladi, ro'yxat emas).
+  List<Map<String, dynamic>> _rows() {
+    final raw = v['modSubs'];
+    if (raw is! List || raw.isEmpty) return const [];
+    // LinkedHashMap — server tartibini saqlaydi va dublikatni yutadi.
+    final byKey = <String, Map<String, dynamic>>{};
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final m = '${e['module'] ?? ''}'.trim();
+      if (m.isEmpty) continue;
+      byKey[m] = e.cast<String, dynamic>();
+    }
+    if (byKey.isEmpty) return const [];
+    final out = <Map<String, dynamic>>[
+      for (final m in kSubModuleOrder) byKey[m] ?? <String, dynamic>{'module': m},
+    ];
+    // Serverda paydo bo'lgan notanish modul — oxirida (UI yiqilmasin).
+    for (final e in byKey.entries) {
+      if (!kSubModuleOrder.contains(e.key)) out.add(e.value);
+    }
+    return out;
+  }
+
+  /// Bitta modul qatori: nom + holat + CTA.
+  /// `legacy` — eski butun-ilova premiumi faol: hamma modul qamrab olingan.
+  Widget _modRow(Pal p, Map<String, dynamic> e,
+      {required bool legacy, required bool last, required bool dark}) {
+    final String module = '${e['module'] ?? ''}';
+    final bool active = legacy || e['active'] == true;
+    final bool soon = e['soon'] == true;
+    final int used = (e['used'] as int?) ?? 0;
+    final int limit = (e['limit'] as int?) ?? 0;
+    final bool locked = !active && limit > 0 && used >= limit;
+    // Hisoblagich qachon MA'NOLI (home_hub.dart `_modChip` bilan bir xil qoida,
+    // YAGONA MANBA — store.dart `kSubLimitDisplayMax`): limit noma'lum (<=0)
+    // yoki env sinov qiymati (production'da 300) bo'lsa son ko'rsatilmaydi —
+    // aks holda profilda ham «7/300» chiqib, ichki qiymat oshkor bo'lardi.
+    final bool showCount =
+        !active && !soon && !locked && limit > 0 && limit <= kSubLimitDisplayMax;
+
+    String state;
+    Color stateColor = p.t1;
+    if (legacy) {
+      state = subTr('subModLegacy', 'Premium obunangizga kiritilgan');
+      stateColor = p.green;
+    } else if (active) {
+      final d = _fmtDate(e['until']);
+      state = d.isEmpty
+          ? subTr('subModActive', 'Faol')
+          : subTr('subModActiveUntil', 'Faol · {d} gacha', {'d': d});
+      stateColor = p.green;
+    } else if (soon) {
+      state = subTr('modSoon', 'Tez kunda');
+    } else if (locked) {
+      state = subTr('subModLimitOut', 'Bepul limit tugagan');
+      stateColor = subWarnInk(dark); // qizil emas — bu xato emas, chegara
+    } else if (showCount) {
+      state = subTr('pwUsed', '{used}/{limit} bepul yozuv ishlatildi',
+          {'used': '$used', 'limit': '$limit'});
+    } else {
+      state = subTr('subFreeTitle', 'Bepul reja');
+    }
+
+    final row = Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: last
+          ? null
+          : BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Uzun tarjima («Propiedades en alquiler») kesilmasin — o'raladi
+                Tx(_modName(module), size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
+                const SizedBox(height: 2),
+                Tx(state, size: 11.5, color: stateColor, lh: 15, maxLines: 2),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (active)
+            // Faol obuna — CTA kerak emas (paywall "sotib olish" degan bo'lardi)
+            Icon(Icons.check_circle_outline, size: 18, color: p.green)
+          else
+            ConstrainedBox(
+              // Tugma kengligi cheklangan: ism uchun joy qolsin
+              constraints: const BoxConstraints(maxWidth: 128),
+              child: Container(
+                height: 32,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                decoration: BoxDecoration(
+                  // Limit tugagan bo'lsa — asosiy (to'ldirilgan) tugma
+                  color: locked ? p.ink : null,
+                  border: locked ? null : Border.all(color: p.bd),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                // Uzun tarjimada («S'abonner») «...» yo'q — sig'masa kichrayadi
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Tx(subTr('subModSubscribe', "Obuna bo'lish"),
+                      size: 12.5, w: FontWeight.w600,
+                      color: locked ? p.bg : p.ink, maxLines: 1),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    // Faol modulda bosish yo'q; qolganida butun qator paywall'ni ochadi.
+    return active ? row : Tap(onTap: () => _openPaywall(module), child: row);
   }
 
   @override
@@ -364,151 +541,235 @@ class _SubCard extends StatelessWidget {
     final p = curPal();
     final sub = SubInfo.read();
     final L0 = store.L();
-    final w = subWarnInk(store.S['dark'] == true);
+    final bool dark = store.S['dark'] == true;
+    final w = subWarnInk(dark);
     final bool ios = Platform.isIOS;
     final bool busy = store.S['iapBusy'] == true;
     final bool isPremium = sub.status == 'premium';
+    final bool legacy = v['modSubsLegacy'] == true;
+    final rows = _rows();
+    // Asosiy (yangi) ko'rinish: modul ro'yxati eski premium O'RNIGA turadi.
+    final bool perModule = rows.isNotEmpty && !legacy;
 
-    // Narx — StoreKit lokalizatsiyalangan narxi bo'lsa o'shani (masalan "$8.99"),
-    // aks holda $9/oy. Apple do'kon narxini ko'rsatishni talab qiladi.
+    // Narx — FAQAT StoreKit lokalizatsiyalangan narxi (masalan "$8.99" yoki
+    // "89 000 so'm"). Qotirilgan «$9/oy» zaxirasi OLIB TASHLANDI: u endi
+    // noto'g'ri tarif (per-modul narxlarga qarang, sinf izohi). Do'kon narx
+    // bermasa — hech qanday summa chizilmaydi.
+    // «/oy» qo'shimchasi ham tarjimadan keladi (ilgari dartda qotirilgan edi).
     final String storePrice = IapService.priceLabel;
+    final bool hasPrice = storePrice.isNotEmpty;
     final String priceMonthly =
-        storePrice.isNotEmpty ? storePrice : subTr('subPriceMonthly', '\$9/oy');
-    final String priceTop = storePrice.isNotEmpty ? '$storePrice/oy' : priceMonthly;
+        hasPrice ? subTr('subPerMonth', '{price}/oy', {'price': storePrice}) : '';
 
-    // Holat sarlavhasi
-    String title;
-    Color titleColor = p.ink;
-    if (isPremium) {
-      final u = sub.until;
-      title = u == null
-          ? (L0['subPremium'] as String? ?? 'Premium')
-          : subTr('subPremiumUntil', 'Premium · {d} gacha',
-              {'d': '${_d2(u.day)}.${_d2(u.month)}.${u.year}'});
-    } else if (sub.expired) {
-      title = subTr('subExpiredTitle', "To'lov muddati tugagan");
-      titleColor = p.red;
+    final children = <Widget>[
+      Row(
+        children: [
+          Expanded(child: Cap((L0['profSub'] as String? ?? 'Obuna').toUpperCase())),
+          // Narx — FAQAT do'kon (StoreKit) summasi va FAQAT eski premium
+          // ko'rinishida. Modul ro'yxatida bitta summa bo'lishi mumkin emas
+          // (har bo'lim har xil), shuning uchun u yerda umuman chizilmaydi.
+          if (hasPrice && !perModule)
+            Tx(priceMonthly, size: 12.5, w: FontWeight.w700, color: p.ink, tab: true),
+        ],
+      ),
+      const SizedBox(height: 10),
+    ];
+
+    if (perModule) {
+      // Bir qatorli izoh — modelni tushuntiradi, narx ATAMAYDI.
+      children.add(Tx(
+        subTr('subInfo',
+            "Har bo'lim alohida obuna — bepul limitdan keyin faqat kerakli "
+            "bo'limni ochasiz. To'lov tez orada ulanadi"),
+        size: 12.5, color: p.t1, lh: 17,
+      ));
     } else {
-      title = subTr('subFreeTitle', 'Bepul reja');
+      // ---- Eski (legacy / zaxira) ko'rinish: holat sarlavhasi + matn ----
+      String title;
+      Color titleColor = p.ink;
+      if (isPremium) {
+        final u = sub.until;
+        title = u == null
+            ? (L0['subPremium'] as String? ?? 'Premium')
+            : subTr('subPremiumUntil', 'Premium · {d} gacha',
+                {'d': '${_d2(u.day)}.${_d2(u.month)}.${u.year}'});
+      } else if (sub.expired) {
+        title = subTr('subExpiredTitle', "To'lov muddati tugagan");
+        titleColor = p.red;
+      } else {
+        title = subTr('subFreeTitle', 'Bepul reja');
+      }
+
+      // `subPitch` (eski butun-ilova taklifi) FAQAT do'kon narxi bor bo'lsa
+      // ishlatiladi — ya'ni ichidagi {price} har doim haqiqiy do'kon summasi.
+      // Narx yo'q bo'lsa narxsiz, per-modul modelini tushuntiruvchi `subInfo`.
+      final String body = isPremium
+          ? subTr('subPremiumBody', 'Cheksiz qarz va xarajat yozuvlari yoqilgan. Rahmat!')
+          : sub.expired
+              ? subTr('subExpiredBody', 'Yangi yozuv kirita olmaysiz — obunani yangilang')
+              : (ios && hasPrice)
+                  ? subTr('subPitch', 'Cheksiz qarz va xarajat yozuvlari — {price}.',
+                      {'price': priceMonthly})
+                  : subTr('subInfo',
+                      "Har bo'lim alohida obuna — bepul limitdan keyin faqat kerakli "
+                      "bo'limni ochasiz. To'lov tez orada ulanadi");
+
+      children.addAll([
+        Tx(title, size: 16, w: FontWeight.w700, color: titleColor),
+        const SizedBox(height: 4),
+        Tx(body, size: 12.5, color: p.t1, lh: 17),
+      ]);
+
+      // ≤3 kun qolgan bo'lsa — kartada ham ogohlantirish (banner bilan bir ohangda)
+      if (sub.warnSoon) {
+        children.addAll([
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.schedule, size: 15, color: w),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Tx(
+                  subTr('subWarnSoon', "To'lov muddati yaqinlashdi — {n} kun qoldi",
+                      {'n': '${sub.daysLeft}'}),
+                  size: 12, w: FontWeight.w600, color: w, lh: 16,
+                ),
+              ),
+            ],
+          ),
+        ]);
+      }
     }
 
-    // Karta matni
-    final String body = isPremium
-        ? subTr('subPremiumBody', 'Cheksiz qarz va xarajat yozuvlari yoqilgan. Rahmat!')
-        : sub.expired
-            ? subTr('subExpiredBody', 'Yangi yozuv kirita olmaysiz — obunani yangilang')
-            : ios
-                ? subTr('subPitch', 'Cheksiz qarz va xarajat yozuvlari — {price}.',
-                    {'price': priceMonthly})
-                : (L0['subInfo'] as String? ??
-                    "3 ta yozuv bepul, keyin \$9/oy — to'lov tez orada ulanadi");
+    // ---- MODUL QATORLARI ----
+    // Legacy egasida ham ko'rsatiladi: premiumi aynan nimani qamrab olganini
+    // ko'rsatadi (CTA yo'q — hammasi allaqachon ochiq).
+    if (rows.isNotEmpty) {
+      children.add(const SizedBox(height: 6));
+      for (var i = 0; i < rows.length; i++) {
+        children.add(_modRow(p, rows[i],
+            legacy: legacy, last: i == rows.length - 1, dark: dark));
+      }
+    }
 
-    // CTA yo'nalishi: iOS'da StoreKit xaridi; boshqa joyda halol xabar.
-    final VoidCallback cta = ios ? () => store.buyPremium() : _renewTap;
-    final String ctaLabel =
-        isPremium ? subTr('subManage', 'Obunani boshqarish') : subTr('subRenew', 'Obunani yangilash');
+    if (!perModule) {
+      // Eski CTA. «Obunani yangilash» faqat HAQIQATAN tugagan obunada — hech
+      // qachon obuna bo'lmagan odamga «yangilash» deyish ma'nosiz edi (PO).
+      final VoidCallback cta = ios ? () => store.buyPremium() : _renewTap;
+      final String ctaLabel = isPremium
+          ? subTr('subManage', 'Obunani boshqarish')
+          : sub.expired
+              ? subTr('subRenew', 'Obunani yangilash')
+              : subTr('subModSubscribe', "Obuna bo'lish");
+      children.addAll([
+        const SizedBox(height: 14),
+        // busy bo'lsa spinnerli (bosish bloklangan). Tugaganda asosiy (qora),
+        // aks holda kontur — loading param InkBtn/GhostBtn'da o'zi ishlaydi.
+        sub.expired
+            ? InkBtn(label: ctaLabel, h: 44, fs: 14, onTap: cta, loading: busy)
+            : GhostBtn(label: ctaLabel, h: 42, fs: 13.5, onTap: cta, loading: busy),
+      ]);
+    } else if (ios && rows.any((e) => e['active'] == true)) {
+      // Faol modul obunasi bor — Apple'da bekor qilish/almashtirish faqat
+      // App Store obunalar sahifasida bo'ladi (store.buyPremium ESKI mahsulotni
+      // sotib olardi — modul obunalari uchun noto'g'ri).
+      children.addAll([
+        const SizedBox(height: 14),
+        GhostBtn(
+          label: subTr('subManage', 'Obunani boshqarish'),
+          h: 42, fs: 13.5,
+          onTap: () => _openUrl(_kAppleSubsUrl),
+        ),
+      ]);
+    }
 
+    // ---- iOS: Apple 3.1.2 majburiy ma'lumotlari + Restore + havolalar ----
+    if (ios) {
+      children.addAll([
+        const SizedBox(height: 10),
+        // "Xaridni tiklash" — Apple talabi (qurilma almashsa obuna qaytadi)
+        Center(
+          child: Tap(
+            onTap: busy ? () {} : () => store.restorePremium(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              child: Tx(subTr('subRestore', 'Xaridni tiklash'),
+                  size: 12.5, w: FontWeight.w600, color: p.t2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ]);
+      // Avtomatik yangilanish sharti + bekor qilish yo'li (Apple 3.1.2).
+      // Modul ro'yxatida NARXSIZ variant: bo'limlar summasi har xil, bitta
+      // summa yozish noto'g'ri oshkorlik bo'lardi (aniq summa paywall'da).
+      // Eski ko'rinishda esa do'kon narxi bo'lmasa matn umuman chizilmaydi —
+      // noto'g'ri summali oshkorlik oshkorlik emas.
+      if (perModule) {
+        children.addAll([
+          Tx(
+            subTr('subAutoRenewNoteMod',
+                "Har bo'lim obunasi avtomatik yangilanadi. Aniq summa o'sha "
+                "bo'limning obuna oynasida ko'rsatiladi. Istalgan vaqtda bekor "
+                "qilish: App Store → Apple ID → Obunalar."),
+            size: 11, color: p.t4, lh: 15,
+          ),
+          const SizedBox(height: 7),
+        ]);
+      } else if (hasPrice) {
+        children.addAll([
+          Tx(
+            subTr(
+              'subAutoRenewNote',
+              'Obuna avtomatik yangilanadi. Joriy davr tugashidan 24 soat oldin '
+                  'hisobingizdan {price} yechiladi. Istalgan vaqtda bekor qilish: '
+                  'App Store → Apple ID → Obunalar.',
+              {'price': priceMonthly},
+            ),
+            size: 11, color: p.t4, lh: 15,
+          ),
+          const SizedBox(height: 7),
+        ]);
+      }
+      // Foydalanish shartlari (Apple standart EULA) + Maxfiylik siyosati — tappable
+      children.add(Row(
+        children: [
+          Tap(
+            onTap: () => _openUrl(
+                'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+            child: Text(
+              subTr('subTerms', 'Foydalanish shartlari'),
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
+                  decoration: TextDecoration.underline),
+            ),
+          ),
+          Tx('   ·   ', size: 11, color: p.t6),
+          Tap(
+            onTap: () => _openUrl('$apiUrl/privacy'),
+            child: Text(
+              subTr('subPrivacy', 'Maxfiylik siyosati'),
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
+                  decoration: TextDecoration.underline),
+            ),
+          ),
+        ],
+      ));
+    }
+
+    // Qizil (tugagan) ko'rinish faqat ESKI kartaga tegishli — modul ro'yxatida
+    // holat har qatorda alohida, butun kartani qizartirish yolg'on bo'lardi.
+    final bool expiredLook = sub.expired && !perModule;
     return Container(
       margin: const EdgeInsets.fromLTRB(24, 18, 24, 6),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: sub.expired ? p.red.withValues(alpha: .07) : p.hov2,
-        border: Border.all(color: sub.expired ? p.red.withValues(alpha: .30) : p.bd2),
+        color: expiredLook ? p.red.withValues(alpha: .07) : p.hov2,
+        border: Border.all(color: expiredLook ? p.red.withValues(alpha: .30) : p.bd2),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Cap((L0['profSub'] as String? ?? 'Obuna').toUpperCase())),
-              // Narx — har doim ko'rinadi (do'kon narxi bo'lsa o'shani)
-              Tx(priceTop, size: 12.5, w: FontWeight.w700, color: p.ink, tab: true),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Tx(title, size: 16, w: FontWeight.w700, color: titleColor),
-          const SizedBox(height: 4),
-          Tx(body, size: 12.5, color: p.t1, lh: 17),
-          // ≤3 kun qolgan bo'lsa — kartada ham ogohlantirish (banner bilan bir ohangda)
-          if (sub.warnSoon) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.schedule, size: 15, color: w),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Tx(
-                    subTr('subWarnSoon', "To'lov muddati yaqinlashdi — {n} kun qoldi",
-                        {'n': '${sub.daysLeft}'}),
-                    size: 12, w: FontWeight.w600, color: w, lh: 16,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          // CTA — busy bo'lsa spinnerli (bosish bloklangan). Tugaganda asosiy (qora),
-          // aks holda kontur. loading param InkBtn/GhostBtn'da o'zi spinner ko'rsatadi.
-          sub.expired
-              ? InkBtn(label: ctaLabel, h: 44, fs: 14, onTap: cta, loading: busy)
-              : GhostBtn(label: ctaLabel, h: 42, fs: 13.5, onTap: cta, loading: busy),
-
-          // ---- iOS: Apple 3.1.2 majburiy ma'lumotlari + Restore + havolalar ----
-          if (ios) ...[
-            const SizedBox(height: 10),
-            // "Xaridni tiklash" — Apple talabi (qurilma almashsa obuna qaytadi)
-            Center(
-              child: Tap(
-                onTap: busy ? () {} : () => store.restorePremium(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                  child: Tx(subTr('subRestore', 'Xaridni tiklash'),
-                      size: 12.5, w: FontWeight.w600, color: p.t2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Avtomatik yangilanish sharti + bekor qilish yo'li (majburiy oshkorlik)
-            Tx(
-              subTr(
-                'subAutoRenewNote',
-                'Obuna avtomatik yangilanadi. Joriy davr tugashidan 24 soat oldin '
-                    'hisobingizdan {price} yechiladi. Istalgan vaqtda bekor qilish: '
-                    'App Store → Apple ID → Obunalar.',
-                {'price': priceMonthly},
-              ),
-              size: 11, color: p.t4, lh: 15,
-            ),
-            const SizedBox(height: 7),
-            // Foydalanish shartlari (Apple standart EULA) + Maxfiylik siyosati — tappable
-            Row(
-              children: [
-                Tap(
-                  onTap: () => _openUrl(
-                      'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
-                  child: Text(
-                    subTr('subTerms', 'Foydalanish shartlari'),
-                    style: TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
-                        decoration: TextDecoration.underline),
-                  ),
-                ),
-                Tx('   ·   ', size: 11, color: p.t6),
-                Tap(
-                  onTap: () => _openUrl('$apiUrl/privacy'),
-                  child: Text(
-                    subTr('subPrivacy', 'Maxfiylik siyosati'),
-                    style: TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
-                        decoration: TextDecoration.underline),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 }

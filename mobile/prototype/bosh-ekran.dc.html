@@ -66,6 +66,12 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <sc-if value="{{ sinov }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div></sc-if>
+              <!-- Trust AI — menyu kartasi o'rniga header ikonkasi (PO 2026-08-04) -->
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <!-- Trust AI belgisi — uchta 4 nurli yulduz (sparkle), romb EMAS
+                     (PO 2026-08-04). Manba: home_hub.dart -> _Glyph(_G.sparkle) -->
+                <svg width="18" height="18" viewBox="0 0 14 14"><path d="M8.9 4 Q9.934 7.666 13.6 8.7 Q9.934 9.734 8.9 13.4 Q7.866 9.734 4.2 8.7 Q7.866 7.666 8.9 4 Z M4.2 1 Q4.838 3.262 7.1 3.9 Q4.838 4.538 4.2 6.8 Q3.562 4.538 1.3 3.9 Q3.562 3.262 4.2 1 Z M2.8 9.1 Q3.218 10.582 4.7 11 Q3.218 11.418 2.8 12.9 Q2.382 11.418 0.9 11 Q2.382 10.582 2.8 9.1 Z" fill="none" stroke="var(--pink)" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
               <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
                 <div style="display:flex;flex-direction:column;align-items:center">
                   <div style="width:12px;height:9px;border:1.5px solid var(--pink);border-bottom:none;border-radius:6px 6px 0 0"></div>
@@ -77,71 +83,158 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
-            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 16px 12px;cursor:pointer">
-              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.06">
+            <!-- ══ HUB KARTALARI — bitta qobiq (_hubShell), to'rttasi ham bir xil ══
+                 XARAJATLAR / QARZ DAFTAR / IJARADAGI UYLAR / TO'YXONA bitta
+                 builder'dan chiqadi: QAT'IY balandlik 272px (kHubCardH),
+                 padding 16/14/12, suv belgisi 104x104 (right:-24px, top:-16px),
+                 nom + chip qatori, 34x34 tint glif qutisi ALOHIDA qatorda,
+                 so'ng flex:1 mazmun (sarlavha 13.5px + summa 27px + karta-ga
+                 xos qolgan qatorlar), eng pastda TARIF pastki-o'ngda.
+                 TARIF QOIDASI (gibrid, modPriceLabel(module, catalogPrice)):
+                 1) do'konda shu mahsulot narxi bo'lsa — AYNAN o'sha ko'rsatiladi
+                    (IapService.modulePrice), ya'ni foydalanuvchidan haqiqatda
+                    yechiladigan summa, o'z valyutasida: «24 000 so'm/oy»;
+                 2) bo'lmasa — katalog narxi indikativ tarif sifatida: «$13/oy».
+                 Shuning uchun korner HECH QACHON bo'sh qolmaydi, va mahsulotlar
+                 Play/App Store'da paydo bo'lgan kuni o'zi haqiqiy lokalizatsiya
+                 qilingan narxga o'tadi — ilova relizi talab qilinmaydi.
+                 Literal narx HECH QAYERDA qotirilmaydi. Sotib olish nuqtasi
+                 qat'iyroq: paywall'dagi narx pill'i va CTA modCtaLabel bilan
+                 chiziladi va HAR DOIM do'kon narxini afzal ko'radi — tugma
+                 «$8/oy» deb va'da berib, do'kon boshqa summa yechishi mumkin
+                 emas. modPerMonthCur / pwCtaCur kalitlarida «$» YO'Q: do'kon
+                 narxi o'z valyuta belgisi bilan keladi (aks holda «$24 000
+                 so'm/oy» chiqardi). Qulf chipi matnsiz — faqat qulf glifi;
+                 gibrid tufayli qulflangan kartada ham korner raqamli qoladi.
+                 Mazmun sig'masa ICHKARIDA kichrayadi —
+                 karta O'SMAYDI (272px qat'iy), shuning uchun hub bir tekis
+                 ustun bo'lib ko'rinadi. NEGA aynan 272: eng boy karta —
+                 Xarajat 46px sparkline bilan — kichraytirilmasdan sig'ishi
+                 kerak; 258px'da qobiq uni jimgina 0.93 ga siqib, sparkline
+                 42.8px bo'lib qolardi. Dart tomonda test sparkline aynan
+                 46px chizilishini tekshiradi.
+                 Manba: lib/screens/home_hub.dart -> _hubShell (kHubCardH);
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel /
+                 modCtaLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
                 <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
-              <div style="position:relative;display:flex;align-items:center;gap:11px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                </div>
-                <div>
-                  <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
-                  <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
-                </div>
+              <!-- Bo'lim nomi + modul obunasi chipi (PO 2026-08-04): bepul limit
+                   hisoblagichi «3/5». Limit tugasa — qulf glifi (4b'da namuna). -->
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">XARAJATLAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">3/5</div>
               </div>
-              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px">
-                <div style="display:flex;align-items:center;gap:7px">
-                  <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
-                  <div style="position:relative;width:14px;height:11px;flex:none">
-                    <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
-                    <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
+                    <div style="position:relative;width:14px;height:11px;flex:none">
+                      <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
+                      <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+                    </div>
                   </div>
+                  <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
                 </div>
-                <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
+                <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                  <defs><linearGradient id="g4aR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
+                  <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4aR)"></path>
+                  <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
+                </svg>
               </div>
-              <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
-                <defs><linearGradient id="g4aR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
-                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4aR)"></path>
-                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-                <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
-              </svg>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$5/oy</div>
             </div>
-            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 10px;cursor:pointer">
-              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-26px;top:-16px;opacity:0.06">
+            <!-- Oldi-berdi — to'liq qator (PO 2026-08-04: har menyu alohida qatorda,
+                 kelgusi menyular — Ijarachi, To'yxona — ham span 2 bilan qo'shiladi) -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
                 <path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
+              <!-- Bo'lim nomi + modul chipi: bepul limit hisoblagichi «4/5» -->
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">QARZ DAFTAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">4/5</div>
+              </div>
               <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
                 <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               </div>
-              <div style="position:relative;margin-top:10px;font-size:13px;color:var(--pt1)">Sizga qaytishi kerak</div>
-              <div style="position:relative;margin-top:3px;font-size:19px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2 500 000</div>
-              <div style="position:relative;margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
-              <div style="position:relative;display:flex;align-items:center;gap:6px;margin-top:9px">
-                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
-                <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Sizga qaytishi kerak</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+2 500 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:9px">
+                  <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                  <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+                </div>
+                <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
+                  <defs><linearGradient id="g4aG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
+                  <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4aG)"></path>
+                  <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+                </svg>
               </div>
-              <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
-                <defs><linearGradient id="g4aG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
-                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4aG)"></path>
-                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$8/oy</div>
+            </div>
+            <!-- ── MODUL MENYULARI: Ijaradagi uylar / To'yxona (PO 2026-08-04) ──
+                 Ikkala modul QURILDI (backend + ekranlar), shuning uchun eski
+                 «Tez kunda» qulf teaseri (so'nik qator + narx) OLIB TASHLANDI.
+                 Qobiq yuqoridagi ikki karta bilan AYNAN bitta (_hubShell, 272px):
+                 nom + chip, glif qutisi alohida qatorda, sarlavha + KATTA SUMMA +
+                 sub-qator, eng pastda tarif pastki-o'ngda. Tarif modPriceLabel
+                 orqali: avval do'kon narxi (haqiqiy yechiladigan summa, o'z
+                 valyutasida), bo'lmasa katalog narxi indikativ tarif sifatida —
+                 korner hech qachon bo'sh qolmaydi, literal qotirilmaydi.
+                 Urg'u YASHIL: bu pul EGASIGA kelayapti (kirim) — shuning uchun
+                 Qarz daftardagi «Sizga qaytishi kerak» bilan bir xil yashil.
+                 Ma'lumot yo'q bo'lsa — tinch nol holati: «+0 so'm», modul tavsifi
+                 esa sub-qatorga tushadi (4c variantiga qarang); backend endpoint'i
+                 javob bermaganda ham xuddi shu nol holat chiziladi.
+                 Manba: lib/screens/home_hub.dart -> _hubShell;
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
+                <path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
-            </div>
-            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px;cursor:pointer">
-              <div style="display:flex;align-items:center;gap:9px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pink)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
-                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
-                </div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">IJARADAGI UYLAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">3/5</div>
               </div>
-              <div style="margin-top:11px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
-              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
-              <div style="margin-top:11px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Yig'ilishi kerak</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+4 200 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">3 hisob-kitob · 2 kutilmoqda</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$13/oy</div>
             </div>
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
+                <path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">TO'YXONA</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">2/5</div>
+              </div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">To'lanmagan qoldiq</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+18 500 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">Bu oyda 4 to'y</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$24/oy</div>
+            </div>
+            <!-- Trust AI kartasi olib tashlandi (PO 2026-08-04) — kirish nuqtasi header'dagi sparkle ikonkasi -->
           </div>
           <div style="display:flex;gap:10px;margin-top:12px">
             <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
@@ -210,6 +303,12 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
               <div style="margin-top:4px;font-size:13px;color:var(--pt2)">Iyul 2026 · payshanba</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
+              <!-- Trust AI — menyu kartasi o'rniga header ikonkasi (PO 2026-08-04) -->
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <!-- Trust AI belgisi — uchta 4 nurli yulduz (sparkle), romb EMAS
+                     (PO 2026-08-04). Manba: home_hub.dart -> _Glyph(_G.sparkle) -->
+                <svg width="18" height="18" viewBox="0 0 14 14"><path d="M8.9 4 Q9.934 7.666 13.6 8.7 Q9.934 9.734 8.9 13.4 Q7.866 9.734 4.2 8.7 Q7.866 7.666 8.9 4 Z M4.2 1 Q4.838 3.262 7.1 3.9 Q4.838 4.538 4.2 6.8 Q3.562 4.538 1.3 3.9 Q3.562 3.262 4.2 1 Z M2.8 9.1 Q3.218 10.582 4.7 11 Q3.218 11.418 2.8 12.9 Q2.382 11.418 0.9 11 Q2.382 10.582 2.8 9.1 Z" fill="none" stroke="var(--pink)" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
               <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
                 <div style="display:flex;flex-direction:column;align-items:center">
                   <div style="width:12px;height:9px;border:1.5px solid var(--pink);border-bottom:none;border-radius:6px 6px 0 0"></div>
@@ -221,71 +320,140 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
-            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 16px 12px;cursor:pointer">
-              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.07">
+            <!-- ══ HUB KARTALARI — 4a bilan bitta qobiq (_hubShell), dark tokenlarda
+                 (suv belgisi .07). To'rtta karta ham 272px, padding 16/14/12,
+                 glif qutisi alohida qatorda, tarif pastki-o'ngda.
+                 Tarif modPriceLabel(module, catalogPrice) bilan: avval do'kon
+                 narxi (IapService.modulePrice — foydalanuvchidan haqiqatda
+                 yechiladigan summa, o'z valyutasida, masalan «24 000 so'm/oy»),
+                 do'konda mahsulot hali bo'lmasa — katalog narxi indikativ
+                 tarif sifatida («$8/oy»). Korner hech qachon bo'sh qolmaydi;
+                 literal narx hech qayerda qotirilmaydi. Paywall'dagi narx
+                 pill'i va CTA esa modCtaLabel bilan — u HAR DOIM do'kon
+                 narxini afzal ko'radi (tugma va'dasi bilan haqiqiy hisob
+                 farq qilmasligi uchun).
+                 Manba: lib/screens/home_hub.dart -> _hubShell;
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel /
+                 modCtaLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.07">
                 <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
-              <div style="position:relative;display:flex;align-items:center;gap:11px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                </div>
-                <div>
-                  <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
-                  <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
-                </div>
+              <!-- Bo'lim nomi + modul chipi: bepul limit hisoblagichi «3/5» -->
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">XARAJATLAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">3/5</div>
               </div>
-              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px">
-                <div style="display:flex;align-items:center;gap:7px">
-                  <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
-                  <div style="position:relative;width:14px;height:11px;flex:none">
-                    <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
-                    <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--prdT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--prd)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Iyulda sarfladingiz</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--prd);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">−{{ heroFull }} <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <div style="font-size:12px;color:var(--pt1)">Qoldi: <span style="color:var(--pgr);font-weight:600;font-variant-numeric:tabular-nums">+1 800 000</span></div>
+                    <div style="position:relative;width:14px;height:11px;flex:none">
+                      <div style="position:absolute;left:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.8;border-radius:5px 2px 5px 5px;transform:rotate(-16deg)"></div>
+                      <div style="position:absolute;right:0;top:1px;width:6.5px;height:9px;background:var(--pgr);opacity:0.45;border-radius:2px 5px 5px 5px;transform:rotate(16deg)"></div>
+                    </div>
                   </div>
+                  <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
                 </div>
-                <div style="font-size:11px;color:var(--prd);font-variant-numeric:tabular-nums">Transport +25%</div>
+                <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                  <defs><linearGradient id="g4bR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
+                  <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4bR)"></path>
+                  <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
+                </svg>
               </div>
-              <svg width="100%" height="46" viewBox="0 0 320 46" preserveAspectRatio="none" style="display:block;margin-top:10px">
-                <defs><linearGradient id="g4bR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--prd)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--prd)" stop-opacity="0"></stop></linearGradient></defs>
-                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8 L310,46 L0,46 Z" fill="url(#g4bR)"></path>
-                <path d="M0,33 C22,32 44,31 66,31.5 C88,32 108,34 128,32 C148,30 166,25 184,26.5 C202,28 222,28.5 242,22 C262,15.5 288,11 310,8" fill="none" stroke="var(--prd)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-                <circle cx="310" cy="8" r="3.5" fill="var(--prd)"></circle>
-              </svg>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$5/oy</div>
             </div>
-            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 10px;cursor:pointer">
-              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-26px;top:-16px;opacity:0.07">
+            <!-- Oldi-berdi — to'liq qator (PO 2026-08-04: har menyu alohida qatorda,
+                 kelgusi menyular — Ijarachi, To'yxona — ham span 2 bilan qo'shiladi) -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 16 16" style="position:absolute;right:-24px;top:-16px;opacity:0.07">
                 <path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
+              <!-- QULFLANGAN holat namunasi: bepul limit tugagan — chipda FAQAT
+                   qulf glifi (narx yo'q, u pastki-o'ngdagi tarif qatorida),
+                   karta bosilsa bo'lim emas, paywall sheet'i ochiladi. -->
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">QARZ DAFTAR</div>
+                <div style="display:flex;align-items:center;background:var(--pfield);border-radius:999px;padding:4px 7px;flex:none">
+                  <svg width="9" height="9" viewBox="0 0 14 14"><path d="M4.9 6.6 V5.1 A2.2 2.2 0 0 1 9.1 5.1 V6.6 M3.3 8.2 A1.6 1.6 0 0 1 4.9 6.6 H9.1 A1.6 1.6 0 0 1 10.7 8.2 V10.3 A1.6 1.6 0 0 1 9.1 11.9 H4.9 A1.6 1.6 0 0 1 3.3 10.3 Z" fill="none" stroke="var(--pt1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+              </div>
               <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
                 <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               </div>
-              <div style="position:relative;margin-top:10px;font-size:13px;color:var(--pt1)">Sizga qaytishi kerak</div>
-              <div style="position:relative;margin-top:3px;font-size:19px;font-weight:600;color:var(--pgr);letter-spacing:-0.4px;font-variant-numeric:tabular-nums">+2 500 000</div>
-              <div style="position:relative;margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
-              <div style="position:relative;display:flex;align-items:center;gap:6px;margin-top:9px">
-                <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
-                <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Sizga qaytishi kerak</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+2 500 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">3 faol qarz · 12 hamkor</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:9px">
+                  <div style="width:6px;height:6px;border-radius:999px;background:var(--prd);flex:none"></div>
+                  <div style="font-size:11px;color:var(--prd)">Bekzod · 47 kun javobsiz</div>
+                </div>
+                <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
+                  <defs><linearGradient id="g4bG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
+                  <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4bG)"></path>
+                  <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+                </svg>
               </div>
-              <svg width="100%" height="30" viewBox="0 0 140 34" preserveAspectRatio="none" style="display:block;margin-top:8px">
-                <defs><linearGradient id="g4bG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--pgr)" stop-opacity="0.12"></stop><stop offset="1" stop-color="var(--pgr)" stop-opacity="0"></stop></linearGradient></defs>
-                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8 L132,34 L0,34 Z" fill="url(#g4bG)"></path>
-                <path d="M0,25 C16,24.5 32,24 48,22.5 C64,21 78,22 92,18 C106,14 120,11 132,8" fill="none" stroke="var(--pgr)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                <circle cx="132" cy="8" r="3" fill="var(--pgr)"></circle>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$8/oy</div>
+            </div>
+            <!-- MODUL MENYULARI — 4a bilan bir xil, dark tokenlarda (suv belgisi .07).
+                 Qobiq to'rtala karta bilan bitta (_hubShell, 272px): nom + chip,
+                 glif qutisi alohida qatorda, sarlavha + KATTA SUMMA + sub-qator,
+                 tarif pastki-o'ngda. Urg'u YASHIL — pul EGASIGA kelayapti
+                 (kirim), shuning uchun Qarz daftardagi yashil bilan bir xil.
+                 Ma'lumot yo'q bo'lsa — tinch nol holati: «+0 so'm», tavsif esa
+                 sub-qatorda (4c). Narx faqat pastki-o'ngdagi tarif qatorida
+                 chiziladi va modPriceLabel'dan keladi: avval do'kon narxi,
+                 bo'lmasa katalog narxi — korner bo'sh qolmaydi. Qulflangan
+                 chip (yuqoridagi Qarz kartasi) matnsiz — faqat qulf glifi;
+                 gibrid tarif tufayli qulflangan kartada ham narx ko'rinadi.
+                 Manba: lib/screens/home_hub.dart -> _hubShell;
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.07">
+                <path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
-            </div>
-            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px;cursor:pointer">
-              <div style="display:flex;align-items:center;gap:9px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pink)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
-                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle);animation:trPulse 2.2s ease infinite"></div>
-                </div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">IJARADAGI UYLAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">3/5</div>
               </div>
-              <div style="margin-top:11px;font-size:13px;color:var(--pink);line-height:1.55;text-wrap:pretty">«Transportga o'tgan oydan 25% ko'p ketdi — sababini ko'rasanmi?»</div>
-              <div style="margin-top:8px;font-size:11px;color:var(--pt3)">Bugungi kuzatuv · yana 2 ta</div>
-              <div style="margin-top:11px;font-size:12px;font-weight:600;color:var(--pink)">Ko'rish →</div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Yig'ilishi kerak</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+4 200 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">3 hisob-kitob · 2 kutilmoqda</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$13/oy</div>
             </div>
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.07">
+                <path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">TO'YXONA</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">2/5</div>
+              </div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">To'lanmagan qoldiq</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+18 500 000 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">Bu oyda 4 to'y</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$24/oy</div>
+            </div>
+            <!-- Trust AI kartasi olib tashlandi (PO 2026-08-04) — kirish nuqtasi header'dagi sparkle ikonkasi -->
           </div>
           <div style="display:flex;gap:10px;margin-top:12px">
             <div onClick="{{ addEntry }}" style="flex:1.7;height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer">+&nbsp; Xarajat yozish</div>
@@ -355,48 +523,117 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:5px 10px;white-space:nowrap">Sinov · 5 kun</div>
+              <!-- Trust AI — menyu kartasi o'rniga header ikonkasi (PO 2026-08-04) -->
+              <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+                <!-- Trust AI belgisi — uchta 4 nurli yulduz (sparkle), romb EMAS
+                     (PO 2026-08-04). Manba: home_hub.dart -> _Glyph(_G.sparkle) -->
+                <svg width="18" height="18" viewBox="0 0 14 14"><path d="M8.9 4 Q9.934 7.666 13.6 8.7 Q9.934 9.734 8.9 13.4 Q7.866 9.734 4.2 8.7 Q7.866 7.666 8.9 4 Z M4.2 1 Q4.838 3.262 7.1 3.9 Q4.838 4.538 4.2 6.8 Q3.562 4.538 1.3 3.9 Q3.562 3.262 4.2 1 Z M2.8 9.1 Q3.218 10.582 4.7 11 Q3.218 11.418 2.8 12.9 Q2.382 11.418 0.9 11 Q2.382 10.582 2.8 9.1 Z" fill="none" stroke="var(--pink)" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
               <div style="width:38px;height:38px;border-radius:999px;border:1px solid var(--phair);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--pink);cursor:pointer;flex:none">AK</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
-            <div style="grid-column:span 2;position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px;cursor:pointer">
-              <svg width="120" height="120" viewBox="0 0 14 14" style="position:absolute;right:-22px;top:-18px;opacity:0.05">
+            <!-- ══ HUB KARTALARI (bo'sh holat) — qobiq 4a/4b bilan AYNAN bitta ══
+                 To'rttasi ham 272px, padding 16/14/12, glif qutisi alohida
+                 qatorda, tarif pastki-o'ngda — shuning uchun bo'sh hub ham
+                 bir tekis ustun bo'lib ko'rinadi, kartalar sakramaydi.
+                 Xarajat va Qarz kartalari bu yerda NEYTRAL qoladi (urg'u
+                 var(--pink), tint var(--pcard2)): «rang faqat ma'lumot bilan
+                 keladi» qoidasi ular uchun kuchda — hali raqam yo'q.
+                 TARIF esa bo'sh holatda ham chiziladi: u foydalanuvchi
+                 ma'lumotiga emas, modPriceLabel'ga bog'liq — avval do'kon
+                 narxi, bo'lmasa katalog narxi. Shuning uchun yangi
+                 foydalanuvchida ham to'rttala kornerda raqam turadi.
+                 Manba: lib/screens/home_hub.dart -> _hubShell;
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.05">
                 <path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--pink)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
               </svg>
-              <div style="position:relative;display:flex;align-items:center;gap:11px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--pt1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                </div>
-                <div>
-                  <div style="font-size:13.5px;color:var(--pt1)">Xarajatlaringiz</div>
-                  <div style="margin-top:3px;font-size:17px;font-weight:600;color:var(--pink)">Hali yozuv yo'q</div>
-                </div>
+              <!-- Bo'lim nomi — yuklangan karta bilan bir xil (bo'sh holatda chip yo'q:
+                   hali yozuv yozilmagan, hisoblagich ma'no bermaydi) -->
+              <div style="position:relative;margin-bottom:10px;font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">XARAJATLAR</div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M3.5 10.5 L10.5 3.5 M5.5 3.5 H10.5 V8.5" fill="none" stroke="var(--pt1)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               </div>
-              <div style="position:relative;margin-top:9px;font-size:12px;color:var(--pt3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda oyning chizig'i paydo bo'ladi</div>
-              <svg width="100%" height="30" viewBox="0 0 320 30" preserveAspectRatio="none" style="display:block;margin-top:10px">
-                <path d="M0,22 C60,21.5 120,21 180,21 C240,21 280,21 320,20.5" fill="none" stroke="var(--pt6)" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 7"></path>
-              </svg>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Xarajatlaringiz</div>
+                <div style="margin-top:3px;font-size:17px;font-weight:600;color:var(--pink)">Hali yozuv yo'q</div>
+                <div style="margin-top:9px;font-size:12px;color:var(--pt3);text-wrap:pretty">Birinchi xarajatni yozing — bir necha kundan so'ng shu yerda oyning chizig'i paydo bo'ladi</div>
+                <svg width="100%" height="30" viewBox="0 0 320 30" preserveAspectRatio="none" style="display:block;margin-top:10px">
+                  <path d="M0,22 C60,21.5 120,21 180,21 C240,21 280,21 320,20.5" fill="none" stroke="var(--pt6)" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 7"></path>
+                </svg>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$5/oy</div>
             </div>
-            <div style="position:relative;overflow:hidden;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px;cursor:pointer">
+            <!-- Oldi-berdi — to'liq qator (PO 2026-08-04: har menyu alohida qatorda,
+                 kelgusi menyular — Ijarachi, To'yxona — ham span 2 bilan qo'shiladi) -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <!-- Bo'lim nomi — yuklangan karta bilan bir xil (bo'sh holatda chip yo'q:
+                   hali yozuv yozilmagan, hisoblagich ma'no bermaydi) -->
+              <div style="position:relative;margin-bottom:10px;font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">QARZ DAFTAR</div>
               <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center">
                 <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 5 H13 M10.5 2.5 L13 5 L10.5 7.5 M13.5 11 H3 M5.5 8.5 L3 11 L5.5 13.5" fill="none" stroke="var(--pt1)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               </div>
-              <div style="position:relative;margin-top:10px;font-size:14px;font-weight:600;color:var(--pink);line-height:1.4">Kimga berdingiz, kimdan oldingiz?</div>
-              <div style="position:relative;margin-top:5px;font-size:11.5px;color:var(--pt3);line-height:1.5;text-wrap:pretty">Yozib qo'ying — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
-              <div style="position:relative;margin-top:13px;font-size:12px;font-weight:600;color:var(--pink)">+ Qarz qo'shish</div>
-            </div>
-            <div style="background:var(--pfield);border-radius:18px;padding:16px 14px">
-              <div style="display:flex;align-items:center;gap:9px">
-                <div style="width:34px;height:34px;border-radius:11px;background:var(--pcard2);display:flex;align-items:center;justify-content:center;flex:none">
-                  <svg width="15" height="15" viewBox="0 0 14 14"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z" fill="none" stroke="var(--pt1)" stroke-width="1.4" stroke-linejoin="round"></path></svg>
-                </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--pt2)">TRUST AI</div>
-                  <div style="width:6px;height:6px;border-radius:999px;background:var(--pidle)"></div>
-                </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:14px;font-weight:600;color:var(--pink);line-height:1.4">Kimga berdingiz, kimdan oldingiz?</div>
+                <div style="margin-top:5px;font-size:11.5px;color:var(--pt3);line-height:1.5;text-wrap:pretty">Yozib qo'ying — ikki tomon ham tasdiqlaydi, hech kim unutmaydi</div>
+                <div style="margin-top:13px;font-size:12px;font-weight:600;color:var(--pink)">+ Qarz qo'shish</div>
               </div>
-              <div style="margin-top:11px;font-size:13px;color:var(--pt1);line-height:1.55;text-wrap:pretty">Salom! Yozuvlaringiz yig'ilgach, pulingiz qayerga ketayotganini aytib beraman.</div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$8/oy</div>
             </div>
+            <!-- MODUL MENYULARI bo'sh holatda ham AYNAN shu qobiqda chiziladi
+                 (home_hub.dart: _hubShell ikkala holatda bitta builder):
+                 nom + chip, glif qutisi alohida qatorda, sarlavha + summa +
+                 sub-qator, tarif pastki-o'ngda. Urg'u bu ikki kartada YASHIL
+                 (pul EGASIGA kelayapti — kirim, Qarz daftar bilan bir xil).
+                 Ma'lumot yo'q — TINCH NOL HOLATI: summa «+0 so'm», modul tavsifi
+                 esa sub-qatorga tushadi (raqam yo'q paytda u ikkilamchi fakt).
+                 Xuddi shu holat backend endpoint'i javob bermaganda ham chiziladi.
+                 Chip serverdan keladi — yangi foydalanuvchida «0/5».
+                 Tarif esa nol holatda ham raqamli: modPriceLabel avval do'kon
+                 narxini (haqiqiy yechiladigan summa, o'z valyutasida), u
+                 bo'lmasa katalog narxini beradi — literal qotirilmaydi va
+                 korner hech qachon bo'sh qolmaydi.
+                 Manba: lib/screens/home_hub.dart -> _hubShell;
+                 tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
+                <path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">IJARADAGI UYLAR</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">0/5</div>
+              </div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M2.2 6.6 L7 2.7 L11.8 6.6 M3.7 5.4 V11.5 H10.3 V5.4 M5.9 11.5 V8.6 H8.1 V11.5" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">Yig'ilishi kerak</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+0 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">5 tagacha ijaradagi uy — ijara va kommunal to'lovlar</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$13/oy</div>
+            </div>
+            <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
+              <svg width="104" height="104" viewBox="0 0 14 14" style="position:absolute;right:-24px;top:-16px;opacity:0.06">
+                <path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+                <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--pt1)">TO'YXONA</div>
+                <div style="font-size:11px;font-weight:600;color:var(--pt1);background:var(--pfield);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">0/5</div>
+              </div>
+              <div style="position:relative;width:34px;height:34px;border-radius:11px;background:var(--pgrT);display:flex;align-items:center;justify-content:center">
+                <svg width="16" height="16" viewBox="0 0 14 14"><path d="M1.7 11.8 H12.3 M3.2 11.8 V7.4 A3.8 3.8 0 0 1 10.8 7.4 V11.8" fill="none" stroke="var(--pgr)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="position:relative;flex:1;min-height:0;margin-top:10px">
+                <div style="font-size:13.5px;color:var(--pt1)">To'lanmagan qoldiq</div>
+                <div style="margin-top:3px;font-size:27px;font-weight:600;color:var(--pgr);letter-spacing:-0.5px;font-variant-numeric:tabular-nums">+0 <span style="font-size:14px;font-weight:400;color:var(--pt2);letter-spacing:0">so'm</span></div>
+                <div style="margin-top:2px;font-size:11px;color:var(--pt2)">Bitta to'yxona — bron, avans va xizmatlar smetasi</div>
+              </div>
+              <div style="position:relative;margin-top:6px;text-align:right;font-size:11px;font-weight:500;color:var(--pt3);font-variant-numeric:tabular-nums">$24/oy</div>
+            </div>
+            <!-- Trust AI teaser kartasi olib tashlandi (PO 2026-08-04) — kirish nuqtasi header'dagi sparkle ikonkasi -->
           </div>
           <div style="height:50px;background:var(--pink);color:var(--pbg);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">+&nbsp; Birinchi xarajatni yozish</div>
           <div style="margin-top:18px;padding:0 4px">

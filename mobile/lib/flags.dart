@@ -31,6 +31,20 @@ const bool kCirclesEnabled = false;
 // false bo'lganda: tabda ko'rinmaydi, ekran chizilmaydi (backend tegilmaydi).
 const bool kAiEnabled = true;
 
+// kModuleSubsUi — modul obunalari (per-module subscriptions, 2026-08-04):
+// hub kartalaridagi "3/5 bepul" hisoblagichi, qulf va paywall.
+//
+// Bu bayroq ODATDA kerak emas — UI DATA-DRIVEN: store GET /api/subs/status ni
+// so'raydi va javob kelmasa (404/xato/maydon yo'q) 'modSubs' BO'SH qoladi, ya'ni
+// hub aynan bugungidek (hisoblagichsiz, qulfsiz) ko'rinadi. Bayroq faqat
+// AVARIYA TUGMASI: server modullarni qaytarayotgan bo'lsa ham UI'ni bir qatorda
+// o'chirish uchun (masalan relizdan oldin kutilmagan xatolikda).
+//
+// false bo'lganda: store /api/subs/status ni UMUMAN so'ramaydi -> 'modSubs' []
+// va 'modSubsLegacy' false bo'lib qoladi -> hub kartalari eski ko'rinishda,
+// paywall hech qachon ochilmaydi (402 esa avvalgidek global bannerga tushadi).
+const bool kModuleSubsUi = true;
+
 // kBottomNavEnabled — pastki navigatsiya paneli (screens/tab_bar.dart: TrustTabBar).
 // Mahsulot qarori (2026-07-17): pastki nav olib tashlandi — ildiz ekran endi
 // BOSH HUB (screens/home_hub.dart). Hub'dan kartalar bosilib bo'limlar TO'LIQ

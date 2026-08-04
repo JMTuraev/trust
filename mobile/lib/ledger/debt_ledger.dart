@@ -316,25 +316,22 @@ class DebtLedger {
   // Yopish faqat yopiladigan (band bo'lmagan) faol qarz bo'lganda
   bool get canClose => _activeDebts.any((d) => !isLockedByPending(d));
 
-  String? giveDisabledReason(String partnerName) {
-    if (canGive) return null;
-    final sum = _sumActive(DebtDir.fromMe);
-    return "Siz «$partnerName»ga $sum qarzdorsiz — yana qarz berish mantiqsiz, avval hisobni yoping";
+  // Tugma nima uchun o'chirilgani — SEMANTIK KOD. Bu qatlam sof Dart (UI'dan
+  // mustaqil): ko'rsatiladigan matn UI qatlamida (store.dart) l10n orqali quriladi.
+  // null = tugma faol. Kodlar: 'cantGive' | 'cantTake' | 'noActive' | 'pendingWait'.
+  String? giveDisabledCode() => canGive ? null : 'cantGive';
+
+  String? takeDisabledCode() => canTake ? null : 'cantTake';
+
+  String? closeDisabledCode() {
+    if (_activeDebts.isEmpty) return 'noActive';
+    if (_allActiveLocked) return 'pendingWait';
+    return canClose ? null : 'noActive';
   }
 
-  String? takeDisabledReason(String partnerName) {
-    if (canTake) return null;
-    final sum = _sumActive(DebtDir.toMe);
-    return "«$partnerName» sizga $sum qarzdor — qarz olish o'rniga «Qarzni yopish»dan foydalaning";
-  }
-
-  String? closeDisabledReason() {
-    if (_activeDebts.isEmpty) return 'Faol qarz yo\'q';
-    if (_allActiveLocked) return 'Amal tasdiqlanishi kutilmoqda';
-    return canClose ? null : 'Faol qarz yo\'q';
-  }
-
-  String _sumActive(DebtDir dir) {
+  /// Yo'nalish bo'yicha faol qarzlar yig'indisi («1000 UZS + 5 USD») —
+  /// o'chirilgan-tugma xabarlaridagi {sum} uchun UI qatlamiga ochiq.
+  String sumActive(DebtDir dir) {
     final byCur = <String, int>{};
     for (final d in _activeDebts.where((d) => d.direction == dir)) {
       byCur[d.currency] = (byCur[d.currency] ?? 0) + d.remaining;
@@ -396,8 +393,9 @@ class DebtLedger {
   }) {
     assert(kind == EntryKind.repay || kind == EntryKind.settle);
     final debt = _byId(refDebtId);
-    if (debt == null) throw StateError('Qarz topilmadi');
-    if (isLockedByPending(debt)) throw StateError('Bu qarzda amal tasdiqlanishi kutilmoqda');
+    // Dev-only xatolar (UI'ga chiqmaydi) — sof domen qatlami matn-neytral qoladi
+    if (debt == null) throw StateError('debt not found');
+    if (isLockedByPending(debt)) throw StateError('debt has a pending operation');
     final capped = _min(amount, remainingEff(debt));
     final e = DebtEntry(
       id: id,

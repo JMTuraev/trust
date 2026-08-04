@@ -315,13 +315,15 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
       <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
       <div data-screen-label="Hamkorlar" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
         <div style="flex:none;padding:16px 24px 0">
-          <!-- Header: orqaga (hub) + menyu nomi + [davr filtri][arxiv][bell][⋮]
-               (2026-08-04: "Trust" logosi hub headerida qoldi — bu yer bo'lim nomi) -->
+          <!-- Header: orqaga (hub) + menyu nomi + [davr filtri][arxiv][bell]
+               (2026-08-04: "Trust" logosi hub headerida qoldi — bu yer bo'lim nomi;
+                ⋮ menyu olib tashlandi — Xarajatlar hub'dan ochiladi) -->
           <div style="display:flex;align-items:center;margin-left:-8px">
             <div sc-camel-on-click="{{ goHub }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
               <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
             </div>
-            <div style="flex:1;min-width:0;margin-left:8px;font-size:21px;font-weight:700;color:var(--ink);letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ homeTitle }}</div>
+            <!-- Sarlavha «...» bilan kesilmaydi — 2 qatorgacha o'raladi (Flutter: maxLines 2) -->
+            <div style="flex:1;min-width:0;margin-left:8px;font-size:21px;font-weight:700;color:var(--ink);letter-spacing:-0.3px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ homeTitle }}</div>
             <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
               <!-- Davr filtri (voronka-chiziqlar); faol bo'lsa nuqta (bellDot naqshi) -->
               <div sc-camel-on-click="{{ homeFilterTap }}" style="position:relative;width:34px;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
@@ -348,12 +350,6 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                 <sc-if value="{{ bellDot }}" hint-placeholder-val="{{ false }}">
                   <div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--ink);border:1.5px solid var(--bg)"></div>
                 </sc-if>
-              </div>
-              <!-- ⋮ menyu (Xarajatlar) -->
-              <div sc-camel-on-click="{{ homeMenuTap }}" style="width:34px;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
-                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
-                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
-                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
               </div>
             </div>
           </div>
@@ -422,7 +418,8 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                 </sc-if>
               </div>
               <div style="flex:1;min-width:0">
-                <div style="font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
+                <!-- Moliyaviy qoida (2026-08-04): nom "..." bilan kesilmaydi — 2 qatorgacha o'raladi (Flutter maxLines:2) -->
+                <div style="font-size:15.5px;font-weight:600;color:var(--ink);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ r.name }}</div>
                 <div style="font-size:12px;color:var(--t3);margin-top:2px">{{ r.sub }}</div>
               </div>
               <div style="text-align:right;flex:none">
@@ -453,11 +450,12 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
             <sc-for list="{{ archRows }}" as="ar" hint-placeholder-count="1">
               <div style="position:relative;overflow:hidden;border-bottom:1px solid var(--hair2)">
                 <div sc-camel-on-click="{{ ar.restore }}" style="position:absolute;top:0;bottom:0;right:0;width:96px;background:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                  <div style="color:var(--bg);font-size:12px;font-weight:600">Qaytarish</div>
+                  <div style="color:var(--bg);font-size:12px;font-weight:600;text-align:center;padding:0 6px">Arxivdan chiqarish</div>
                 </div>
                 <div sc-camel-on-click="{{ ar.rowTap }}" sc-camel-on-pointer-down="{{ ar.pd }}" sc-camel-on-pointer-move="{{ ar.pm }}" sc-camel-on-pointer-up="{{ ar.pu }}" sc-camel-on-pointer-cancel="{{ ar.pu }}" style="position:relative;display:flex;align-items:center;gap:12px;padding:11px 24px;background:var(--bg);opacity:0.75;cursor:pointer;touch-action:pan-y;transform:translateX({{ ar.tx }}px);transition:{{ ar.trans }}">
                   <div style="width:34px;height:34px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:var(--ink);flex:none">{{ ar.initials }}</div>
-                  <div style="flex:1;min-width:0;font-size:14px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ar.name }}</div>
+                  <!-- Moliyaviy qoida (2026-08-04): nom "..." bilan kesilmaydi — 2 qatorgacha o'raladi (Flutter maxLines:2) -->
+                  <div style="flex:1;min-width:0;font-size:14px;font-weight:500;color:var(--t1);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ ar.name }}</div>
                   <div style="flex:none;font-size:11px;color:var(--t4)">Arxivda</div>
                 </div>
               </div>
@@ -490,13 +488,6 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                 <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none"></div>
               </sc-if>
             </div>
-          </div>
-        </sc-if>
-        <!-- ⋮ menyu — Xarajatlar (goXarajat_ yo'li) -->
-        <sc-if value="{{ homeMenuOpen }}" hint-placeholder-val="{{ false }}">
-          <div sc-camel-on-click="{{ homeMenuClose }}" style="position:absolute;inset:0;z-index:40"></div>
-          <div style="position:absolute;top:56px;right:24px;z-index:41;min-width:186px;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden">
-            <div sc-camel-on-click="{{ homeMenuXar }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">{{ homeMenuXarLabel }}</div>
           </div>
         </sc-if>
       </div>
@@ -834,15 +825,17 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
           </sc-if>
           <sc-if value="{{ notRenaming }}" hint-placeholder-val="{{ true }}">
             <div sc-camel-on-click="{{ menuTap }}" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;max-width:100%">
-              <div style="font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ cName }}</div>
+              <!-- Ism «...» bilan kesilmaydi — 2 qatorgacha o'raladi (Flutter: maxLines 2) -->
+              <div style="min-width:0;font-size:15.5px;font-weight:600;color:var(--ink);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ cName }}</div>
               <sc-if value="{{ showChev }}" hint-placeholder-val="{{ true }}">
                 <div style="width:6.5px;height:6.5px;border-right:1.7px solid var(--t3);border-bottom:1.7px solid var(--t3);transform:rotate(45deg);margin-top:-4px;flex:none"></div>
               </sc-if>
             </div>
           </sc-if>
-          <div style="font-size:12px;margin-top:1px;color:{{ cBalColor }};font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap">{{ cBal }}</div>
+          <!-- Balans summalari kesilmasin — nowrap olib tashlandi, o'raladi -->
+          <div style="font-size:12px;margin-top:1px;color:{{ cBalColor }};font-weight:500;font-variant-numeric:tabular-nums">{{ cBal }}</div>
           <sc-if value="{{ hasPend }}" hint-placeholder-val="{{ false }}">
-            <div style="font-size:10.5px;margin-top:1px;color:var(--t3);font-variant-numeric:tabular-nums;white-space:nowrap">{{ pendText }}</div>
+            <div style="font-size:10.5px;margin-top:1px;color:var(--t3);font-variant-numeric:tabular-nums">{{ pendText }}</div>
           </sc-if>
         </div>
         <sc-if value="{{ canFlip }}" hint-placeholder-val="{{ true }}">
@@ -855,16 +848,19 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
           </div>
         </div>
         </sc-if>
+        <!-- ⋯ ko'proq — Flutter'da bu tugma kontekst menyusini ochadi (menuTap);
+             prototipda binding (openSheetClient) saqlangan, faqat glif almashdi -->
         <div sc-camel-on-click="{{ openSheetClient }}" style="width:34px;height:34px;border:1px solid var(--bd2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-hover="background:var(--hov)">
-          <div style="position:relative;width:12px;height:12px">
-            <div style="position:absolute;left:5px;top:0;width:2px;height:12px;background:var(--ink)"></div>
-            <div style="position:absolute;top:5px;left:0;width:12px;height:2px;background:var(--ink)"></div>
+          <div style="display:flex;align-items:center;gap:2.5px">
+            <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
+            <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
+            <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
           </div>
         </div>
       </div>
       <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
         <div sc-camel-on-click="{{ menuClose }}" style="position:absolute;inset:0;z-index:39"></div>
-        <div style="position:absolute;top:56px;left:62px;z-index:40;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden;min-width:186px;animation:trFade 0.15s ease">
+        <div style="position:absolute;top:56px;right:16px;z-index:40;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden;min-width:186px;animation:trFade 0.15s ease">
           <div sc-camel-on-click="{{ menuRename }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">Nomni tahrirlash</div>
           <div sc-camel-on-click="{{ menuArchive }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;border-top:1px solid var(--hair2)" style-hover="background:var(--hov)">Arxivlash</div>
           <div sc-camel-on-click="{{ menuProfile }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;border-top:1px solid var(--hair2)" style-hover="background:var(--hov)">Profil</div>
@@ -1006,9 +1002,10 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                     <div style="width:6px;height:6px;border-radius:50%;background:{{ m.dot }}"></div>
                     <div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:var(--t2);text-transform:uppercase">Operatsiya · {{ m.stLabel }}</div>
                   </div>
-                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:10px">
-                    <div style="font-size:14px;color:var(--ink);font-weight:500;white-space:nowrap;flex:none">{{ m.type }}</div>
-                    <div style="font-size:17px;font-weight:700;color:{{ m.acolor }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ m.amount }}</div>
+                  <!-- Sarlavha va summa kesilmasin — nowrap olib tashlandi (moliyaviy qoida) -->
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:10px">
+                    <div style="font-size:14px;color:var(--ink);font-weight:500;flex:none">{{ m.type }}</div>
+                    <div style="font-size:17px;font-weight:700;color:{{ m.acolor }};font-variant-numeric:tabular-nums;min-width:0">{{ m.amount }}</div>
                   </div>
                   <div style="font-size:11.5px;color:var(--t4);margin-top:3px">{{ m.date }}</div>
                   <sc-if value="{{ m.unconf }}" hint-placeholder-val="{{ false }}">
@@ -1244,7 +1241,8 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
           <div style="font-size:32px;font-weight:700;letter-spacing:-0.6px;color:var(--ink);margin-top:14px;font-variant-numeric:tabular-nums;white-space:nowrap">{{ receipt.amount }}</div>
           <div style="font-size:14px;color:var(--t1);margin-top:6px">{{ receipt.type }}</div>
           <sc-if value="{{ receipt.editPending }}" hint-placeholder-val="{{ false }}">
-            <div style="margin-top:14px;border:1px dashed var(--bd);border-radius:10px;padding:8px 14px;font-size:12px;color:var(--t1);white-space:nowrap">O'zgartirish kutilmoqda · {{ receipt.editLine }}</div>
+            <!-- Diff qatori (summalar) kesilmasin — nowrap olib tashlandi, o'raladi -->
+            <div style="margin-top:14px;border:1px dashed var(--bd);border-radius:10px;padding:8px 14px;font-size:12px;color:var(--t1)">O'zgartirish kutilmoqda · {{ receipt.editLine }}</div>
           </sc-if>
         </div>
         <div style="border-top:1px dashed var(--bd);margin:24px 0 6px"></div>
@@ -1267,7 +1265,8 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
           <div style="border-top:1px dashed var(--bd);margin-top:6px;padding-top:14px">
             <div style="font-size:10.5px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">O'ZGARISHLAR TARIXI</div>
             <sc-for list="{{ receipt.histRows }}" as="h" hint-placeholder-count="1">
-              <div style="font-size:12.5px;color:var(--t1);margin-top:8px;white-space:nowrap">{{ h.txt }}</div>
+              <!-- Versiya tarixi qatori (summalar) kesilmasin — o'raladi -->
+              <div style="font-size:12.5px;color:var(--t1);margin-top:8px">{{ h.txt }}</div>
             </sc-for>
           </div>
         </sc-if>
@@ -1577,7 +1576,8 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
         <div style="font-size:18px;font-weight:700;color:var(--ink)">O'zgartirish so'rovi</div>
         <div style="font-size:12.5px;color:var(--t3);margin-top:6px;line-height:1.5">O'zgarish faqat ikkinchi tomon tasdiqlagandan keyin kuchga kiradi. Asl yozuv o'chirilmaydi.</div>
         <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:20px">ESKI SUMMA</div>
-        <div style="font-size:16px;font-weight:600;color:var(--t3);margin-top:8px;text-decoration:line-through;font-variant-numeric:tabular-nums;white-space:nowrap">{{ editOld }}</div>
+        <!-- Diff summalari kesilmasin — nowrap olib tashlandi (moliyaviy qoida) -->
+        <div style="font-size:16px;font-weight:600;color:var(--t3);margin-top:8px;text-decoration:line-through;font-variant-numeric:tabular-nums">{{ editOld }}</div>
         <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:18px">YANGI SUMMA</div>
         <input value="{{ editAText }}" sc-camel-on-change="{{ onEditA }}" placeholder="{{ editOldRaw }}" sc-camel-input-mode="numeric" style="width:100%;height:52px;margin-top:10px;border:1px solid var(--bd);border-radius:12px;padding:0 16px;font-size:22px;font-weight:700;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums">
         <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2);margin-top:18px">YANGI IZOH</div>
@@ -1603,11 +1603,12 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
         <div style="margin-top:24px;border:1px solid var(--bd2);border-radius:14px;overflow:hidden;text-align:left;width:100%">
           <div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px;border-bottom:1px solid var(--hair2)">
             <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2)">ESKI</div>
-            <div style="font-size:15px;font-weight:600;color:var(--t3);text-decoration:line-through;white-space:nowrap;font-variant-numeric:tabular-nums">{{ rv.oldAmt }}</div>
+            <!-- Diff summalari kesilmasin — nowrap olib tashlandi (moliyaviy qoida) -->
+            <div style="font-size:15px;font-weight:600;color:var(--t3);text-decoration:line-through;font-variant-numeric:tabular-nums">{{ rv.oldAmt }}</div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px">
             <div style="font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2)">YANGI</div>
-            <div style="font-size:17px;font-weight:700;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums">{{ rv.newAmt }}</div>
+            <div style="font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums">{{ rv.newAmt }}</div>
           </div>
           <sc-if value="{{ rv.hasNote }}" hint-placeholder-val="{{ false }}">
             <div style="padding:0 16px 13px;font-size:12.5px;color:var(--t3)">Izoh: {{ rv.newNote }}</div>

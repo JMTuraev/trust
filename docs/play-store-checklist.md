@@ -118,6 +118,35 @@ Ilova telefon + SMS OTP bilan kiradi. Google review jamoasi kira olishi kerak:
 
 ---
 
+## 6a. Obuna mahsulotlari (modul-boshiga tarif, 2026-08-04)  🔴 SOTUVDAN OLDIN
+
+Tarif modul-boshiga: har bo'lim alohida oylik obuna. Mahsulot ID'lari **serverdagi
+katalog bilan aynan bir xil** bo'lishi shart (`src/lib/subscription.js` → `MODULES`) —
+klient product_id yubormaydi, server o'zi tanlaydi.
+
+| Modul | Product ID | Narx/oy |
+|---|---|---|
+| Xarajatlar | `trust_xarajat_monthly` | $5 |
+| Qarz daftar | `trust_qarz_monthly` | $8 |
+| Ijarachi | `trust_ijarachi_monthly` | $13 |
+| To'yxona | `trust_toyxona_monthly` | $24 |
+
+- [ ] Play Console → Monetize → Subscriptions: 4 ta mahsulot (yuqoridagi ID'lar bilan).
+- [ ] **App Store Connect (iOS): har bir modul AYRIM subscription group'da bo'lsin.**
+      SABAB: bitta guruhdagi obunalar bir-birini ALMASHTIRADI — foydalanuvchi Xarajat va
+      Qarz modullariga bir vaqtda obuna bo'la olmaydi. Bundan tashqari Apple bitta guruh
+      ichida `original_transaction_id` ni qayta ishlatadi, bu esa serverdagi "bitta chek —
+      bitta mahsulot" tekshiruvini noto'g'ri 409 ga olib keladi.
+- [ ] Mahsulotlar yaratilgach: `render.yaml` dagi `FREE_DEBT_ENTRIES` va
+      `FREE_EXPENSE_ENTRIES` ("300") qatorlarini **o'chiring** — kod defaulti 5 kuchga kiradi.
+- [ ] **Avval `supabase/migrations/020_module_subs.sql` ni qo'llang**, keyin limitni tushiring.
+      Tartib buzilsa: obunani sotib bo'lmaydi (409 `SUB_DB_NOT_READY`). Kodda xavfsizlik
+      klapani bor (jadval yo'q bo'lsa kvota majburlanmaydi), lekin to'g'ri tartib shu.
+- [ ] Sinov: sandbox akkaunt bilan IKKI xil modulni birdaniga sotib oling — ikkalasi ham
+      faol bo'lishi kerak (guruhlar to'g'ri ajratilganini shu tasdiqlaydi).
+
+---
+
 ## 7. Release → Production
 - [ ] `mobile/build/app/outputs/bundle/release/app-release.aab` ni yuklang.
 - [ ] Play App Signing: **birinchi yuklashda yoqing** (tavsiya). Bizning kalitimiz = upload key.

@@ -55,7 +55,8 @@ class RejectedLinksScreen extends StatelessWidget {
                                 children: [
                                   Tx(r['name'], size: 14.5, w: FontWeight.w600, color: p.ink),
                                   const SizedBox(height: 3),
-                                  Tx(r['sub'], size: 12, color: p.t3, maxLines: 1, ellipsis: true),
+                                  // Balans/holat matni to'liq ko'rinsin — 2 qatorgacha o'raladi
+                                  Tx(r['sub'], size: 12, color: p.t3, maxLines: 2),
                                 ],
                               ),
                             ),

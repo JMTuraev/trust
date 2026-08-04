@@ -15,9 +15,52 @@ import '../sparkline.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../ui.dart';
+import 'paywall_sheet.dart';
 
-// Kartalardagi ikonka turlari (prototipdagi inline SVG path'lari bilan 1:1)
-enum _G { expense, swap, diamond }
+// Kartalardagi ikonka turlari (prototipdagi inline SVG path'lari bilan 1:1).
+// house/venue — «Ijaradagi uylar» va «To'yxona» menyulari uchun (PO 2026-08-04:
+// modullar ochildi, qulf glifi ularning DOIMIY belgisi bo'lib qololmaydi).
+enum _G { expense, swap, sparkle, lock, house, venue }
+
+/// «used/limit» hisoblagich chipi chiziladigan eng katta bepul limit.
+///
+/// NEGA KERAK: production'da render.yaml FREE_DEBT_ENTRIES/FREE_EXPENSE_ENTRIES
+/// ATAYLAB 300 ga qo'yilgan — Play Billing ulanmaguncha hech kim to'siqqa
+/// urilmasin. Server o'sha qiymatni `free_limit` sifatida qaytaradi, natijada
+/// bosh ekranda har bir bepul foydalanuvchiga «7/300» ko'rinardi: prototip
+/// «3/5» ko'rsatadi, 300 esa ichki sinov qiymati — ekran buzuq bo'lib o'qiladi.
+/// Shu sababli "cheksizga yaqin" limitlarda hisoblagich UMUMAN chizilmaydi.
+/// QULF chipi (limit tugagan holat) bundan mustasno — u har qanday limitda
+/// odatdagidek ishlaydi.
+///
+/// QIYMAT store.dart'dan OLINADI (nusxa emas, taqsimlangan `kSubLimitDisplayMax`):
+/// ikkita mustaqil "shift" bo'lsa chip bir ekranda ko'rinib, boshqasida
+/// yo'qolishi mumkin edi.
+const int kModChipMaxLimit = kSubLimitDisplayMax;
+
+/// Hub kartalarining UMUMIY balandligi (logik piksel).
+///
+/// NEGA QAT'IY: kartalar — MENYULAR ro'yxati va ro'yxat o'sib boradi. Har biri
+/// o'z mazmuniga qarab bo'y olsa stack tirqishli ko'rinadi (Xarajat sparkline
+/// bilan baland, Qarz esa fx/muzlash qatorlariga qarab har safar boshqa) va
+/// yangi menyu qo'shilganda yana qo'lda moslash kerak bo'lardi. Endi hammasi
+/// bitta qobiqdan (_hubShell) chiqadi va AVTOMATIK bir xil o'lchamda.
+///
+/// QIYMAT eng BOY karta bo'yicha olingan (Xarajat: sarlavha + summa + chegara
+/// qatori + 46px sparkline + tarif) — hech qanday mavjud mazmun olib
+/// tashlanmagan. Boshqa kartalarda pastda bo'sh joy qoladi; aynan o'sha yerda
+/// tarif (pastki-o'ng burchak) turadi.
+///
+/// SIG'MAGAN HOLAT KARTANI O'STIRMAYDI: mazmun bloki FittedBox(scaleDown)
+/// ichida — uzun tarjima (ru/fr) yoki tor ekranda (320pt) ichkarida kichrayadi.
+///
+/// SHU SABAB QIYMAT KO'ZDAN EMAS, O'LCHOVDAN: kichik qiymatda karta buzilmaydi,
+/// balki Xarajat kartasi JIMGINA kichrayib qoladi (258 da sparkline 46 -> 42.8
+/// px bo'lgan edi — ko'z bilan payqash qiyin). Shuning uchun test bor:
+/// hub_cards_test.dart «eng boy karta SIQILMAYDI» — sparkline'ning ekrandagi
+/// bo'yi aynan 46 px ekanini tekshiradi. Kartaga qator qo'shsangiz o'sha test
+/// yiqiladi; yechim — mazmunni qisqartirish emas, shu qiymatni oshirish.
+const double kHubCardH = 272;
 
 class HomeHubScreen extends StatefulWidget {
   const HomeHubScreen({super.key});
@@ -30,7 +73,9 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   @override
   void initState() {
     super.initState();
-    // Trust AI kartasidagi teaser uchun suhbat tarixi. loadAiMsgs() 'aiLoaded'
+    // AI suhbat tarixini oldindan yuklash — header'dagi AI tugmasi bosilganda
+    // ekran tarix bilan tayyor ochilsin (PO 2026-08-04: AI kartasi olib
+    // tashlandi, kirish nuqtasi endi header ikonkasi). loadAiMsgs() 'aiLoaded'
     // bilan himoyalangan — bir marta yuklanadi. build/vals() ichida EMAS:
     // hosilaviy qiymatlar nojo'ya effektsiz qolishi kerak.
     if (kAiEnabled) {
@@ -47,7 +92,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     final empty = !skel && v['hubEmpty'] == true;
 
     // Prototip: skroller padding 6px 20px 28px
-    return SingleChildScrollView(
+    final body = SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
       child: Column(
         // stretch — CSS blok oqimi kabi: kartalar doim to'liq kenglikda
@@ -66,13 +111,368 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           if (skel)
             _HubSkelBody()
           else if (empty)
-            ..._emptyBody(v, p)
+            ..._emptyBody(v, p, dark)
           else
             ..._body(v, p, dark),
         ],
       ),
     );
+
+    // Modul obunasi paywall'i BU YERDA chizilmaydi — u GLOBAL overlay
+    // (main.dart, z:64). Sabab: 402 javobi istalgan ekranda kelishi mumkin,
+    // hub esa ularning faqat bittasi. Hub kartasi qulfi ham o'sha yagona
+    // store holatini (S['paywall']) yoqadi — ko'rinishi main.dart'da.
+    return body;
   }
+
+  // ─────────────────── MODUL OBUNALARI (per-module subs) ───────────────────
+  // Store shartnomasi HIMOYALI o'qiladi — kalitlar hali yo'q bo'lsa hub aynan
+  // bugungidek ko'rinadi (chip yo'q, tap — odatdagi navigatsiya):
+  //   v['modSubs']       -> [{'module','active','soon','used','limit','price'}]
+  //   v['modSubsLegacy'] -> bool (eski umumiy premium: hamma modul ochiq)
+  //   v['openPaywall']   -> void Function(String module)
+
+  /// Modul yozuvi. null = chip/qulf mantiqi umuman qo'llanmaydi
+  /// (eski premium, server qo'llamaydi yoki modul ro'yxatda yo'q).
+  Map<String, dynamic>? _modOf(Map<String, dynamic> v, String module) {
+    if (v['modSubsLegacy'] == true) return null;
+    final raw = v['modSubs'];
+    if (raw is! List) return null;
+    for (final e in raw) {
+      if (e is Map && e['module'] == module) return e.cast<String, dynamic>();
+    }
+    return null;
+  }
+
+  /// Bepul limit tugagan va obuna yo'q — karta bosilsa paywall ochiladi.
+  bool _modLocked(Map<String, dynamic> v, String module) {
+    final e = _modOf(v, module);
+    if (e == null || e['active'] == true) return false;
+    final used = (e['used'] as int?) ?? 0;
+    final limit = (e['limit'] as int?) ?? 0;
+    return limit > 0 && used >= limit;
+  }
+
+  /// Paywall'ni ochadi. Store hali qo'llamasa false qaytaradi — chaqiruvchi
+  /// odatdagi navigatsiyaga tushadi (hub hech qachon "o'lik" bo'lib qolmaydi).
+  bool _openPaywall(Map<String, dynamic> v, String module) {
+    final f = v['openPaywall'];
+    if (f is Function) {
+      f(module);
+      return true;
+    }
+    return false;
+  }
+
+  /// Karta sarlavha qatorining o'ng chipi:
+  ///   bepul, limit tugamagan -> «3/5» hisoblagich
+  ///   limit tugagan          -> FAQAT qulf glifi
+  ///   obuna faol / legacy / server qo'llamaydi -> chip yo'q (null)
+  ///
+  /// NARX BU YERDA YO'Q (PO 2026-08-04): tarif endi HAR kartaning pastki-o'ng
+  /// burchagida doimiy turadi (_priceRow). Qulf chipida ham ko'rsatilsa,
+  /// qulflangan modulda bitta karta ichida bir xil narx IKKI marta chiqardi.
+  Widget? _modChip(Map<String, dynamic> v, Pal p, String module) {
+    final e = _modOf(v, module);
+    if (e == null || e['active'] == true) return null;
+    final used = (e['used'] as int?) ?? 0;
+    final limit = (e['limit'] as int?) ?? 0;
+    final locked = limit > 0 && used >= limit;
+    // Hisoblagich chizilmaydigan hollar (QULF chipi bularga bo'ysunmaydi):
+    //   limit <= 0             — server limitni bilmaydi
+    //   limit > kModChipMaxLimit — env "sinov rejimi" qiymati (render.yaml: 300),
+    //                              «7/300» bosh ekranda ichki qiymatni oshkor qiladi
+    if (!locked && (limit <= 0 || limit > kModChipMaxLimit)) return null;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 3, horizontal: locked ? 7 : 9),
+      decoration: BoxDecoration(
+        color: p.field,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: locked
+          // Qulf — YOLG'IZ glif (narx pastki-o'ngda, _priceRow)
+          ? SizedBox(
+              width: 11,
+              height: 11,
+              child: CustomPaint(painter: _Glyph(_G.lock, p.t1, 1.5)),
+            )
+          // Hisoblagich — son: «...» bilan kesilmaydi
+          : Tx('$used/$limit',
+              size: 11, w: FontWeight.w600, color: p.t1, tab: true, maxLines: 1),
+    );
+  }
+
+  /// Kartaning PASTKI-O'NG burchagidagi tarif («$5/oy»).
+  ///
+  /// MANBA — SERVER: modSubs[].price (GET /api/subs/status). Lokal
+  /// `kSubModuleDefaults` FAQAT oflayn zaxira (server javob bermadi / legacy
+  /// premium / modul ro'yxatda yo'q). Widget ichida QOTIRILGAN narx satri
+  /// bo'lishi MUMKIN EMAS — eskirgan «$9/oy» tarif o'zgarganidan keyin ham
+  /// 6 tilda chiqib ketgan edi. Format ham qotirilmaydi: modPriceTxt
+  /// «{price}/oy» kalitini joriy tildan oladi.
+  ///
+  /// OBUNA FAOL bo'lganda ham KO'RSATILADI: bu kartaning "tarifi", holat
+  /// nishoni emas — PO uni barcha kartalarda STANDART tarzda so'ragan, faol
+  /// modulda yashirilsa aynan o'sha bir xillik buzilardi.
+  ///
+  /// VALYUTA (PO qarori 2026-08-04): `modPriceLabel` avval DO'KON narxini oladi
+  /// (foydalanuvchi haqiqatan to'laydigan summa, o'z valyutasida), u bo'lmasa
+  /// katalog narxini ko'rsatadi. Bugun mahsulotlar do'konda yaratilmagani uchun
+  /// katalog ko'rinadi; yaratilgan kuni burchak AVTOMATIK haqiqiy narxga o'tadi.
+  Widget _priceRow(Map<String, dynamic> v, Pal p, String module) {
+    final price = (_modOf(v, module)?['price'] as int?) ?? modDefPrice(module);
+    return Row(
+      children: [
+        Expanded(
+          // Narx — summa: «...» bilan kesilmaydi, sig'masa kichrayadi
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Tx(modPriceLabel(module, price),
+                size: 11, w: FontWeight.w500, color: p.t3, tab: true, maxLines: 1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ──────────────────── UMUMIY KARTA QOBIG'I ────────────────────
+  // Hub'dagi BARCHA kartalar (Xarajat, Qarz daftar, Ijaradagi uylar, To'yxona
+  // va ularning bo'sh-holat variantlari) AYNAN shu qobiqdan chiqadi. Yangi
+  // menyu qo'shish = shu funksiyaga yana bitta chaqiruv; o'lchami, bezaklari,
+  // chipi va tarifi avtomatik bir xil bo'ladi.
+  //
+  // Anatomiya (tepadan pastga):
+  //   _cardDeco (urg'u gradienti + halo)  ->  watermark glif  ->
+  //   _capRow (BO'LIM NOMI + chip)  ->  34x34 tint kvadrat  ->
+  //   mazmun (body: sarlavha, KATTA summa, sub-qatorlar, sparkline)  ->
+  //   [bo'sh joy]  ->  tarif (pastki-o'ng).
+  Widget _hubShell(
+    Map<String, dynamic> v,
+    Pal p,
+    bool dark, {
+    required String module,
+    required Color accent, // deco + watermark + ikonka rangi
+    required Color tint, // 34x34 kvadrat foni
+    required Color iconColor, // kvadrat ichidagi glif
+    required _G glyph,
+    required String sec, // BO'LIM NOMI (caption)
+    required List<Widget> body,
+    required VoidCallback onTap,
+  }) {
+    // Bepul limit tugagan va obuna yo'q -> bo'lim emas, paywall ochiladi.
+    final locked = _modLocked(v, module);
+    return Tap(
+      onTap: () {
+        if (locked && _openPaywall(v, module)) return;
+        onTap();
+      },
+      child: Container(
+        height: kHubCardH, // QAT'IY — izoh kHubCardH ustida
+        clipBehavior: Clip.antiAlias, // prototip: overflow:hidden (watermark)
+        decoration: _cardDeco(p, p.hov2, accent, dark),
+        child: Stack(
+          children: [
+            // Watermark: light 0.06, dark 0.07 (qora fonda bir xil sezilishi uchun)
+            Positioned(
+              right: -24,
+              top: -16,
+              child: Opacity(
+                opacity: dark ? .07 : .06,
+                child: SizedBox(
+                  width: 104,
+                  height: 104,
+                  child: CustomPaint(painter: _Glyph(glyph, accent, 1.1)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _capRow(sec, p, _modChip(v, p, module)),
+                  const SizedBox(height: 10),
+                  _tintBox(tint, 16, glyph, iconColor, 1.4),
+                  const SizedBox(height: 10),
+                  // Mazmun qolgan bo'sh joyni egallaydi. Sig'masa KARTA
+                  // O'SMAYDI — blok butunligicha kichrayadi (FittedBox):
+                  // uzun tarjima (ru/fr) yoki 320pt ekran tirqish ochmasin.
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (_, c) => FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: c.maxWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: body,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _priceRow(v, p, module),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Summa ustidagi sarlavha qatori — barcha kartalarda AYNAN bir xil.
+  Widget _cardCap(Pal p, String t) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        // Moliyaviy ilova qoidasi: sarlavha «...» bilan kesilmaydi
+        child: Tx(t, size: 13.5, color: p.t1, maxLines: 1),
+      );
+
+  /// Kartaning KATTA summasi + birlik — barcha kartalarda AYNAN bir xil.
+  /// Summa hech qachon «...» bilan kesilmaydi: sig'masa FittedBox butun raqamni
+  /// kichraytirib to'liq ko'rsatadi.
+  Widget _cardAmount(Pal p, String amount, Color c, String unit) => Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Tx(amount,
+                  size: 27, w: FontWeight.w600, color: c, ls: -0.5, tab: true, maxLines: 1),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Tx(unit, size: 14, color: p.t2),
+        ],
+      );
+
+  /// Bo'lim nomi + (bo'lsa) modul chipi — kartaning eng tepa qatori.
+  /// Chip yo'q bo'lsa AYNAN eski ko'rinish qaytadi (yolg'iz caption matni).
+  Widget _capRow(String cap, Pal p, Widget? chip) {
+    final title =
+        Tx(cap, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4, maxLines: 1);
+    if (chip == null) return title;
+    return Row(
+      children: [
+        // Uzun tarjimada ham «...» yo'q — sig'masa kichrayadi
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: title,
+          ),
+        ),
+        const SizedBox(width: 10),
+        chip,
+      ],
+    );
+  }
+
+  // ─────────── MODUL KARTALARI (Ijaradagi uylar / To'yxona) ───────────
+  // PO 2026-08-04: ikkala modul QURILDI (backend + ekranlar) va endi Xarajatlar
+  // hamda Qarz daftar bilan AYNAN BIR XIL karta — «Tez kunda» so'nik teaser'i
+  // ham, undan keyingi "tavsif + chevron" menyu qatori ham olib tashlandi.
+  // Ikkinchisi kartani ikkinchi navli qilib ko'rsatardi: yuqoridagi ikkitasida
+  // katta summa, bularda esa raqam umuman yo'q edi.
+  //
+  // ANATOMIYA _hubShell'dan keladi — Xarajat va Qarz daftar bilan AYNAN bir xil
+  // (o'lchami ham: kHubCardH).
+  //
+  // RANG — YASHIL, yangi tus emas: qizil = pul chiqmoqda, yashil = pul kirmoqda.
+  // Ikkala modulning bosh raqami ham EGAGA kelishi kerak bo'lgan pul (yig'ilmagan
+  // ijara / to'lanmagan bron qoldig'i) = kirim. Summaning O'ZI manfiy bo'lsa
+  // (avans olingan) qizilga o'tadi — hubLeftTxt bilan bir xil qoida.
+  //
+  // MA'LUMOT: store.refreshHubMods_ -> GET /api/<modul>/summary. Endpoint
+  // bugungi serverda YO'Q (404): o'shanda summa 0 bo'ladi va sub-qatorda modul
+  // TAVSIFI turadi — karta tinch va to'liq o'qiladi, xato/spinner ko'rinmaydi.
+  //
+  // Sarlavha qatori = MODUL NOMI bosh harflarda (l10n'dagi nomdan olinadi —
+  // alohida "SECTION" kaliti yaratilmaydi, aks holda nom ikki joyda ajralib
+  // ketishi mumkin edi). Chip — _modChip: «3/5» yoki qulf glifi, aynan
+  // Xarajat/Qarz kartalaridagidek.
+  Widget _menuCard(
+    Map<String, dynamic> v,
+    Pal p,
+    bool dark, {
+    required String module,
+    required _G glyph,
+    required String cap,
+    required String amount,
+    required bool pos,
+    required String unit,
+    required String sub,
+    required VoidCallback open,
+  }) {
+    final name = modStr(kModNameKey[module] ?? '');
+    return _hubShell(
+      v, p, dark,
+      module: module,
+      accent: p.green, // kirim — Qarz daftar bilan bir xil urg'u
+      tint: _tint(p.green, dark),
+      iconColor: p.green,
+      glyph: glyph,
+      sec: name.toUpperCase(),
+      onTap: open,
+      body: [
+        _cardCap(p, cap),
+        const SizedBox(height: 3),
+        // Manfiy = avans olingan (egada turgan begona pul) -> qizil
+        _cardAmount(p, amount, pos ? p.green : p.red, unit),
+        const SizedBox(height: 2),
+        // Sub-qator: ma'lumot bo'lsa faktlar («3 hisob-kitob · 2 kutilmoqda»),
+        // bo'lmasa modul tavsifi. Tavsif uzun bo'lgani uchun ikki qatorga
+        // o'raladi — «...» bilan KESILMAYDI.
+        Tx(sub, size: 11, color: p.t2, lh: 15, maxLines: 2),
+      ],
+    );
+  }
+
+  /// Hub'dagi ikkita modul kartasi + oralaridagi 10px (grid gap).
+  /// Asosiy va BO'SH holatda bir xil ro'yxat chiziladi — bo'limlar birinchi
+  /// kirishda ham ko'rinsin.
+  ///
+  /// NEGA BO'SH HOLATDA HAM RANGLI (4c dagi "rang faqat ma'lumot bilan" qoidasi
+  /// bu kartalarga TEGISHLI EMAS): hub'ning bo'sh holati `hasAny` — xarajat va
+  /// hamkorlar bo'yicha hisoblanadi. Faqat ijara yurituvchi foydalanuvchida u
+  /// true bo'ladi-yu, uyning puli baribir bor — kartani so'ndirish o'sha
+  /// raqamni yashirardi. Qarz daftar ham `toMe == 0` da yashil qolgani kabi.
+  ///
+  /// DIQQAT: bu kartalar `kModuleSubsUi` bayrog'iga BOG'LANMAGAN (teaser paytida
+  /// bog'langan edi). O'sha bayroq — OBUNA UI'sining avariya tugmasi (hisoblagich,
+  /// qulf, paywall), modulning MAVJUDLIGI emas. Uni o'chirish qurilgan bo'limni
+  /// butunlay yetib bo'lmas qilib qo'yardi. Bayroq false bo'lganda karta o'zi
+  /// to'g'ri "so'nadi": modSubs bo'sh -> chip yo'q, _modLocked false -> tap
+  /// odatdagi navigatsiya.
+  List<Widget> _moduleMenus(Map<String, dynamic> v, Pal p, bool dark) => [
+        const SizedBox(height: 10),
+        _menuCard(v, p, dark,
+            module: 'ijarachi',
+            glyph: _G.house,
+            cap: v['hubIjaraCap'] as String,
+            amount: v['hubIjaraTxt'] as String,
+            pos: v['hubIjaraPos'] == true,
+            unit: v['hubIjaraUnit'] as String,
+            sub: v['hubIjaraSub'] as String,
+            open: () => v['hubOpenIjara']()),
+        const SizedBox(height: 10),
+        _menuCard(v, p, dark,
+            module: 'toyxona',
+            glyph: _G.venue,
+            cap: v['hubToyCap'] as String,
+            amount: v['hubToyTxt'] as String,
+            pos: v['hubToyPos'] == true,
+            unit: v['hubToyUnit'] as String,
+            sub: v['hubToySub'] as String,
+            open: () => v['hubOpenToy']()),
+      ];
 
   // Menga kelgan pending bog'lanish so'rovlari banneri (item 7) — brend uslubi:
   // p.field fon, r14, ink matn; bosilganda hubOpenReq (1 ta bo'lsa to'g'ridan
@@ -88,8 +488,14 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
             _tintBox(p.card2, 15, _G.swap, p.ink, 1.4),
             const SizedBox(width: 11),
             Expanded(
-              child: Tx(v['hubPendingReqTxt'] as String,
-                  size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+              // Moliyaviy ilova qoidasi: so'rov matni (soni bilan) «...» bilan
+              // kesilmasin — sig'masa FittedBox to'liq matnni kichraytiradi
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Tx(v['hubPendingReqTxt'] as String,
+                    size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1),
+              ),
             ),
             const SizedBox(width: 10),
             ChevRight(color: p.t3, size: 8),
@@ -115,8 +521,22 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               // home.dart headeri bilan bir uslub: logo + «Trust» yozuvi (PO 2026-07-17)
               const TrustMark(size: 27, boxed: true),
               const SizedBox(width: 9),
-              Tx('Trustbook', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
+              // Flexible+FittedBox: 3 ta ikonka (AI+qo'ng'iroq+sozlamalar) qatorni
+              // to'ldirgach tor ekranda (≤320pt) brend yozuvi toshib ketmasin — kesilmaydi,
+              // faqat kichrayadi (moliyaviy "..." qoidasi bilan bir mantiq).
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Tx('Trustbook', size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3),
+                ),
+              ),
               const Spacer(),
+              // AI kirish nuqtasi — menyu kartasi o'rniga header ikonkasi (PO 2026-08-04)
+              if (kAiEnabled) ...[
+                _aiBtn(v, p),
+                const SizedBox(width: 10),
+              ],
               _bellBtn(v, p),
               const SizedBox(width: 10),
               _avatarBtn(v, p), // Profil kirish nuqtasi
@@ -126,7 +546,9 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           Tx(
             (empty ? v['hubGreetEmpty'] : v['hubGreet']) as String,
             size: 20, w: FontWeight.w600, color: p.ink, ls: -0.4,
-            maxLines: 1, ellipsis: true,
+            // Moliyaviy ilova qoidasi: salomlashuv «...» bilan kesilmasin —
+            // uzun ism keyingi qatorga o'raladi
+            maxLines: 2,
           ),
           const SizedBox(height: 4),
           // Sana + obuna mikro-nishoni: sinov chipi (4a/4c) yoki «Premium» matni (3a).
@@ -136,7 +558,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Tx(v['hubDate'] as String, size: 13, color: p.t2, maxLines: 1, ellipsis: true),
+              // Sana «...» bilan kesilmaydi — Wrap ichida tabiiy o'raladi
+              Tx(v['hubDate'] as String, size: 13, color: p.t2),
               if (v['hubTrial'] == true)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
@@ -235,6 +658,30 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     );
   }
 
+  // Trust AI tugmasi — 38x38 dumaloq, bell/avatar bilan bir uslub (PO 2026-08-04:
+  // AI menyu kartasi olib tashlandi — kirish nuqtasi endi shu header ikonkasi).
+  // Ichida sparkle motivi (PO 2026-08-04: romb o'rniga uch yulduzli AI belgisi).
+  Widget _aiBtn(Map<String, dynamic> v, Pal p) {
+    return Tap(
+      // goAi — vals()dagi mavjud o'tish (aiFrom='hub' saqlanadi, orqaga hub'ga qaytadi)
+      onTap: () => v['goAi'](),
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: p.hair),
+        ),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CustomPaint(painter: _Glyph(_G.sparkle, p.ink, 1.15)),
+        ),
+      ),
+    );
+  }
+
   // Avatar — 38x38, kontur phair, ichida bosh harflar yoki tanlangan rasm.
   // PO 2026-07-28 (#10): avatar/ism harflari o'rniga SOZLAMALAR ikonkasi —
   // profil (sozlamalar) kirish nuqtasi endi aniq "settings" bo'lib ko'rinadi.
@@ -255,132 +702,89 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   }
 
   // ─────────────────────────── ASOSIY HOLAT ───────────────────────────
+  // PO 2026-08-04: menyular ko'payadi (Ijarachi, To'yxona rejada) — har bir
+  // menyu kartasi TO'LIQ QATORDA. Yangi menyu qo'shish: ro'yxatga karta +
+  // 10px oraliq (grid gap) qo'shiladi. AI kartasi olib tashlandi — header
+  // ikonkasi (_aiBtn) uning kirish nuqtasi.
   List<Widget> _body(Map<String, dynamic> v, Pal p, bool dark) => [
         _heroCard(v, p, dark),
         const SizedBox(height: 10), // grid gap
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch, // grid: bir qatorda teng balandlik
-            children: [
-              Expanded(child: _debtCard(v, p, dark)),
-              if (kAiEnabled) ...[
-                const SizedBox(width: 10),
-                Expanded(child: _aiCard(v, p, dark)),
-              ],
-            ],
-          ),
-        ),
+        _debtCard(v, p, dark),
+        // Ijaradagi uylar + To'yxona menyulari (modSubs bo'sh bo'lsa ham
+        // ko'rinadi — chip yo'q, tap odatdagi navigatsiya).
+        ..._moduleMenus(v, p, dark),
         // Action tugmalar qatori olib tashlandi (PO 2026-07-17): kartalarning
         // o'zi kirish nuqtasi. «SO'NGGI» tepasidagi 18px margin saqlanadi.
         const SizedBox(height: 18),
         _recent(v, p),
       ];
 
-  // XARAJAT kartasi (grid-column: span 2)
+  // XARAJAT kartasi — hub'dagi ENG BOY karta (chegara qatori + sparkline).
+  // kHubCardH aynan shu karta sig'adigan qilib tanlangan.
   Widget _heroCard(Map<String, dynamic> v, Pal p, bool dark) {
     final hasLimit = v['hubHasLimit'] == true;
     final trend = v['hubTrendTxt'] as String;
-    return Tap(
+    return _hubShell(
+      v, p, dark,
+      module: 'xarajat',
+      accent: p.red, // #20: Xarajat — qizil urg'u (pul CHIQMOQDA)
+      tint: _tint(p.red, dark),
+      iconColor: p.red,
+      glyph: _G.expense,
+      // Bo'lim nomi — «TRUST AI» caption uslubida (PO: birinchi kirishda
+      // karta qaysi bo'limga olib borishi tushunarli bo'lsin).
+      sec: v['hubXarSec'] as String,
       onTap: () => v['hubOpenXar'](),
-      child: Container(
-        clipBehavior: Clip.antiAlias, // prototip: overflow:hidden (watermark)
-        decoration: _cardDeco(p, p.hov2, p.red, dark), // #20: Xarajat — qizil urg'u
-        child: Stack(
-          children: [
-            // Watermark: light 0.06, dark 0.07 (qora fonda bir xil sezilishi uchun)
-            Positioned(
-              right: -22,
-              top: -18,
-              child: Opacity(
-                opacity: dark ? .07 : .06,
-                child: SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: CustomPaint(painter: _Glyph(_G.expense, p.red, 1.1)),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Bo'lim nomi — «TRUST AI» caption uslubida (PO: birinchi kirishda
-                  // karta qaysi bo'limga olib borishi tushunarli bo'lsin)
-                  Tx(v['hubXarSec'] as String, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _tintBox(_tint(p.red, dark), 15, _G.expense, p.red, 1.5),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Tx(v['hubXarCap'] as String, size: 13.5, color: p.t1,
-                                maxLines: 1, ellipsis: true),
-                            const SizedBox(height: 3),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Flexible(
-                                  child: Tx(v['hubXarTxt'] as String,
-                                      size: 27, w: FontWeight.w600, color: p.red,
-                                      ls: -0.5, tab: true, maxLines: 1, ellipsis: true),
-                                ),
-                                const SizedBox(width: 4),
-                                Tx(v['hubXarUnit'] as String, size: 14, color: p.t2),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+      body: [
+        _cardCap(p, v['hubXarCap'] as String),
+        const SizedBox(height: 3),
+        _cardAmount(p, v['hubXarTxt'] as String, p.red, v['hubXarUnit'] as String),
+        if (hasLimit || trend.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              // Streak-glif (ikki burilgan tomchi) olib tashlandi
+              // (PO 2026-07-17: ma'ni ajratmayapti) — raqamdan keyin bo'sh.
+              if (hasLimit) ...[
+                Tx(v['hubLeftCap'] as String, size: 12, color: p.t1),
+                Tx(v['hubLeftTxt'] as String,
+                    size: 12,
+                    w: FontWeight.w600,
+                    color: v['hubLeftPos'] == true ? p.green : p.red,
+                    tab: true),
+              ],
+              if (trend.isNotEmpty)
+                // Trend summasi (moliyaviy) «...» bilan kesilmasin —
+                // Expanded+FittedBox o'ng chetga taqaydi, sig'masa kichraytiradi
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Tx(trend,
+                        size: 11,
+                        // Prototipda faqat o'sish holati bor (prd). Kamayish —
+                        // yaxshi xabar, shuning uchun brend yashilida (§hisobot).
+                        color: v['hubTrendUp'] == true ? p.red : p.green,
+                        tab: true,
+                        maxLines: 1),
                   ),
-                  if (hasLimit || trend.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        // Streak-glif (ikki burilgan tomchi) olib tashlandi
-                        // (PO 2026-07-17: ma'ni ajratmayapti) — raqamdan keyin bo'sh.
-                        if (hasLimit) ...[
-                          Tx(v['hubLeftCap'] as String, size: 12, color: p.t1),
-                          Tx(v['hubLeftTxt'] as String,
-                              size: 12,
-                              w: FontWeight.w600,
-                              color: v['hubLeftPos'] == true ? p.green : p.red,
-                              tab: true),
-                        ],
-                        const Spacer(),
-                        if (trend.isNotEmpty)
-                          Tx(trend,
-                              size: 11,
-                              // Prototipda faqat o'sish holati bor (prd). Kamayish —
-                              // yaxshi xabar, shuning uchun brend yashilida (§hisobot).
-                              color: v['hubTrendUp'] == true ? p.red : p.green,
-                              tab: true,
-                              maxLines: 1,
-                              ellipsis: true),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 46,
-                    child: Sparkline(
-                      values: (v['hubXarSpark'] as List).cast<double>(),
-                      color: p.red,
-                      stroke: 2.2,
-                      dot: 3.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                )
+              else
+                const Spacer(),
+            ],
+          ),
+        ],
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 46,
+          child: Sparkline(
+            values: (v['hubXarSpark'] as List).cast<double>(),
+            color: p.red,
+            stroke: 2.2,
+            dot: 3.5,
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -389,129 +793,89 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     final spark = (v['hubDebtSpark'] as List).cast<double>();
     // Chet valyuta netlari (PO 2026-07-17): [{'cur':'USD','txt':'−2 000','pos':false}]
     final fx = (v['hubDebtFx'] as List).cast<Map<String, dynamic>>();
-    return Tap(
+    return _hubShell(
+      v, p, dark,
+      module: 'qarz',
+      accent: p.green, // #20: Qarz — yashil urg'u (pul KIRMOQDA)
+      tint: _tint(p.green, dark),
+      iconColor: p.green,
+      glyph: _G.swap,
+      // Bo'lim nomi — XARAJATLAR kabi ikonkadan TEPADA (PO sinov 2026-07-17).
+      sec: v['hubDebtSec'] as String,
       onTap: () => v['hubOpenDebt'](),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: _cardDeco(p, p.hov2, p.green, dark), // #20: Qarz — yashil urg'u
-        child: Stack(
-          children: [
-            Positioned(
-              right: -26,
-              top: -16,
-              child: Opacity(
-                opacity: dark ? .07 : .06,
-                child: SizedBox(
-                  width: 104,
-                  height: 104,
-                  child: CustomPaint(painter: _Glyph(_G.swap, p.green, 1.1)),
+      body: [
+        _cardCap(p, v['hubDebtCap'] as String),
+        const SizedBox(height: 3),
+        _cardAmount(p, v['hubDebtTxt'] as String, p.green, v['hubDebtUnit'] as String),
+        const SizedBox(height: 2),
+        // Sublabel bo'lsa-da ichida sonlar bor («3 faol qarz · 12 hamkor»)
+        // — to'liq ko'rinadi, sig'masa kichrayadi
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Tx(v['hubDebtSub'] as String, size: 11, color: p.t2, maxLines: 1),
+        ),
+        // Chet valyuta bo'yicha net qatorlari (PO 2026-07-17): «USD: −2 000».
+        // Manfiy = sizning qarzingiz (p.red), musbat = sizga (p.green).
+        for (final f in fx) ...[
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              Tx('${f['cur']}:', size: 12, color: p.t1),
+              const SizedBox(width: 4),
+              Flexible(
+                // Valyuta neti ham to'liq ko'rinadi (── «...» yo'q)
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Tx(f['txt'] as String,
+                      size: 12,
+                      w: FontWeight.w600,
+                      color: f['pos'] == true ? p.green : p.red,
+                      tab: true,
+                      maxLines: 1),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Bo'lim nomi — XARAJATLAR/TRUST AI kabi ikonkadan TEPADA (PO sinov 2026-07-17)
-                  Tx(v['hubDebtSec'] as String, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
-                  const SizedBox(height: 6),
-                  _tintBox(_tint(p.green, dark), 16, _G.swap, p.green, 1.4),
-                  const SizedBox(height: 10),
-                  Tx(v['hubDebtCap'] as String, size: 13, color: p.t1, maxLines: 1, ellipsis: true),
-                  const SizedBox(height: 3),
-                  Tx(v['hubDebtTxt'] as String,
-                      size: 19, w: FontWeight.w600, color: p.green, ls: -0.4,
-                      tab: true, maxLines: 1, ellipsis: true),
-                  const SizedBox(height: 2),
-                  Tx(v['hubDebtSub'] as String, size: 11, color: p.t2, maxLines: 1, ellipsis: true),
-                  // Chet valyuta bo'yicha net qatorlari (PO 2026-07-17): «USD: −2 000».
-                  // Manfiy = sizning qarzingiz (p.red), musbat = sizga (p.green).
-                  for (final f in fx) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Tx('${f['cur']}:', size: 12, color: p.t1),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Tx(f['txt'] as String,
-                              size: 12,
-                              w: FontWeight.w600,
-                              color: f['pos'] == true ? p.green : p.red,
-                              tab: true,
-                              maxLines: 1,
-                              ellipsis: true),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (v['hubFrozen'] == true) ...[
-                    const SizedBox(height: 9),
-                    Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(shape: BoxShape.circle, color: p.red),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Tx(v['hubFrozenTxt'] as String,
-                              size: 11, color: p.red, maxLines: 1, ellipsis: true),
-                        ),
-                      ],
-                    ),
-                  ],
-                  // Tekis tarix (variatsiya yo'q) «yolg'iz nuqta» bo'lib chizilardi —
-                  // store bunday holda [] beradi, blok butunlay yashirinadi va
-                  // kartada ortiqcha bo'shliq qolmaydi (PO 2026-07-17).
-                  if (spark.length >= 2) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 30,
-                      child: Sparkline(values: spark, color: p.green, stroke: 2, dot: 3),
-                    ),
-                  ],
-                ],
+            ],
+          ),
+        ],
+        if (v['hubFrozen'] == true) ...[
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: p.red),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(width: 6),
+              Expanded(
+                // «N kun javobsiz» raqami kesilmasin — sig'masa kichrayadi
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Tx(v['hubFrozenTxt'] as String,
+                      size: 11, color: p.red, maxLines: 1),
+                ),
+              ),
+            ],
+          ),
+        ],
+        // Tekis tarix (variatsiya yo'q) «yolg'iz nuqta» bo'lib chizilardi —
+        // store bunday holda [] beradi, blok butunlay yashirinadi va
+        // kartada ortiqcha bo'shliq qolmaydi (PO 2026-07-17).
+        if (spark.length >= 2) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 30,
+            child: Sparkline(values: spark, color: p.green, stroke: 2, dot: 3),
+          ),
+        ],
+      ],
     );
   }
 
-  // TRUST AI kartasi
-  Widget _aiCard(Map<String, dynamic> v, Pal p, bool dark) {
-    return Tap(
-      // goAi — vals()dagi mavjud o'tish (aiFrom='hub' saqlanadi, orqaga hub'ga qaytadi)
-      onTap: () => v['goAi'](),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-        decoration: _cardDeco(p, p.field, _aiAccent(dark), dark), // #20: AI — binafsha urg'u
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _tintBox(p.card2, 15, _G.diamond, p.ink, 1.4),
-                const SizedBox(width: 9),
-                Tx('TRUST AI', size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
-                const SizedBox(width: 6),
-                _PulseDot(color: p.idle),
-              ],
-            ),
-            const SizedBox(height: 11),
-            Tx(v['hubAiTxt'] as String, size: 13, color: p.ink, lh: 20.15),
-            const SizedBox(height: 8),
-            Tx(v['hubAiSub'] as String, size: 11, color: p.t3, maxLines: 1, ellipsis: true),
-            const SizedBox(height: 11),
-            Tx(v['hubAiSee'] as String, size: 12, w: FontWeight.w600, color: p.ink),
-          ],
-        ),
-      ),
-    );
-  }
+  // TRUST AI kartasi olib tashlandi (PO 2026-08-04) — kirish nuqtasi _aiBtn.
 
   // «SO'NGGI» tasmasi
   Widget _recent(Map<String, dynamic> v, Pal p) {
@@ -521,18 +885,30 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // DIQQAT (2026-08-04): bu qator ilgari ikkita erkin kenglikdagi
+          // boladan iborat edi va uzun tarjimalarda (ru «ПОСЛЕДНИЕ · Сегодня»,
+          // fr «Aujourd'hui») 320pt ekranda RenderFlex TOSHIB ketardi —
+          // «Bugun» summasi ekrandan chiqib qolardi. Endi kartalardagi bilan
+          // bir xil naqsh: chapda qat'iy caption, o'ngda Expanded+FittedBox
+          // (summa «...» bilan kesilmaydi, sig'masa butun guruh kichrayadi).
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Cap(v['hubRecentCap'] as String),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Tx(v['hubTodayCap'] as String,
-                      size: 11, w: FontWeight.w500, color: p.t1, tab: true),
-                  Tx(v['hubTodayTxt'] as String,
-                      size: 11, w: FontWeight.w500, color: p.red, tab: true),
-                ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tx(v['hubTodayCap'] as String,
+                          size: 11, w: FontWeight.w500, color: p.t1, tab: true),
+                      Tx(v['hubTodayTxt'] as String,
+                          size: 11, w: FontWeight.w500, color: p.red, tab: true),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -570,10 +946,16 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Hamkor ismi kesilmasin — uzun ism ikkinchi qatorga o'raladi
                   Tx(r['name'] as String,
-                      size: 13, w: FontWeight.w500, color: p.ink, maxLines: 1, ellipsis: true),
+                      size: 13, w: FontWeight.w500, color: p.ink, maxLines: 2),
                   const SizedBox(height: 1),
-                  Tx(r['sub'] as String, size: 11, color: p.t3, maxLines: 1, ellipsis: true),
+                  // Balans/izoh qatori sonli — to'liq ko'rinadi, sig'masa kichrayadi
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Tx(r['sub'] as String, size: 11, color: p.t3, maxLines: 1),
+                  ),
                 ],
               ),
             ),
@@ -593,133 +975,57 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   // ─────────────────────────── BO'SH HOLAT (4c) ───────────────────────────
   // «Rang faqat ma'lumot bilan keladi»: tintlar neytralga (card2/t1) tushadi,
   // sparkline o'rniga nuqtali «kutish» chizig'i — struktura tanish qoladi.
-  List<Widget> _emptyBody(Map<String, dynamic> v, Pal p) => [
-        Tap(
+  // DIQQAT: bo'sh holatda ham BARCHA menyular ko'rinadi (Ijaradagi uylar,
+  // To'yxona) — birinchi kirishda ilova nimalar qila olishi ko'rinib tursin.
+  //
+  // O'LCHAM: bu ikkisi ham _hubShell'dan chiqadi — bo'sh hub'da ham stack tekis
+  // (hammasi kHubCardH) va tarif burchagi hamma kartada bir xil joyda turadi.
+  List<Widget> _emptyBody(Map<String, dynamic> v, Pal p, bool dark) => [
+        _hubShell(
+          v, p, dark,
+          module: 'xarajat',
+          accent: p.ink, // bo'sh holat — neytral urg'u (rang ma'lumot bilan keladi)
+          tint: p.card2,
+          iconColor: p.t1,
+          glyph: _G.expense,
+          sec: v['hubXarSec'] as String,
           onTap: () => v['hubOpenXar'](),
-          child: Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: p.hov2,
-              border: Border.all(color: p.hair),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -22,
-                  top: -18,
-                  child: Opacity(
-                    opacity: .05,
-                    child: SizedBox(
-                      width: 120,
-                      height: 120,
-                      child: CustomPaint(painter: _Glyph(_G.expense, p.ink, 1.1)),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _tintBox(p.card2, 15, _G.expense, p.t1, 1.5),
-                          const SizedBox(width: 11),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Tx(v['hubEmptyXarCap'] as String, size: 13.5, color: p.t1),
-                                const SizedBox(height: 3),
-                                Tx(v['hubEmptyXarTitle'] as String,
-                                    size: 17, w: FontWeight.w600, color: p.ink),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 9),
-                      Tx(v['hubEmptyXarHint'] as String, size: 12, color: p.t3),
-                      const SizedBox(height: 10),
-                      SizedBox(height: 30, child: SparkDots(color: p.t6)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          body: [
+            Tx(v['hubEmptyXarCap'] as String, size: 13.5, color: p.t1),
+            const SizedBox(height: 3),
+            Tx(v['hubEmptyXarTitle'] as String,
+                size: 17, w: FontWeight.w600, color: p.ink),
+            const SizedBox(height: 9),
+            Tx(v['hubEmptyXarHint'] as String, size: 12, color: p.t3),
+            const SizedBox(height: 10),
+            SizedBox(height: 30, child: SparkDots(color: p.t6)),
+          ],
         ),
         const SizedBox(height: 10),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Tap(
-                  onTap: () => v['hubAddDebt'](),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: p.hov2,
-                      border: Border.all(color: p.hair),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Bo'lim nomi — loaded karta bilan bir xil, ikonkadan TEPADA (PO sinov)
-                        Tx(v['hubDebtSec'] as String, size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
-                        const SizedBox(height: 6),
-                        _tintBox(p.card2, 16, _G.swap, p.t1, 1.4),
-                        const SizedBox(height: 10),
-                        Tx(v['hubEmptyDebtTitle'] as String,
-                            size: 14, w: FontWeight.w600, color: p.ink, lh: 19.6),
-                        const SizedBox(height: 5),
-                        Tx(v['hubEmptyDebtHint'] as String, size: 11.5, color: p.t3, lh: 17.25),
-                        const SizedBox(height: 13),
-                        Tx(v['hubEmptyDebtBtn'] as String,
-                            size: 12, w: FontWeight.w600, color: p.ink),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (kAiEnabled) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-                    decoration:
-                        BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(18)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            _tintBox(p.card2, 15, _G.diamond, p.t1, 1.4),
-                            const SizedBox(width: 9),
-                            Tx('TRUST AI', size: 11, w: FontWeight.w800, color: p.t1, ls: 1.4),
-                            const SizedBox(width: 6),
-                            // Bo'sh holatda nuqta pulsatsiyalanmaydi (4c)
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration:
-                                  BoxDecoration(shape: BoxShape.circle, color: p.idle),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 11),
-                        Tx(v['hubAiTxt'] as String, size: 13, color: p.t1, lh: 20.15),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+        // Oldi-berdi CTA — to'liq qator (PO 2026-08-04: har menyu alohida qatorda,
+        // AI teaser kartasi olib tashlandi — kirish nuqtasi header'dagi _aiBtn)
+        _hubShell(
+          v, p, dark,
+          module: 'qarz',
+          accent: p.ink,
+          tint: p.card2,
+          iconColor: p.t1,
+          glyph: _G.swap,
+          // Bo'lim nomi — loaded karta bilan bir xil, ikonkadan TEPADA (PO sinov)
+          sec: v['hubDebtSec'] as String,
+          onTap: () => v['hubAddDebt'](),
+          body: [
+            Tx(v['hubEmptyDebtTitle'] as String,
+                size: 14, w: FontWeight.w600, color: p.ink, lh: 19.6),
+            const SizedBox(height: 5),
+            Tx(v['hubEmptyDebtHint'] as String, size: 11.5, color: p.t3, lh: 17.25),
+            const SizedBox(height: 13),
+            Tx(v['hubEmptyDebtBtn'] as String,
+                size: 12, w: FontWeight.w600, color: p.ink),
+          ],
         ),
+        // Bo'sh holatda ham modul menyulari ko'rinadi
+        ..._moduleMenus(v, p, dark),
         const SizedBox(height: 18),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -751,10 +1057,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
 
   // --pgrT / --prdT: light rgba(...,0.09), dark rgba(...,0.14)
   Color _tint(Color c, bool dark) => c.withValues(alpha: dark ? .14 : .09);
-
-  // #20: Trust AI kartasi urg'u rangi — palitrada binafsha yo'q, shu sabab lokal
-  // (muted indigo, brend qizil/yashilining to'yinganligiga mos).
-  Color _aiAccent(bool dark) => dark ? const Color(0xFF9385D6) : const Color(0xFF6E5FB0);
 
   // #20: Bosh ekran kartasi bezaklari — CHUQURLIK (yumshoq soya) + RANG GRADIENT.
   // base = karta foni (hov2/field), accent = bo'lim rangi (qizil/yashil/binafsha).
@@ -817,43 +1119,6 @@ class HubSection extends StatelessWidget {
   }
 }
 
-/// Trust AI «tirik» nuqtasi — prototip: animation trPulse 2.2s ease infinite
-/// (0%,100% opacity 1; 50% opacity 0.25).
-class _PulseDot extends StatefulWidget {
-  final Color color;
-  const _PulseDot({required this.color});
-
-  @override
-  State<_PulseDot> createState() => _PulseDotState();
-}
-
-class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
-        ..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => Opacity(
-        opacity: 1 - .75 * Curves.ease.transform(_c.value),
-        child: Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
-        ),
-      ),
-    );
-  }
-}
-
 /// Ikonkalar — prototipdagi inline SVG path'lari (viewBox birligida) 1:1.
 class _Glyph extends CustomPainter {
   final _G kind;
@@ -888,14 +1153,64 @@ class _Glyph extends CustomPainter {
         ..moveTo(5.5 * k, 8.5 * k)
         ..lineTo(3 * k, 11 * k)
         ..lineTo(5.5 * k, 13.5 * k);
-    } else {
-      // M7 1.5 L12.5 7 L7 12.5 L1.5 7 Z
+    } else if (kind == _G.lock) {
+      // Qulf (hali ochilmagan modul): tepada yoy — «shackle», pastda tana.
+      // Material Icons emas — prototip bilan bitta qo'l uslubi (chiziqli glif).
       path
-        ..moveTo(7 * k, 1.5 * k)
-        ..lineTo(12.5 * k, 7 * k)
-        ..lineTo(7 * k, 12.5 * k)
-        ..lineTo(1.5 * k, 7 * k)
-        ..close();
+        ..moveTo(4.9 * k, 6.6 * k)
+        ..lineTo(4.9 * k, 5.1 * k)
+        ..arcToPoint(Offset(9.1 * k, 5.1 * k),
+            radius: Radius.circular(2.2 * k), clockwise: true)
+        ..lineTo(9.1 * k, 6.6 * k)
+        ..addRRect(RRect.fromRectAndRadius(
+          Rect.fromLTRB(3.3 * k, 6.6 * k, 10.7 * k, 11.9 * k),
+          Radius.circular(1.6 * k),
+        ));
+    } else if (kind == _G.house) {
+      // «Ijaradagi uylar» — tom + devorlar + eshik. Chiziqli glif, prototipdagi
+      // qo'l uslubi (Material ikonka EMAS): devorlar aynan tom qirrasidan
+      // boshlanadi (x=3.7 va x=10.3 da tom chizig'i y=5.4 ga tushadi).
+      path
+        ..moveTo(2.2 * k, 6.6 * k)
+        ..lineTo(7 * k, 2.7 * k)
+        ..lineTo(11.8 * k, 6.6 * k)
+        ..moveTo(3.7 * k, 5.4 * k)
+        ..lineTo(3.7 * k, 11.5 * k)
+        ..lineTo(10.3 * k, 11.5 * k)
+        ..lineTo(10.3 * k, 5.4 * k)
+        ..moveTo(5.9 * k, 11.5 * k)
+        ..lineTo(5.9 * k, 8.6 * k)
+        ..lineTo(8.1 * k, 8.6 * k)
+        ..lineTo(8.1 * k, 11.5 * k);
+    } else if (kind == _G.venue) {
+      // «To'yxona» — ravoqli zal: keng poydevor + yarim doira ravoq.
+      // Vatar 7.6, radius 3.8 -> aniq yarim doira (yassilanib qolmaydi).
+      path
+        ..moveTo(1.7 * k, 11.8 * k)
+        ..lineTo(12.3 * k, 11.8 * k)
+        ..moveTo(3.2 * k, 11.8 * k)
+        ..lineTo(3.2 * k, 7.4 * k)
+        ..arcToPoint(Offset(10.8 * k, 7.4 * k),
+            radius: Radius.circular(3.8 * k), clockwise: true)
+        ..lineTo(10.8 * k, 11.8 * k);
+    } else {
+      // Trust AI — uchta 4 nurli yulduz (sparkle): katta + o'rta + kichik.
+      // Har nur markazga BOTIQ: kvadratik egri nazorat nuqtasi markazga yaqin
+      // (b = r*0.22) — nurlar ingichka va o'tkir chiqadi.
+      void star(double cx, double cy, double r) {
+        final b = r * 0.22;
+        path
+          ..moveTo(cx * k, (cy - r) * k)
+          ..quadraticBezierTo((cx + b) * k, (cy - b) * k, (cx + r) * k, cy * k)
+          ..quadraticBezierTo((cx + b) * k, (cy + b) * k, cx * k, (cy + r) * k)
+          ..quadraticBezierTo((cx - b) * k, (cy + b) * k, (cx - r) * k, cy * k)
+          ..quadraticBezierTo((cx - b) * k, (cy - b) * k, cx * k, (cy - r) * k)
+          ..close();
+      }
+
+      star(8.9, 8.7, 4.7); // katta — pastki o'ng
+      star(4.2, 3.9, 2.9); // o'rta — yuqori chap
+      star(2.8, 11.0, 1.9); // kichik — pastki chap
     }
     canvas.drawPath(
       path,
@@ -1052,74 +1367,35 @@ class _HubSkelBodyState extends State<_HubSkelBody> with SingleTickerProviderSta
           ),
         ),
         const SizedBox(height: 10),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        // Oldi-berdi kartasi — to'liq qator (PO 2026-08-04: yuklangan holat bilan
+        // mos, sakrash bo'lmasin; AI kartasi skeleti olib tashlandi)
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          decoration: BoxDecoration(
+            color: p.bg,
+            border: Border.all(color: p.hair),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Oldi-berdi kartasi
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: p.bg,
-                    border: Border.all(color: p.hair),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _b(w: 72, h: 9),
-                      const SizedBox(height: 14),
-                      _b(w: 88, h: 18, r: 6, delay: .1),
-                      const SizedBox(height: 9),
-                      _b(w: 110, h: 9, delay: .15),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          _b(w: 26, h: 26, r: 13),
-                          const SizedBox(width: 4),
-                          _b(w: 26, h: 26, r: 13, delay: .1),
-                          const SizedBox(width: 4),
-                          _b(w: 26, h: 26, r: 13, delay: .2),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _b(w: 80, h: 9, delay: .25),
-                    ],
-                  ),
-                ),
+              _b(w: 72, h: 9),
+              const SizedBox(height: 14),
+              _b(w: 88, h: 18, r: 6, delay: .1),
+              const SizedBox(height: 9),
+              _b(w: 110, h: 9, delay: .15),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _b(w: 26, h: 26, r: 13),
+                  const SizedBox(width: 4),
+                  _b(w: 26, h: 26, r: 13, delay: .1),
+                  const SizedBox(width: 4),
+                  _b(w: 26, h: 26, r: 13, delay: .2),
+                ],
               ),
-              // Trust AI kartasi
-              if (kAiEnabled) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-                    decoration:
-                        BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(18)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _b(w: 58, h: 9),
-                        const SizedBox(height: 14),
-                        _b(h: 9, delay: .1),
-                        const SizedBox(height: 8),
-                        FractionallySizedBox(
-                          widthFactor: .85,
-                          alignment: Alignment.centerLeft,
-                          child: _b(h: 9, delay: .15),
-                        ),
-                        const SizedBox(height: 8),
-                        FractionallySizedBox(
-                          widthFactor: .55,
-                          alignment: Alignment.centerLeft,
-                          child: _b(h: 9, delay: .2),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 14),
+              _b(w: 80, h: 9, delay: .25),
             ],
           ),
         ),

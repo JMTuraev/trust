@@ -16,7 +16,7 @@ export function appleConfigured() {
   return !!(process.env.APPLE_SHARED_SECRET && process.env.APPLE_SHARED_SECRET.trim());
 }
 
-async function postReceipt(url, receipt) {
+async function postReceipt(url, receipt, excludeOld = true) {
   // Node 18+ global fetch (package.json engines: >=18). AbortController bilan 15s timeout.
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 15_000);
@@ -27,8 +27,11 @@ async function postReceipt(url, receipt) {
       body: JSON.stringify({
         'receipt-data': receipt,
         password: process.env.APPLE_SHARED_SECRET.trim(),
-        // Faqat oxirgi (amaldagi) tranzaksiyani qaytar — javob kichik bo'ladi.
-        'exclude-old-transactions': true,
+        // Odatda faqat oxirgi (amaldagi) tranzaksiya — javob kichik bo'ladi.
+        // MODUL OBUNALARI (2026-08-04): bitta akkauntda BIR NECHTA faol obuna bo'lishi
+        // mumkin, Apple esa faqat eng oxirgisini qaytarishi mumkin — kerakli mahsulot
+        // topilmasa chaqiruvchi buni false bilan QAYTA so'raydi (to'liq tarix).
+        'exclude-old-transactions': excludeOld,
       }),
       signal: ctl.signal,
     });
@@ -37,6 +40,29 @@ async function postReceipt(url, receipt) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Chek yozuvlari (latest_receipt_info + in_app fallback) — bitta joyda. */
+function receiptItems(data) {
+  return [
+    ...(Array.isArray(data.latest_receipt_info) ? data.latest_receipt_info : []),
+    ...(data.receipt && Array.isArray(data.receipt.in_app) ? data.receipt.in_app : []),
+  ];
+}
+
+/** Javobda shu mahsulot bo'yicha tranzaksiya bormi? */
+function hasProduct(data, productId) {
+  return receiptItems(data).some((it) => it.product_id === productId);
+}
+
+/** Prod -> (21007) sandbox -> (21008) prod zanjiri; excludeOld to'liq tarixni boshqaradi. */
+async function fetchReceipt(receipt, excludeOld) {
+  let data = await postReceipt(PROD_URL, receipt, excludeOld);
+  // 21007 — sandbox cheki production'ga yuborilgan: sandbox'da qayta tekshiramiz.
+  if (data && data.status === 21007) data = await postReceipt(SANDBOX_URL, receipt, excludeOld);
+  // 21008 — production cheki sandbox'ga yuborilgan (biz prod'dan boshlaymiz, kamdan-kam): prod'da.
+  else if (data && data.status === 21008) data = await postReceipt(PROD_URL, receipt, excludeOld);
+  return data;
 }
 
 /**
@@ -48,11 +74,15 @@ async function postReceipt(url, receipt) {
  *   expiryMs  => 0 bo'lsa bizning mahsulot uchun tranzaksiya topilmadi.
  */
 export async function verifyAppleReceipt(receipt, wantProductId) {
-  let data = await postReceipt(PROD_URL, receipt);
-  // 21007 — sandbox cheki production'ga yuborilgan: sandbox'da qayta tekshiramiz.
-  if (data && data.status === 21007) data = await postReceipt(SANDBOX_URL, receipt);
-  // 21008 — production cheki sandbox'ga yuborilgan (biz prod'dan boshlaymiz, kamdan-kam): prod'da.
-  else if (data && data.status === 21008) data = await postReceipt(PROD_URL, receipt);
+  let data = await fetchReceipt(receipt, true);
+  // Kerakli mahsulot javobda yo'q bo'lsa — to'liq tarix bilan QAYTA so'raymiz.
+  // Sabab: modul obunalarida bitta akkauntda bir nechta faol obuna bo'ladi va
+  // 'exclude-old-transactions' faqat eng oxirgisini qaytarishi mumkin — o'shanda
+  // ikkinchi modulning cheki "topilmadi" bo'lib, foydalanuvchi puldan ayrilardi.
+  if (wantProductId && data && data.status === 0 && !hasProduct(data, wantProductId)) {
+    const full = await fetchReceipt(receipt, false);
+    if (full && full.status === 0) data = full;
+  }
 
   if (!data || data.status !== 0) {
     return { ok: false, status: data ? data.status : -1, expiryMs: 0, txnId: null, originalTxnId: null, productIds: [] };
@@ -69,10 +99,7 @@ export async function verifyAppleReceipt(receipt, wantProductId) {
 
   // latest_receipt_info — barcha auto-renew davrlari. Eng katta expires_date_ms = amaldagi tugash.
   // in_app — dastlabki xaridlar (yangi obunada latest bo'sh bo'lsa fallback).
-  const infos = [
-    ...(Array.isArray(data.latest_receipt_info) ? data.latest_receipt_info : []),
-    ...(data.receipt && Array.isArray(data.receipt.in_app) ? data.receipt.in_app : []),
-  ];
+  const infos = receiptItems(data);
   let expiryMs = 0;
   let txnId = null;
   let originalTxnId = null;

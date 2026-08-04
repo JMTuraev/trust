@@ -206,6 +206,187 @@ Map<String, Map<String, dynamic>> bumpNotifCounts(Map counts, String partnerId,
   return out;
 }
 
+// ------------- Modul obunalari (per-module subs, pure + unit-tested) -------------
+
+/// Modul standartlari — server javobi YO'Q bo'lsa (eski backend, 404, tarmoq) yoki
+/// modul ro'yxatda kelmasa shu qiymatlar ishlaydi. price — USD/oy;
+/// soon — hali sotuvda emas (hisoblagich yo'q, faqat "tez orada").
+/// Manba: backend kontrakti 2026-08-04 (migration 020).
+///
+/// PO 2026-08-04: 'ijarachi' va 'toyxona' QURILDI (backend + mobil ekranlar) —
+/// ikkalasi ham `soon: false`, ya'ni hub'da oddiy menyu bo'lib ochiladi va
+/// paywall'da haqiqiy CTA turadi. Backend katalogi (src/lib/subscription.js:
+/// MODULES) ham `soon` bayrog'ini tashladi — shu ikki manba SINXRON qoladi.
+/// Obyekt chegaralari: ijarachi — 5 uy, toyxona — 1 to'yxona (paywall'da
+/// aytiladi: screens/paywall_sheet.dart, kModCapUnits).
+const Map<String, Map<String, dynamic>> kSubModuleDefaults = {
+  'xarajat': {'price': 5, 'soon': false},
+  'qarz': {'price': 8, 'soon': false},
+  'ijarachi': {'price': 13, 'soon': false},
+  'toyxona': {'price': 24, 'soon': false},
+};
+
+/// Kartalar tartibi — server qanday tartibda yuborsa ham UI barqaror qoladi.
+const List<String> kSubModuleOrder = ['xarajat', 'qarz', 'ijarachi', 'toyxona'];
+
+/// Hisoblagichni KO'RSATISH shifti (faqat UI uchun — ma'lumot KLAMP QILINMAYDI).
+///
+/// NEGA: `mapSubsModules` server `free_limit`ini AYNAN qanday kelsa shunday
+/// uzatadi (fabrikatsiya/klamp yo'q — hisoblagich serverning haqiqiy qaroriga
+/// mos bo'lishi shart). Ammo PRODUCTION'da render.yaml FREE_DEBT_ENTRIES /
+/// FREE_EXPENSE_ENTRIES = "300" (ataylab: Play Billing ulangunicha paywall
+/// yo'q), ya'ni chip "7/300" bo'lib ichki test qiymatini oshkor qilardi.
+/// KELISHUV: `limit > kSubLimitDisplayMax` bo'lsa UI hisoblagich chipini
+/// UMUMAN chizmaydi (qulf mantiqi o'zgarmaydi — u used>=limit bo'yicha).
+/// Haqiqiy tarif limitlari bir xonali (bugun 5) — 20 xavfsiz chegara.
+///
+/// YAGONA MANBA: screens/home_hub.dart'dagi `kModChipMaxLimit` shu qiymatga
+/// teng bo'lishi SHART (test/subs_status_test.dart buni tekshiradi) — ikkita
+/// mustaqil "shift" bo'lsa chip bir ekranda ko'rinib, boshqasida yo'qoladi.
+const int kSubLimitDisplayMax = 20;
+
+/// Modul nomining l10n kaliti (xarid tasdig'i toasti uchun).
+///
+/// NEGA NUSXA: screens/paywall_sheet.dart'da AYNI shunday `kModNameKey` bor, lekin
+/// u EKRAN qatlami va o'zi store.dart'ni import qiladi (kSubModuleDefaults uchun) —
+/// store'dan ekranni import qilish bog'liqlik yo'nalishini teskari qilardi va
+/// `kModNameKey` nomi ikki kutubxonada to'qnashardi. Shu sabab bu yerda ALOHIDA
+/// nom bilan kichik nusxa turadi; yangi modul qo'shilsa IKKALASI ham yangilanadi.
+const Map<String, String> kSubModuleNameKey = {
+  'xarajat': 'modXarajat',
+  'qarz': 'modQarz',
+  'ijarachi': 'modIjarachi',
+  'toyxona': 'modToyxona',
+};
+
+int _subInt(dynamic v) => v is num ? v.toInt() : (num.tryParse('$v')?.toInt() ?? 0);
+
+/// GET /api/subs/status javob TANASINI UI qatorlariga o'giradi (sof funksiya).
+/// Qator: {module, active, soon, used, limit, price, product}.
+///
+/// GRACEFUL: har bir maydon yo'q bo'lishi mumkin. Javob boshqa shaklda bo'lsa
+/// (404 HTML, eski backend, 'modules' yo'q) — BO'SH ro'yxat qaytadi va hub
+/// hisoblagichsiz/qulfsiz, ya'ni bugungidek ko'rinadi.
+/// "Tez orada" modullarda hisoblagich YO'Q — server 0/0 yuboradi, biz ham 0/0.
+List<Map<String, dynamic>> mapSubsModules(dynamic raw) {
+  if (raw is! Map) return const [];
+  final list = raw['modules'];
+  if (list is! List) return const [];
+  final out = <Map<String, dynamic>>[];
+  for (final m in list) {
+    if (m is! Map) continue;
+    final name = '${m['module'] ?? ''}'.trim();
+    if (name.isEmpty) continue;
+    final def = kSubModuleDefaults[name];
+    // soon: server aytmasa lokal standartga tayanamiz (2026-08-04'dan barcha
+    // modullar ochiq — hech biri "tez orada" emas; mantiq esa joyida qoladi,
+    // kelgusi modul qo'shilsa yana kerak bo'ladi)
+    final soon = m['soon'] == true || (m['soon'] == null && def?['soon'] == true);
+    final pid = '${m['product_id'] ?? ''}'.trim();
+    out.add({
+      'module': name,
+      'active': m['active'] == true,
+      'soon': soon,
+      'used': soon ? 0 : _subInt(m['used']),
+      'limit': soon ? 0 : _subInt(m['free_limit']),
+      'price': m['price_usd'] != null ? _subInt(m['price_usd']) : _subInt(def?['price']),
+      'product': pid.isNotEmpty ? pid : 'trust_${name}_monthly',
+      'until': m['active_until'] is String ? m['active_until'] : null,
+    });
+  }
+  // Ma'lum modullar kelishilgan tartibda, notanishlari oxirida (server yangi
+  // modul qo'shsa ham UI yiqilmasin).
+  out.sort((a, b) {
+    final ia = kSubModuleOrder.indexOf(a['module'] as String);
+    final ib = kSubModuleOrder.indexOf(b['module'] as String);
+    return (ia < 0 ? kSubModuleOrder.length : ia).compareTo(ib < 0 ? kSubModuleOrder.length : ib);
+  });
+  return out;
+}
+
+// ────────── Modul yakunlari (bosh ekran kartasidagi RAQAM) ──────────
+// Ijara va To'yxona kartalari Xarajat/Qarz kabi JONLI summa ko'rsatadi. Raqam
+// modul repolarida emas, serverdan keladi: GET /api/<modul>/summary (joriy oy,
+// Toshkent vaqti — oraliq YUBORILMAYDI, izoh api.dart'da).
+//
+// GRACEFUL: bu endpointlar bugungi production'da YO'Q (404). Mapper har qanday
+// shaklda (null, HTML, kalitlar yetishmasa) NOLLI xaritani qaytaradi — karta
+// tinch nol holatida chiziladi, xato ham, spinner ham YO'Q.
+
+/// Yakun xaritasining nol qiymati — «ma'lumot yo'q» ham shu (count == 0).
+const Map<String, int> kHubModZero = {'left': 0, 'count': 0, 'pending': 0};
+
+/// GET /api/ijara/summary -> {left, count, pending} (sof funksiya).
+/// left    — oyda YIG'ILISHI KERAK bo'lgan pul (charged − paid); manfiy = avans.
+/// count   — bekor qilinmagan hisob-kitoblar (pul yig'indisi AYNAN shularniki).
+/// pending — hali to'lanmagan hisob-kitoblar (byStatus.kutilmoqda).
+Map<String, int> mapIjaraHubSum(dynamic raw) {
+  if (raw is! Map) return kHubModZero;
+  final by = raw['byStatus'];
+  return {
+    'left': _subInt(raw['left']),
+    // countActive yo'q bo'lsa count'ga tushamiz (eski/qisqartirilgan javob)
+    'count': _subInt(raw['countActive'] ?? raw['count']),
+    'pending': by is Map ? _subInt(by['kutilmoqda']) : 0,
+  };
+}
+
+/// GET /api/toyxona/summary -> {left, count, pending} (sof funksiya).
+/// left    — oyda to'lanmagan qoldiq (total − paid).
+/// count   — bekor qilinmagan bandlar soni.
+/// pending — hali to'liq to'lanmagan bandlar (band + tasdiq); kartada
+///           ko'rsatilmaydi, lekin shakl ijara bilan bir xil qolsin.
+Map<String, int> mapToyHubSum(dynamic raw) {
+  if (raw is! Map) return kHubModZero;
+  final by = raw['byStatus'];
+  return {
+    'left': _subInt(raw['left']),
+    'count': _subInt(raw['countActive'] ?? raw['count']),
+    'pending': by is Map ? _subInt(by['band']) + _subInt(by['tasdiq']) : 0,
+  };
+}
+
+/// Eski (butun ilova) premium obunasi faolmi — legacy_premium.active.
+bool subsLegacyActive(dynamic raw) =>
+    raw is Map && raw['legacy_premium'] is Map && (raw['legacy_premium'] as Map)['active'] == true;
+
+/// Modul xaridi tasdig'i: «Xarajatlar obunasi yoqildi — rahmat!» (sof funksiya).
+/// `l` — joriy til xaritasi (store.L()). HIMOYALI: notanish modulda modul kodi
+/// ishlatiladi, kalit yo'q bo'lsa Lf singari kalit nomi qaytadi — crash yo'q.
+String subModuleThanksText(Map<String, dynamic> l, String module) {
+  final k = kSubModuleNameKey[module];
+  final v = k == null ? null : l[k];
+  final name = v is String && v.isNotEmpty ? v : module;
+  return (l['subModuleThanks'] ?? 'subModuleThanks').toString().replaceAll('{module}', name);
+}
+
+/// Paywall holati bitta modul uchun: {module, price, soon, used, limit, product}.
+/// Modul server ro'yxatida bo'lmasa (masalan "tez orada" modul yoki endpoint yo'q) —
+/// lokal standartlardan YASALADI, shunda paywall baribir to'g'ri narx ko'rsatadi.
+Map<String, dynamic> subsPaywallEntry(String module, List<Map<String, dynamic>> mods) {
+  for (final m in mods) {
+    if (m['module'] == module) {
+      return {
+        'module': module,
+        'price': _subInt(m['price']),
+        'soon': m['soon'] == true,
+        'used': _subInt(m['used']),
+        'limit': _subInt(m['limit']),
+        'product': '${m['product'] ?? 'trust_${module}_monthly'}',
+      };
+    }
+  }
+  final def = kSubModuleDefaults[module];
+  return {
+    'module': module,
+    'price': _subInt(def?['price']),
+    'soon': def?['soon'] == true,
+    'used': 0,
+    'limit': 0,
+    'product': 'trust_${module}_monthly',
+  };
+}
+
 class TrustStore extends ChangeNotifier {
   final Map<String, dynamic> S = {
     // 'boot' — sessiya tekshirilgunicha splash (welcome "miltillab" o'tib ketmasin)
@@ -257,7 +438,7 @@ class TrustStore extends ChangeNotifier {
     'homeLoadingMore': false, 'opsLoadingMore': false,
     // Home davr filtri (header dropdown): 'all'|'today'|'yesterday'|'week'|'month'|'custom'
     'homeFilter': 'all', 'homeFilterFrom': 0, 'homeFilterTo': 0,
-    'homeFilterOpen': false, 'homeMenuOpen': false,
+    'homeFilterOpen': false,
     // Davr summalari (server): partnerId -> {to_me, by_me, repaid_to_me, repaid_by_me, count}
     'homePeriod': <String, Map<String, int>>{},
     // Server javobida 'period' bor-yo'qligi — eski backend'da false: filtr o'chadi
@@ -295,6 +476,16 @@ class TrustStore extends ChangeNotifier {
     'subStatus': 'free', 'trialEnd': null, 'premUntil': null,
     'debtsUsed': null, 'expensesUsed': null,
     'freeDebtEntries': null, 'freeExpenseEntries': null,
+    // Modul obunalari (GET /api/subs/status). BO'SH = server qo'llamaydi/xato —
+    // hub bugungidek (hisoblagichsiz, qulfsiz) ko'rinadi.
+    'modSubs': <Map<String, dynamic>>[],
+    'modSubsLegacy': false, // eski butun-ilova premiumi faolmi
+    // Ijara/To'yxona kartalaridagi summa (GET /api/<modul>/summary). null =
+    // hali so'ralmagan yoki server javob bermadi (404) — karta tinch nol
+    // holatida: «0 so'm» + modul tavsifi. Shakl: {left, count, pending}.
+    'hubIjaraSum': null,
+    'hubToySum': null,
+    'paywall': null, // {module, price, soon, used, limit, product} yoki null
     'iapBusy': false, // Apple IAP xaridi ketmoqda — paywall CTA spinner/disabled
     'delArmAt': 0, // (eski) profil o'chirish ikki bosqichli tasdiq vaqti — endi ishlatilmaydi
     'delOtpOpen': false, 'delOtpBusy': false, 'delOtpPhone': '', // #34: OTP bilan o'chirish modali
@@ -357,8 +548,17 @@ class TrustStore extends ChangeNotifier {
     // o'zgartiradi. Ilgari qarshi tomon (daftar egasi) kvotasi tugagani uchun kelgan
     // 402 ham "mening obunam tugadi" deb qabul qilinardi va butun ilovada qizil
     // banner yonardi. Server endi kodni ajratadi: SUB_EXPIRED / OWNER_SUB_EXPIRED.
-    Api.onPaymentRequired = (String code) {
+    // 2026-08-04: server 402 bilan birga `module` ham yuboradi (qaysi modul
+    // kvotasi tugagan). Bunday holatda GLOBAL "obuna tugadi" bannerini
+    // YOQMAYMIZ — bu butun ilova emas, bitta modul to'sig'i: shu modulning
+    // paywall'i ochiladi. Modulsiz 402 (eski backend) — avvalgidek.
+    Api.onPaymentRequired = (String code, String module) {
       if (code == 'OWNER_SUB_EXPIRED') return; // bu — daftar egasining muammosi
+      if (module.isNotEmpty && kModuleSubsUi) {
+        openPaywall_(module);
+        unawaited(refreshSubs_(force: true)); // used/limit darhol aniqlashsin
+        return;
+      }
       if (S['subStatus'] != 'expired') set({'subStatus': 'expired'});
       unawaited(refreshMe()); // serverdan aniqlashtirib olamiz (yopishib qolmasin)
     };
@@ -698,6 +898,14 @@ class TrustStore extends ChangeNotifier {
       }
       if (patch.isNotEmpty) set(patch);
 
+      // Modul obunalari (hisoblagich + qulf) — hub ma'lumoti bilan bir oqimda,
+      // lekin ALOHIDA va throttle bilan: bu so'rov yiqilsa hydrate buzilmaydi.
+      unawaited(refreshSubs_(force: full));
+      // Ijara/To'yxona kartalaridagi summa — AYNAN shu nuqtada va shu qoidalar
+      // bilan (60s throttle, jim yiqiladi). Alohida chaqiruv: bu ikki so'rov
+      // 404 qaytarsa ham hydrate ham, obuna hisoblagichi ham buzilmaydi.
+      unawaited(refreshHubMods_(force: full));
+
       // Davr filtri faol bo'lsa — summalari ham polling bilan birga yangilanadi
       // (kun almashsa chegaralar qurilma-lokal qayta hisoblanadi)
       if (S['homeFilter'] != 'all') unawaited(loadHomePeriod_());
@@ -828,7 +1036,7 @@ class TrustStore extends ChangeNotifier {
     _periodSeq++; // uchayotgan eski javob endi qo'llanilmaydi
     set({
       'homeFilter': f, 'homeFilterFrom': from, 'homeFilterTo': to,
-      'homeFilterOpen': false, 'homeMenuOpen': false,
+      'homeFilterOpen': false,
       'homeVis': 6, // sahifalash boshidan (onSearch bilan bir xil)
       'homePeriod': <String, Map<String, int>>{},
       'homePeriodOk': false,
@@ -994,6 +1202,13 @@ class TrustStore extends ChangeNotifier {
       set({'iapBusy': false});
       toast_(L()['subThanks'] as String? ?? 'Premium yoqildi — rahmat!');
     };
+    // Modul obunasi yoqildi — paywall yopiladi, hisoblagichlar serverdan yangilanadi.
+    // Xabar MODULGA xos ('subModuleThanks'); eski umumiy premium 'subThanks'da qoladi.
+    IapService.onModuleGranted = (String module) async {
+      set({'iapBusy': false, 'paywall': null});
+      await refreshSubs_(force: true);
+      toast_(subModuleThanks_(module));
+    };
     IapService.init(); // fire-and-forget (Android'da darhol qaytadi)
   }
 
@@ -1014,6 +1229,143 @@ class TrustStore extends ChangeNotifier {
         'trialEnd': p['trial_ends_at'],
         'premUntil': p['premium_until'],
       });
+    }
+  }
+
+  // ================= Modul obunalari (GET /api/subs/status) =================
+  // Butun oqim HIMOYALANGAN: endpoint yo'q (404), xato yoki maydonlar yetishmasa
+  // 'modSubs' bo'sh qoladi va ilova bugungidek ishlaydi (hisoblagich ham, qulf ham
+  // yo'q). Hech qachon toast ko'rsatilmaydi — bu fon so'rovi.
+  int _subsAtMs = 0; // oxirgi muvaffaqiyatli so'rov vaqti (throttle uchun)
+  bool _subsBusy = false;
+  // Band paytda kelgan majburiy so'rov — tugagach bir marta qayta uriladi
+  bool _subsAgain = false;
+
+  /// Modul holatini serverdan olish. force=false — 60s throttle: hydrate polling
+  /// har 15 soniyada chaqiradi, ammo hisoblagich faqat foydalanuvchining O'Z
+  /// yozuvidan o'zgaradi (u yerda force:true bilan darhol yangilanadi).
+  Future<void> refreshSubs_({bool force = false}) async {
+    if (!kModuleSubsUi) return; // avariya tugmasi (flags.dart)
+    if (_subsBusy) {
+      // Boshqa so'rov ketyapti. Agar u BOSHQA akkauntniki bo'lsa (logout->login
+      // poygasi), uning javobi identity guard bilan tashlanadi va yangi akkaunt
+      // hisoblagichsiz qolardi — shuning uchun bayroq qo'yamiz, `finally` qayta uradi.
+      if (force) _subsAgain = true;
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && now - _subsAtMs < 60000) return;
+    _subsBusy = true;
+    // Kimning hisoblagichini so'rayapmiz — javob kelguncha logout/boshqa akkaunt
+    // bo'lishi mumkin (_subsBusy faqat qayta kirishdan saqlaydi, EGALIKDAN emas).
+    // _periodSeq singari: eskirgan javob YANGI sessiyaga yozilmasin.
+    final uid = S['meId'];
+    try {
+      final r = await Api.subsStatus();
+      // 404/5xx/tarmoq — JIM: eski holat saqlanadi (bo'sh bo'lsa bo'sh qoladi).
+      if (!r.ok || r.body['modules'] is! List) return;
+      if (S['meId'] != uid) return; // boshqa akkaunt — bu javob endi begona
+      _subsAtMs = now;
+      final mods = mapSubsModules(r.body);
+      final patch = <String, dynamic>{'modSubs': mods, 'modSubsLegacy': subsLegacyActive(r.body)};
+      // Ochiq paywall — subsPaywallEntry SNAPSHOT: yangi used/limit o'ziga
+      // kelmaydi. 402 javobida `openPaywall_ + refreshSubs_(force:true)` ataylab
+      // "used/limit darhol aniqlashsin" deb chaqiriladi — shu qayta hisoblashsiz
+      // sheet butun umri davomida eski (ko'pincha 0/0) raqamni ko'rsatardi.
+      final pw = S['paywall'];
+      if (pw is Map) {
+        final pm = '${pw['module'] ?? ''}';
+        if (pm.isNotEmpty) patch['paywall'] = subsPaywallEntry(pm, mods);
+      }
+      set(patch);
+    } finally {
+      _subsBusy = false;
+      if (_subsAgain) {
+        _subsAgain = false;
+        // Kutib turgan so'rov — endi joriy akkaunt uchun bajariladi (await EMAS:
+        // finally bloki cho'zilmasin).
+        refreshSubs_(force: true);
+      }
+    }
+  }
+
+  // ========= Modul yakunlari (GET /api/ijara|toyxona/summary) =========
+  // refreshSubs_ bilan BIR XIL shartnoma: fon so'rovi, jim yiqiladi, toast yo'q.
+  // Endpointlar bugungi production'da YO'Q (404) — o'shanda xarita null qoladi
+  // va hub kartalari TINCH nol holatida chiziladi (0 so'm + modul tavsifi).
+  int _hubModsAtMs = 0; // oxirgi urinish vaqti (throttle uchun)
+  bool _hubModsBusy = false;
+  bool _hubModsAgain = false; // band paytda kelgan majburiy so'rov
+
+  /// Ijara/To'yxona kartasidagi summani serverdan olish.
+  ///
+  /// Throttle 60s — refreshSubs_ bilan bir xil (hydrate polling har 15 soniyada
+  /// chaqiradi). DIQQAT: `_hubModsAtMs` javob KELGACH har doim yangilanadi, xato
+  /// bo'lsa ham — aks holda endpoint yo'q serverga (404) har 15 soniyada ikkita
+  /// befoyda so'rov ketardi.
+  Future<void> refreshHubMods_({bool force = false}) async {
+    if (_hubModsBusy) {
+      // Boshqa so'rov ketyapti. Agar u BOSHQA akkauntniki bo'lsa (logout->login
+      // poygasi), javobi identity guard bilan tashlanadi va yangi akkaunt
+      // raqamsiz qolardi — bayroq qo'yamiz, `finally` qayta uradi.
+      if (force) _hubModsAgain = true;
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && now - _hubModsAtMs < 60000) return;
+    _hubModsBusy = true;
+    // Kimning raqamini so'rayapmiz — javob kelguncha logout/boshqa akkaunt
+    // bo'lishi mumkin (_hubModsBusy faqat qayta kirishdan saqlaydi, EGALIKDAN
+    // emas). Bu qo'riq refreshSubs_'dan ko'chirilgan: kechikkan javob ilgari
+    // OLDINGI akkauntning raqamlarini yangi sessiyaga yozib qo'yardi.
+    final uid = S['meId'];
+    try {
+      final rs = await Future.wait([Api.ijaraSummary(), Api.toyxonaSummary()]);
+      if (S['meId'] != uid) return; // boshqa akkaunt — bu javob endi begona
+      _hubModsAtMs = now;
+      final patch = <String, dynamic>{};
+      if (rs[0].ok && rs[0].data is Map) patch['hubIjaraSum'] = mapIjaraHubSum(rs[0].data);
+      if (rs[1].ok && rs[1].data is Map) patch['hubToySum'] = mapToyHubSum(rs[1].data);
+      // 404/5xx/tarmoq — JIM: eski holat saqlanadi (bo'sh bo'lsa bo'sh qoladi).
+      if (patch.isNotEmpty) set(patch);
+    } finally {
+      _hubModsBusy = false;
+      if (_hubModsAgain) {
+        _hubModsAgain = false;
+        // Kutib turgan so'rov — endi joriy akkaunt uchun (await EMAS: `finally`
+        // bloki cho'zilmasin).
+        refreshHubMods_(force: true);
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _modSubs() =>
+      (S['modSubs'] as List?)?.cast<Map<String, dynamic>>() ?? const <Map<String, dynamic>>[];
+
+  /// Modul paywall'ini ochish (hub kartasi qulfi yoki 402 javobi).
+  void openPaywall_(String module) {
+    if (module.isEmpty) return;
+    set({'paywall': subsPaywallEntry(module, _modSubs())});
+  }
+
+  void paywallClose_() => set({'paywall': null});
+
+  /// «Xarajatlar obunasi yoqildi — rahmat!» — modul nomi joriy tilda
+  /// (matnni sof funksiya yasaydi — test/subs_status_test.dart).
+  String subModuleThanks_(String module) => subModuleThanksText(L(), module);
+
+  /// Paywall CTA — modul obunasini sotib olish.
+  /// BUGUNGI HOLAT: mahsulotlar App Store Connect/Play Console'da hali yo'q, shu
+  /// sabab buyModule() `false` qaytaradi va foydalanuvchi narxsiz, har modulga
+  /// to'g'ri keladigan "to'lov hali ulanmagan" xabarini ko'radi.
+  Future<void> paywallBuy_() async {
+    final pw = S['paywall'];
+    if (pw is! Map) return;
+    final module = '${pw['module'] ?? ''}';
+    if (module.isEmpty) return;
+    final started = await IapService.buyModule(module);
+    if (!started) {
+      toast_(L()['pwPayComingSoon'] as String? ?? "To'lov hali ulanmagan — obuna tez orada ishlaydi");
     }
   }
 
@@ -1599,6 +1951,8 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     await _refetchLedger(partnerId);
+    // Yangi qarz yozuvi kvotani yedi — hisoblagich darhol yangilansin
+    unawaited(refreshSubs_(force: true));
     if (okMsg != null) toast_(okMsg);
   }
 
@@ -1865,6 +2219,7 @@ class TrustStore extends ChangeNotifier {
     });
     openLedger_(cid); // qarz daftarini yuklash + polling
     toast_(L()['tSaved']);
+    unawaited(refreshSubs_(force: true)); // kvota hisoblagichi yangilansin
     hydrate(full: false);
   }
 
@@ -1987,6 +2342,8 @@ class TrustStore extends ChangeNotifier {
       return false;
     }
     final d = r.data as Map<String, dynamic>;
+    // Yangi yozuv saqlandi — xarajat kvotasi hisoblagichi yangilansin
+    unawaited(refreshSubs_(force: true));
     final saved = ((d['saved'] as List?) ?? []).cast<Map<String, dynamic>>();
     final routed = ((d['routed'] as List?) ?? []).cast<Map<String, dynamic>>();
     if (saved.isNotEmpty) {
@@ -2855,6 +3212,8 @@ class TrustStore extends ChangeNotifier {
     Api.saveToken(null);
     SecureStore.writeMe(null, null); // shaxsiyat keshini ham tozalaymiz
     SecureStore.clearPin(); // keyingi kirishda PIN qaytadan o'rnatiladi
+    _subsAtMs = 0; // yangi akkaunt kirsa modul holati DARHOL qayta so'ralsin
+    _hubModsAtMs = 0; // ... modul kartalaridagi summa ham
     _landFallback?.cancel(); // chiqishdan keyin eski akkaunt yozuvlarini qaytarmasin
     _xfReorderT?.cancel(); // muzlatilgan papka tartibi ham eski akkauntdan qolmasin
     _xfFrozenOrder = null;
@@ -2873,6 +3232,11 @@ class TrustStore extends ChangeNotifier {
       'meId': null, 'mePhone': null, 'meName': null, 'meNameEdit': null, 'meNo': null,
       'subStatus': 'free', 'trialEnd': null, 'premUntil': null,
       'debtsUsed': null, 'expensesUsed': null,
+      // Modul obunalari boshqa akkauntdan qolib ketmasin
+      'modSubs': <Map<String, dynamic>>[], 'modSubsLegacy': false, 'paywall': null,
+      // Modul summalari ham ketadi — chiqqandan keyin eski akkauntning puli
+      // bir lahzaga bo'lsa ham yangi bosh ekranda turmasin.
+      'hubIjaraSum': null, 'hubToySum': null,
       'meAvatar': null, // shu qurilmada boshqa user kirsa avvalgi rasm ko'rinmasin
       // Trust AI suhbati — shaxsiy ma'lumot: qurilmada boshqa user kirsa ko'rinmasin
       'aiMsgs': <Map<String, dynamic>>[], 'aiInput': '', 'aiLoaded': false,
@@ -3085,10 +3449,21 @@ class TrustStore extends ChangeNotifier {
   // Mock raqam YO'Q — bo'sh/yuklanish holatlari ham real holatdan kelib chiqadi.
 
   /// Hub'ga qaytish — bo'lim ichidagi holatlar ham tozalanadi.
-  void goHub_() => set({
-        'screen': 'hub', 'clientId': null, 'receiptId': null, 'inLinkId': null,
-        'xfDetail': null, 'xfLogOpen': false,
-      });
+  void goHub_() {
+    // Modul ekranidan qaytyapmizmi — hub kartasidagi summa ESKIRGAN bo'lishi
+    // mumkin (foydalanuvchi endigina hisob-kitob/bron qo'shdi yoki to'lov
+    // yozdi). Fon polling'i 60s throttle bilan ishlaydi, ya'ni raqam bir
+    // daqiqagacha eski qolardi — «kirdim, qo'shdim, chiqdim, o'zgarmadi».
+    // Shuning uchun AYNAN shu o'tishda majburiy yangilaymiz. Modul ekranlari
+    // boshqa sessiya egaligida, shu bois hook o'sha fayllarga emas, shu yerga
+    // qo'yilgan. So'rov fon rejimida: yiqilsa hech narsa ko'rinmaydi.
+    final fromModule = S['screen'] == 'ijara' || S['screen'] == 'toyxona';
+    set({
+      'screen': 'hub', 'clientId': null, 'receiptId': null, 'inLinkId': null,
+      'xfDetail': null, 'xfLogOpen': false,
+    });
+    if (fromModule) unawaited(refreshHubMods_(force: true));
+  }
 
   /// Android apparat "orqaga": bo'lim ekranidan hub'ga qaytish mumkinmi?
   /// FAQAT toza holatda ushlaymiz — ustida overlay/sheet/daftar ochiq bo'lsa,
@@ -3098,6 +3473,7 @@ class TrustStore extends ChangeNotifier {
   bool _anyLayerOpen() =>
       S['ccOpen'] != null ||
       S['langOpen'] == true ||
+      S['paywall'] != null ||
       S['linkDecisionId'] != null ||
       S['clientId'] != null ||
       S['inLinkId'] != null ||
@@ -3135,6 +3511,13 @@ class TrustStore extends ChangeNotifier {
   /// bildirishnomalar paneli, PDF ko'rinishi va h.k. — hammasida shunday edi).
   bool closeTopLayer_() {
     // Tartib: eng ustki (sheet/dialog) -> pastki (ekran qatlami)
+    // Modul paywall'i — main.dart'da z:64, ya'ni cc (z:60) va til (z:62) sheetlaridan
+    // USTIDA chiziladi, shuning uchun birinchi bo'lib SHU yopiladi (review 2026-08-04 #4:
+    // ilgari cc/til birinchi turardi — 402 til varag'i ochiq turib kelsa, "orqaga"
+    // ko'rinmayotgan varaqni yopar va foydalanuvchiga HECH NARSA o'zgarmagandek tuyulardi).
+    // Ilgari paywall bu ro'yxatda UMUMAN yo'q edi: hub ildizida u ochiq bo'lsa "orqaga"
+    // "yana bosing — chiqadi"ga tushardi va ikkinchi bosishda ILOVA YOPILARDI.
+    if (S['paywall'] != null) { set({'paywall': null}); return true; }
     if (S['ccOpen'] != null) { set({'ccOpen': null}); return true; }
     if (S['langOpen'] == true) { set({'langOpen': false}); return true; }
     if (S['circleInviteOpen'] == true) { set({'circleInviteOpen': false}); return true; }
@@ -3167,6 +3550,41 @@ class TrustStore extends ChangeNotifier {
 
   /// Apparat "orqaga" biror qatlamni yopishi kerakmi?
   bool layerOpen() => S['stage'] == 'app' && _anyLayerOpen();
+
+  // ---------------- Modul ekranlarining O'Z qatlamlari ----------------
+  // Ijaradagi uylar / To'yxona kabi modullar butun holatini O'Z State'ida
+  // saqlaydi (uy tafsiloti, forma modallari, oy menyusi) — store ularni
+  // KO'RMAYDI, ya'ni _anyLayerOpen() ham, closeTopLayer_() ham ular haqida
+  // hech narsa bilmaydi. Natijasi (review 2026-08-04, FINDING 2 — MEDIUM):
+  // "Yangi to'lov" formasi ochiq, summa yozilgan holatda apparat "orqaga"
+  // BUTUN modulni yopib, kiritilgan ma'lumotni yo'qotardi; uy tafsilotidan
+  // bosilganda esa ro'yxatga emas, hub'ga chiqib ketardi.
+  //
+  // Yechim — modul o'zining "eng ustki qatlamni yop" funksiyasini SHU YERGA
+  // yozadi, Root PopScope (main.dart) esa hub'ga qaytishdan OLDIN uni chaqiradi.
+  // handleSystemBack: true QILINMAYDI — ikkinchi PopScope bir bosishda ikki
+  // qavat orqaga ketardi (main.dart izohi).
+  //
+  // MODUL SHARTNOMASI (To'yxona ham AYNAN shu ikki qatorni qo'shadi):
+  //   initState: store.setModuleBack_(_closeTop);
+  //   dispose  : store.clearModuleBack_(_closeTop);
+  // `_closeTop()` -> true = qatlam yopildi (modul ichida qolamiz),
+  //                  false = yopiladigan narsa yo'q (hub'ga qaytiladi).
+  bool Function()? moduleBack;
+
+  /// Modul ekrani o'z qatlam-yopgichini ro'yxatdan o'tkazadi (initState).
+  void setModuleBack_(bool Function() fn) => moduleBack = fn;
+
+  /// dispose: FAQAT o'zinikini tozalaydi. Bir moduldan boshqasiga o'tishda
+  /// yangi ekranning initState'i eskisining dispose'idan OLDIN ishlashi mumkin —
+  /// shartsiz null qilinsa yangi ro'yxatdan o'tish o'chib ketardi.
+  void clearModuleBack_(bool Function() fn) {
+    if (moduleBack == fn) moduleBack = null;
+  }
+
+  /// Apparat "orqaga": modulning ochiq qatlamini yopishga urinish.
+  /// true = yopildi, hub'ga qaytilmaydi.
+  bool tryModuleBack_() => moduleBack?.call() ?? false;
 
   /// Hub ildizida (bo'lim/overlay/sheet yo'q) — apparat "orqaga" bu holatda
   /// darhol chiqarmaydi: 2 soniya ichida yana bosilsagina ilova yopiladi.
@@ -3338,13 +3756,6 @@ class TrustStore extends ChangeNotifier {
       debtSpark = const <double>[];
     }
 
-    // ---- TRUST AI kartasi ----
-    final aiAll = List<Map<String, dynamic>>.from(S['aiMsgs'] as List);
-    final aiOnly = aiAll.where((m) => m['role'] == 'ai').toList();
-    final aiLast = aiOnly.isEmpty ? null : aiOnly.last;
-    var aiText = (aiLast?['text'] as String? ?? '').trim();
-    if (aiText.length > 120) aiText = '${aiText.substring(0, 119).trimRight()}…';
-
     // ---- «SO'NGGI» tasmasi: xarajat + operatsiyalar bitta vaqt o'qida ----
     final feed = <Map<String, dynamic>>[];
     for (final e in entries) {
@@ -3388,6 +3799,18 @@ class TrustStore extends ChangeNotifier {
 
     final hasAny = entries.isNotEmpty || partners.isNotEmpty || accepted.isNotEmpty;
 
+    // Ijara/To'yxona kartalaridagi summa (refreshHubMods_ yozadi). null =
+    // hali kelmagan yoki server javob bermadi (endpoint 404) — HAMMASI NOL
+    // bo'ladi va karta tinch nol holatida chiziladi. Bu ATAYLAB shunday: bosh
+    // ekranda "xato" yoki aylanuvchi spinner ko'rinishi kerak emas.
+    final ijSum = (S['hubIjaraSum'] as Map?) ?? kHubModZero;
+    final toySum = (S['hubToySum'] as Map?) ?? kHubModZero;
+    final ijLeft = (ijSum['left'] as int?) ?? 0;
+    final ijCount = (ijSum['count'] as int?) ?? 0;
+    final ijPend = (ijSum['pending'] as int?) ?? 0;
+    final toyLeft = (toySum['left'] as int?) ?? 0;
+    final toyCount = (toySum['count'] as int?) ?? 0;
+
     return {
       // 'isHub' vals() ichida hisoblanadi (isHome/isXarajat bilan bir xil `noClient` sharti)
       'goHub': () => goHub_(),
@@ -3395,6 +3818,10 @@ class TrustStore extends ChangeNotifier {
       'hubAtRoot': atHubRoot(),
       'layerOpen': layerOpen(),
       'closeTopLayer': closeTopLayer_,
+      // Modul ichidagi qatlam yopgichi. Tear-off BARQAROR: qiymat emas,
+      // chaqirilgan PAYTDAGI `moduleBack` o'qiladi — modul ekrani vals()
+      // hisoblangandan KEYIN mount bo'lsa ham to'g'ri ishlaydi.
+      'moduleBack': tryModuleBack_,
       'hubBack': () => goHub_(),
       // Menga kelgan pending bog'lanish so'rovlari (hub bannerida ko'rsatiladi — item 7)
       'hubPendingReq': pendingIn.length,
@@ -3448,6 +3875,9 @@ class TrustStore extends ChangeNotifier {
       'hubDebtSec': L0['hubDebtSec'] as String, // bo'lim nomi caption (PO 2026-07-17)
       'hubDebtCap': L0['hubToMe'] as String,
       'hubDebtTxt': '+${_fmt(toMe)}',
+      // Birlik — Xarajat kartasi bilan bir xil manba: kartalar bitta qobiqdan
+      // chiqadi (_hubShell), summa va birligi ham bir xil ko'rinishda.
+      'hubDebtUnit': L0['som'] as String,
       'hubDebtSub': Lf('hubDebtsPartners', {'d': '$activeDebts', 'p': '$partnersCount'}),
       // Chet valyuta netlari — kod bo'yicha saralangan; pos: musbat = sizga qarz
       'hubDebtFx': [
@@ -3462,17 +3892,38 @@ class TrustStore extends ChangeNotifier {
       'hubFrozen': frozenName.isNotEmpty && frozenDays > 0,
       'hubFrozenTxt': Lf('hubNoAnswer', {'name': frozenName, 'n': '$frozenDays'}),
       'hubOpenDebt': () => goHome_(),
+
+      // ── Modul kartalari (Ijaradagi uylar / To'yxona) ──
+      // Xarajat/Qarz bilan BIR XIL anatomiya: sarlavha + summa + sub-qator.
+      // RANG — YASHIL, o'ylab topilgan yangi tus emas: bu ilovada qizil = pul
+      // chiqmoqda, yashil = pul kirmoqda. Ikkala modulning bosh raqami ham EGAGA
+      // KELISHI KERAK bo'lgan pul (yig'ilmagan ijara / to'lanmagan bron qoldig'i)
+      // — ya'ni kirim, demak Qarz daftar bilan bir xil yashil.
+      // Ishora hubLeftTxt bilan bir xil: manfiy (avans) qizilga o'tadi.
+      'hubIjaraCap': L0['hubIjaraCap'] as String,
+      'hubIjaraTxt': (ijLeft >= 0 ? '+' : '−') + _fmt(ijLeft.abs()),
+      'hubIjaraPos': ijLeft >= 0,
+      'hubIjaraUnit': L0['som'] as String,
+      // Ma'lumot bo'lsa — faktlar; bo'lmasa (404/bo'sh) modul tavsifi. Karta
+      // shu bilan nol holatida ham TO'LIQ o'qiladi, "buzilgan" emas.
+      'hubIjaraSub': ijCount > 0
+          ? Lf('hubIjaraSub', {'n': '$ijCount', 'w': '$ijPend'})
+          : L0['modIjarachiDesc'] as String,
+      'hubToyCap': L0['hubToyCap'] as String,
+      'hubToyTxt': (toyLeft >= 0 ? '+' : '−') + _fmt(toyLeft.abs()),
+      'hubToyPos': toyLeft >= 0,
+      'hubToyUnit': L0['som'] as String,
+      'hubToySub': toyCount > 0
+          ? Lf('hubToySub', {'n': '$toyCount'})
+          : L0['modToyxonaDesc'] as String,
+      // Qulflangan bo'lsa karta paywall'ni ochadi — bu qaror ekran qatlamida
+      // (_modLocked + openPaywall), bu yerda faqat toza navigatsiya.
+      'hubOpenIjara': () => goIjara_(),
+      'hubOpenToy': () => goToyxona_(),
       'hubAddDebt': () => set({
             'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null,
             'npOpen': true, 'npName': '', 'npPhone': '',
           }),
-
-      // Trust AI kartasi
-      'hubAiTxt': aiText.isEmpty ? (L0['hubAiEmpty'] as String) : '«$aiText»',
-      'hubAiSub': aiOnly.length > 1
-          ? Lf('hubAiSub', {'n': '${aiOnly.length - 1}'})
-          : (L0['hubAiSubOne'] as String),
-      'hubAiSee': L0['hubAiSee'] as String,
 
       // Tugmalar
       'hubBtnXar': L0['hubAddExpense'] as String,
@@ -3483,6 +3934,18 @@ class TrustStore extends ChangeNotifier {
       'hubTodayCap': L0['hubToday'] as String,
       'hubTodayTxt': '−${_fmt(todayOut)}',
       'hubRecentRows': recent,
+
+      // ---- Modul obunalari (per-module subs) ----
+      // modSubs BO'SH bo'lsa (endpoint yo'q / xato / kModuleSubsUi=false) hub
+      // kartalari hisoblagichsiz va qulfsiz — aynan bugungidek ko'rinadi.
+      // Qator: {module, active, soon, used, limit, price} (+product, +until).
+      'modSubs': _modSubs(),
+      'modSubsLegacy': S['modSubsLegacy'] == true,
+      // Paywall: {module, price, soon, used, limit} yoki null
+      'paywall': S['paywall'],
+      'openPaywall': (String module) => openPaywall_(module),
+      'paywallClose': () => paywallClose_(),
+      'paywallBuy': () => unawaited(paywallBuy_()),
 
       // Bo'sh holat matnlari
       'hubEmptyXarCap': L0['hubEmptyExpCap'] as String,
@@ -3522,11 +3985,21 @@ class TrustStore extends ChangeNotifier {
   // Hub kartalaridan bo'limga o'tish (vals() ichidagi goHome/goXarajat bilan bir xil patch)
   void goHome_() =>
       // #31: npOpen:false — eski/ochiq qolgan "yangi hamkor" oynasi bo'limga kirganda
-      // avtomatik ochilib qolmasin. Header dropdownlari ham yopiq holda ochiladi.
+      // avtomatik ochilib qolmasin. Header dropdowni ham yopiq holda ochiladi.
       set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false,
-           'homeFilterOpen': false, 'homeMenuOpen': false});
+           'homeFilterOpen': false});
   void goXarajat_() =>
       set({'screen': 'xarajat', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+
+  // Modul bo'limlari — hub kartasidan TO'LIQ EKRAN bo'lib ochiladi (goXarajat_
+  // bilan aynan bir naqsh). Orqaga: ekranning O'Z header tugmasi (onBack ->
+  // goHub_) yoki apparat "orqaga" — u hubBackable() orqali hub'ga qaytaradi,
+  // chunki 'screen' endi 'hub' emas. Ekranlar `handleSystemBack: false` bilan
+  // quriladi: PopScope FAQAT Root'da (main.dart) bo'lishi kerak.
+  void goToyxona_() =>
+      set({'screen': 'toyxona', 'clientId': null, 'receiptId': null, 'inLinkId': null});
+  void goIjara_() =>
+      set({'screen': 'ijara', 'clientId': null, 'receiptId': null, 'inLinkId': null});
 
   Map<String, dynamic> _xarVals(Pal P, String Function(int, String) money) {
     final ink = P.ink, bg = P.bg, bd = P.bd, mut = P.t3, red = P.red, green = P.green;
@@ -4695,7 +5168,9 @@ class TrustStore extends ChangeNotifier {
             }
             return (L()['subFree'] as String?) ?? 'Bepul';
           }
-          return L()['subExpired9'] as String;
+          // Yuqoridagi 'subFree' bilan bir xil himoyali o'qish: kalit yo'q
+          // bo'lsa (yangi til qo'shilganda) profil qatori yiqilmasin.
+          return (L()['subExpiredShort'] as String?) ?? 'Tugagan';
         }(),
         'isPlain': true, 'isSwitch': false,
         'tap': () => toast_(L()['subInfo']),
@@ -4829,6 +5304,9 @@ class TrustStore extends ChangeNotifier {
       'isCircles': S['screen'] == 'circles' && noClient,
       'isAi': S['screen'] == 'ai' && noClient,
       'isXarajat': S['screen'] == 'xarajat' && noClient,
+      // Modul bo'limlari — hub kartasidan ochiladigan to'liq ekranlar
+      'isToyxona': S['screen'] == 'toyxona' && noClient,
+      'isIjara': S['screen'] == 'ijara' && noClient,
       'isProfil': S['screen'] == 'profil' && noClient,
       'netText': fActive
           ? (pNet >= 0 ? '+' : '−') + money(pNet.abs(), 'UZS')
@@ -4840,12 +5318,12 @@ class TrustStore extends ChangeNotifier {
       'owedByMe': money(fActive ? pByMe : byMe, 'UZS'),
       'search': S['search'],
       'onSearch': (String t) => set({'search': t, 'homeVis': 6}),
-      // Header: sarlavha (menyu nomi) + davr filtri dropdown + ⋮ menyu
+      // Header: sarlavha (menyu nomi) + davr filtri dropdown
       'homeTitle': L0['homeTitle'] as String,
       'homeFilter': S['homeFilter'],
       'homeFilterActive': S['homeFilter'] != 'all',
       'homeFilterOpen': S['homeFilterOpen'] == true,
-      'homeFilterTap': () => set({'homeFilterOpen': S['homeFilterOpen'] != true, 'homeMenuOpen': false}),
+      'homeFilterTap': () => set({'homeFilterOpen': S['homeFilterOpen'] != true}),
       'homeFilterClose': () => set({'homeFilterOpen': false}),
       'homeFilterCap': L0['fltCap'] as String,
       'homeFilterLabel': fltLabel_(L0),
@@ -4870,15 +5348,6 @@ class TrustStore extends ChangeNotifier {
       'homeFilterFrom': S['homeFilterFrom'],
       'homeFilterTo': S['homeFilterTo'],
       'homeFilterCustom': (int from, int to) => setHomeFilter_('custom', from: from, to: to),
-      // ⋮ menyu — Xarajatlar ('hubOpenXar' bilan bir xil goXarajat_ yo'li)
-      'homeMenuOpen': S['homeMenuOpen'] == true,
-      'homeMenuTap': () => set({'homeMenuOpen': S['homeMenuOpen'] != true, 'homeFilterOpen': false}),
-      'homeMenuClose': () => set({'homeMenuOpen': false}),
-      'homeMenuXarLabel': L0['menuXar'] as String,
-      'homeMenuXar': () {
-        set({'homeMenuOpen': false});
-        goXarajat_();
-      },
       'clientRows': homeRows,
       'hasArch': S['skelHome'] != true && _clients().any((c) => c['archived'] == true),
       'archCount': _clients().where((c) => c['archived'] == true).length,
@@ -4976,7 +5445,7 @@ class TrustStore extends ChangeNotifier {
         hydrate(full: false);
       },
       'goHome': () => set({'screen': 'home', 'clientId': null, 'receiptId': null, 'inLinkId': null, 'npOpen': false,
-          'homeFilterOpen': false, 'homeMenuOpen': false}),
+          'homeFilterOpen': false}),
       'goCircles': () {
         set({'screen': 'circles', 'clientId': null, 'receiptId': null, 'inLinkId': null});
         loadCircles();
@@ -5274,9 +5743,31 @@ class TrustStore extends ChangeNotifier {
           // ---- 3 tugma (spec 4.4) ----
           // ---- Tugmalar (PO 2026-07-28): "Qarz olish" OLIB TASHLANDI — qarz olish
           // kontragentning "qarz berish"i bilan bir xil ma'no, chalkashlik tug'dirardi.
+          // Ledger SEMANTIK KOD qaytaradi — matn shu yerda l10n orqali quriladi;
+          // kalit tarjimada hali bo'lmasa uz-fallback (xarajat.dart _t naqshi).
+          String lfb(String key, String fb, [Map<String, String> vars = const {}]) {
+            var s = (L()[key] as String?) ?? fb;
+            vars.forEach((k, val) => s = s.replaceAll('{$k}', val));
+            return s;
+          }
+          final closeCode = led.closeDisabledCode();
           final btns = [
-            {'key': 'lend', 'label': L()['lendDebt'] as String, 'on': led.canGive, 'off': led.giveDisabledReason(firstName)},
-            {'key': 'close', 'label': L()['closeDebt'] as String, 'on': led.canClose, 'off': led.closeDisabledReason()},
+            {
+              'key': 'lend', 'label': L()['lendDebt'] as String, 'on': led.canGive,
+              'off': led.giveDisabledCode() == null
+                  ? null
+                  : lfb('ledgerCantGive',
+                      "Siz «{name}»ga {sum} qarzdorsiz — yana qarz berish mantiqsiz, avval hisobni yoping",
+                      {'name': firstName, 'sum': led.sumActive(DebtDir.fromMe)}),
+            },
+            {
+              'key': 'close', 'label': L()['closeDebt'] as String, 'on': led.canClose,
+              'off': closeCode == null
+                  ? null
+                  : (closeCode == 'pendingWait'
+                      ? lfb('ledgerPendingWait', 'Amal tasdiqlanishi kutilmoqda')
+                      : lfb('ledgerNoActive', 'Faol qarz yo\'q')),
+            },
           ];
 
           // ---- Yopish oqimi: tanlanadigan qarz chiplari ----

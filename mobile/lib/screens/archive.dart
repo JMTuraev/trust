@@ -1,5 +1,5 @@
 // Arxiv ekrani — headerdagi tugma orqali ochiladi.
-// Arxivlangan hamkorlar ro'yxati; "Qaytarish" bosilsa asosiy ro'yxatga qaytadi.
+// Arxivlangan hamkorlar ro'yxati; "Arxivdan chiqarish" bosilsa asosiy ro'yxatga qaytadi.
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
@@ -25,8 +25,9 @@ class ArchiveScreen extends StatelessWidget {
               BackBtn(onTap: () => v['closeArch']()),
               const SizedBox(width: 8),
               Expanded(
+                // Moliyaviy ilova: sarlavha to'liq ko'rinsin — "..." bilan kesilmaydi
                 child: Tx(L0['archTitle'] as String, size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3,
-                    maxLines: 1, ellipsis: true),
+                    maxLines: 2),
               ),
             ],
           ),
@@ -50,8 +51,9 @@ class ArchiveScreen extends StatelessWidget {
                             TrustAvatar(initials: r['initials'] as String, size: 44),
                             const SizedBox(width: 12),
                             Expanded(
+                              // Hamkor nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
                               child: Tx(r['name'], size: 14.5, w: FontWeight.w600, color: p.ink,
-                                  maxLines: 1, ellipsis: true),
+                                  maxLines: 2),
                             ),
                             const SizedBox(width: 10),
                             Tap(

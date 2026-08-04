@@ -16,10 +16,13 @@ import linkRoutes from './routes/links.js';
 import messageRoutes from './routes/messages.js';
 import debtRoutes from './routes/debts.js';
 import circleRoutes from './routes/circles.js';
+import toyxonaRoutes from './routes/toyxona.js';
+import ijaraRoutes from './routes/ijara.js';
 import aiRoutes from './routes/ai.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
 import { startDueReminderSweeper } from './services/dueReminder.js';
 import supportRoutes from './routes/support.js';
+import subsRoutes from './routes/subs.js';
 import { tgSetWebhook } from './services/telegram.js';
 
 assertConfig();
@@ -60,6 +63,8 @@ app.use('/api/partners', partnerRoutes);
 app.use('/api/operations', operationRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/limits', limitRoutes);
+// Modul obunalari holati (mobil hub kartalari: 0/5 hisoblagich, qulf, narx)
+app.use('/api/subs', subsRoutes);
 app.use('/api/notifications', notifRoutes);
 // /api/stt OLIB TASHLANDI (2026-07-17, docs/ai-character.md §11 — mahsulot qarori: FAQAT MATN).
 // routes/stt.js o'chirildi; mikrofon ruxsati ham olib tashlandi. Groq kaliti parsing
@@ -69,6 +74,9 @@ app.use('/api/links', linkRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/debts', debtRoutes);
 app.use('/api/circles', circleRoutes);
+app.use('/api/toyxona', toyxonaRoutes);
+// "Ijaradagi uylar" (modul kaliti 'ijarachi') — 022 migratsiya
+app.use('/api/ijara', ijaraRoutes);
 app.use('/api/ai', aiRoutes);
 // Yordam chati (Telegram ko'prigi) — webhook shu router ichida (auth'siz, secret bilan)
 app.use('/api/support', supportRoutes);
@@ -80,7 +88,12 @@ app.use((err, _req, res, _next) => {
   // 4xx — bizning validatsiya xabarlarimiz (foydalanuvchiga tushunarli, o'zbekcha).
   // 5xx — ichki xato: DB/sxema tafsilotlari mijozga oshkor bo'lmasin (info disclosure).
   const clientMsg = status < 500 ? (err.message || 'So\'rov xato') : 'Server xatosi — birozdan keyin urinib ko\'ring';
-  res.status(status).json({ success: false, error: clientMsg });
+  // err.code — mijoz xatoni AJRATA olishi uchun (masalan SUB_DB_NOT_READY: 409 bo'lsa ham
+  // QAYTARILADIGAN, chunki boshqa 409 "bu xarid boshqa akkauntniki" — qaytarilmaydi).
+  // Faqat 4xx da: 5xx matnlari kabi ichki tafsilot sizmasin.
+  const out = { success: false, error: clientMsg };
+  if (status < 500 && err.code) out.code = err.code;
+  res.status(status).json(out);
 });
 
 const server = app.listen(config.port, () =>
