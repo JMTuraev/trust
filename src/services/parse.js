@@ -376,7 +376,10 @@ const CAT_RULES = [
   ['Kommunal', /kommunal|svet|elektr|gaz|suv|internet|telefon|свет|(?<![а-яё])газ|вода|аренда|\brent\b|electricity|water|\bluz\b|agua|alquiler|loyer|\beau\b|房租|水电/],
   ["Ko'ngilochar", /kino|konsert|o'yin|oyin|sayohat|dam olish|кино|cinema|movie|concert|juego|\bcine\b|\bjeux?\b|电影|游戏/],
   ['Kiyim', /kiyim|ko'ylak|koylak|poyabzal|shim|kurtka|одежда|обувь|clothes|shoes|ropa|zapatos|vêtement|衣|鞋/],
-  ['Salomatlik', /dori|apteka|shifokor|klinika|tish|salomatlik|shipoxona|аптека|врач|лекарств|pharmacy|doctor|medicine|farmacia|médico|pharmacie|médecin|药|医院/],
+  // (?<!ekin )dori — "ekin dori" (qishloq xo'jaligi kimyosi) Salomatlik EMAS (2026-08-03
+  // QA); dorixona/dori oldim odatdagidek mos keladi. CAT_RULES'da ferma toifasi yo'q —
+  // bunday matnlar to'g'ri holatda 'Boshqa'ga (tray) tushadi, LLM esa taklif beradi.
+  ['Salomatlik', /(?<!ekin )dori|apteka|shifokor|klinika|tish|salomatlik|shipoxona|аптека|врач|лекарств|pharmacy|doctor|medicine|farmacia|médico|pharmacie|médecin|药|医院/],
 ];
 
 // Qarz ibora -> yo'nalish (operations type'lariga 1:1)
@@ -558,7 +561,7 @@ QOIDALAR:
 5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Nom uslubi: o'zbekcha, 1-2 so'z, bosh harf bilan, birlikda; juda tor EMAS ("Lavash" emas — "Fastfud"), juda keng EMAS ("Xarajat" emas). Yaxshi misollar: "Ta'lim", "Sovg'a", "Remont", "Sport", "Uy-ro'zg'or", "Go'zallik". Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, taklif QILMA — mavjudini tanla.
 6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.
 7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).
-8. Shevaga bardoshli bo'l: aldim=oldim, bardim=berdim, bazar=bozor, shipoxona=klinika, savdo etdim=xarid qildim.${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
+8. Shevaga bardoshli bo'l: aldim=oldim, bardim=berdim, bazar=bozor, shipoxona=klinika, savdo etdim=xarid qildim. Ekin dori/o'g'it/urug' = Dehqonchilik taklif qil (Salomatlik EMAS).${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
 }
 
 async function callLlm({ url, key, model, text, categories, fewshots, timeoutMs }) {

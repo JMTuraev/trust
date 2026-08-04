@@ -47,9 +47,11 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   // Rename maydoni — barqaror controller (poll-rebuild matnni o'chirmasin)
   final TextEditingController _fCtl = TextEditingController();
+  // Ko'chirish kartasidagi "Boshqa nom" maydoni — xuddi shu sabab barqaror
+  final TextEditingController _mvCtl = TextEditingController();
 
   // ---- #15v2/#35/#36: modal holatlari (ekran-lokal) ----
-  Map<String, dynamic>? _rowMenu; // ⋮ menyu: {'edit': fn?, 'del': fn}
+  Map<String, dynamic>? _rowMenu; // ⋮ menyu: {'edit': fn?, 'move': fn?, 'del': fn}
   Map<String, dynamic>? _delAsk; // o'chirish tasdiqi: {'title', 'run': fn}
   Map<String, dynamic>? _incEdit; // kirim tahriri: {'id'}
   bool _incNew = false; // yangi sub-papka modali
@@ -61,6 +63,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   @override
   void dispose() {
     _fCtl.dispose();
+    _mvCtl.dispose();
     _ieAmt.dispose();
     _ieNote.dispose();
     _inName.dispose();
@@ -267,7 +270,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     store.set({'xarEntries': entries});
     _log('edit', cat: srvCat, desc: '${mv['desc']}', amount: mv['a'] as int? ?? 0,
         income: false, eid: '${mv['id']}');
-    store.toast_(_tf('tMovedTo', {'cat': srvCat}, 'Ko\'chirildi: $srvCat'));
+    // Bekor qilish tugmali toast — bosilsa PATCH eski papkaga qaytaradi
+    store.xfMovedToast_(id: '${mv['id']}', oldCat: '${mv['cat']}', newCat: srvCat,
+        desc: '${mv['desc']}', amount: mv['a'] as int? ?? 0);
     setState(() {
       _mv = null;
       _pulse[srvCat] = (_pulse[srvCat] ?? 0) + 1; // nishon papka "yutish" pulsi
@@ -364,10 +369,11 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16))],
       );
 
-  /// #36: ⋮ menyu — Tahrirlash / O'chirish
+  /// #36: ⋮ menyu — Tahrirlash / Ko'chirish / O'chirish
   Widget _menuModal(Pal p) {
     final m = _rowMenu!;
     final hasEdit = m['edit'] != null;
+    final hasMove = m['move'] != null;
     Widget row(String label, Color c, VoidCallback onTap) => Tap(
           onTap: onTap,
           child: Container(
@@ -387,6 +393,14 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             if (hasEdit) ...[
               row(_t('btnEdit', 'Tahrirlash'), p.ink, () {
                 final f = m['edit'] as Function;
+                setState(() => _rowMenu = null);
+                f();
+              }),
+              Container(height: 1, color: p.hair2),
+            ],
+            if (hasMove) ...[
+              row(_t('btnMove', "Ko'chirish"), p.ink, () {
+                final f = m['move'] as Function;
                 setState(() => _rowMenu = null);
                 f();
               }),
@@ -1486,20 +1500,26 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ),
               )
             else
-              _dotsBtn(p, onEdit: () => (r['edit'] as Function)(), onDelete: () {
-                _askDelete('${r['desc']}', r['del'] as Function);
-              }),
+              _dotsBtn(
+                p,
+                onEdit: () => (r['edit'] as Function)(),
+                // Ko'chirish faqat chiqim yozuvida (kirim Daromad panelida yashaydi)
+                onMove: r['inc'] == true ? null : () => _openMove(r, folderName),
+                onDelete: () {
+                  _askDelete('${r['desc']}', r['del'] as Function);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  /// #36: 3-nuqta (⋮) tugmasi — bosilsa yonida kichik menyu (Tahrirlash / O'chirish).
-  /// onEdit null bo'lsa menyuda faqat "O'chirish" ko'rinadi.
-  Widget _dotsBtn(Pal p, {Function? onEdit, required Function onDelete}) {
+  /// #36: 3-nuqta (⋮) tugmasi — bosilsa yonida kichik menyu
+  /// (Tahrirlash / Ko'chirish / O'chirish). null bo'lgan amal menyuda ko'rinmaydi.
+  Widget _dotsBtn(Pal p, {Function? onEdit, Function? onMove, required Function onDelete}) {
     return Tap(
-      onTap: () => setState(() => _rowMenu = {'edit': onEdit, 'del': onDelete}),
+      onTap: () => setState(() => _rowMenu = {'edit': onEdit, 'move': onMove, 'del': onDelete}),
       child: Container(
         width: 28, height: 28, alignment: Alignment.center,
         decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
@@ -2144,13 +2164,44 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
+  /// "Boshqa nom" tasdiqi: AVVAL toifa yaratiladi (Api.addCategory), KEYIN
+  /// PATCH shu nom bilan ko'chiradi. To'g'ridan-to'g'ri PATCH bo'lmaydi —
+  /// server noma'lum toifani 'Boshqa'ga tushiradi va yozilgan nom jimgina
+  /// yo'qolardi (tray oqimi /confirm+accept_new_category bilan yaratadi).
+  /// 409 (toifa allaqachon bor) — o'sha mavjud toifaga ko'chiraveramiz.
+  Future<void> _mvNameOk() async {
+    final n = _mvCtl.text.trim();
+    if (n.length < 2) {
+      store.toast_(store.L()['tNameMin2'] as String);
+      return;
+    }
+    if (_fBusy) return;
+    setState(() => _fBusy = true);
+    final r = await Api.addCategory(n);
+    if (!mounted) return;
+    setState(() => _fBusy = false);
+    if (!r.ok && r.status != 409) {
+      store.toast_(r.error); // karta ochiq qoladi — qayta urinish mumkin
+      return;
+    }
+    store.set({'xcCats': <String>[]}); // toifa keshi eskirdi — keyingi ochilishda yangilanadi
+    // Muvaffaqiyatda server qaytargan kanonik nom; 409 da yozilgan nomning o'zi
+    final canon = r.ok ? (((r.data as Map?)?['name'] as String?) ?? n) : n;
+    await _moveTo(canon);
+  }
+
   // ============ YOZUVNI KO'CHIRISH KARTASI (papkadan papkaga) ============
   Widget _moveCard(Pal p) {
     final mv = _mv!;
     final cur = '${mv['cat']}';
     final loading = _cats == null;
+    final naming = mv['naming'] == true;
+    // Joriy papka va Daromad chiqariladi: kirim Daromad panelida yashaydi,
+    // xarajat yozuvi u yerga ko'chmaydi
     final chips = (_cats ?? const <Map<String, dynamic>>[])
-        .where((c) => c['archived'] != true && _norm('${c['name']}') != _norm(cur))
+        .where((c) => c['archived'] != true &&
+            _norm('${c['name']}') != _norm(cur) &&
+            _norm('${c['name']}') != 'daromad')
         .toList();
 
     return Container(
@@ -2191,10 +2242,54 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Center(child: _PulseDots(color: p.t2)),
             )
-          else if (chips.isEmpty)
-            Tx(_t('xfMoveNoCats', "Boshqa faol papka yo'q — internetni tekshiring yoki yangi toifa oching"),
-                size: 12, color: p.t3)
-          else
+          else if (naming)
+            // Qo'lda yangi papka nomi — tray "Boshqa nom" oqimi bilan bir xil uslub
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      border: Border.all(color: p.bd),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Center(
+                      child: TextField(
+                        autofocus: true,
+                        controller: _mvCtl,
+                        onSubmitted: (_) => _mvNameOk(),
+                        style: GoogleFonts.inter(fontSize: 13, color: p.ink),
+                        cursorColor: p.ink,
+                        decoration: InputDecoration(
+                          isDense: true, isCollapsed: true, border: InputBorder.none,
+                          hintText: _t('newFolderHint', 'Yangi papka nomi…'),
+                          hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Tap(
+                  onTap: _fBusy ? null : _mvNameOk,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
+                    child: _fBusy
+                        ? _PulseDots(color: p.bg)
+                        : Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            if (chips.isEmpty) ...[
+              Tx(_t('xfMoveNoCats', "Boshqa faol papka yo'q — internetni tekshiring yoki yangi toifa oching"),
+                  size: 12, color: p.t3),
+              const SizedBox(height: 8),
+            ],
             Wrap(
               spacing: 6, runSpacing: 6,
               children: [
@@ -2212,8 +2307,28 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                           size: 12, w: FontWeight.w500, color: p.ink),
                     ),
                   ),
+                // Yangi papka nomi — tray'dagi "➕ Boshqa nom" bilan bir xil chip
+                Tap(
+                  onTap: _fBusy
+                      ? null
+                      : () => setState(() {
+                            _mv!['naming'] = true;
+                            _mvCtl.text = '';
+                          }),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      border: Border.all(color: p.bd),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Tx(store.L()['otherName'] as String,
+                        size: 12, w: FontWeight.w500, color: p.ink),
+                  ),
+                ),
               ],
             ),
+          ],
         ],
       ),
     );

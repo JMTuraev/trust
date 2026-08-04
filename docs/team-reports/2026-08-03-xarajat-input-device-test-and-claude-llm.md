@@ -96,6 +96,22 @@ kunlik shift: user-cap 40 → ≈$0.08/user/kun maks; kill-switch 300k token ≈
    Transport, bozor/kitob/sotib→Kiyim) o'chirildi; "gaz va svetga tuladim" 300k va 2 ta svet
    yozuvi Kommunal'ga ko'chirildi.
 
+## Yakuniy jonli tasdiq (deploy'dan keyin)
+
+- Deploy: `80028f2` (v3.9.1) + `be53a66` (STOP hotfix). Yakuniy qurilma testi:
+  **"Svetga 25 ming tuladim" → Kommunal (conf 0.95)** — kunning bosh muammosi hal.
+- TAG-SABAB: "svetga → Transport" xatolarining haqiqiy aybdori **'tuladim'** so'zi edi —
+  "to'ladim/toladim" STOP'da bor, "tuladim" imlosi yo'q edi; u word_map'da Transport bilan
+  7 hitgacha o'rganilib, STRONG bo'lib har "...tuladim" gapini Transport'ga majburlagan
+  (LLM javobini ham bosib). Hotfix: umumiy fe'l imlo variantlari (tuladim, sarfladim,
+  ishlatdim, bedim, ketti, qilish, yedim/yedik...) STOP'ga qo'shildi — endi ular na
+  o'rganiladi, na so'raladi (eski zahar qatorlar o'lik).
+- v3.9.1 tasdig'i: yakuniy testlarda avto-saqlash lug'atni O'ZGARTIRMADI (svet→Kommunal
+  1 hitligicha qoldi) — verified-only o'rganish jonli ishlayapti.
+- PO tekshirishi kerak (ochiq): Render'da ANTHROPIC_API_KEY qiymati kiritilganmi +
+  Claude Console Usage'da so'rovlar ko'rinyaptimi — kunning bir qismida LLM zanjiri
+  fallback'da ishlagani ehtimoli bor (aniq javob Render loglarida: `[llm] anthropic`).
+
 ## Yangi ochiq masalalar
 
 - **Papka-ko'chirish UI yo'q** (muhim UX bo'shliq): folder-detail "Tahrirlash" faqat summa/izoh
@@ -106,6 +122,24 @@ kunlik shift: user-cap 40 → ≈$0.08/user/kun maks; kill-switch 300k token ≈
 - "ekin dori aldim" (dehqonchilik konteksti) — LLM zaifligi, prompt nomzodi.
 - QA Anthropic qayta-run kutilmoqda (lokal ANTHROPIC_API_KEY yo'q); qayta-runda
   ANTHROPIC_USER_DAILY_MAX'ni vaqtincha ko'tarish kerak (40 chaqiruvdan keyin jim o'chadi).
+
+## Tungi raund: papka-ko'chirish UI + Anthropic QA (2026-08-03/04)
+
+1. **Papka-ko'chirish UI qurildi** (№1 UX bo'shliq yopildi): yozuv ⋮ → Ko'chirish → picker
+   (chip uslubi, joriy/Daromad/arxiv chiqarilgan, "➕ Boshqa nom" avval toifa yaratadi) →
+   PATCH → server o'rganadi (unlearn+learn+correction) → toast + Bekor qilish (teskari
+   o'rganish bilan). Qurilmada to'liq tasdiqlandi; **foydalanuvchining o'zi ham jonli
+   ishlatdi** (qizlaga 400k → yangi Sovg'a papkasi) — o'rganish zanjiri real ishlaydi.
+2. **Dehqonchilik prompti**: "ekin dori" endi Salomatlik emas — Boshqa + ✨Dehqonchilik
+   taklifi; rules yo'lida (?<!ekin )dori guard. Reviewer APPROVE.
+3. **QA Round 3 — to'liq Anthropic o'lchovi (113 keys, $0.284):**
+   - Umumiy aniqlik: **92.0%** (Groq-aralash 68.8% edi); Claude vs Groq (72 umumiy keys):
+     79.2% → **94.4%**; Xorazm: 4/8 → **8/8**; qarz 9/9; dict short-circuit 6/6 (0 token)
+   - Suggestion sifati: 7/7 mantiqiy (Marosim, Dehqonchilik, Hayvonot, Remont...)
+   - Yangi P1 nomzod: "NARSA + oldim" → daromad naqshi (5 fail; eslatma: asosiy mobil
+     input daromadni baribir xarajatga o'giradi — amaliy zarar toifa sifatida cheklangan,
+     lekin prompt bandi kerak). Mayda: sport-zal/obuna hint to'qnashuvi, USD kurs
+     nomuvofiqligi (kursni LLM'ga qoldirmaslik), "chorvaga yem" konteksti.
 
 ## Sifat darvozasi (kechki raundlar)
 

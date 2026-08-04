@@ -135,6 +135,89 @@ Groq'da faqat 2 case o'tdi, keyin 429 (TPD) qaytdi: "bazarga barib 100 ming savd
 
 **TEST-OPS ogohlantirishi kelgusi qayta-run uchun:** `config.llm.anthropicUserDailyMax` default 40 — 112-case run 40-chaqiruvdan keyin `userLlmBudgetOk` tufayli jimgina rules'ga tushadi. Test oldidan `ANTHROPIC_USER_DAILY_MAX` env ko'tarilsin (yoki bir nechta test-user ishlatilsin), aks holda Round 1'dagi kvota-artefakt hikoyasi budjet-artefakt bo'lib qaytadi.
 
-## R2.4 Round 1 tavsiyalariga bog'lanish
+## R2.5 Round 3 holati — BLOKLANGAN (ANTHROPIC_API_KEY topilmadi)
+
+Round 3 (to'liq Anthropic qayta-run) so'raldi, lekin tekshiruv (2026-08-03 ~14:3x UTC, faqat boolean, qiymat chiqarilmagan) shuni ko'rsatdi:
+
+- `D:\trust\.env` — `ANTHROPIC` qatori **0 ta**; fayl oxirgi marta **2026-07-15** da o'zgargan (bugun tegilmagan);
+- `process.env.ANTHROPIC_API_KEY` — aniqlanmagan;
+- `D:\trust\.env.example` — bugun 18:05 (+05) da yangilangan, 4 ta `ANTHROPIC_*` o'zgaruvchi NOMI hujjatlashtirilgan, qiymatlar bo'sh/default — **sizib chiqish yo'q, lekin haqiqiy kalit ham yo'q**. Ehtimol kalit `.env` o'rniga faqat example-fayl yangilanishi bilan "qo'shildi" deb hisoblangan.
+
+QA `.env`ga tega olmaydi (qattiq qoida). Kalit **foydalanuvchi tomonidan** `D:\trust\.env`ga qo'shilgach, run bitta buyruq (skript tayyor, smoke-test o'tgan; kalitsiz/past-limitli holatda fail-fast guardlar bor):
+
+```
+ANTHROPIC_USER_DAILY_MAX=1000 node docs/team-reports/e2e/parse-combos.mjs --round3
+```
+
+Rejim tarkibi: 112 case + `пообедал 40000` extra (jami 113; "ekin dori aldim 60 ming" 3-guruhda bor, endi Boshqa+Dehqonchilik kutiladi), 600 ms LLM-throttle (dict/rules'da 150 ms), 429'da 2 retry, provider taqsimoti + dict short-circuit alohida hisob, token/narx yig'indisi (`[llm]` qatorlaridan, $1/$5 MTok Haiku taxmini), Round 1 Groq-72 bilan matn-mos taqqoslash, natija JSON `round3` kalitiga.
+
+---
+
+# ROUND 3 — to'liq Anthropic qayta-run (2026-08-03, 17:21 UTC / 22:21 lokal)
+
+Buyruq: `ANTHROPIC_USER_DAILY_MAX=1000 node docs/team-reports/e2e/parse-combos.mjs --round3`. Provayder: **claude-haiku-4-5** (Anthropic-first + dict short-circuit). 113 case (112 + `пообедал 40000`). Natijalar JSON `round3` kalitida.
+
+Infra qaydi: run o'rtasida lokal mashina Supabase'ga ulanishni ~20 daqiqa yo'qotdi — #34/#35 (`таксига 15 минг тўладим`, `дорихонага 45 минг кетди`) `fetch failed` bo'ldi. Ulanish tiklangach ikkalasi alohida qayta o'tkazildi (ikkalasi PASS, anthropic), summary qayta hisoblandi.
+
+## R3.1 Xulosa
+
+| Ko'rsatkich | Natija |
+|---|---|
+| **Umumiy aniqlik** | **104/113 = 92.0%** (Round 1 Groq-aralash 68.8% edi) |
+| Provider taqsimoti | anthropic 107, **dict 6 (0-token g'alaba, 6/6 pass)**, rules/error **0** — LLM qamrovi 100% |
+| **Claude vs Groq (R1'da Groq javob bergan 72 case)** | Groq 57/72 (79.2%) → **Claude 68/72 (94.4%)**; 19 flip: **15 ta G−→R3+**, 4 ta G+→R3− |
+| **Xorazm verdikti** | Groq'da 4/8 edi → **Claude'da 8/8** — sheva prompt-qoidasi (8-band) ishladi |
+| Qarz guruhi | **9/9** — barcha yo'nalishlar + personlar to'g'ri, jumladan R1'da rules o'tkazib yuborgan "Karimga qarzga 300 ming berdim" (qarz_berdim, person=Karim, conf 0.95) |
+| Ferma-case | "ekin dori aldim 60 ming" → **Boshqa + taklif "Dehqonchilik"** — aynan kutilganidek (yangi prompt-bandi + `(?<!ekin )dori` guard) |
+| **Real token/narx** | 107 chaqiruv: in=227 596, out=11 188 ≈ **$0.284** ($1/$5 MTok Haiku taxmini) — prognoz ($0.25) bilan mos |
+
+## R3.2 Guruh jadvali (R1-Groq bilan solishtirma)
+
+| Guruh | R3 | R1 (provayder) | Izoh |
+|---|---|---|---|
+| 1-toshkent | 7/8 | 8/8 (groq) | yangi fail: "muzqaymoq oldim"→daromad |
+| 2-fargona | 8/8 | 7/8 (groq) | bozor zahar-lug'ati endi ta'sir qilmaydi |
+| 3-xorazm | **8/8** | 4/8 (groq) | sheva qoidasi + STRONG pog'ona |
+| 4-qashqadaryo | 7/8 | 6/8 (groq) | yangi fail: "chorvaga yem"→Oziq-ovqat |
+| 5-kirill | 8/8 | 6/8 (groq) | "нонга 5 минг" endi 5000 (Groq 50k qilgan edi) |
+| 6-rus-aralash | 8/8 | 7/8 (groq) | мороженое endi Oziq-ovqat |
+| 7-emotsional | 8/8 | 8/8 (groq) | barqaror |
+| 8-typo | 7/8 | 5/8 (groq) | "12 mng" endi to'g'ri; yangi g'alati fail: "obetga"→Transport |
+| 9-kop-amal | 7/8 | 5/7 (groq) | svet/gaz endi Kommunal; yangi fail: "futbolka 80 ming oldim"→daromad |
+| 10-qarz | **9/9** | 5/9 (kvota) | birinchi to'liq LLM o'lchovi — mukammal |
+| 11-daromad-soz | 6/6 | 6/6 (rules) | "oylikdan 50 ming ishlatdim" xarajat bo'ldi ✓ |
+| 12-yangi-papka | 7/9 | 5/9 (kvota) | takliflar sifatli; 2 fail quyida |
+| 13-format | 8/9 | 4/9 (kvota) | "1,200,000 telefon oldim"→daromad |
+| 14-valyuta | 5/7 | 1/7 (kvota) | so'z-summalar ("yarim million", "ikki yuz ming", "besh ming") endi ishlaydi |
+| 15-extra | 1/1 | — | "пообедал 40000" → Oziq-ovqat ✓ |
+
+## R3.3 Barcha 9 haqiqiy FAIL
+
+| Matn | Kutilgan | Olingan | Naqsh |
+|---|---|---|---|
+| bolalarga muzqaymoq oldim 12 ming | xarajat/Oziq-ovqat | **daromad** | "oldim"→daromad |
+| singlimga sovg'a oldim 150 ming | xarajat + Sovg'a-taklif | **daromad** | "oldim"→daromad |
+| bola kiyimiga 150 ming o'zimga futbolka 80 ming oldim | 2× xarajat/Kiyim | 150k Kiyim ✓ + 80k **daromad** | "oldim"→daromad |
+| 1,200,000 telefon oldim | xarajat | **daromad** | "oldim"→daromad |
+| bir yarim million divan oldim | xarajat | **daromad** | "oldim"→daromad |
+| chorvaga yem oldim 180 ming | Boshqa + Chorva-taklif | Oziq-ovqat | toifa (hayvon yemi ≠ odam ovqati) |
+| sport zalga obuna 300 ming | Salomatlik (hint: sport zali) | Ko'ngilochar | **hint to'qnashuvi**: "obunalar" Ko'ngilochar hintida |
+| obetga 38 ming ishlatim | Oziq-ovqat | Transport (conf 0.9) | izohsiz sirg'alish (typo "obetga") |
+| 100$ ga kurtka oldim | 100 yoki ~1.2–1.6 mln | 425 000 | **USD kursi nomuvofiq**: "10 dollar obed"da 12 000/$ (to'g'ri), bu yerda 4 250/$ |
+
+Dominant naqsh: **"NARSA + oldim" → daromad** (9 faildan 5 tasi). Groq bunda adashmasdi. Xavf: sanitize daromadga category="Daromad" qo'yadi va confidence baland — tasdiq kartasi chiqmaydi; mobil asosiy input direction'ni xarajatga aylantirsa ham, toifa jimgina noto'g'ri ketishi mumkin.
+
+## R3.4 new_category_suggestion sifati (endi to'liq o'lchandi)
+
+7 taklif: **Marosim, Dehqonchilik, Hayvonot, Remont, Bolalar, Go'zallik, To'y** — hammasi 1 so'z, bosh harf, prompt uslubiga mos. "Dehqonchilik" ferma-case uchun ideal; "Hayvonot" ishlaydi, lekin "Chorvachilik" aniqroq bo'lardi; "Bolalar" biroz keng. Umumiy sifat: yaxshi. Dict short-circuit "kursga 500 ming" ni userning mavjud **Talim** papkasiga 0 token bilan yubordi — o'z-o'zini o'rgatish davri yopilganining isboti.
+
+## R3.5 Tavsiyalar (Round 3)
+
+1. **Prompt-band (P1):** "NARSA nomi + oldim/олдим = sotib olish = XARAJAT; daromad faqat PUL kelganini bildirsin (oylik/avans/pul oldim)" — 5 failni yopadi. Muqobil: sanitize'da deterministik guard ("N oldim" + narsa-ot va qarz/pul-so'z yo'q → xarajat).
+2. **CAT_HINTS to'qnashuvi:** "obunalar"ni Ko'ngilochar hintidan olib tashlash yoki "sport obunasi Salomatlik" aniqlashtirish.
+3. **USD siyosati:** kurs LLM xayoliga qolmasin — "chet valyuta ko'rsang amount'ni XOM qoldir, currency maydoniga yoz" qoidasi + backend kursi. Hozir bir xil matn turida 3x farqli kurs chiqdi.
+4. Kuzatuv: "obetga → Transport" tipidagi yakka sirg'alishlar uchun arzon himoya — CAT_RULES'dagi aniq hit (obed) LLM toifasiga zid bo'lsa needs_confirm ko'tarish.
+
+## R2.4 Round 1 tavsiyalariga bog'lanish (Round 2 yakuni)
 
 Round 1'dagi 1-tavsiya (lug'at gigienasi) — bajarilgan va sinovdan o'tdi (STRONG/MIN pog'onalar, deterministik tiebreak, learnFrom'da verified-only + unlearnFrom qo'shilgan — oxirgi ikkisi bu raundda alohida sinalmadi, keyingi raund uchun nomzod). 4-tavsiya (rules-fallback lug'ati) — qisman bajarilgan (obed/такси kabi so'zlar CAT_RULES'da, ko'p-amalli fallback bor); `qarzDirection` "qarzga <summa> berdim" oraliqli shakli va `personFromText` "Ism ... qaytardi" shakli hali ochiq. 2-tavsiya (ikkinchi provayder) — Anthropic-first arxitektura kirdi, kalit kutilmoqda.

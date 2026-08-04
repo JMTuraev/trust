@@ -1746,6 +1746,16 @@ class TrustStore extends ChangeNotifier {
     _xfToastT = Timer(Duration(seconds: seconds), () => set({'xfToast': null}));
   }
 
+  // Ko'chirish toasti (ekran _moveTo dan chaqiriladi) — Bekor qilish yozuvni
+  // ESKI papkaga PATCH bilan qaytaradi; server o'rganish signalini ham teskari oladi.
+  void xfMovedToast_({required String id, required String oldCat, required String newCat,
+      required String desc, required int amount}) {
+    _xfToastShow({
+      'text': Lf('tMovedTo', {'cat': newCat}),
+      'kind': 'moved', 'eid': id, 'old': oldCat, 'desc': desc, 'a': amount,
+    });
+  }
+
   // Zaxira: server parse yiqilganda lokal qoida-parser bilan eski oqim
   Future<void> _xarOffline(String txt) async {
     final f = xarParse_(txt);
@@ -2230,13 +2240,31 @@ class TrustStore extends ChangeNotifier {
     _xfToastShow({'text': "O'chirildi", 'kind': 'del', 'entry': e});
   }
 
-  // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi
-  // (warn turida tugma yo'q — toast o'zi yopiladi)
+  // Toast tugmasi: del -> yozuv qayta qo'shiladi; add -> saqlanganlar o'chiriladi;
+  // moved -> yozuv eski papkaga qaytariladi (warn turida tugma yo'q — o'zi yopiladi)
   Future<void> xfUndo_() async {
     final t = S['xfToast'] as Map<String, dynamic>?;
     _xfToastT?.cancel();
     set({'xfToast': null});
     if (t == null) return;
+    if (t['kind'] == 'moved') {
+      final r = await Api.patchExpense('${t['eid']}', category: '${t['old']}');
+      if (!r.ok) {
+        toast_(r.error);
+        return;
+      }
+      // Server kanonik toifani qaytaradi (odatda eski nomning o'zi)
+      final srvCat = ((r.data as Map?)?['category'] as String?) ?? '${t['old']}';
+      set({
+        'xarEntries': _xar()
+            .map((e) => e['id'] == t['eid'] ? {...e, 'cat': srvCat} : e)
+            .toList(),
+      });
+      _xfLogAdd('edit', cat: srvCat, desc: '${t['desc']}',
+          amount: (t['a'] as int?) ?? 0, income: false, id: '${t['eid']}');
+      toast_(Lf('tMovedTo', {'cat': srvCat}));
+      return;
+    }
     if (t['kind'] == 'del') {
       final e = t['entry'] as Map<String, dynamic>?;
       if (e == null) return;

@@ -12,6 +12,12 @@ const RESULTS_PATH = join(HERE, 'parse-combos-results.json');
 // --round2 (2026-08-03 kech): yangilangan parser uchun deterministik guruhlar
 // (fallback-multi, 3-klass multiplikatorlar, 6-til CAT_RULES) + kutilayotgan LLM guruhlari
 const ROUND2 = process.argv.includes('--round2');
+// --round3: to'liq Anthropic qayta-run (112 case + extralar). Talab: ANTHROPIC_API_KEY
+// .env'da va ANTHROPIC_USER_DAILY_MAX=1000 (default 40 runni o'rtasida jimgina kesadi):
+//   ANTHROPIC_USER_DAILY_MAX=1000 node docs/team-reports/e2e/parse-combos.mjs --round3
+// --smoke: faqat plumbing testi (LLM kalitlari o'chirilib 2 case, JSON yozilmaydi)
+const ROUND3 = process.argv.includes('--round3');
+const SMOKE = process.argv.includes('--smoke');
 
 const { config } = await import(pathToFileURL(join(ROOT, 'src', 'config.js')).href);
 const { supabaseAdmin } = await import(pathToFileURL(join(ROOT, 'src', 'lib', 'supabase.js')).href);
@@ -86,7 +92,7 @@ const runSpanCases = (cases, label) => {
   return rows;
 };
 
-const spanResults = ROUND2 ? [] : runSpanCases(SPAN_CASES, 'amountSpans');
+const spanResults = (ROUND2 || ROUND3) ? [] : runSpanCases(SPAN_CASES, 'amountSpans');
 
 // ---------- PART B: full pipeline cases ----------
 // Case shape:
@@ -344,7 +350,7 @@ async function parseWithRetry(text) {
   return { res, attempts };
 }
 
-if (!ROUND2) {
+if (!ROUND2 && !ROUND3) {
 let i = 0;
 for (const c of CASES) {
   i++;
@@ -545,4 +551,104 @@ if (ROUND2) {
   prev.round2 = R2;
   writeFileSync(RESULTS_PATH, JSON.stringify(prev, null, 2));
   console.log('Natijalar (round2 kaliti):', RESULTS_PATH);
+}
+
+// ==================== ROUND 3: to'liq Anthropic qayta-run ====================
+if (ROUND3) {
+  const { readFileSync } = await import('node:fs');
+  // Haiku 4.5 tarifi ($/MTok) — narx bahosi uchun; PO real tarifga qarab tuzatadi
+  const PRICE_IN = 1.0, PRICE_OUT = 5.0;
+
+  if (SMOKE) {
+    console.log('SMOKE: LLM kalitlari o\'chirilgan, 2 case, JSON yozilmaydi');
+    config.llm.anthropicKey = ''; config.llm.groqKey = ''; config.llm.openaiKey = '';
+  } else {
+    if (!config.llm.anthropicKey) {
+      console.error("FATAL: ANTHROPIC_API_KEY yo'q (.env) — Round 3 run mumkin emas.");
+      process.exit(2);
+    }
+    if (config.llm.anthropicUserDailyMax < 200) {
+      console.error(`FATAL: ANTHROPIC_USER_DAILY_MAX=${config.llm.anthropicUserDailyMax} — 113-case run 40-chaqiruvda jimgina kesilardi. Env bilan >=1000 qilib ishga tushiring.`);
+      process.exit(2);
+    }
+  }
+
+  // Token hisobi: parse.js '[llm] anthropic in=X out=Y ...' qatorlarini bosadi — ushlab olamiz
+  let tokIn = 0, tokOut = 0, llmCallCount = 0;
+  const origLog = console.log;
+  console.log = (...args) => {
+    const m = /^\[llm\] anthropic in=(\d+) out=(\d+)/.exec(String(args[0] ?? ''));
+    if (m) { tokIn += +m[1]; tokOut += +m[2]; llmCallCount++; return; }
+    origLog(...args);
+  };
+
+  const CASES3 = [
+    ...CASES,
+    // Kechki siltashlar uchun maxsus extralar:
+    { group: '15-extra', text: 'пообедал 40000', accept: ['Oziq-ovqat'], amounts: [40000] },
+  ];
+  const runList = SMOKE ? CASES3.slice(0, 2) : CASES3;
+
+  const R3 = { date: new Date().toISOString(), results: [], notes: [] };
+  let i = 0;
+  for (const c of runList) {
+    i++;
+    const { res, attempts } = await parseWithRetry(c.text);
+    const s = score(c, res);
+    R3.results.push({
+      n: i, group: c.group, text: c.text,
+      provider: res.provider, attempts, errors: res.errors || [],
+      needs_confirm: res.needs_confirm,
+      pass: s.pass, fails: s.fails, noteworthy: s.noteworthy || null, got: s.got,
+    });
+    origLog(`${String(i).padStart(3)}/${runList.length} ${s.pass ? 'PASS' : 'FAIL'} [${res.provider}${attempts > 1 ? ' x' + attempts : ''}] ${c.text}${s.pass ? '' : '  => ' + s.fails.join(' | ')}`);
+    await sleep(res.provider === 'anthropic' ? 600 : 150);
+  }
+  console.log = origLog;
+
+  // ---- yakun ----
+  const total = R3.results.length;
+  const passed = R3.results.filter((r) => r.pass).length;
+  const provCount = {};
+  for (const r of R3.results) provCount[r.provider] = (provCount[r.provider] || 0) + 1;
+  const dictRows = R3.results.filter((r) => r.provider === 'dict');
+  const rulesRows = R3.results.filter((r) => !LLM_PROVIDERS.has(r.provider) && r.provider !== 'dict');
+  const costUsd = (tokIn / 1e6) * PRICE_IN + (tokOut / 1e6) * PRICE_OUT;
+  R3.tokenUsage = { calls: llmCallCount, inputTokens: tokIn, outputTokens: tokOut,
+    estCostUsd: Math.round(costUsd * 10000) / 10000, priceAssumption: `$${PRICE_IN}/MTok in, $${PRICE_OUT}/MTok out (Haiku 4.5)` };
+  R3.providerDistribution = provCount;
+
+  console.log('\n==== ROUND 3 YAKUN ====');
+  console.log(`Umumiy: ${passed}/${total} (${(passed / total * 100).toFixed(1)}%)`);
+  console.log('Provider taqsimoti:', JSON.stringify(provCount));
+  console.log(`dict short-circuit (0-token g'alabalar): ${dictRows.length} ta, pass ${dictRows.filter((r) => r.pass).length}/${dictRows.length}`);
+  if (rulesRows.length) {
+    console.log(`DIQQAT: ${rulesRows.length} ta case LLM'siz (rules/error) qoldi — TEKSHIRISH KERAK:`);
+    for (const r of rulesRows) console.log(`  #${r.n} ${r.text} :: ${(r.errors || [])[0] || ''}`);
+  }
+  for (const g of [...new Set(R3.results.map((r) => r.group))]) {
+    const gr = R3.results.filter((r) => r.group === g);
+    console.log(`  ${g}: ${gr.filter((r) => r.pass).length}/${gr.length}`);
+  }
+  console.log(`Tokenlar: ${llmCallCount} chaqiruv, in=${tokIn}, out=${tokOut}, ~$${costUsd.toFixed(4)} (${R3.tokenUsage.priceAssumption})`);
+
+  // Round 1 Groq bilan taqqoslash (o'sha 72 case matn bo'yicha)
+  if (!SMOKE) {
+    const prev = JSON.parse(readFileSync(RESULTS_PATH, 'utf8'));
+    const groqCases = (prev.results || []).filter((r) => r.provider === 'groq');
+    let both = 0, groqPass = 0, r3Pass = 0, flips = [];
+    for (const g of groqCases) {
+      const now = R3.results.find((r) => r.text === g.text);
+      if (!now) continue;
+      both++;
+      if (g.pass) groqPass++;
+      if (now.pass) r3Pass++;
+      if (g.pass !== now.pass) flips.push({ text: g.text, groq: g.pass, round3: now.pass });
+    }
+    R3.groqComparison = { comparableCases: both, groqPass, round3Pass: r3Pass, flips };
+    console.log(`Groq-R1 vs Round3 (${both} umumiy case): groq ${groqPass}/${both} -> hozir ${r3Pass}/${both}; flip: ${flips.length}`);
+    prev.round3 = R3;
+    writeFileSync(RESULTS_PATH, JSON.stringify(prev, null, 2));
+    console.log('Natijalar (round3 kaliti):', RESULTS_PATH);
+  }
 }
