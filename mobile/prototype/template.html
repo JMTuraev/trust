@@ -315,10 +315,30 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
       <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
       <div data-screen-label="Hamkorlar" style="position:absolute;inset:0;display:flex;flex-direction:column;animation:trFade 0.18s ease">
         <div style="flex:none;padding:16px 24px 0">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div style="font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.3px">Trust</div>
-            <div style="display:flex;align-items:center;gap:14px">
-              <div style="font-size:11px;font-weight:500;color:var(--t4);letter-spacing:0.4px">Ishonchli hisob-kitob</div>
+          <!-- Header: orqaga (hub) + menyu nomi + [davr filtri][arxiv][bell][⋮]
+               (2026-08-04: "Trust" logosi hub headerida qoldi — bu yer bo'lim nomi) -->
+          <div style="display:flex;align-items:center;margin-left:-8px">
+            <div sc-camel-on-click="{{ goHub }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+              <div style="width:10px;height:10px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-left:4px"></div>
+            </div>
+            <div style="flex:1;min-width:0;margin-left:8px;font-size:21px;font-weight:700;color:var(--ink);letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ homeTitle }}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
+              <!-- Davr filtri (voronka-chiziqlar); faol bo'lsa nuqta (bellDot naqshi) -->
+              <div sc-camel-on-click="{{ homeFilterTap }}" style="position:relative;width:34px;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
+                <div style="width:14px;height:1.6px;border-radius:1px;background:var(--ink)"></div>
+                <div style="width:9px;height:1.6px;border-radius:1px;background:var(--ink)"></div>
+                <div style="width:4px;height:1.6px;border-radius:1px;background:var(--ink)"></div>
+                <sc-if value="{{ homeFilterActive }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--ink);border:1.5px solid var(--bg)"></div>
+                </sc-if>
+              </div>
+              <!-- Arxiv (quti belgisi — screens/archive.dart) -->
+              <div sc-camel-on-click="{{ openArch }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <div style="width:14px;height:4.5px;border:1.4px solid var(--ink);border-radius:1.5px"></div>
+                  <div style="width:11px;height:7px;border:1.4px solid var(--ink);border-top:none;border-radius:0 0 2.5px 2.5px;margin-top:1.5px;display:flex;justify-content:center"><div style="width:4px;height:1.4px;background:var(--ink);margin-top:1.4px"></div></div>
+                </div>
+              </div>
               <div sc-camel-on-click="{{ openNotifs }}" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
                 <div style="display:flex;flex-direction:column;align-items:center">
                   <div style="width:13px;height:10px;border:1.6px solid var(--ink);border-bottom:none;border-radius:7px 7px 0 0"></div>
@@ -329,6 +349,12 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                   <div style="position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--ink);border:1.5px solid var(--bg)"></div>
                 </sc-if>
               </div>
+              <!-- ⋮ menyu (Xarajatlar) -->
+              <div sc-camel-on-click="{{ homeMenuTap }}" style="width:34px;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5px;cursor:pointer;border:1px solid var(--bd2);border-radius:50%;flex:none" style-hover="background:var(--hov)">
+                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
+                <div style="width:3px;height:3px;border-radius:50%;background:var(--ink)"></div>
+              </div>
             </div>
           </div>
           <div style="margin-top:22px;font-size:11px;font-weight:600;letter-spacing:1.6px;color:var(--t2)">SOF BALANS</div>
@@ -338,6 +364,24 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
             <div style="white-space:nowrap">Qarzingiz&nbsp; <span style="color:var(--ink);font-weight:600">{{ owedByMe }}</span></div>
           </div>
           <input value="{{ search }}" sc-camel-on-change="{{ onSearch }}" placeholder="Qidirish" style="width:100%;height:40px;margin-top:20px;background:var(--field);border:none;border-radius:10px;padding:0 16px;font-size:14px;color:var(--ink)">
+          <!-- Faol davr filtri — to'ldirilgan chip: yorliq (dropdown) + × (Jami).
+               × RESET yorliq bilan YONMA-YON (ichida EMAS) — aks holda HTML'da
+               bosish ikkala handler'ni ishga tushirardi (reset + dropdown ochilishi). -->
+          <sc-if value="{{ homeFilterActive }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;margin-top:10px">
+              <div style="display:flex;align-items:center;height:28px;background:var(--ink);border-radius:999px">
+                <div sc-camel-on-click="{{ homeFilterTap }}" style="display:flex;align-items:center;height:28px;padding-left:12px;cursor:pointer">
+                  <div style="font-size:12px;font-weight:600;color:var(--bg)">{{ homeFilterLabel }}</div>
+                </div>
+                <div sc-camel-on-click="{{ homeFilterReset }}" style="width:30px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                  <div style="position:relative;width:9px;height:9px">
+                    <div style="position:absolute;left:0;top:3.7px;width:9px;height:1.6px;background:var(--bg);transform:rotate(45deg)"></div>
+                    <div style="position:absolute;left:0;top:3.7px;width:9px;height:1.6px;background:var(--bg);transform:rotate(-45deg)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
         </div>
         <div sc-camel-on-scroll="{{ homeScroll }}" style="flex:1;min-height:0;overflow-y:auto;margin-top:10px;padding-bottom:76px">
           <sc-if value="{{ skelHome }}" hint-placeholder-val="{{ false }}">
@@ -371,6 +415,11 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
                     <div style="width:8px;height:3.5px;border:1.2px solid var(--t2);border-bottom:none;border-radius:4px 4px 0 0;margin-top:0.5px"></div>
                   </div>
                 </sc-if>
+                <!-- O'qilmagan qarz-hodisa bildirishnomalari — hisoblagich pufagi
+                     (avatar yuqori-o'ng burchagi, «9+» chegara, monoxrom ink-on-bg) -->
+                <sc-if value="{{ r.notifOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:999px;background:var(--ink);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--bg);font-variant-numeric:tabular-nums">{{ r.notifCountTxt }}</div>
+                </sc-if>
               </div>
               <div style="flex:1;min-width:0">
                 <div style="font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
@@ -378,7 +427,14 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
               </div>
               <div style="text-align:right;flex:none">
                 <div style="font-size:15px;font-weight:600;color:{{ r.color }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ r.bal }}</div>
-                <div style="font-size:11px;color:var(--t5);margin-top:2px;white-space:nowrap">{{ r.balSub }}</div>
+                <!-- Eng so'nggi o'qilmagan bildirishnoma summasi — ixcham chip
+                     (faqat count > 0 bo'lsa); aks holda odatiy balSub qatori -->
+                <sc-if value="{{ r.notifAmtOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:inline-flex;align-items:center;height:16px;padding:0 7px;margin-top:3px;border-radius:999px;background:var(--card2);font-size:10.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap">{{ r.notifAmtTxt }}</div>
+                </sc-if>
+                <sc-if value="{{ r.notifAmtOff }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size:11px;color:var(--t5);margin-top:2px;white-space:nowrap">{{ r.balSub }}</div>
+                </sc-if>
               </div>
               </div>
             </div>
@@ -414,6 +470,35 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
             <div style="position:absolute;top:8px;left:0;width:18px;height:2px;background:var(--bg)"></div>
           </div>
         </div>
+        <!-- Davr filtri dropdown (client-detail menyu uslubi: barrier + karta) -->
+        <sc-if value="{{ homeFilterOpen }}" hint-placeholder-val="{{ false }}">
+          <div sc-camel-on-click="{{ homeFilterClose }}" style="position:absolute;inset:0;z-index:40"></div>
+          <div style="position:absolute;top:56px;right:24px;z-index:41;min-width:186px;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden">
+            <div style="padding:12px 16px 10px;font-size:11px;font-weight:600;letter-spacing:1.4px;color:var(--t2)">{{ homeFilterCap }}</div>
+            <sc-for list="{{ homeFilterOpts }}" as="o" hint-placeholder-count="5">
+              <div sc-camel-on-click="{{ o.pick }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--hair2);cursor:pointer" style-hover="background:var(--hov)">
+                <div style="font-size:13.5px;font-weight:500;color:var(--ink)">{{ o.label }}</div>
+                <sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none"></div>
+                </sc-if>
+              </div>
+            </sc-for>
+            <!-- Maxsus davr — sana oralig'i tanlagichi (mobil: showDateRangePicker) -->
+            <div sc-camel-on-click="{{ homeFilterCustomPick }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--hair2);cursor:pointer" style-hover="background:var(--hov)">
+              <div style="font-size:13.5px;font-weight:500;color:var(--ink)">{{ homeFilterCustomLabel }}</div>
+              <sc-if value="{{ homeFilterCustomOn }}" hint-placeholder-val="{{ false }}">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none"></div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+        <!-- ⋮ menyu — Xarajatlar (goXarajat_ yo'li) -->
+        <sc-if value="{{ homeMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div sc-camel-on-click="{{ homeMenuClose }}" style="position:absolute;inset:0;z-index:40"></div>
+          <div style="position:absolute;top:56px;right:24px;z-index:41;min-width:186px;background:var(--bg);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,0.16);overflow:hidden">
+            <div sc-camel-on-click="{{ homeMenuXar }}" style="padding:12px 16px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer" style-hover="background:var(--hov)">{{ homeMenuXarLabel }}</div>
+          </div>
+        </sc-if>
       </div>
       </sc-if>
 
@@ -911,8 +996,12 @@ div[style*="cursor: pointer"]:active{opacity:0.7}
               </div>
             </sc-if>
             <sc-if value="{{ m.isTx }}" hint-placeholder-val="{{ false }}">
-              <div style="padding:6px 16px">
-                <div style="border:1px solid var(--bd2);border-radius:14px;padding:16px 16px 14px;background:var(--bg)">
+              <!-- Chat-align konvensiyasi (ledger-ui): m.align = 'flex-end' (chiqim/o'ng) | 'flex-start' (kirim/chap);
+                   m.txw = '80%' ('92%' agar m.showInput); m.txbg = 'var(--card2)' o'ng | 'var(--bg)' chap;
+                   m.txbd = 'none' o'ng | '1px solid var(--bd2)' chap;
+                   m.txrad = '14px 14px 5px 14px' o'ng | '14px 14px 14px 5px' chap (TL TR BR BL). -->
+              <div style="display:flex;justify-content:{{ m.align }};padding:6px 16px">
+                <div style="width:{{ m.txw }};border:{{ m.txbd }};border-radius:{{ m.txrad }};padding:16px 16px 14px;background:{{ m.txbg }}">
                   <div style="display:flex;align-items:center;gap:7px">
                     <div style="width:6px;height:6px;border-radius:50%;background:{{ m.dot }}"></div>
                     <div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:var(--t2);text-transform:uppercase">Operatsiya · {{ m.stLabel }}</div>

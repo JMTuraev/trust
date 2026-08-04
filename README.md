@@ -40,7 +40,7 @@ Supabase'da `supabase/migrations/*.sql` ni SQL Editor orqali ishga tushiring.
 | Metod | Yo'l | Tavsif |
 |---|---|---|
 | GET/PUT | `/api/profile/me` | Profil |
-| GET | `/api/partners` | Hamkorlar (balans + pending bilan) |
+| GET | `/api/partners` | Hamkorlar (balans + pending + `counterparty_deleted` bilan); `?period_from=&period_to=` (epoch ms) → har qatorda `period: { to_me, by_me, repaid_to_me, repaid_by_me, count }` |
 | POST | `/api/partners` | `{ name, counterparty_phone, on_trust }` |
 | GET | `/api/partners/:id` | Hamkor + operatsiyalar |
 | POST | `/api/partners/:id/remind` | Qarshi tomonga eslatma (3 soat cooldown) |
@@ -66,6 +66,8 @@ Status modeli: `pending → confirmed → archived`, bir tomonlama yozuvlar `unc
 | GET | `/api/expenses/summary/month` | Bu oy: daromad/xarajat/sof/toifalar/limit |
 | GET/PUT | `/api/limits` | Oylik limit |
 | GET | `/api/notifications` | Bildirishnomalar |
+| GET | `/api/notifications/counts` | Har hamkor bo'yicha o'qilmagan: `{ [partner_id]: { count, total_amount, last_amounts } }` |
+| POST | `/api/notifications/read` | `{ partner_id }` — shu hamkor bildirishnomalarini o'qildi qilish (idempotent) |
 | POST | `/api/notifications/:id/read` · `/read-all` | O'qildi |
 
 ## Tasdiq oqimi

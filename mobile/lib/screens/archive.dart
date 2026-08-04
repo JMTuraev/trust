@@ -17,16 +17,22 @@ class ArchiveScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header: orqaga tugmasi + sarlavha bitta qatorda (home.dart uslubi)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: BackBtn(onTap: () => v['closeArch']()),
+          child: Row(
+            children: [
+              BackBtn(onTap: () => v['closeArch']()),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Tx(L0['archTitle'] as String, size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3,
+                    maxLines: 1, ellipsis: true),
+              ),
+            ],
+          ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
-          child: Tx(L0['archTitle'] as String, size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
           child: Tx(L0['archSub'] as String, size: 12.5, color: p.t3),
         ),
         Expanded(

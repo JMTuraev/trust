@@ -15,6 +15,11 @@ class PushService {
   /// (main.dart bu callback'ni store.toast_ ga ulaydi).
   static void Function(String title, String body)? onForeground;
 
+  /// Foreground push DATA payload — data: { type, partner_id, amount, currency,
+  /// link_id, ... }. main.dart wires it to store.pushArrived_: the partner-card
+  /// notification badge bumps instantly and a silent hydrate reconciles.
+  static void Function(Map<String, dynamic> data)? onForegroundData;
+
   /// Push BOSILGANDA chaqiriladi — data: { type, link_id, circle_id }.
   /// MUHIM (2026-08-02 audit): ilgari bosish UMUMAN qayta ishlanmasdi. Backend har
   /// push'da marshrut ma'lumotini yuboradi (services/push.js), lekin klient uni
@@ -38,6 +43,9 @@ class PushService {
       FirebaseMessaging.onMessage.listen((m) {
         final n = m.notification;
         if (n != null) onForeground?.call(n.title ?? '', n.body ?? '');
+        // Data payload separately: badge/refresh logic works even for pushes
+        // whose toast was skipped (data-only messages have no notification).
+        if (m.data.isNotEmpty) onForegroundData?.call(Map<String, dynamic>.from(m.data));
       });
       // Ilova fonda turib push bosilgan
       FirebaseMessaging.onMessageOpenedApp.listen((m) {

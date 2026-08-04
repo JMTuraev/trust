@@ -59,7 +59,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   // ---- #15v2/#35/#36: modal holatlari (ekran-lokal) ----
   Map<String, dynamic>? _rowMenu; // ⋮ menyu: {'edit': fn?, 'move': fn?, 'del': fn}
-  bool _perMenu = false; // davr filtri dropdown modali
+  bool _perMenu = false; // davr filtri — header ostidagi anchored dropdown
   Map<String, dynamic>? _delAsk; // o'chirish tasdiqi: {'title', 'run': fn}
   Map<String, dynamic>? _incEdit; // kirim tahriri: {'id'}
   bool _incNew = false; // yangi sub-papka modali
@@ -401,37 +401,75 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16))],
       );
 
-  /// Davr filtri menyusi — ⋮ menyu uslubidagi modal ro'yxat; joriy davr ✓ bilan.
-  /// "Maxsus davr" — tizim date-range picker'i (yangi paket/asset yo'q).
+  /// Davr filtri — header trigger ostidagi ANCHORED dropdown (home.dart
+  /// idiomi 1:1: shaffof tap-away to'siq + karta; dim YO'Q). Joriy davr —
+  /// 6px nuqta bilan. "Maxsus davr" — tizim date-range picker'i.
   Widget _perMenuModal(Map<String, dynamic> v, Pal p) {
     final cur = '${v['xfPerKind']}';
     final opts = (v['xfPerOpts'] as List).cast<Map<String, dynamic>>();
-    return _scrimCard(
-      p,
-      () => setState(() => _perMenu = false),
-      Container(
-        width: 240,
-        decoration: _modalDeco(p),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < opts.length; i++) ...[
-              if (i > 0) Container(height: 1, color: p.hair2),
-              Tap(
-                onTap: () => _perPick(v, '${opts[i]['k']}'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
-                  child: Row(
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          // Shaffof to'liq-ekran to'siq — tashqarisi bosilsa yopiladi
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _perMenu = false),
+            child: const SizedBox.expand(),
+          ),
+          Positioned(
+            // Header: top 10 + qator 38 (jurnal) = 48; trigger pasti 46 → +6px
+            top: 52,
+            // Trigger o'ng cheti: 20 (header o'ng pad) + 38 (jurnal) + 8 (oraliq)
+            right: 66,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 186),
+              decoration: BoxDecoration(
+                color: p.bg,
+                border: Border.all(color: p.bd2),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [BoxShadow(offset: Offset(0, 10), blurRadius: 28, color: Color(0x29000000))],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: IntrinsicWidth(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Tx('${opts[i]['label']}', size: 14,
-                            w: cur == opts[i]['k'] ? FontWeight.w700 : FontWeight.w500,
-                            color: cur == opts[i]['k'] ? p.ink : p.t1),
-                      ),
-                      if (cur == opts[i]['k']) Tx('✓', size: 13, w: FontWeight.w700, color: p.ink),
+                      for (var i = 0; i < opts.length; i++)
+                        _perItem(p, '${opts[i]['label']}', cur == opts[i]['k'],
+                            i == 0, () => _perPick(v, '${opts[i]['k']}')),
                     ],
                   ),
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Davr varianti qatori — home._fltItem bilan bir uslub: 13.5px yorliq,
+  /// tanlanganida w600 + o'ngda 6px nuqta, qatorlar orasida hairline.
+  Widget _perItem(Pal p, String label, bool on, bool first, VoidCallback onTap) {
+    return Tap(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: first
+            ? null
+            : BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Tx(label, size: 13.5, w: on ? FontWeight.w600 : FontWeight.w500, color: p.ink),
+            if (on) ...[
+              const SizedBox(width: 12),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
               ),
             ],
           ],

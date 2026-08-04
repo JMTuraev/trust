@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:collection/collection.dart';
 import 'theme.dart';
 import 'api.dart';
+import 'flags.dart';
 import 'secure.dart';
 import 'push.dart';
 import 'iap.dart';
@@ -88,13 +89,17 @@ bool partnerMatch(String query,
   return false;
 }
 
-/// Davr chegaralari — QURILMA-LOKAL vaqtda, [fromMs, toMs], ikkalasi INKLYUZIV.
+/// Davr chegaralari — QURILMA-LOKAL vaqtda, [fromMs, toMs): from INKLYUZIV,
+/// to EKSKLYUZIV (keyingi kun 00:00 — server .lt(to) ishlatadi, shu sabab
+/// kunning oxirgi millisekundi ham qamrab olinadi).
 /// Loyihaviy saboq: kun chegarasi hech qachon serverda hisoblanmaydi (±1 kun
 /// timezone xatosi). Hafta dushanbadan boshlanadi. 'all' -> [0, 0] (filtr yo'q).
 List<int> homePeriodRange(String filter, DateTime now,
     {int customFrom = 0, int customTo = 0}) {
   int startOf(DateTime d) => DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
-  int endOf(DateTime d) => DateTime(d.year, d.month, d.day + 1).millisecondsSinceEpoch - 1;
+  // Exclusive end: next-day 00:00 exactly (no -1ms) — matches the documented
+  // [from, to) convention and the server-side `.lt(to)` comparison.
+  int endOf(DateTime d) => DateTime(d.year, d.month, d.day + 1).millisecondsSinceEpoch;
   switch (filter) {
     case 'today':
       return [startOf(now), endOf(now)];
@@ -118,6 +123,87 @@ List<int> homePeriodRange(String filter, DateTime now,
     default:
       return [0, 0];
   }
+}
+
+// ------------- Partner-card notification badges (pure, unit-tested) -------------
+
+/// «in Trust» badge: the counterparty is registered (counterparty_id present)
+/// AND has not deleted their account. When the counterparty deletes the
+/// account the badge drops in near-realtime (falls back to the one-sided look).
+bool partnerInTrust(Map<String, dynamic> p) =>
+    p['counterparty_id'] != null && p['counterparty_deleted'] != true;
+
+/// Badge caption: 1..9 as-is, anything above shown as «9+».
+String notifBadgeText(int count) => count > 9 ? '9+' : '$count';
+
+/// Maps GET /api/notifications/counts payload (body['counts']) to the internal
+/// shape: partnerId -> {count, total, last:[newest-first ints], cur?}.
+/// `cur` is the currency of the NEWEST amount (the only one the chip renders).
+/// Resolution order:
+///   1. server `last: [{amount, currency}]` currency wins when non-null;
+///   2. null/absent server currency keeps `prev`'s cur when it refers to the
+///      same partner + same newest amount (e.g. an FCM bump carried currency);
+///   3. otherwise no `cur` key — the chip falls back to UZS at render time.
+/// Legacy responses without `last` (numbers-only `last_amounts`) keep working.
+/// Zero/negative counts are dropped so the UI never renders an empty badge.
+Map<String, Map<String, dynamic>> mapNotifCounts(Map raw, {Map prev = const {}}) {
+  int toInt(dynamic v) => v == null ? 0 : (v is num ? v : (num.tryParse('$v') ?? 0)).round();
+  final out = <String, Map<String, dynamic>>{};
+  raw.forEach((k, v) {
+    if (v is! Map) return;
+    final count = toInt(v['count']);
+    if (count <= 0) return;
+    // Rich rows (server, 2026-08-04 contract): last: [{amount, currency}].
+    final richRows =
+        v['last'] is List ? (v['last'] as List).whereType<Map>().toList() : const <Map>[];
+    final List<int> last;
+    String? cur;
+    if (richRows.isNotEmpty) {
+      last = richRows.map((m) => toInt(m['amount'])).toList();
+      cur = richRows.first['currency'] as String?;
+    } else {
+      last = ((v['last_amounts'] as List?) ?? const []).map(toInt).toList();
+    }
+    if (cur == null) {
+      final p = prev['$k'];
+      final pl = p is Map ? ((p['last'] as List?) ?? const []) : const [];
+      if (p is Map && pl.isNotEmpty && last.isNotEmpty && toInt(pl.first) == last.first) {
+        cur = p['cur'] as String?;
+      }
+    }
+    out['$k'] = {
+      'count': count,
+      'total': toInt(v['total_amount']),
+      'last': last,
+      if (cur != null) 'cur': cur,
+    };
+  });
+  return out;
+}
+
+/// Optimistic +1 for a foreground push (server reconciles on the next poll).
+/// The input map is NOT mutated — a fresh copy is returned. `amount` (when the
+/// push carries it) is prepended to the newest-first `last` list (capped at 3);
+/// `currency` is remembered for formatting the amount chip.
+Map<String, Map<String, dynamic>> bumpNotifCounts(Map counts, String partnerId,
+    {num? amount, String? currency}) {
+  int toInt(dynamic v) => v == null ? 0 : (v is num ? v : (num.tryParse('$v') ?? 0)).round();
+  final out = <String, Map<String, dynamic>>{
+    for (final e in counts.entries)
+      if (e.value is Map) '${e.key}': Map<String, dynamic>.from(e.value as Map),
+  };
+  final prev = out[partnerId];
+  final cur = currency?.isNotEmpty == true ? currency : prev?['cur'] as String?;
+  out[partnerId] = {
+    'count': toInt(prev?['count']) + 1,
+    'total': toInt(prev?['total']) + (amount?.round() ?? 0),
+    'last': [
+      if (amount != null) amount.round(),
+      ...((prev?['last'] as List?) ?? const []).map(toInt),
+    ].take(3).toList(),
+    if (cur != null) 'cur': cur,
+  };
+  return out;
 }
 
 class TrustStore extends ChangeNotifier {
@@ -188,6 +274,9 @@ class TrustStore extends ChangeNotifier {
     // REAL chat (server): xabarlar hamkor bo'yicha + o'qilmagan hisoblagichlar (badge)
     'srvMsgs': <String, List<Map<String, dynamic>>>{},
     'msgUnread': <String, int>{},
+    // Partner-card badges: partnerId -> {count, total, last:[newest-first], cur?}
+    // (unread debt-event notifications; server counts + FCM optimistic bumps)
+    'notifCounts': <String, Map<String, dynamic>>{},
     // Qarz daftari (ledger) — ochiq hamkor yozuvlari (server'dan, DebtEntry ro'yxati)
     'ledgerRows': <Map<String, dynamic>>[],
     'ledgerLoading': false,
@@ -413,6 +502,15 @@ class TrustStore extends ChangeNotifier {
     'circle_confirm': 'confirmed', 'circle_due': 'reminder', 'circle_joined': 'confirmed',
     'circle_closed': 'confirmed',
   };
+  // Optimistic-bump filter (pushArrived_) — MUST mirror the server's
+  // PARTNER_BADGE_TYPES (src/routes/notifications.js): /api/notifications/counts
+  // counts exactly these types, so bumping anything else would flash a badge
+  // the next poll removes. Wider than _notifKind's 'debt' bucket: rem/op_new
+  // are badge events too (2026-08-04 lead polish round).
+  static const Set<String> _badgeTypes = {
+    'debt_new', 'debt_confirm', 'debt_reject', 'repay_new', 'settle_new',
+    'edit_req', 'review_req', 'rem', 'op_new',
+  };
 
   int _numToInt(dynamic v) => v == null ? 0 : (v is num ? v : (num.tryParse('$v') ?? 0)).round();
 
@@ -466,9 +564,11 @@ class TrustStore extends ChangeNotifier {
         // linkStatus: pending | accepted | rejected (rad — signal ketgach ko'rinadi)
         'linkStatus': p['link_status'] ?? 'pending',
         'onTrust': p['link_status'] == 'accepted',
-        // «in Trust» nishoni: ro'yxatdan o'tganlik = counterparty_id mavjud
-        // (accepted'ni kutmaydi — badge ro'yxatdan o'tishi bilan chiqadi).
-        'inTrust': p['counterparty_id'] != null,
+        // «in Trust» badge: registered (counterparty_id present, does not wait
+        // for accepted) AND the counterparty has not deleted their account —
+        // partnerInTrust (pure, tested). Home rows and the 1:1 header (cInTrust)
+        // both derive from this single field.
+        'inTrust': partnerInTrust(p),
         'archived': p['archived'] == true,
         'srvBal': (p['balances'] is Map)
             ? (p['balances'] as Map).map((k, v) => MapEntry('$k', _numToInt(v)))
@@ -551,18 +651,38 @@ class TrustStore extends ChangeNotifier {
     try {
       // Xarajatlar tanlangan davr bo'yicha tortiladi (polling ham shu davrni
       // saqlaydi — aks holda filtrlangan ro'yxat standart javob bilan yuvilardi)
-      final rs = await Future.wait(
-          [Api.partners(), Api.notifications(), _xfFetchExpenses(), Api.getLimit(), Api.links(), Api.unreadCounts()]);
-      final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4], ur = rs[5];
+      final rs = await Future.wait([
+        Api.partners(), Api.notifications(), _xfFetchExpenses(), Api.getLimit(), Api.links(),
+        Api.notifCounts(),
+        // Chat unread counts only while the chat UI exists (kChatEnabled) —
+        // with the flag off this request was dead weight on every 15s poll.
+        if (kChatEnabled) Api.unreadCounts(),
+      ]);
+      final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4], cr = rs[5];
       var plist = <Map<String, dynamic>>[];
       final patch = <String, dynamic>{};
       if (pr.ok && pr.data is List) {
         plist = (pr.data as List).cast<Map<String, dynamic>>();
         patch['clients'] = plist.map(_mapPartner).toList();
       }
-      // O'qilmagan xabarlar (badge) — hamkor qatorlarida ko'rinadi
-      if (ur.ok && ur.data is Map) {
-        patch['msgUnread'] = (ur.data as Map).map((k, v) => MapEntry('$k', _numToInt(v)));
+      // Partner-card notification badges (unread debt events). The partner whose
+      // 1:1 ledger is currently open is dropped: openLedger_ marked it read
+      // optimistically and the POST may not have landed yet — the badge must
+      // not flash back. A failed request keeps the last known counts. `prev`
+      // lets the reconcile keep an FCM-bump currency when the server row has
+      // none for the same newest amount (see mapNotifCounts).
+      if (cr.ok && cr.body['counts'] is Map) {
+        patch['notifCounts'] =
+            mapNotifCounts(cr.body['counts'] as Map, prev: S['notifCounts'] as Map)
+              ..remove(S['clientId'])
+              ..remove(S['inLinkId']);
+      }
+      if (kChatEnabled) {
+        // O'qilmagan xabarlar (badge) — hamkor qatorlarida ko'rinadi
+        final ur = rs[6];
+        if (ur.ok && ur.data is Map) {
+          patch['msgUnread'] = (ur.data as Map).map((k, v) => MapEntry('$k', _numToInt(v)));
+        }
       }
       if (nr.ok && nr.data is List) {
         patch['notifs'] = (nr.data as List).cast<Map<String, dynamic>>().map(_mapNotif).toList();
@@ -681,7 +801,12 @@ class TrustStore extends ChangeNotifier {
     final res = await _partnersPeriodReq(r[0], r[1]);
     if (seq != _periodSeq || S['homeFilter'] == 'all') return; // eskirgan javob
     if (!res.ok || res.data is! List) {
-      set({'homePeriodLoading': false, 'homePeriodOk': false, 'homePeriod': <String, Map<String, int>>{}});
+      // Transient failure (e.g. network blip during the 15s silent refresh):
+      // keep the LAST successful period sums — otherwise the filtered list
+      // would jump to the full list mid-scroll. Sums are only cleared when the
+      // filter itself changes (setHomeFilter_). First load (homePeriodOk still
+      // false) degrades gracefully to the unfiltered list as before.
+      set({'homePeriodLoading': false});
       return;
     }
     final rows = (res.data as List).whereType<Map>().toList();
@@ -1414,6 +1539,18 @@ class TrustStore extends ChangeNotifier {
 
   /// Hamkor daftarini serverdan yuklash + realtime polling (chat o'rniga).
   Future<void> openLedger_(String partnerId) async {
+    // Opening the 1:1 ledger marks this partner's debt-event notifications as
+    // read: local count zeroed optimistically (card badge disappears at once),
+    // POST fired without await — idempotent, and a silent failure is fine
+    // because the next hydrate poll restores the true server count.
+    if ((S['notifCounts'] as Map).containsKey(partnerId)) {
+      set({
+        'notifCounts': Map<String, Map<String, dynamic>>.from(
+            S['notifCounts'] as Map)
+          ..remove(partnerId),
+      });
+    }
+    unawaited(Api.readPartnerNotifs(partnerId));
     // Daftar almashganda oldingi hamkor qatorlari ko'rinib turmasin
     if (S['ledgerPid'] != partnerId) {
       set({'ledgerPid': partnerId, 'ledgerRows': <Map<String, dynamic>>[], 'ledgerLoading': true});
@@ -2805,6 +2942,33 @@ class TrustStore extends ChangeNotifier {
     }
   }
 
+  /// FOREGROUND FCM data payload (push arrived while the app is open, NOT
+  /// tapped): the partner-card badge must appear within a second — optimistic
+  /// bump from `data` (partner_id / amount / currency), then a silent
+  /// hydrate(full:false) reconciles with the server counts.
+  void pushArrived_(Map<String, dynamic> d) {
+    final pid = '${d['partner_id'] ?? ''}';
+    final type = '${d['type'] ?? ''}';
+    // Bump only for types the /counts endpoint actually counts (else the next
+    // poll would remove the badge). Typeless data pushes still bump — hydrate
+    // reconciles within a second either way.
+    final isBadgeEvent = type.isEmpty || _badgeTypes.contains(type);
+    if (pid.isNotEmpty && isBadgeEvent) {
+      if (S['clientId'] == pid || S['inLinkId'] == pid) {
+        // That 1:1 ledger is open — the user sees the event live (4s ledger
+        // poll). Keep it read server-side instead of flashing a badge later.
+        unawaited(Api.readPartnerNotifs(pid));
+      } else {
+        set({
+          'notifCounts': bumpNotifCounts(S['notifCounts'] as Map, pid,
+              amount: num.tryParse('${d['amount'] ?? ''}'),
+              currency: d['currency'] as String?),
+        });
+      }
+    }
+    if (S['stage'] == 'app') unawaited(hydrate(full: false));
+  }
+
   /// Bildirishnoma bosilganda marshrutlash (link modeli)
   /// Push BOSILGANDA: FCM `data` ni ichki bildirishnoma shakliga o'giradi va ochadi.
   /// (2026-08-02 audit: ilgari bosish umuman qayta ishlanmasdi.)
@@ -3979,9 +4143,15 @@ class TrustStore extends ChangeNotifier {
     // + davr filtri (homeFilter). fActive faqat server 'period' bergandagina true.
     final q = (S['search'] as String).trim();
     final fActive = S['homeFilter'] != 'all' && S['homePeriodOk'] == true;
-    // Filtr summalari yuklanayotganda skelet — filtrsiz ro'yxat "miltillamasin"
+    // Filtr summalari yuklanayotganda skelet — filtrsiz ro'yxat "miltillamasin".
+    // FAQAT BIRINCHI yuklashda (homePeriodOk hali true emas): setHomeFilter_
+    // homePeriodOk:false qiladi, muvaffaqiyatli javob true qiladi va 15s jim
+    // poll (loadHomePeriod_) uni true saqlaydi — shu sabab har poll'da ro'yxat
+    // skeletga "miltillamaydi" (2026-08-04 wave-1 review topilmasi).
     final homeSkel = S['skelHome'] == true ||
-        (S['homeFilter'] != 'all' && S['homePeriodLoading'] == true);
+        (S['homeFilter'] != 'all' &&
+            S['homePeriodLoading'] == true &&
+            S['homePeriodOk'] != true);
     final homeFiltered = _homeClients();
     final visible = homeSkel
         ? <Map<String, dynamic>>[]
@@ -3996,6 +4166,15 @@ class TrustStore extends ChangeNotifier {
         }
       }
       final cid = c['id'] as String;
+      // Unread debt-event notifications (server counts + FCM optimistic bumps):
+      // count bubble on the avatar + latest amount chip in the balSub area.
+      final ncr = (S['notifCounts'] as Map)[cid];
+      final nc = ncr is Map ? ncr : const <String, dynamic>{};
+      final nCount = _numToInt(nc['count']);
+      final nLast = (nc['last'] as List?) ?? const [];
+      final nAmt = nCount > 0 && nLast.isNotEmpty
+          ? money(_numToInt(nLast.first), '${nc['cur'] ?? 'UZS'}')
+          : '';
       return {
         'id': cid,
         'actLabel': 'Arxiv',
@@ -4005,12 +4184,20 @@ class TrustStore extends ChangeNotifier {
         'archAct': () => archive_(cid),
         'name': c['name'], 'initials': initials(c['name']),
         'onTrust': c['onTrust'] != false, 'oneSided': c['onTrust'] == false,
-        // Badge «in Trust» — ro'yxatdan o'tganlik (accepted'ni kutmaydi)
+        // Badge «in Trust» — ro'yxatdan o'tganlik (accepted'ni kutmaydi);
+        // counterparty_deleted bo'lsa o'chadi (partnerInTrust, _mapPartner).
         'inTrust': c['inTrust'] == true,
         'sub': last != null ? '${L0['last']}${last['date']}' : L0['noOps'],
         'bal': b['text'], 'color': b['color'], 'balSub': b['sub'],
         // O'qilmagan xabarlar soni — qatorda badge (sms kelsa ko'rinadi)
         'unread': (S['msgUnread'] as Map)[cid] ?? 0,
+        // Notification badge (count bubble, «9+» cap) + latest-amount chip;
+        // notifAmtOff keeps the plain balSub line when there is nothing unread.
+        'notifOn': nCount > 0,
+        'notifCountTxt': notifBadgeText(nCount),
+        'notifAmtOn': nAmt.isNotEmpty,
+        'notifAmtOff': nAmt.isEmpty,
+        'notifAmtTxt': nAmt,
         'open': () {
           if (_swClick) {
             _swClick = false;
@@ -4040,6 +4227,15 @@ class TrustStore extends ChangeNotifier {
             .map((l) {
             final tot = l['total'] as int;
             final lid = l['id'] as String;
+            // Same notification badge as clientRows — counts are keyed by the
+            // shared partner/link id (openLedger_ uses the same id space).
+            final ncr = (S['notifCounts'] as Map)[lid];
+            final nc = ncr is Map ? ncr : const <String, dynamic>{};
+            final nCount = _numToInt(nc['count']);
+            final nLast = (nc['last'] as List?) ?? const [];
+            final nAmt = nCount > 0 && nLast.isNotEmpty
+                ? money(_numToInt(nLast.first), '${nc['cur'] ?? 'UZS'}')
+                : '';
             return {
               'id': 'in$lid',
               'actLabel': '',
@@ -4055,6 +4251,11 @@ class TrustStore extends ChangeNotifier {
               'balSub': tot > 0 ? L0['subPos'] : (tot < 0 ? L0['subNeg'] : ''),
               // O'qilmagan xabarlar badge'i (data-qatlam; ko'rsatish ekran qaroriga bog'liq)
               'unread': (S['msgUnread'] as Map)[lid] ?? 0,
+              'notifOn': nCount > 0,
+              'notifCountTxt': notifBadgeText(nCount),
+              'notifAmtOn': nAmt.isNotEmpty,
+              'notifAmtOff': nAmt.isEmpty,
+              'notifAmtTxt': nAmt,
               'open': () => openIncoming(lid),
             };
           }).toList();
@@ -4105,7 +4306,17 @@ class TrustStore extends ChangeNotifier {
 
     Map<String, dynamic> txRow(Map<String, dynamic> t) {
       final et = t['type'] as String;
+      final mine = t['by'] == 'me';
       return {
+        // Chat-align convention (template m.isTx block) — placeholder/vals
+        // invariant: every placeholder the template references must be emitted,
+        // even while the chat UI is behind kChatEnabled=false. Values follow
+        // the documented convention comment in template.html ('me' = right).
+        'align': mine ? 'flex-end' : 'flex-start',
+        'txw': '80%',
+        'txbg': mine ? 'var(--card2)' : 'var(--bg)',
+        'txbd': mine ? 'none' : '1px solid var(--bd2)',
+        'txrad': mine ? '14px 14px 5px 14px' : '14px 14px 14px 5px',
         'stLabel': t['st'] == 'arch' ? L0['stArch'] : L0['stOk'],
         'dot': ink,
         'type': typeLabel(et),

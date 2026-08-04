@@ -44,6 +44,9 @@ Future<void> main() async {
   // Ilova ochiq payt kelgan push tizim tray'da chiqmaydi — toast qilib ko'rsatamiz.
   await PushService.init();
   PushService.onForeground = (title, body) => store.toast_(body.isEmpty ? title : body);
+  // Foreground push DATA: partner-card badge appears within a second (optimistic
+  // bump + silent hydrate) — no app restart needed.
+  PushService.onForegroundData = (data) => store.pushArrived_(data);
   // Push BOSILGANDA tegishli ekranga o'tamiz (2026-08-02 audit: ilgari e'tiborsiz qolardi).
   PushService.onOpened = (data) => store.openFromPush(data);
   final pendingPush = PushService.drainInitial(); // ilova push bilan ochilgan bo'lsa

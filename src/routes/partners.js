@@ -96,45 +96,37 @@ async function deletedCounterpartySet(cpIds) {
 // mahalliy yarim tun) — server kun chegarasini HISOBLAMAYDI, faqat filtrlaydi.
 // 3 ta guruh so'rov (N+1 yo'q): debts oralig'i, ref qarzlar (yo'nalish uchun), operations.
 // Natija: Map<partnerId, {to_me, by_me, repaid_to_me, repaid_by_me, count}>.
-async function periodAggregates(partnerIds, userId, fromMs, toMs) {
+
+// ONGLI CHEGARA (2026-08-04 review): PostgREST limitsiz so'rovni JIMGINA 1000 qatorda
+// kesadi — og'ir foydalanuvchida davr agregati sezdirmasdan kam chiqardi. Endi limit
+// OSHKORA (2000) va unga urilganda server logida ogohlantiramiz: davr agregati bu
+// holatda TO'LIQ EMAS (mobil kontrakt buzilmaydi, faqat log — real hayotda bitta
+// foydalanuvchining bir davrda 2000+ yozuvi kutilmaydi).
+const PERIOD_ROW_LIMIT = 2000;
+
+// SOF yig'ish qismi (DB'siz — test qilinadi). MUHIM VALYUTA QOIDASI (2026-08-04 review):
+// period kontrakti YASSI raqamlar, shuning uchun valyutalar ARALASHMAYDI — aks holda
+// 20 USD qarz UZS summaga qo'shilib, mobil uni "20 so'm" deb ko'rsatardi. balancesFor
+// (yuqorida) valyuta bo'yicha ajratadi; bu yerda esa summalarga FAQAT UZS (yoki
+// currency NULL — eski qatorlar, default UZS) kiradi. `count` esa BARCHA yozuvlar
+// bo'yicha — "nechta amal bo'ldi" valyutaga bog'liq emas.
+export function foldPeriodRows({ partnerIds, userId, debtRows, refRows, opRows }) {
   const empty = () => ({ to_me: 0, by_me: 0, repaid_to_me: 0, repaid_by_me: 0, count: 0 });
   const map = new Map(partnerIds.map((id) => [id, empty()]));
-  if (!partnerIds.length) return map;
-  const fromIso = new Date(fromMs).toISOString();
-  const toIso = new Date(toMs).toISOString();
-  const [debts, ops] = await Promise.all([
-    supabaseAdmin.from('debts')
-      .select('partner_id, kind, status, direction, created_by, amount, ref_id')
-      .in('partner_id', partnerIds)
-      .gte('created_at', fromIso).lt('created_at', toIso)
-      .not('status', 'in', '(cancelled,rejected)'),
-    supabaseAdmin.from('operations')
-      .select('partner_id, delta')
-      .in('partner_id', partnerIds)
-      .gte('created_at', fromIso).lt('created_at', toIso)
-      .in('status', ['active', 'archived']), // balancesFor bilan bir xil filtr
-  ]);
-  const rows = debts.data || [];
-  // repay/settle yo'nalishi BOG'LIQ qarzdan olinadi (bola yozuvda direction yo'q)
-  const refIds = [...new Set(rows
-    .filter((r) => (r.kind === 'repay' || r.kind === 'settle') && r.ref_id)
-    .map((r) => r.ref_id))];
-  const refById = new Map();
-  if (refIds.length) {
-    const { data: refs } = await supabaseAdmin
-      .from('debts').select('id, direction, created_by').in('id', refIds);
-    for (const r of refs || []) refById.set(r.id, r);
-  }
-  for (const r of rows) {
+  const refById = new Map((refRows || []).map((r) => [r.id, r]));
+  const inUzs = (cur) => !cur || cur === 'UZS'; // NULL = eski qator, default UZS
+  for (const r of debtRows || []) {
     const agg = map.get(r.partner_id);
     if (!agg) continue;
     agg.count += 1;
+    if (!inUzs(r.currency)) continue; // boshqa valyuta — faqat count'da
     const amt = Number(r.amount || 0);
     if (r.kind === 'debt') {
       // canonicalDir so'rovchi nuqtai nazariga normallashtiradi
       const dir = canonicalDir(r, userId);
       if (dir === 'toMe') agg.to_me += amt; else agg.by_me += amt;
     } else if (r.kind === 'repay' || r.kind === 'settle') {
+      // repay/settle yo'nalishi BOG'LIQ qarzdan olinadi (bola yozuvda direction yo'q)
       const ref = refById.get(r.ref_id);
       if (!ref) continue; // ref o'chgan — yo'nalishsiz, faqat count'da qoladi
       const dir = canonicalDir(ref, userId);
@@ -143,14 +135,52 @@ async function periodAggregates(partnerIds, userId, fromMs, toMs) {
   }
   // Eski daftar (operations): delta EGA nuqtai nazarida (+ = menga). Bu endpoint
   // faqat owner ro'yxatida ishlatiladi, shuning uchun ishora to'g'ridan-to'g'ri o'qiladi.
-  for (const o of ops.data || []) {
+  for (const o of opRows || []) {
     const agg = map.get(o.partner_id);
     if (!agg) continue;
     agg.count += 1;
+    if (!inUzs(o.currency)) continue; // boshqa valyuta — faqat count'da
     const d = Number(o.delta || 0);
     if (d >= 0) agg.to_me += d; else agg.by_me += -d;
   }
   return map;
+}
+
+async function periodAggregates(partnerIds, userId, fromMs, toMs) {
+  if (!partnerIds.length) return foldPeriodRows({ partnerIds, userId });
+  const fromIso = new Date(fromMs).toISOString();
+  const toIso = new Date(toMs).toISOString();
+  const [debts, ops] = await Promise.all([
+    supabaseAdmin.from('debts')
+      .select('partner_id, kind, status, direction, created_by, amount, currency, ref_id')
+      .in('partner_id', partnerIds)
+      .gte('created_at', fromIso).lt('created_at', toIso)
+      .not('status', 'in', '(cancelled,rejected)')
+      .limit(PERIOD_ROW_LIMIT),
+    supabaseAdmin.from('operations')
+      .select('partner_id, delta, currency')
+      .in('partner_id', partnerIds)
+      .gte('created_at', fromIso).lt('created_at', toIso)
+      .in('status', ['active', 'archived']) // balancesFor bilan bir xil filtr
+      .limit(PERIOD_ROW_LIMIT),
+  ]);
+  const debtRows = debts.data || [];
+  const opRows = ops.data || [];
+  if (debtRows.length >= PERIOD_ROW_LIMIT || opRows.length >= PERIOD_ROW_LIMIT) {
+    console.warn(`periodAggregates: ${PERIOD_ROW_LIMIT} qator limitiga urildi — `
+      + `davr agregati TO'LIQ EMAS (user: ${userId})`);
+  }
+  const refIds = [...new Set(debtRows
+    .filter((r) => (r.kind === 'repay' || r.kind === 'settle') && r.ref_id)
+    .map((r) => r.ref_id))];
+  let refRows = [];
+  if (refIds.length) {
+    const { data: refs } = await supabaseAdmin
+      .from('debts').select('id, direction, created_by').in('id', refIds)
+      .limit(PERIOD_ROW_LIMIT);
+    refRows = refs || [];
+  }
+  return foldPeriodRows({ partnerIds, userId, debtRows, refRows, opRows });
 }
 
 // Eslatma matni uchun asosiy valyuta — absolyut qiymati eng kattasi (bo'sh bo'lsa UZS/0)
@@ -189,10 +219,14 @@ router.get('/', async (req, res, next) => {
     let fromMs = 0, toMs = 0;
     if (hasPeriod) {
       fromMs = Number(rawFrom); toMs = Number(rawTo);
-      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) {
+      // MAX_EPOCH_MS (2026-08-04 review): JS Date chegarasi ±8.64e15 ms — undan katta
+      // epoch new Date().toISOString()'da RangeError otib, 400 o'rniga 500 berardi.
+      const MAX_EPOCH_MS = 8.64e15;
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)
+        || fromMs < 0 || toMs > MAX_EPOCH_MS || toMs < fromMs) {
         return res.status(400).json({
           success: false,
-          error: 'period_from/period_to epoch millisekund bo\'lishi kerak (from <= to)',
+          error: 'period_from/period_to epoch millisekund bo\'lishi kerak (0 <= from <= to)',
         });
       }
     }

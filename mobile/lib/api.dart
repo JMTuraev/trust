@@ -105,7 +105,9 @@ class Api {
         return ApiRes(false, null, (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})',
             res.statusCode, code, map);
       }
-      return ApiRes(true, map['data'], '', res.statusCode);
+      // Full body is passed on success too: some endpoints carry their payload
+      // outside 'data' (e.g. /api/notifications/counts -> top-level 'counts').
+      return ApiRes(true, map['data'], '', res.statusCode, '', map);
     } on TimeoutException {
       // Render bepul plan cold-start ~30-50s uxlaydi — buni tarmoq uzilishidan ajratamiz.
       return ApiRes(false, null, errWaking ?? 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
@@ -314,6 +316,13 @@ class Api {
   static Future<ApiRes> notifications() => _req('GET', '/api/notifications');
   static Future<ApiRes> readNotif(String id) => _req('POST', '/api/notifications/$id/read');
   static Future<ApiRes> readAllNotifs() => _req('POST', '/api/notifications/read-all');
+  // Partner-card badges: unread debt-event counts per partner. Payload is in the
+  // top-level 'counts' field (NOT 'data') — read it from ApiRes.body['counts'].
+  static Future<ApiRes> notifCounts() => _req('GET', '/api/notifications/counts');
+  // Marks all debt-event notifications of one partner as read. Idempotent —
+  // safe to fire on every 1:1 open; failures are tolerated (next poll corrects).
+  static Future<ApiRes> readPartnerNotifs(String partnerId) =>
+      _req('POST', '/api/notifications/read', body: {'partner_id': partnerId});
 
   // 2026-07-17: transcribe() / lastSttError OLIB TASHLANDI — /api/stt/transcribe endpointi
   // o'chirildi (mahsulot qarori: FAQAT MATN — docs/ai-character.md §11).

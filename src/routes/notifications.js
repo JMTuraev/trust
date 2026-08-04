@@ -32,23 +32,35 @@ async function unreadPartnerRows(userId, cols) {
 }
 
 // GET /api/notifications/counts — o'qilmagan, hamkorga tegishli bildirishnomalar
-// bo'yicha per-partner hisob: { counts: { [partner_id]: {count, total_amount, last_amounts} } }
-// last_amounts — eng so'nggi 3 ta summa (yangisi birinchi). Bitta so'rov (N+1 yo'q).
+// bo'yicha per-partner hisob:
+//   { counts: { [partner_id]: { count, total_amount, last_amounts, last } } }
+//   count        — barcha o'qilmaganlar (valyutadan qat'i nazar)
+//   total_amount — FAQAT UZS yoki currency NULL (eski/019gacha qator, default UZS)
+//                  bo'yicha yig'indi — valyutalar ARALASHMAYDI (periodAggregates'dagi
+//                  2026-08-04 review qoidasi bilan bir xil: 20 USD "20 so'm" bo'lmasin)
+//   last_amounts — eng so'nggi ≤3 summa, YASSI raqamlar (orqaga moslik, valyutasiz)
+//   last         — o'sha ≤3 summa {amount, currency} bilan (currency null = eski qator
+//                  yoki ustun hali yo'q). Ikkalasi ham yangisi birinchi.
+// Bitta so'rov (N+1 yo'q).
 router.get('/counts', async (req, res, next) => {
   try {
-    // amount ustuni 019 migratsiyada qo'shilgan — hali qo'llanmagan bo'lsa
-    // summasiz (count'lar baribir to'g'ri) javob beramiz.
-    let { data: rows, error } = await unreadPartnerRows(req.user.id, 'link_id, amount, created_at');
+    // amount/currency ustunlari 019 migratsiyada qo'shilgan — hali qo'llanmagan
+    // bo'lsa summasiz (count'lar baribir to'g'ri) javob beramiz, 500 YO'Q.
+    let { data: rows, error } = await unreadPartnerRows(req.user.id, 'link_id, amount, currency, created_at');
     if (error) ({ data: rows, error } = await unreadPartnerRows(req.user.id, 'link_id, created_at'));
     if (error) throw new Error(error.message);
     const counts = {};
     for (const n of rows || []) {
-      const c = counts[n.link_id] || (counts[n.link_id] = { count: 0, total_amount: 0, last_amounts: [] });
+      const c = counts[n.link_id]
+        || (counts[n.link_id] = { count: 0, total_amount: 0, last_amounts: [], last: [] });
       c.count += 1;
       const amt = Number(n.amount || 0);
       if (amt > 0) {
-        c.total_amount += amt;
-        if (c.last_amounts.length < 3) c.last_amounts.push(amt); // rows: yangisi birinchi
+        if (!n.currency || n.currency === 'UZS') c.total_amount += amt; // UZS-only qoida
+        if (c.last_amounts.length < 3) { // rows: yangisi birinchi
+          c.last_amounts.push(amt);
+          c.last.push({ amount: amt, currency: n.currency ?? null });
+        }
       }
     }
     res.json({ success: true, counts });

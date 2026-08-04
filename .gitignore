@@ -7,3 +7,7 @@ node_modules/
 secrets/
 *.jks
 key.properties
+
+# Local build/agent artifacts
+claude_*.txt
+claude_*.bat
