@@ -66,10 +66,22 @@ class IapService {
   /// Mahsulotning lokalizatsiyalangan narxi ("$9.99", "9,99 €", ...). Bo'sh = noma'lum.
   static String get priceLabel => _product?.price ?? '';
 
+  /// Faqat TEST uchun: do'kon narxini o'rnatish. `ProductDetails` ni testda
+  /// yasash og'ir, do'kon tarmog'i esa HAQIQIY pulni boshqaradi — sinovsiz
+  /// qolmasin (backend'dagi `__setDbForTests` bilan bir naqsh).
+  static final Map<String, String> _testPrices = {};
+  static void setModulePriceForTests(String module, String? price) {
+    if (price == null) {
+      _testPrices.remove(module);
+    } else {
+      _testPrices[module] = price;
+    }
+  }
+
   /// Modul mahsulotining do'kondagi lokalizatsiyalangan narxi. Bo'sh = do'konda
   /// yo'q (bugungi holat) — paywall serverdan kelgan `price_usd` ni ko'rsatadi.
   static String modulePrice(String module) =>
-      _modProducts[moduleProductIds[module]]?.price ?? '';
+      _testPrices[module] ?? _modProducts[moduleProductIds[module]]?.price ?? '';
 
   /// Mahsulot ID'sidan modul nomi (teskari xarita). Premium mahsulotida null.
   static String? moduleOf(String pid) {

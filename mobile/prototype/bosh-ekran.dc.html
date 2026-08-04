@@ -95,6 +95,13 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                     (IapService.modulePrice), ya'ni foydalanuvchidan haqiqatda
                     yechiladigan summa, o'z valyutasida: «24 000 so'm/oy»;
                  2) bo'lmasa — katalog narxi indikativ tarif sifatida: «$13/oy».
+                 KATALOG NARXI ham literal EMAS: u server modSubs[].price
+                 (GET /api/subs/status), oflaynda modDefPrice(module) ->
+                 kSubModuleDefaults (store.dart). Ya'ni ikkala tarmoq ham
+                 serverdan boshqariladi — narxni o'zgartirish uchun ilova
+                 relizi kerak emas. Hub korneri: home_hub.dart _priceRow ->
+                 _modOf(v, module)?['price']; paywall: pw['price'] ??
+                 modDefPrice(module) — bir xil zanjir.
                  Shuning uchun korner HECH QACHON bo'sh qolmaydi, va mahsulotlar
                  Play/App Store'da paydo bo'lgan kuni o'zi haqiqiy lokalizatsiya
                  qilingan narxga o'tadi — ilova relizi talab qilinmaydi.
@@ -191,6 +198,8 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                  orqali: avval do'kon narxi (haqiqiy yechiladigan summa, o'z
                  valyutasida), bo'lmasa katalog narxi indikativ tarif sifatida —
                  korner hech qachon bo'sh qolmaydi, literal qotirilmaydi.
+                 Katalog narxi = server modSubs[].price, oflaynda
+                 kSubModuleDefaults; u ham relizisiz o'zgaradi.
                  Urg'u YASHIL: bu pul EGASIGA kelayapti (kirim) — shuning uchun
                  Qarz daftardagi «Sizga qaytishi kerak» bilan bir xil yashil.
                  Ma'lumot yo'q bo'lsa — tinch nol holati: «+0 so'm», modul tavsifi
@@ -327,7 +336,11 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                  narxi (IapService.modulePrice — foydalanuvchidan haqiqatda
                  yechiladigan summa, o'z valyutasida, masalan «24 000 so'm/oy»),
                  do'konda mahsulot hali bo'lmasa — katalog narxi indikativ
-                 tarif sifatida («$8/oy»). Korner hech qachon bo'sh qolmaydi;
+                 tarif sifatida («$8/oy»). Katalog narxi = server
+                 modSubs[].price (GET /api/subs/status), oflaynda
+                 modDefPrice(module) -> kSubModuleDefaults (store.dart) —
+                 demak u ham serverdan boshqariladi, relizisiz o'zgaradi.
+                 Korner hech qachon bo'sh qolmaydi;
                  literal narx hech qayerda qotirilmaydi. Paywall'dagi narx
                  pill'i va CTA esa modCtaLabel bilan — u HAR DOIM do'kon
                  narxini afzal ko'radi (tugma va'dasi bilan haqiqiy hisob
@@ -412,7 +425,8 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                  Ma'lumot yo'q bo'lsa — tinch nol holati: «+0 so'm», tavsif esa
                  sub-qatorda (4c). Narx faqat pastki-o'ngdagi tarif qatorida
                  chiziladi va modPriceLabel'dan keladi: avval do'kon narxi,
-                 bo'lmasa katalog narxi — korner bo'sh qolmaydi. Qulflangan
+                 bo'lmasa katalog narxi (server modSubs[].price, oflaynda
+                 kSubModuleDefaults) — korner bo'sh qolmaydi. Qulflangan
                  chip (yuqoridagi Qarz kartasi) matnsiz — faqat qulf glifi;
                  gibrid tarif tufayli qulflangan kartada ham narx ko'rinadi.
                  Manba: lib/screens/home_hub.dart -> _hubShell;
@@ -542,7 +556,8 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                  keladi» qoidasi ular uchun kuchda — hali raqam yo'q.
                  TARIF esa bo'sh holatda ham chiziladi: u foydalanuvchi
                  ma'lumotiga emas, modPriceLabel'ga bog'liq — avval do'kon
-                 narxi, bo'lmasa katalog narxi. Shuning uchun yangi
+                 narxi, bo'lmasa katalog narxi (server modSubs[].price,
+                 oflaynda kSubModuleDefaults). Shuning uchun yangi
                  foydalanuvchida ham to'rttala kornerda raqam turadi.
                  Manba: lib/screens/home_hub.dart -> _hubShell;
                  tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
@@ -594,7 +609,8 @@ div[style*="cursor: pointer"]:active{opacity:0.72}
                  Tarif esa nol holatda ham raqamli: modPriceLabel avval do'kon
                  narxini (haqiqiy yechiladigan summa, o'z valyutasida), u
                  bo'lmasa katalog narxini beradi — literal qotirilmaydi va
-                 korner hech qachon bo'sh qolmaydi.
+                 korner hech qachon bo'sh qolmaydi. Katalog narxi = server
+                 modSubs[].price, oflaynda kSubModuleDefaults.
                  Manba: lib/screens/home_hub.dart -> _hubShell;
                  tarif — lib/screens/paywall_sheet.dart -> modPriceLabel. -->
             <div style="grid-column:span 2;position:relative;overflow:hidden;height:272px;box-sizing:border-box;display:flex;flex-direction:column;background:var(--phov2);border:1px solid var(--phair);border-radius:18px;padding:16px 14px 12px;cursor:pointer">
