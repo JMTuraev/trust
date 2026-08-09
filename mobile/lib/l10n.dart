@@ -281,6 +281,9 @@ const Map<String, dynamic> lUz = {
   'subAutoRenewNoteMod': 'Har bo\'lim obunasi avtomatik yangilanadi. Aniq summa '
       'o\'sha bo\'limning obuna oynasida ko\'rsatiladi. Istalgan vaqtda bekor '
       'qilish: App Store → Apple ID → Obunalar.',
+  'pwAutoRenew': 'Obuna avtomatik yangilanadi. Joriy davr tugashidan 24 soat '
+      'oldin hisobingizdan {price} yechiladi. Istalgan vaqtda bekor qilish: '
+      'App Store → Apple ID → Obunalar.',
   'subRestore': 'Xaridni tiklash',
   'subTerms': 'Foydalanish shartlari',
   'subPrivacy': 'Maxfiylik siyosati',
@@ -816,6 +819,9 @@ const Map<String, dynamic> lRu = {
   'subAutoRenewNoteMod': 'Подписка на каждый раздел продлевается автоматически. '
       'Точная сумма показана в окне подписки этого раздела. Отменить можно в '
       'любой момент: App Store → Apple ID → Подписки.',
+  'pwAutoRenew': 'Подписка продлевается автоматически. За 24 часа до конца '
+      'текущего периода со счёта спишется {price}. Отменить можно в '
+      'любой момент: App Store → Apple ID → Подписки.',
   'subRestore': 'Восстановить покупку',
   'subTerms': 'Условия использования',
   'subPrivacy': 'Политика конфиденциальности',
@@ -1297,6 +1303,9 @@ const Map<String, dynamic> lEn = {
   'subAutoRenewNoteMod': 'Each section\'s subscription renews automatically. The '
       'exact amount is shown on that section\'s subscription screen. Cancel any '
       'time: App Store → Apple ID → Subscriptions.',
+  'pwAutoRenew': 'The subscription renews automatically. {price} is charged 24 '
+      'hours before the current period ends. Cancel any time: App Store → '
+      'Apple ID → Subscriptions.',
   'subRestore': 'Restore purchase',
   'subTerms': 'Terms of Use',
   'subPrivacy': 'Privacy Policy',
@@ -1779,6 +1788,9 @@ const Map<String, dynamic> lEs = {
       'automáticamente. El importe exacto se muestra en la pantalla de '
       'suscripción de esa sección. Cancela cuando quieras: App Store → Apple ID '
       '→ Suscripciones.',
+  'pwAutoRenew': 'La suscripción se renueva automáticamente. Se cobrarán {price} '
+      '24 horas antes de que finalice el período actual. Cancela cuando '
+      'quieras: App Store → Apple ID → Suscripciones.',
   'subRestore': 'Restaurar compra',
   'subTerms': 'Términos de uso',
   'subPrivacy': 'Política de privacidad',
@@ -2261,6 +2273,9 @@ const Map<String, dynamic> lFr = {
       'automatiquement. Le montant exact est indiqué sur l\'écran d\'abonnement '
       'de cette section. Annulation à tout moment : App Store → Apple ID → '
       'Abonnements.',
+  'pwAutoRenew': 'L\'abonnement se renouvelle automatiquement. {price} sera '
+      'prélevé 24 heures avant la fin de la période en cours. Annulation à tout '
+      'moment : App Store → Apple ID → Abonnements.',
   'subRestore': 'Restaurer l\'achat',
   'subTerms': 'Conditions d\'utilisation',
   'subPrivacy': 'Politique de confidentialité',
@@ -2739,6 +2754,8 @@ const Map<String, dynamic> lZh = {
   'subModLegacy': '已包含在您的 Premium 订阅中',
   'subModSubscribe': '订阅',
   'subAutoRenewNoteMod': '每个板块的订阅将自动续期。具体金额显示在该板块的订阅页面。'
+      '随时可取消：App Store → Apple ID → 订阅。',
+  'pwAutoRenew': '订阅将自动续期。在当前周期结束前 24 小时将扣款 {price}。'
       '随时可取消：App Store → Apple ID → 订阅。',
   'subRestore': '恢复购买',
   'subTerms': '使用条款',

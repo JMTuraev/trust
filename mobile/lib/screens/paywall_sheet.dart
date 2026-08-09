@@ -8,8 +8,12 @@
 //   v['paywall']      -> {'module','price','soon','used','limit'} yoki null
 //   v['paywallClose'] -> VoidCallback
 //   v['paywallBuy']   -> VoidCallback
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../api.dart' show apiUrl;
 import '../iap.dart';
 import '../l10n.dart';
 import '../store.dart';
@@ -105,6 +109,81 @@ String modCtaLabel(String module, int catalogPrice) {
   return modStrF('pwCta', {'price': '$catalogPrice'});
 }
 
+/// Tashqi havolani ochish (profil.dart bilan bir xil naqsh) — ochilmasa jim o'tadi.
+Future<void> _openUrl(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  } catch (_) {/* havola ochilmadi — jim o'tamiz */}
+}
+
+/// Apple standart EULA — o'z shartnomamiz yo'q, ASC'da ham AYNAN shu havola turadi.
+const String _kEulaUrl =
+    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+
+/// Paywall ostidagi Apple 3.1.2 bloki: avtoyangilanish sharti, «Xaridni tiklash»
+/// va ikki havola (EULA + Maxfiylik).
+///
+/// NEGA PAYWALL'DA: bu ma'lumotlar profil kartasida bor edi, XARID NUQTASIDA esa
+/// yo'q. Apple aynan shu sabab (3.1.2(c) — «obuna uchun nima berilishi va sharti
+/// aniq emas») AllClubs'ni 2026-07-17 da rad etgan.
+///
+/// `price` — CTA tugmasidagi summa bilan BIR XIL manbadan keladi: ikki xil summa
+/// oshkorlikning o'zini buzadi.
+class _ApplePaywallTerms extends StatelessWidget {
+  final String price;
+  const _ApplePaywallTerms({required this.price});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    final busy = store.S['iapBusy'] == true;
+    final linkStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: p.t2,
+      decoration: TextDecoration.underline,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // «Xaridni tiklash» — Apple talabi (qurilma almashsa obuna qaytadi).
+        // Xarid ketayotganda bosilmaydi: ikki oqim bir vaqtda ishlamasin.
+        Center(
+          child: Tap(
+            onTap: busy ? () {} : () => store.restorePremium(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              child: Tx(modStr('subRestore'),
+                  size: 12.5, w: FontWeight.w600, color: p.t2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Tx(modStrF('pwAutoRenew', {'price': price}),
+            size: 11, color: p.t4, lh: 15, maxLines: 5),
+        const SizedBox(height: 7),
+        Row(
+          children: [
+            Tap(
+              onTap: () => _openUrl(_kEulaUrl),
+              child: Text(modStr('subTerms'), style: linkStyle),
+            ),
+            Tx('   ·   ', size: 11, color: p.t6),
+            Tap(
+              onTap: () => _openUrl('$apiUrl/privacy'),
+              child: Text(modStr('subPrivacy'), style: linkStyle),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class PaywallSheet extends StatelessWidget {
   const PaywallSheet({super.key});
 
@@ -121,6 +200,10 @@ class PaywallSheet extends StatelessWidget {
     final limit = (pw['limit'] as int?) ?? 0;
     final locked = limit > 0 && used >= limit;
     final priceTxt = modPriceLabel(module, price);
+    // Avtoyangilanish matnidagi summa — «/oy» qo'shimchasisiz xom narx:
+    // «hisobingizdan $9.99/oy yechiladi» ikki marta davr aytgan bo'lardi.
+    final storePrice = IapService.modulePrice(module);
+    final rawPrice = storePrice.isNotEmpty ? storePrice : '\$$price';
     final benefits = kModBenefitKeys[module] ?? const <String>[];
 
     // NOTANISH MODUL (jadvallardan birida yo'q yoki tarjimasi qo'shilmagan):
@@ -271,6 +354,12 @@ class PaywallSheet extends StatelessWidget {
                 if (f is Function) f();
               },
             ),
+          // Apple 3.1.2 majburiy oshkorligi — FAQAT iOS'da va faqat sotuvdagi
+          // modullarda ("tez kunda" holatida xarid tugmasining o'zi yo'q).
+          if (Platform.isIOS && !soon) ...[
+            const SizedBox(height: 12),
+            _ApplePaywallTerms(price: rawPrice),
+          ],
         ],
       ),
     );
