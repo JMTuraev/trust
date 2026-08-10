@@ -340,7 +340,9 @@ void main() {
   });
 
   // ─────────────────── 5. Qulf va navigatsiya buzilmagan ───────────────────
-  testWidgets('qulflangan modul — hamon paywall (raqam qo\'shilgach ham)',
+  // 2026-08-10 audit: qulf endi KIRISHNI to'smaydi (o'qish bloklanmaydi, 402
+  // faqat yozishda) — karta bo'limni ochadi, paywall'ga yo'l esa QULF CHIPI.
+  testWidgets('qulflangan modul — chip paywall, karta esa bo\'lim (raqam bilan ham)',
       (t) async {
     _atHub(
       ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
@@ -354,16 +356,28 @@ void main() {
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
+    // Qulf CHIPI (11x11 qulf glifi — _modChip) -> paywall, screen hub'da qoladi
+    final chip = find.byWidgetPredicate(
+        (w) => w is SizedBox && w.width == 11 && w.height == 11);
+    await t.ensureVisible(chip);
+    await t.pumpAndSettle();
+    await t.tap(chip);
+    await t.pumpAndSettle();
+    expect(find.byType(PaywallSheet), findsOneWidget);
+    expect(store.S['screen'], 'hub');
+    store.paywallClose_();
+    await t.pump();
+
+    // KARTA bosilsa — bo'lim ochiladi, paywall YO'Q (raqam qo'shilgach ham)
     final f = find.text(_cap('modIjarachi'));
     await t.ensureVisible(f);
     await t.pumpAndSettle();
     await t.tap(f);
     await t.pumpAndSettle();
-
-    expect(find.byType(PaywallSheet), findsOneWidget);
-    expect(store.S['screen'], 'hub');
-    store.paywallClose_();
-    await t.pump();
+    expect(find.byType(PaywallSheet), findsNothing);
+    expect(store.S['screen'], 'ijara');
+    store.goHub_();
+    await t.pumpAndSettle();
   });
 
   // ─────────────────── 6. Tor ekran × 6 til — toshib ketmasin ───────────────

@@ -74,14 +74,26 @@ class HomeScreen extends StatelessWidget {
                     spacing: 16,
                     runSpacing: 6,
                     children: [
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        Tx('${L0['owedTo']}  ', size: 12, color: p.t2),
-                        Tx(v['owedToMe'], size: 12, w: FontWeight.w600, color: p.ink),
-                      ]),
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        Tx('${L0['owedBy']}  ', size: 12, color: p.t2),
-                        Tx(v['owedByMe'], size: 12, w: FontWeight.w600, color: p.ink),
-                      ]),
+                      // Katta summa («Sizga qarz 1 500 000 so'm · 2 000 $») tor
+                      // ekranda toshib ketmasin: har juftlik FittedBox ichida —
+                      // yolg'iz o'zi ham sig'masa BUTUN juftlik kichrayadi,
+                      // moliyaviy «...» bilan kesilmaydi (home_hub.dart
+                      // _pendingBanner bilan bir naqsh). DIQQAT: Wrap Flex emas —
+                      // Flexible/Expanded bu yerda ISHLAMAYDI, faqat FittedBox.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Tx('${L0['owedTo']}  ', size: 12, color: p.t2),
+                          Tx(v['owedToMe'], size: 12, w: FontWeight.w600, color: p.ink),
+                        ]),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Tx('${L0['owedBy']}  ', size: 12, color: p.t2),
+                          Tx(v['owedByMe'], size: 12, w: FontWeight.w600, color: p.ink),
+                        ]),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),

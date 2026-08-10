@@ -11,7 +11,7 @@
 // HAMMA matn toyxona_l10n.dart dan (6 til). HAMMA HTTP toyxona_data.dart da.
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInputFormatter, TextEditingValue;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInputFormatter, TextEditingValue, TextSelection;
 import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -19,15 +19,68 @@ import '../ui.dart';
 import '../toyxona_data.dart';
 import '../toyxona_l10n.dart';
 
-/// Raqam maydoni uchun minglik ajratgich: "150000" -> "150 000".
+// "Narx kiritilmagan" / sig'im ogohlantirishi uchun issiq rang (amber-700) —
+// client_screen.dart dagi "kutilmoqda" urg'usi bilan bir xil qiymat.
+const _amber = Color(0xFFB45309);
+
+/// Summani jonli "x xxx xxx" ko'rinishida guruhlovchi formatter —
+/// client_screen.dart nusxasi (F13): KURSOR O'RNINI SAQLAYDI. Eski variant
+/// har bosishda kursorni satr oxiriga uloqtirardi — summa o'rtasini tahrirlab
+/// bo'lmasdi. Chegara: _digits() 15 xonadan ortig'ini kesadi (int oshmaydi).
 class _GroupFmt extends TextInputFormatter {
+  static final _d = RegExp(r'\d');
+
+  String _group(String digits) {
+    final b = StringBuffer();
+    for (var k = 0; k < digits.length; k++) {
+      if (k > 0 && (digits.length - k) % 3 == 0) b.write(' ');
+      b.write(digits[k]);
+    }
+    return b.toString();
+  }
+
+  bool _isGroupSpace(String s, int i) =>
+      s[i] == ' ' && i > 0 && i + 1 < s.length && _d.hasMatch(s[i - 1]) && _d.hasMatch(s[i + 1]);
+
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue now) {
-    var digits = now.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length > 15) digits = digits.substring(0, 15); // int oshib ketmasin
-    if (digits.isEmpty) return const TextEditingValue();
-    final f = toyFx(int.parse(digits));
-    return TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
+  TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
+    final t = newV.text;
+    if (t.isEmpty || !_d.hasMatch(t)) return newV;
+    var meaningfulBefore = 0;
+    final selEnd = newV.selection.end.clamp(0, t.length);
+    for (var i = 0; i < selEnd; i++) {
+      if (!_isGroupSpace(t, i)) meaningfulBefore++;
+    }
+    final out = StringBuffer();
+    var i = 0;
+    while (i < t.length) {
+      if (_d.hasMatch(t[i])) {
+        final run = StringBuffer();
+        var j = i;
+        while (j < t.length) {
+          if (_d.hasMatch(t[j])) {
+            run.write(t[j]);
+            j++;
+          } else if (t[j] == ' ' && j + 1 < t.length && _d.hasMatch(t[j + 1])) {
+            j++;
+          } else {
+            break;
+          }
+        }
+        out.write(_group(run.toString()));
+        i = j;
+      } else {
+        out.write(t[i]);
+        i++;
+      }
+    }
+    final res = out.toString();
+    var pos = 0, seen = 0;
+    while (pos < res.length && seen < meaningfulBefore) {
+      if (!_isGroupSpace(res, pos)) seen++;
+      pos++;
+    }
+    return TextEditingValue(text: res, selection: TextSelection.collapsed(offset: pos));
   }
 }
 
@@ -115,10 +168,36 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   bool _svcOpen = false;
   String _svcTitle = '';
   String _svcAmount = '';
+  int _svcQty = 1; // U3: xizmat soni (1..kToyMaxSvcQty)
   bool _payOpen = false;
   String _payAmount = '';
   String _payKind = 'avans';
   String _payNote = '';
+  DateTime _payDate = toyDay(DateTime.now()); // U2: kechagi naqd bugun yoziladi
+
+  // Qidiruv (U7) — header lupasidan ochiladigan ichki qidiruv holati
+  bool _searchOpen = false;
+  String _searchQ = '';
+  Timer? _searchT; // 400ms debounce
+  List<Booking>? _searchServer; // null = server javobi yo'q (kutilmoqda/oflayn)
+  bool _searchBusy = false;
+  bool _searchOffline = false;
+  int _searchSeq = 0; // eskirgan qidiruv javobi tashlanadi
+
+  // Yaqin bronlar kengaytmasi (U6): 6 tadan 30 tagacha
+  bool _upcomingAll = false;
+
+  // Forma kunining bandligi (U1): 'YYYY-MM-DD' -> o'sha kunning BARCHA bandlari
+  // (to'yxona filtrisiz — formada boshqa zal tanlansa ham belgilar to'g'ri).
+  final Map<String, List<Booking>> _dayRows = {};
+  final Set<String> _dayFetched = {};
+
+  // Zallar sahifasidagi "Arxiv (N)" bo'limi (U10)
+  bool _archOpen = false;
+
+  // Oy menyusi 31 oyni qamraydi (F11) — ochilganda tanlangan oy ko'rinib
+  // turishi uchun boshlang'ich siljish bilan yaratiladigan controller.
+  ScrollController? _monthMenuCtl;
 
   bool _busy = false;
   String _toast = '';
@@ -133,15 +212,18 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   @override
   void initState() {
     super.initState();
-    _month = toyMonthStart(toyRepo.month);
+    // F11: modulga kirilganda ko'riladigan oy HAR DOIM joriy oy — o'tgan
+    // sessiyada qaralgan uzoq oy yopishib qolmasin (repo.enter() ham shuni qiladi).
+    _month = toyMonthStart(DateTime.now());
     // Hub ichida (handleSystemBack: false) apparat "orqaga" Root PopScope'ga
     // boradi — u hub'ga qaytishdan OLDIN shu ilgakni chaqiradi, ya'ni ochiq
     // forma/tafsilot bir bosishda butun modulni yopib, kiritilganni YO'QOTMAYDI.
     // Preview'da ekranning O'Z PopScope'i bor — u yerda ro'yxatdan o'tmaymiz,
     // aks holda bitta bosishda ikki qavat orqaga ketardi.
     if (!widget.handleSystemBack) store.setModuleBack_(_backHook);
-    // Birinchi kadrdan keyin yuklaymiz (initState ichida setState bo'lmasin)
-    WidgetsBinding.instance.addPostFrameCallback((_) => toyRepo.load(_month));
+    // Birinchi kadrdan keyin yuklaymiz (initState ichida setState bo'lmasin).
+    // enter() (F4): zallar keshi darhol ko'rsatiladi, ro'yxat orqa fonda yangilanadi.
+    WidgetsBinding.instance.addPostFrameCallback((_) => toyRepo.enter());
   }
 
   @override
@@ -150,6 +232,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     // yangi ekranning initState'i eskisining dispose'idan OLDIN ishlashi mumkin.
     if (!widget.handleSystemBack) store.clearModuleBack_(_backHook);
     _toastT?.cancel();
+    _searchT?.cancel();
+    _monthMenuCtl?.dispose();
     super.dispose();
   }
 
@@ -164,8 +248,32 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     });
   }
 
-  /// Repo xatosini ko'rsatish (server matni bor bo'lsa o'shani, aks holda zaxira).
+  /// Repo xatosini ko'rsatish (ijara.dart _toastErr bilan bir qoida, F6):
+  /// serverning xato matnlari FAQAT o'zbekcha (src/routes/toyxona.js) — ruscha
+  /// yoki inglizcha ishlatayotgan ega ularni tushunmasdi. TANILGAN kodlar
+  /// modulning O'Z (6 tilli) matniga aylantiriladi:
+  ///   SLOT_TAKEN   -> slotTaken (+ serverning "Band: <mijoz>" tafsiloti),
+  ///   HALL_LIMIT   -> oneVenueNote (403 — PAYWALL EMAS, sotiladigan narsa yo'q),
+  ///   SUB_EXPIRED  -> errSubExpired (paywall'ni _req allaqachon ochgan),
+  ///   HAS_PAYMENTS -> delHasPayments (qat'iy o'chirish taqiqlangan — 'bekor' bor).
+  /// Tanilmagan kodda serverning matni (bo'lmasa zaxira) qoladi: validatsiya
+  /// xabarlari aniqroq bo'lgani uchun ular yashirilmaydi.
   void _toastErr([String? fallback]) {
+    switch (toyRepo.lastCode) {
+      case 'SLOT_TAKEN':
+        final d = toyRepo.lastDetail;
+        _toastMsg(d.isEmpty ? ty('slotTaken') : '${ty('slotTaken')} · $d');
+        return;
+      case 'HALL_LIMIT':
+        _toastMsg(ty('oneVenueNote'));
+        return;
+      case 'SUB_EXPIRED':
+        _toastMsg(ty('errSubExpired'));
+        return;
+      case 'HAS_PAYMENTS':
+        _toastMsg(ty('delHasPayments'));
+        return;
+    }
     final e = toyRepo.error;
     final detail = toyRepo.lastDetail;
     final base = (e == null || e.isEmpty) ? (fallback ?? ty('errGeneric')) : e;
@@ -183,7 +291,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   Color _leftColor(int left, Pal p) => left > 0 ? p.red : p.green;
 
   bool get _anyLayer =>
-      _detailId != null || _form != null || _venuesOpen || _tiersHallId != null || _cancelledOpen;
+      _detailId != null ||
+      _form != null ||
+      _venuesOpen ||
+      _tiersHallId != null ||
+      _cancelledOpen ||
+      _searchOpen;
 
   /// Eng ustki qatlamni yopadi. true — nimadir yopildi.
   bool _closeTop() {
@@ -229,6 +342,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       setState(() => _cancelledOpen = false);
       return true;
     }
+    // Qidiruv ildiz gavdasida yashaydi (qatlam emas): natijadan ochilgan
+    // tafsilot yuqorida yopiladi, undan keyingi "orqaga" qidiruvni yopadi.
+    if (_searchOpen) {
+      _closeSearch();
+      return true;
+    }
     return false;
   }
 
@@ -240,10 +359,57 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       _svcOpen = false;
       _svcTitle = '';
       _svcAmount = '';
+      _svcQty = 1;
       _payOpen = false;
       _payAmount = '';
       _payNote = '';
       _payKind = 'avans';
+      _payDate = toyDay(DateTime.now());
+    });
+  }
+
+  // ---------------- Qidiruv holati (U7) ----------------
+
+  void _openSearch() => setState(() => _searchOpen = true);
+
+  void _closeSearch() {
+    _searchT?.cancel();
+    _searchSeq++; // yo'ldagi javob eskirsin
+    setState(() {
+      _searchOpen = false;
+      _searchQ = '';
+      _searchServer = null;
+      _searchBusy = false;
+      _searchOffline = false;
+    });
+  }
+
+  void _onSearchChanged(String v) {
+    _searchT?.cancel();
+    final q = v.trim();
+    setState(() {
+      _searchQ = v;
+      if (q.length < 2) {
+        // 2 belgidan kam — server bezovta qilinmaydi, natijalar tozalanadi
+        _searchSeq++;
+        _searchServer = null;
+        _searchBusy = false;
+        _searchOffline = false;
+      }
+    });
+    if (q.length < 2) return;
+    _searchT = Timer(const Duration(milliseconds: 400), () => _runSearch(q));
+  }
+
+  Future<void> _runSearch(String q) async {
+    final seq = ++_searchSeq;
+    setState(() => _searchBusy = true);
+    final res = await toyRepo.searchBookings(q);
+    if (!mounted || seq != _searchSeq) return; // eskirgan javob
+    setState(() {
+      _searchBusy = false;
+      _searchServer = res; // null = tarmoq yiqildi -> klient mosliklari + belgi
+      _searchOffline = res == null;
     });
   }
 
@@ -260,8 +426,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             Column(
               children: [
                 _header(p),
-                if (toyRepo.halls.length > 1) _venueChips(p),
-                Expanded(child: _monthBody(p)),
+                // Qidiruv rejimida chiplar yashirinadi — butun gavda natijalarga
+                if (!_searchOpen && toyRepo.halls.length > 1) _venueChips(p),
+                Expanded(child: _searchOpen ? _searchBody(p) : _monthBody(p)),
               ],
             ),
             Positioned(left: 0, right: 0, bottom: 0, child: _bottomBar(p)),
@@ -300,6 +467,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   // ================= SARLAVHA =================
 
   Widget _header(Pal p) {
+    // Qidiruv rejimi (U7): header o'rnida qidiruv maydoni (home.dart pill uslubi)
+    if (_searchOpen) return _searchHeader(p);
     final hall = toyRepo.currentHall;
     final sub = toyRepo.halls.isEmpty
         ? '${tyMonth(_month.month)} ${_month.year}'
@@ -319,7 +488,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx(ty('title'), size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2),
+                Tx(ty('title'), size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2,
+                    maxLines: 1, ellipsis: true),
                 const SizedBox(height: 1),
                 Tx(sub, size: 11.5, color: p.t3, maxLines: 1, ellipsis: true),
               ],
@@ -327,7 +497,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           ),
           // Oy filtri — xarajat.dart davr dropdown'i bilan bir uslub
           Tap(
-            onTap: () => setState(() => _monthMenu = true),
+            onTap: _openMonthMenu,
             child: Container(
               height: 34,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -353,6 +523,17 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // Qidiruv (U7) — mijoz/telefon bo'yicha bronni topish
+          Tap(
+            onTap: _openSearch,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
+              child: Center(child: SearchGlyph(color: p.ink, size: 15)),
+            ),
+          ),
+          const SizedBox(width: 8),
           // To'yxonalar va narxlar (sozlamalar)
           Tap(
             onTap: () => setState(() => _venuesOpen = true),
@@ -368,10 +549,73 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// Qidiruv headeri: orqaga + pill maydon (home.dart qidiruv pilli 1:1 ruh).
+  Widget _searchHeader(Pal p) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 20, 0),
+      child: Row(
+        children: [
+          Tap(
+            onTap: _closeSearch,
+            child: SizedBox(width: 34, height: 34, child: Center(child: BackChevron(color: p.ink))),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: p.field,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: p.hair2),
+              ),
+              child: Row(
+                children: [
+                  SearchGlyph(color: p.t3, size: 15),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: StoreField(
+                      value: _searchQ,
+                      onChanged: _onSearchChanged,
+                      hint: ty('searchPh'),
+                      autofocus: true,
+                      style: GoogleFonts.inter(fontSize: 13.5, color: p.ink, fontWeight: FontWeight.w500),
+                      hintColor: p.t5,
+                    ),
+                  ),
+                  if (_searchQ.isNotEmpty)
+                    Tap(
+                      onTap: () => _onSearchChanged(''),
+                      child: SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Center(child: Icon(Icons.close_rounded, size: 15, color: p.t3)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Oy menyusini ochish: tanlangan oy (indeks 12) karta o'rtasida ko'rinsin —
+  /// qator balandligi ~43px, karta 330px. Controller har ochilishda yangi
+  /// (initialScrollOffset attach'dan OLDIN berilishi kerak).
+  void _openMonthMenu() {
+    _monthMenuCtl?.dispose();
+    _monthMenuCtl = ScrollController(initialScrollOffset: 12 * 43.0 - 140);
+    setState(() => _monthMenu = true);
+  }
+
   /// Oy tanlash — header trigger ostidagi anchored karta (xarajat._perMenuModal 1:1).
+  /// F11: bronlar oldinga OYLAB ketadi (kuzgi cho'qqi) — oraliq tanlangan
+  /// oydan −12 orqaga va +18 oldinga; joriy oy halqa-nuqta bilan belgilanadi.
   Widget _monthMenuCard(Pal p) {
     final now = DateTime.now();
-    final opts = [for (var i = -2; i <= 9; i++) DateTime(now.year, now.month + i, 1)];
+    final opts = [for (var i = -12; i <= 18; i++) DateTime(_month.year, _month.month + i, 1)];
     return Positioned.fill(
       child: Stack(
         children: [
@@ -395,6 +639,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: IntrinsicWidth(
                   child: SingleChildScrollView(
+                    controller: _monthMenuCtl,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisSize: MainAxisSize.min,
@@ -406,6 +651,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                             opts[i].year == _month.year && opts[i].month == _month.month,
                             i == 0,
                             () => _pickMonth(opts[i]),
+                            isNow: opts[i].year == now.year && opts[i].month == now.month,
                           ),
                       ],
                     ),
@@ -420,7 +666,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   /// Menyu qatori — tanlanganida w600 + o'ngda 6px nuqta (home._fltItem uslubi).
-  Widget _menuRow(Pal p, String label, bool on, bool first, VoidCallback onTap) {
+  /// isNow (F11): JORIY oy ichi bo'sh halqa bilan belgilanadi — ega ro'yxatda
+  /// "bugun qayerdaman" ni bir qarashda topadi (tanlangan oy to'la nuqta).
+  Widget _menuRow(Pal p, String label, bool on, bool first, VoidCallback onTap,
+      {bool isNow = false}) {
     return Tap(
       onTap: onTap,
       child: Container(
@@ -433,6 +682,16 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             if (on) ...[
               const SizedBox(width: 12),
               Container(width: 6, height: 6, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
+            ] else if (isNow) ...[
+              const SizedBox(width: 12),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  border: Border.all(color: p.ink, width: 1.2),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ],
           ],
         ),
@@ -497,14 +756,35 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   Widget _monthBody(Pal p) {
     if (toyRepo.loading && !toyRepo.loaded) return _skeleton(p);
     if (toyRepo.error != null && !toyRepo.loaded) return _errorState(p);
+    // U9: joriy oyga qaralayotganda "Bugun" lentasi — eganing ertalabki qarashi
+    final now = DateTime.now();
+    final todayRows = (_month.year == now.year && _month.month == now.month)
+        ? [for (final s in kToySlots) ...toyRepo.allAt(toyDay(now), s)]
+        : const <Booking>[];
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // F1: birinchi yuklashdan keyin oy almashtirilsa skelet o'rniga
+          // yengil "yuklanmoqda" belgisi — kontekst yo'qolmaydi.
+          if (toyRepo.loading && toyRepo.loaded) ...[
+            _loadingHint(p),
+            const SizedBox(height: 12),
+          ],
+          // F1: oy yuklanmay qolsa ESKI OY JIMGINA TURMAYDI — repo ro'yxatni
+          // tozalagan, bu yerda banner + qayta urinish.
+          if (toyRepo.monthError != null && !toyRepo.loading) ...[
+            _monthErrorBanner(p),
+            const SizedBox(height: 16),
+          ],
           if (toyRepo.hallsLoaded && toyRepo.halls.isEmpty) ...[
             _noVenueCard(p),
             const SizedBox(height: 16),
+          ],
+          if (todayRows.isNotEmpty) ...[
+            _todayStrip(p, todayRows),
+            const SizedBox(height: 18),
           ],
           _summary(p),
           const SizedBox(height: 18),
@@ -512,6 +792,123 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           const SizedBox(height: 18),
           if (_selDay != null) _dayPanel(p, _selDay!) else _upcomingPanel(p),
         ],
+      ),
+    );
+  }
+
+  /// Yengil yuklanish belgisi (F1) — skelet emas, kontent ustidagi bir qator.
+  Widget _loadingHint(Pal p) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(
+              strokeWidth: 1.6, valueColor: AlwaysStoppedAnimation<Color>(p.t3)),
+        ),
+        const SizedBox(width: 8),
+        Tx(ty('loadingHint'), size: 11.5, color: p.t3),
+      ],
+    );
+  }
+
+  /// Oy yuklanmaganda ichki banner (F1): ro'yxat bo'sh, sabab va qayta urinish.
+  Widget _monthErrorBanner(Pal p) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: p.hov2,
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Tx(ty('loadFailed'), size: 13, w: FontWeight.w600, color: p.red),
+          const SizedBox(height: 4),
+          Tx(toyRepo.monthError ?? '', size: 11.5, color: p.t4, lh: 16),
+          const SizedBox(height: 10),
+          GhostBtn(label: ty('retry'), h: 40, fs: 12.5, onTap: () => toyRepo.load(_month)),
+        ],
+      ),
+    );
+  }
+
+  /// "Bugun" lentasi (U9): bugungi bandlar — slot, mijoz, mehmon, qoldiq.
+  /// Bosilsa tafsilot ochiladi. Egaga ertalab bitta qarash yetadi.
+  Widget _todayStrip(Pal p, List<Booking> rows) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Tx(ty('today').toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 64,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                _todayCard(p, rows[i]),
+                if (i < rows.length - 1) const SizedBox(width: 7),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _todayCard(Pal p, Booking b) {
+    return Tap(
+      onTap: () => setState(() => _detailId = b.id),
+      child: Container(
+        width: 196,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: p.hov2,
+          border: Border.all(color: p.hair2),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(color: _statusColor(b.status, p), shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Tx(tySlot(b.slot), size: 10.5, w: FontWeight.w600, color: p.t2,
+                      maxLines: 1, ellipsis: true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Tx(b.clientName, size: 12.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+            const SizedBox(height: 2),
+            // Pul kesilmaydi — butun qator FittedBox ichida (F14 qoidasi)
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  Tx(ty('guestsN', {'n': '${b.guests}'}), size: 10.5, color: p.t3),
+                  Tx(' · ', size: 10.5, color: p.t4),
+                  Tx(toyMoney(b.left), size: 10.5, w: FontWeight.w600,
+                      color: _leftColor(b.left, p), tab: true),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -588,7 +985,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   Widget _summary(Pal p) {
-    final s = toyRepo.summary;
+    // F3: server xulosasi shu yuklashda kelmagan bo'lsa — yuklangan qatorlardan
+    // hisob (shownSummary). Eski oyning raqami hech qachon ko'rsatilmaydi.
+    final s = toyRepo.shownSummary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -763,38 +1162,95 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         ),
         const SizedBox(height: 10),
         for (final slot in kToySlots) ...[
-          _slotRow(p, day, slot),
+          _slotGroup(p, day, slot),
           if (slot != kToySlots.last) const SizedBox(height: 8),
         ],
       ],
     );
   }
 
-  Widget _slotRow(Pal p, DateTime day, String slot) {
-    final b = toyRepo.at(day, slot);
-    if (b == null) {
-      // Bo'sh slot — bosilsa to'ldirilgan forma ochiladi
-      return Tap(
-        onTap: () => _openNewBooking(day, slot),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          decoration: BoxDecoration(
-            border: Border.all(color: p.hair2),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 96,
-                child: Tx(tySlot(slot), size: 12, w: FontWeight.w600, color: p.t2, maxLines: 1, ellipsis: true),
-              ),
-              Expanded(child: Tx(ty('free'), size: 12.5, color: p.t4)),
-              Tx(ty('bookIt'), size: 12.5, w: FontWeight.w600, color: p.ink),
-            ],
-          ),
+  /// Bitta slot bo'limi (U8): "Hammasi" ko'rinishida bir slotda HAR to'yxonadan
+  /// alohida band bo'ladi — ilgari at() faqat birinchisini ko'rsatib, qolgan
+  /// zallarning to'ylari kun panelidan YO'QOLARDI. Endi hammasi chiqadi, bo'sh
+  /// zal qolgan bo'lsa o'sha zal uchun "bo'sh" qatori ham beriladi.
+  Widget _slotGroup(Pal p, DateTime day, String slot) {
+    final list = toyRepo.allAt(day, slot);
+    final multi = toyRepo.selectedHallId == null && toyRepo.halls.length > 1;
+    if (list.isEmpty) return _freeSlotRow(p, day, slot);
+    final freeHalls = multi
+        ? [for (final h in toyRepo.halls) if (!list.any((b) => b.hallId == h.id)) h]
+        : const <Hall>[];
+    return Column(
+      children: [
+        for (var i = 0; i < list.length; i++) ...[
+          _slotBookingRow(p, list[i], showHall: multi),
+          if (i < list.length - 1) const SizedBox(height: 6),
+        ],
+        if (freeHalls.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _slotFreeHalls(p, day, slot, freeHalls),
+        ],
+      ],
+    );
+  }
+
+  /// Bo'sh slot — bosilsa to'ldirilgan forma ochiladi.
+  Widget _freeSlotRow(Pal p, DateTime day, String slot) {
+    return Tap(
+      onTap: () => _openNewBooking(day, slot),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          border: Border.all(color: p.hair2),
+          borderRadius: BorderRadius.circular(14),
         ),
-      );
-    }
+        child: Row(
+          children: [
+            SizedBox(
+              width: 96,
+              child: Tx(tySlot(slot), size: 12, w: FontWeight.w600, color: p.t2, maxLines: 1, ellipsis: true),
+            ),
+            Expanded(child: Tx(ty('free'), size: 12.5, color: p.t4)),
+            Tx(ty('bookIt'), size: 12.5, w: FontWeight.w600, color: p.ink),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Slotda band bo'lmagan zallar qatori (U8): zal nomi bosilsa AYNAN o'sha
+  /// zalga forma ochiladi — ega telefonda gaplashib turib bo'sh zalni sotadi.
+  Widget _slotFreeHalls(Pal p, DateTime day, String slot, List<Hall> freeHalls) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Tx(ty('free'), size: 12, w: FontWeight.w600, color: p.t4),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final h in freeHalls)
+                  _smallChip(p, h.name, false, () => _openNewBooking(day, slot, hallId: h.id)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _slotBookingRow(Pal p, Booking b, {bool showHall = false}) {
+    final sub = showHall && b.hallName.isNotEmpty
+        ? '${b.hallName} · ${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}'
+        : '${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}';
     return Tap(
       onTap: () => setState(() => _detailId = b.id),
       child: Container(
@@ -805,28 +1261,42 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(width: 3, height: 34, color: _statusColor(b.status, p)),
             const SizedBox(width: 11),
             Expanded(
+              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Tx(b.clientName, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
                   const SizedBox(height: 3),
-                  Tx('${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}',
-                      size: 11.5, color: p.t3, maxLines: 1, ellipsis: true),
+                  Tx(sub, size: 11.5, color: p.t3, maxLines: 1, ellipsis: true),
+                  if (b.priceMissing) ...[
+                    const SizedBox(height: 4),
+                    _noPriceTag(p),
+                  ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Tx(toyMoney(b.left), size: 13, w: FontWeight.w600, color: _leftColor(b.left, p)),
-                const SizedBox(height: 3),
-                Tx(tyStatus(b.status), size: 11, w: FontWeight.w600, color: _statusColor(b.status, p)),
-              ],
+            // Pul kesilmaydi (F14) — FittedBox, ijara qatori bilan bir naqsh
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Tx(toyMoney(b.left),
+                        size: 13, w: FontWeight.w600, color: _leftColor(b.left, p), tab: true),
+                  ),
+                  const SizedBox(height: 3),
+                  Tx(tyStatus(b.status), size: 11, w: FontWeight.w600, color: _statusColor(b.status, p)),
+                ],
+              ),
             ),
           ],
         ),
@@ -834,10 +1304,25 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// "Narx kiritilmagan" belgisi (U5): avansli, lekin menyusi hali
+  /// kelishilmagan bron O'zbekistonda NORMAL — bu bloklamaydi, faqat eslatadi.
+  Widget _noPriceTag(Pal p) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: _amber.withValues(alpha: .45)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Tx(ty('noPriceChip'), size: 10, w: FontWeight.w600, color: _amber),
+    );
+  }
+
   // ================= YAQIN TO'YLAR =================
 
   Widget _upcomingPanel(Pal p) {
-    final list = toyRepo.upcoming();
+    // U6: standart 6 ta; "Hammasi (N)" bosilsa 30 tagacha ochiladi.
+    final full = toyRepo.upcoming(30);
+    final list = _upcomingAll ? full : full.take(6).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -846,15 +1331,38 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           child: Tx(ty('upcomingCap'), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4),
         ),
         const SizedBox(height: 10),
-        if (list.isEmpty)
-          // Umuman bron yo'q -> modul bo'sh holati; bronlar bor, lekin oldinda
-          // yo'q -> tinch "yaqin to'y yo'q" xabari (noto'g'ri "hali bron yo'q" emas)
-          (toyRepo.monthBookings.isEmpty ? _emptyBlock(p) : _noUpcomingBlock(p))
-        else
+        if (full.isEmpty)
+          // F9: uch xil bo'shliq farqlanadi —
+          //   * hisobda umuman bron yo'q  -> birinchi ishga tushirish holati,
+          //   * bron bor, bu OY bo'sh     -> "bu oyda bron yo'q",
+          //   * bu oyda bor, oldinda yo'q -> tinch "yaqin to'y yo'q".
+          (toyRepo.monthBookings.isEmpty
+              ? (toyRepo.hasAnyKnownBookings ? _monthEmptyBlock(p) : _emptyBlock(p))
+              : _noUpcomingBlock(p))
+        else ...[
           for (var i = 0; i < list.length; i++) ...[
             _upcomingRow(p, list[i]),
             if (i < list.length - 1) const SizedBox(height: 8),
           ],
+          if (full.length > 6) ...[
+            const SizedBox(height: 10),
+            Tap(
+              onTap: () => setState(() => _upcomingAll = !_upcomingAll),
+              child: Container(
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(color: p.bd),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Tx(
+                  _upcomingAll ? ty('showLess') : ty('showAll', {'n': '${full.length}'}),
+                  size: 12.5, w: FontWeight.w600, color: p.ink,
+                ),
+              ),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -872,6 +1380,21 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// "Bu oyda bron yo'q" (F9): hisobda bron BOR, faqat qaralayotgan oy bo'sh —
+  /// "Hali bron yo'q" degan yolg'on birinchi-ishga-tushirish matni chiqmasin.
+  Widget _monthEmptyBlock(Pal p) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 24),
+      decoration: BoxDecoration(
+        color: p.hov2,
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Tx(ty('emptyMonth'), size: 12.5, color: p.t4, align: TextAlign.center),
+    );
+  }
+
   Widget _emptyBlock(Pal p) {
     return Container(
       width: double.infinity,
@@ -886,6 +1409,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           Tx(ty('emptyTitle'), size: 14, w: FontWeight.w600, color: p.t1, align: TextAlign.center),
           const SizedBox(height: 6),
           Tx(ty('emptySub'), size: 12, color: p.t4, align: TextAlign.center),
+          // F9: haqiqiy birinchi ishga tushirishda qisqa yo'l-yo'riq — avval
+          // to'yxona va narx toifalari, keyin bron (daftardan ko'chib kelayotgan
+          // ega qayerdan boshlashni bilsin).
+          if (!toyRepo.hasHalls) ...[
+            const SizedBox(height: 10),
+            Tx(ty('emptyOnboard'), size: 11.5, color: p.t4, align: TextAlign.center, lh: 16),
+          ],
         ],
       ),
     );
@@ -922,6 +1452,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ),
             const SizedBox(width: 11),
             Expanded(
+              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -933,15 +1464,28 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                         : '${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}',
                     size: 11.5, color: p.t3, maxLines: 1, ellipsis: true,
                   ),
+                  if (!showPaid && b.priceMissing) ...[
+                    const SizedBox(height: 4),
+                    _noPriceTag(p),
+                  ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Tx(
-              showPaid ? toyMoney(b.paid) : toyMoney(b.left),
-              size: 13,
-              w: FontWeight.w600,
-              color: showPaid ? p.green : _leftColor(b.left, p),
+            // Pul kesilmaydi (F14) — FittedBox (ijara _houseRow naqshi)
+            Expanded(
+              flex: 2,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Tx(
+                  showPaid ? toyMoney(b.paid) : toyMoney(b.left),
+                  size: 13,
+                  w: FontWeight.w600,
+                  color: showPaid ? p.green : _leftColor(b.left, p),
+                  tab: true,
+                ),
+              ),
             ),
           ],
         ),
@@ -1030,22 +1574,29 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ================= BRON TAFSILOTI =================
 
-  void _openNewBooking(DateTime date, String slot) {
-    final hallId = toyRepo.selectedHallId ??
+  /// hallId (U8) — kun panelidagi "bo'sh zal" chipidan AYNAN o'sha zal bilan
+  /// ochish; berilmasa tanlangan (yoki yagona) to'yxona.
+  void _openNewBooking(DateTime date, String slot, {String? hallId}) {
+    final hid = hallId ??
+        toyRepo.selectedHallId ??
         (toyRepo.halls.length == 1 ? toyRepo.halls.first.id : null);
-    final tiers = toyRepo.tiersOf(hallId);
-    final hall = toyRepo.hallById(hallId);
+    final tiers = toyRepo.tiersOf(hid);
+    final hall = toyRepo.hallById(hid);
     setState(() {
       _form = _FormData(
         date: date,
         slot: slot,
-        hallId: hallId,
+        hallId: hid,
         menuId: tiers.isNotEmpty ? tiers.first.id : null,
         price: tiers.isNotEmpty
             ? toyFx(tiers.first.pricePerGuest)
             : (hall != null && hall.pricePerGuest > 0 ? toyFx(hall.pricePerGuest) : ''),
       );
     });
+    // U1: har ochilishda shu kun QAYTA so'raladi (kesh eskirgan bo'lishi
+    // mumkin — masalan hozirgina yaratilgan/bekor qilingan bron).
+    _dayFetched.remove(toyYmd(date));
+    _ensureDay(date);
   }
 
   void _openEditBooking(Booking b) {
@@ -1065,6 +1616,29 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         note: b.note,
       );
     });
+    _dayFetched.remove(toyYmd(b.eventDate)); // U1: yangi ochilishda qayta so'raladi
+    _ensureDay(b.eventDate);
+  }
+
+  /// Forma kuni uchun bandlik ma'lumoti (U1): avval yuklangan oydan urug'lanadi
+  /// (darhol ko'rinadi), so'ng bitta-kun so'rovi bilan ANIQLANADI — u to'yxona
+  /// filtrisiz, ya'ni formada boshqa zal tanlansa ham belgilar to'g'ri.
+  /// Tarmoq yiqilsa jim: belgilar shunchalik, forma bloklanmaydi (server
+  /// baribir 409 SLOT_TAKEN bilan himoya qiladi).
+  Future<void> _ensureDay(DateTime day) async {
+    final key = toyYmd(day);
+    _dayRows.putIfAbsent(key, () => [
+          for (final b in toyRepo.monthBookings)
+            if (toySameDay(b.eventDate, day)) b,
+        ]);
+    if (!_dayFetched.add(key)) return; // bu kun allaqachon so'ralgan
+    final rows = await toyRepo.bookingsOn(day);
+    if (!mounted) return;
+    if (rows == null) {
+      _dayFetched.remove(key); // keyingi ochilishda qayta uriniladi
+      return;
+    }
+    setState(() => _dayRows[key] = rows);
   }
 
   Widget _detail(Pal p) {
@@ -1073,7 +1647,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       // Bron o'chirilgan/yo'qolgan — qatlamni yopamiz
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _detailId != null && toyRepo.byId(_detailId) == null) {
-          setState(() => _detailId = null);
+          _closeDetail(); // mini-formalar ham tozalansin (2026-08-10 review)
         }
       });
       return const SizedBox.shrink();
@@ -1185,7 +1759,14 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _cap(p, ty('moneyCap')),
+        Row(
+          children: [
+            _cap(p, ty('moneyCap')),
+            const Spacer(),
+            // U5: narx ham, xizmat ham kiritilmagan — yumshoq eslatma belgisi
+            if (b.priceMissing) _noPriceTag(p),
+          ],
+        ),
         const SizedBox(height: 10),
         Container(
           width: double.infinity,
@@ -1232,11 +1813,21 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               const SizedBox(height: 14),
               Container(height: 1, color: p.hair2),
               const SizedBox(height: 12),
-              _totalRow(p, ty('totalLabel'), toyMoney(b.total), p.ink, big: true),
-              const SizedBox(height: 7),
-              _totalRow(p, ty('paidLabel'), toyMoney(b.paid), p.green),
-              const SizedBox(height: 7),
-              _totalRow(p, ty('leftLabel'), toyMoney(b.left), _leftColor(b.left, p), big: true),
+              if (b.cancelled) ...[
+                // F7: bekor qilingan bronda QIZIL "Qoldiq" YO'Q — bu yerda hech
+                // kim hech kimga qarzdor emas. Jami xira (bu daromad emas),
+                // olingan pul esa "Olingan to'lov (bekor)" nomi bilan qoladi
+                // (avans egada qolishi O'zbekistonda odatiy holat).
+                _totalRow(p, ty('totalLabel'), toyMoney(b.total), p.t4, big: true),
+                const SizedBox(height: 7),
+                _totalRow(p, ty('cancelledKept'), toyMoney(b.paid), p.green),
+              ] else ...[
+                _totalRow(p, ty('totalLabel'), toyMoney(b.total), p.ink, big: true),
+                const SizedBox(height: 7),
+                _totalRow(p, ty('paidLabel'), toyMoney(b.paid), p.green),
+                const SizedBox(height: 7),
+                _totalRow(p, ty('leftLabel'), toyMoney(b.left), _leftColor(b.left, p), big: true),
+              ],
             ],
           ),
         ),
@@ -1264,29 +1855,40 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   Widget _itemRow(Pal p, BookingItem it) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
+          // 'nom × soni' — summa esa amount × qty (U3; BookingItem.total)
           Expanded(
+            flex: 3,
             child: Tx(it.qty > 1 ? '${it.title} × ${it.qty}' : it.title,
                 size: 13, color: p.ink, maxLines: 1, ellipsis: true),
           ),
           const SizedBox(width: 8),
-          Tx(toyMoney(it.total), size: 13, w: FontWeight.w600, color: p.ink),
-          const SizedBox(width: 4),
+          // Pul kesilmaydi (F14)
+          Expanded(
+            flex: 2,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Tx(toyMoney(it.total), size: 13, w: FontWeight.w600, color: p.ink, tab: true),
+            ),
+          ),
           _xBtn(p, () => _askDeleteItem(it)),
         ],
       ),
     );
   }
 
+  /// O'chirish (×) tugmasi — bosish maydoni kamida 40×40 (F14): to'y kuni
+  /// shoshib turgan ega 26px nishonni ko'zlab o'tirmaydi.
   Widget _xBtn(Pal p, VoidCallback onTap) {
     return Tap(
       onTap: onTap,
       child: SizedBox(
-        width: 26,
-        height: 26,
-        child: Center(child: Icon(Icons.close_rounded, size: 14, color: p.t3)),
+        width: 40,
+        height: 40,
+        child: Center(child: Icon(Icons.close_rounded, size: 15, color: p.t3)),
       ),
     );
   }
@@ -1326,8 +1928,26 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           _field(p, ty('svcTitleLabel'), _svcTitle, (v) => setState(() => _svcTitle = v),
               hint: ty('svcTitlePh')),
           const SizedBox(height: 10),
-          _field(p, ty('svcAmountLabel'), _svcAmount, (v) => setState(() => _svcAmount = v),
-              number: true),
+          // Summa + soni (U3): "6 ta salyut", "3 ta artist" — bir dona narxi
+          // yoziladi, soni stepper bilan; ro'yxatda 'nom × soni' va jami chiqadi.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _field(p, ty('svcAmountLabel'), _svcAmount,
+                    (v) => setState(() => _svcAmount = v), number: true),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _cap(p, ty('svcQtyLabel')),
+                  const SizedBox(height: 7),
+                  _qtyStepper(p),
+                ],
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -1340,6 +1960,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     _svcOpen = false;
                     _svcTitle = '';
                     _svcAmount = '';
+                    _svcQty = 1;
                   }),
                 ),
               ),
@@ -1360,15 +1981,49 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// Soni tanlagichi (U3): 1..kToyMaxSvcQty, chegarada tugma o'chadi.
+  Widget _qtyStepper(Pal p) {
+    Widget btn(String label, VoidCallback? onTap) => Tap(
+          onTap: onTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: onTap == null ? p.hair2 : p.bd),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Tx(label, size: 16, w: FontWeight.w600, color: onTap == null ? p.t5 : p.ink),
+          ),
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        btn('−', _svcQty > 1 ? () => setState(() => _svcQty--) : null),
+        SizedBox(
+          width: 34,
+          child: Center(child: Tx('$_svcQty', size: 14, w: FontWeight.w700, color: p.ink, tab: true)),
+        ),
+        btn('+', _svcQty < kToyMaxSvcQty ? () => setState(() => _svcQty++) : null),
+      ],
+    );
+  }
+
   Future<void> _addService(Booking b) async {
     final title = _svcTitle.trim();
     final amount = _digits(_svcAmount);
-    if (title.isEmpty || amount <= 0) {
+    // F16: nom va summa xatosi ALOHIDA aytiladi — ilgari ikkalasiga ham
+    // "Narxni kiriting" chiqib, ega nima yetishmayotganini topolmasdi.
+    if (title.isEmpty) {
+      _toastMsg(ty('needSvcTitle'));
+      return;
+    }
+    if (amount <= 0) {
       _toastMsg(ty('needTierPrice'));
       return;
     }
     setState(() => _busy = true);
-    final ok = await toyRepo.addItem(b.id, title, amount);
+    final ok = await toyRepo.addItem(b.id, title, amount, qty: _svcQty);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -1376,6 +2031,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         _svcOpen = false;
         _svcTitle = '';
         _svcAmount = '';
+        _svcQty = 1;
       }
     });
     if (ok) {
@@ -1413,7 +2069,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         else
           for (final pay in b.payments) _paymentRow(p, pay),
         const SizedBox(height: 4),
-        if (_payOpen) _payForm(p, b) else _addBtnRow(p, ty('addPayment'), () => setState(() => _payOpen = true)),
+        if (_payOpen)
+          _payForm(p, b)
+        else
+          _addBtnRow(p, ty('addPayment'), () => setState(() {
+                _payOpen = true;
+                _payDate = toyDay(DateTime.now()); // U2: standart — bugun
+              })),
       ],
     );
   }
@@ -1432,6 +2094,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         child: Row(
           children: [
             Expanded(
+              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1449,8 +2112,15 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Tx(toyMoney(pay.amount), size: 13, w: FontWeight.w600, color: p.green),
-            const SizedBox(width: 4),
+            // Pul kesilmaydi (F14)
+            Expanded(
+              flex: 2,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Tx(toyMoney(pay.amount), size: 13, w: FontWeight.w600, color: p.green, tab: true),
+              ),
+            ),
             _xBtn(p, () => _askDeletePayment(pay)),
           ],
         ),
@@ -1476,6 +2146,27 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           const SizedBox(height: 10),
           _field(p, ty('payAmountLabel'), _payAmount, (v) => setState(() => _payAmount = v),
               number: true),
+          const SizedBox(height: 10),
+          // U2: to'lov sanasi — egalar kechagi naqdni bugun yozadi (ijara
+          // to'lov modali naqshi). Standart — bugun.
+          _cap(p, ty('payDateLabel')),
+          const SizedBox(height: 7),
+          Tap(
+            onTap: _pickPayDate,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+              // p.field — forma ichidagi boshqa maydonlar bilan bir tekis
+              decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(12)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Tx(toyDateLong(_payDate), size: 14, w: FontWeight.w500, color: p.ink, maxLines: 1),
+                  ),
+                  Icon(Icons.calendar_today_rounded, size: 15, color: p.t3),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
           _field(p, ty('payNoteLabel'), _payNote, (v) => setState(() => _payNote = v)),
           const SizedBox(height: 10),
@@ -1510,6 +2201,17 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  Future<void> _pickPayDate() async {
+    final now = DateTime.now();
+    final picked = await _showAppDatePicker(
+      initial: _payDate,
+      first: DateTime(now.year - 2, 1, 1),
+      last: DateTime(now.year + 1, 12, 31),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _payDate = picked);
+  }
+
   Future<void> _addPayment(Booking b) async {
     final amount = _digits(_payAmount);
     if (amount <= 0) {
@@ -1517,7 +2219,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       return;
     }
     setState(() => _busy = true);
-    final ok = await toyRepo.addPayment(b.id, amount, kind: _payKind, note: _payNote.trim());
+    final ok = await toyRepo.addPayment(b.id, amount,
+        kind: _payKind, note: _payNote.trim(), paidAt: _payDate);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -1525,6 +2228,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         _payOpen = false;
         _payAmount = '';
         _payNote = '';
+        _payDate = toyDay(DateTime.now());
       }
     });
     if (ok) {
@@ -1618,7 +2322,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             final ok = await toyRepo.deleteBooking(b.id);
             if (!mounted) return;
             if (ok) {
-              setState(() => _detailId = null);
+              // _closeDetail: ichki xizmat/to'lov mini-formalari ham tozalanadi —
+              // aks holda keyingi ochilgan bronda oldingi matn qolib ketardi
+              // (2026-08-10 review).
+              _closeDetail();
               _toastMsg(ty('deleted'));
             } else {
               _toastErr();
@@ -1670,14 +2377,16 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                 ),
                 const SizedBox(height: 16),
                 // ---- Vaqt (slot) ----
+                // U1: band slot O'CHIQ chip + ostida mijoz nomi — ega telefonda
+                // gaplashib turib "qaysi vaqt bo'sh"ni formadan chiqmay ko'radi.
                 _cap(p, ty('slotLabel')),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 7,
                   runSpacing: 7,
+                  crossAxisAlignment: WrapCrossAlignment.start,
                   children: [
-                    for (final s in kToySlots)
-                      _chip(p, tySlot(s), f.slot == s, () => setState(() => f.slot = s)),
+                    for (final s in kToySlots) _slotPick(p, f, s),
                   ],
                 ),
                 // ---- To'yxona ----
@@ -1750,6 +2459,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     ),
                   ],
                 ),
+                // U4: sig'imdan oshsa OGOHLANTIRISH — bloklamaydi (qo'shimcha
+                // stol qo'yish egalarning odatiy amaliyoti), faqat eslatadi.
+                if (_capacityOver(f, guests) != null) ...[
+                  const SizedBox(height: 8),
+                  Tx(ty('overCapacity', {'n': '${_capacityOver(f, guests)}'}),
+                      size: 11.5, w: FontWeight.w600, color: _amber),
+                ],
                 if (isNew) ...[
                   const SizedBox(height: 12),
                   _field(p, ty('advanceLabel'), f.advance, (v) => setState(() => f.advance = v),
@@ -1804,6 +2520,53 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// Slot chipi (U1): bo'sh slot — odatiy tanlanadigan chip; band slot —
+  /// bosilmaydigan xira chip + ostida band qilgan mijoz nomi. Tahrirda
+  /// bandning O'Z sloti tanlanadigan bo'lib qoladi (exceptId).
+  Widget _slotPick(Pal p, _FormData f, String s) {
+    final taken = toySlotTakenBy(
+      _dayRows[toyYmd(f.date)] ?? const [],
+      hallId: f.hallId,
+      slot: s,
+      exceptId: f.id,
+    );
+    if (taken == null) {
+      return _chip(p, tySlot(s), f.slot == s, () => setState(() => f.slot = s));
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 32,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: p.hov,
+            border: Border.all(color: p.hair2),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Tx(tySlot(s), size: 12.5, w: FontWeight.w600, color: p.t4, maxLines: 1),
+        ),
+        const SizedBox(height: 3),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 130),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Tx(taken.clientName, size: 9.5, color: p.t4, maxLines: 1, ellipsis: true),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// U4: tanlangan to'yxona sig'imidan oshgan mehmon soni (oshmagan bo'lsa null).
+  int? _capacityOver(_FormData f, int guests) {
+    final cap = toyRepo.hallById(f.hallId)?.capacity;
+    if (cap == null || cap <= 0 || guests <= cap) return null;
+    return cap;
+  }
+
   void _pickHallInForm(_FormData f, Hall h) {
     final tiers = h.tiers;
     setState(() {
@@ -1818,16 +2581,51 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     });
   }
 
-  Future<void> _pickDate(_FormData f) async {
-    final now = DateTime.now();
+  /// Ilova palitrasidagi sana tanlagich (F12, home._pickCustomRange uslubi):
+  /// tizim ranglari o'rniga monoxrom ink/bg; initialDate ORALIQQA QISILADI —
+  /// ilgari oraliqdan tashqari boshlang'ich sana picker'ni yiqitardi.
+  Future<DateTime?> _showAppDatePicker({
+    required DateTime initial,
+    required DateTime first,
+    required DateTime last,
+  }) async {
+    final p = curPal();
+    final dark = ThemeData.estimateBrightnessForColor(p.bg) == Brightness.dark;
+    var init = initial;
+    if (init.isBefore(first)) init = first;
+    if (init.isAfter(last)) init = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: f.date,
-      firstDate: DateTime(now.year - 1, 1, 1),
-      lastDate: DateTime(now.year + 3, 12, 31),
+      initialDate: init,
+      firstDate: first,
+      lastDate: last,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: (dark ? const ColorScheme.dark() : const ColorScheme.light()).copyWith(
+            primary: p.ink,
+            onPrimary: p.bg,
+            surface: p.bg,
+            onSurface: p.ink,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    return picked == null ? null : toyDay(picked);
+  }
+
+  Future<void> _pickDate(_FormData f) async {
+    final now = DateTime.now();
+    // F12: bronlar tarixi 2023 dan, oldinga 3 yil (kuzgi sanalar yillab oldin
+    // band qilinadi).
+    final picked = await _showAppDatePicker(
+      initial: f.date,
+      first: DateTime(2023, 1, 1),
+      last: DateTime(now.year + 3, now.month, now.day),
     );
     if (picked == null || !mounted) return;
-    setState(() => f.date = toyDay(picked));
+    setState(() => f.date = picked);
+    _ensureDay(picked); // U1: yangi kunning band slotlari belgilansin
   }
 
   Future<void> _saveBooking(_FormData f) async {
@@ -1854,9 +2652,11 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       'client_name': name,
       if (f.phone.trim().isNotEmpty) 'client_phone': f.phone.trim(),
       'guests': guests,
-      // Toifa tanlangan bo'lsa menu_id yuboriladi; narx SERVER tomonidan
-      // o'sha toifadan nusxalanadi. price_per_guest faqat QO'LDA narx uchun
-      // yuboriladi (u toifadan ustun turadi — backend shartnomasi).
+      // Narx ustuvorligi (backend shartnomasi, F10): aniq price_per_guest >
+      // menu > to'yxona defaulti. menu_id + price_per_guest BIRGA yuborilishi
+      // TO'G'RI — aniq narx g'olib, menu esa toifa NOMINI snapshot qiladi
+      // (tahrir/qo'lda narx holati). Toifa tanlanib narx QO'LDA o'zgartirilmagan
+      // bo'lsa faqat menu_id ketadi — narxni server toifadan o'zi nusxalaydi.
       if (f.menuId != null) 'menu_id': f.menuId,
       if (f.menuId == null || f.priceManual) 'price_per_guest': price,
       if (f.note.trim().isNotEmpty) 'note': f.note.trim(),
@@ -1877,15 +2677,21 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     setState(() => _busy = false);
 
     if (!ok) {
-      // SLOT_TAKEN (409) — forma OCHIQ qoladi, ega boshqa vaqt/to'yxona tanlaydi
+      // SLOT_TAKEN (409) — forma OCHIQ qoladi, ega boshqa vaqt/to'yxona
+      // tanlaydi (_toastErr kodni 6 tilli matnga o'zi aylantiradi, F6).
+      // Belgilar yangilanadi (U1): parallel qurilmadan band qilingan slot
+      // formada darhol xira bo'lib ko'rinsin.
       if (toyRepo.lastCode == 'SLOT_TAKEN') {
-        _toastErr(ty('slotTaken'));
-      } else {
-        _toastErr();
+        _dayFetched.remove(toyYmd(f.date));
+        _ensureDay(f.date);
       }
+      _toastErr();
       return;
     }
     final day = f.date;
+    // U1: shu kunning bandlik keshi endi eskirdi — keyingi forma qayta so'raydi
+    _dayRows.remove(toyYmd(day));
+    _dayFetched.remove(toyYmd(day));
     setState(() {
       _form = null;
       // Yangi bron ko'rinib tursin: uning oyiga o'tib, kunini ochamiz
@@ -1968,6 +2774,37 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     child: Tx(ty('oneVenueNote'), size: 12.5, color: p.t2, lh: 18),
                   ),
                 ],
+                // U10: arxivlangan to'yxonalar — yig'ilgan bo'lim. if/else'dan
+                // TASHQARIDA: yagona to'yxona arxivlanganda ro'yxat bo'sh bo'ladi,
+                // lekin qaytarish yo'li aynan shu yerda ochiq qolishi shart.
+                if (toyRepo.archivedHalls.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Tap(
+                    onTap: () => setState(() => _archOpen = !_archOpen),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Tx(ty('archivedN', {'n': '${toyRepo.archivedHalls.length}'}),
+                              size: 12.5, w: FontWeight.w600, color: p.t2),
+                          const SizedBox(width: 8),
+                          // Yopiq: o'ngga, ochiq: pastga qaragan chevron
+                          Transform.rotate(
+                            angle: _archOpen ? 1.5708 : 0,
+                            child: ChevRight(color: p.t4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_archOpen) ...[
+                    const SizedBox(height: 10),
+                    for (final h in toyRepo.archivedHalls) ...[
+                      _archivedRow(p, h),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
+                ],
                 const SizedBox(height: 16),
                 Tx(ty('priceSnapshotNote'), size: 11.5, color: p.t4, lh: 17),
               ],
@@ -1976,6 +2813,47 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         ),
       ],
     );
+  }
+
+  /// Arxivlangan to'yxona qatori (U10): nom xira + "Arxivdan qaytarish".
+  /// Chegaradan oshsa server 403 HALL_LIMIT beradi — _toastErr uni 6 tilli
+  /// oneVenueNote'ga aylantiradi, PAYWALL OCHILMAYDI (sotiladigan narsa yo'q).
+  Widget _archivedRow(Pal p, Hall h) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: p.hair2),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Tx(h.name, size: 13.5, w: FontWeight.w600, color: p.t3, maxLines: 1, ellipsis: true),
+          ),
+          const SizedBox(width: 10),
+          Tap(
+            onTap: _busy ? null : () => _unarchiveHall(h),
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              decoration: BoxDecoration(
+                border: Border.all(color: p.bd),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Center(child: Tx(ty('unarchive'), size: 11.5, w: FontWeight.w600, color: p.ink)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unarchiveHall(Hall h) async {
+    setState(() => _busy = true);
+    final ok = await toyRepo.patchHall(h.id, {'archived': false});
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ok ? _toastMsg(ty('hallSaved')) : _toastErr();
   }
 
   Widget _venueRow(Pal p, Hall h) {
@@ -2097,12 +2975,139 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         child: Row(
           children: [
             Expanded(
+              flex: 3,
               child: Tx(m.title, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
             ),
             const SizedBox(width: 10),
-            Tx(toyMoney(m.pricePerGuest), size: 13.5, w: FontWeight.w600, color: p.ink, tab: true),
+            // Pul kesilmaydi (F14)
+            Expanded(
+              flex: 2,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Tx(toyMoney(m.pricePerGuest), size: 13.5, w: FontWeight.w600, color: p.ink, tab: true),
+              ),
+            ),
             const SizedBox(width: 8),
             ChevRight(color: p.t4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= QIDIRUV (U7) =================
+
+  /// Qidiruv gavdasi: ≥2 belgi — server natijasi (event_date DESC) + yuklangan
+  /// oy/yaqin bronlardagi klient mosliklari (id dedup). Tarmoq yiqilsa faqat
+  /// klient mosliklari + sokin oflayn belgisi. Qator bosilsa tafsilot ochiladi.
+  Widget _searchBody(Pal p) {
+    final q = _searchQ.trim();
+    if (q.length < 2) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        child: Tx(ty('searchPh'), size: 12.5, color: p.t4),
+      );
+    }
+    final local = toyRepo.localMatches(q);
+    final list = _searchServer == null ? local : toyMergeSearch(_searchServer!, local);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_searchBusy) ...[
+            _loadingHint(p),
+            const SizedBox(height: 12),
+          ] else if (_searchOffline) ...[
+            Tx(ty('searchOffline'), size: 11, color: p.t4, lh: 15),
+            const SizedBox(height: 12),
+          ],
+          if (list.isEmpty && !_searchBusy)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 24),
+              decoration: BoxDecoration(
+                color: p.hov2,
+                border: Border.all(color: p.hair2),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Tx(ty('searchEmpty'), size: 12.5, color: p.t4, align: TextAlign.center),
+            )
+          else
+            for (var i = 0; i < list.length; i++) ...[
+              _searchRow(p, list[i]),
+              if (i < list.length - 1) const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+
+  /// Natija qatori: sana rozetkasi · yil/vaqt/to'yxona · mijoz · holat · qoldiq.
+  /// Bekor qilinganda o'ngda EGADA QOLGAN pul (F7 qoidasi bilan bir xil).
+  Widget _searchRow(Pal p, Booking b) {
+    final sub = [
+      '${b.eventDate.year}',
+      tySlot(b.slot),
+      if (b.hallName.isNotEmpty) b.hallName,
+    ].join(' · ');
+    return Tap(
+      onTap: () => setState(() => _detailId = b.id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: p.hov2,
+          border: Border.all(color: p.hair2),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(10)),
+              child: Column(
+                children: [
+                  Tx('${b.eventDate.day}', size: 15, w: FontWeight.w700, color: p.ink, tab: true),
+                  Tx(tyMonth(b.eventDate.month), size: 9, color: p.t3, maxLines: 1, ellipsis: true),
+                ],
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tx(b.clientName, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                  const SizedBox(height: 3),
+                  Tx(sub, size: 11, color: p.t3, maxLines: 1, ellipsis: true),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Tx(
+                      b.cancelled ? toyMoney(b.paid) : toyMoney(b.left),
+                      size: 13,
+                      w: FontWeight.w600,
+                      color: b.cancelled ? p.t4 : _leftColor(b.left, p),
+                      tab: true,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Tx(tyStatus(b.status), size: 10.5, w: FontWeight.w600, color: _statusColor(b.status, p)),
+                ],
+              ),
+            ),
           ],
         ),
       ),

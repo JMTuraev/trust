@@ -555,6 +555,26 @@ const Map<String, dynamic> lUz = {
   // Modul obunasi yoqilgandagi toast. {module} — tarjimadagi modul nomi
   // (modXarajat / modQarz / modIjarachi / modToyxona).
   'subModuleThanks': '{module} obunasi yoqildi — rahmat!',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': 'Yordam chati',
+  'subAutoRenewNote': 'Obuna avtomatik yangilanadi. Joriy davr tugashidan 24 soat '
+      'oldin hisobingizdan {price} yechiladi. Istalgan vaqtda bekor qilish: '
+      'App Store → Apple ID → Obunalar.',
+  // --- Apple IAP (to'lov) toastlari — iap.dart (ilgari o'zbekcha qotirilgan edi) ---
+  'iapErrService': 'To\'lov servisi bilan aloqa uzildi — qayta urinib ko\'ring',
+  'iapErrStore': 'App Store hozir mavjud emas — keyinroq urinib ko\'ring',
+  'iapErrProduct': 'Obuna mahsuloti topilmadi — keyinroq urinib ko\'ring',
+  'iapErrBuyStart': 'Xaridni boshlab bo\'lmadi',
+  'iapErrBuyStartLater': 'Xaridni boshlab bo\'lmadi — keyinroq urinib ko\'ring',
+  'iapRestoreNone': 'Tiklanadigan xarid topilmadi',
+  'iapErrRestore': 'Tiklab bo\'lmadi — keyinroq urinib ko\'ring',
+  'iapErrPurchase': 'To\'lovda xatolik — qayta urinib ko\'ring',
+  'iapErrVerifyRetry': 'Chekni tasdiqlab bo\'lmadi — biroz o\'tib avtomatik qayta urinamiz',
+  'iapErrVerify': 'Xarid tasdiqlanmadi ({status}). Iltimos, Yordam chatiga yozing — '
+      'biz qo\'lda tekshiramiz.',
+  'iapPendingInfo': 'To\'lov tasdiq kutmoqda (Ask to Buy) — tasdiqlangach obuna avtomatik yoqiladi',
+  // Qarz tasdig'ida summa o'zgargan (server 409 AMOUNT_CHANGED) — daftar yangilanadi
+  'errAmountChanged': 'Summa o\'zgargan — yangilangan holatni ko\'ring',
 };
 
 const Map<String, dynamic> lRu = {
@@ -1039,6 +1059,25 @@ const Map<String, dynamic> lRu = {
       'аккаунт на другой номер телефона.',
   'pwPayComingSoon': 'Оплата пока не подключена — подписка заработает совсем скоро',
   'subModuleThanks': 'Подписка «{module}» включена — спасибо!',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': 'Чат поддержки',
+  'subAutoRenewNote': 'Подписка продлевается автоматически. За 24 часа до конца '
+      'текущего периода со счёта спишется {price}. Отменить можно в любой '
+      'момент: App Store → Apple ID → Подписки.',
+  // --- Apple IAP (to'lov) toastlari — iap.dart ---
+  'iapErrService': 'Связь с платёжным сервисом прервана — попробуйте ещё раз',
+  'iapErrStore': 'App Store сейчас недоступен — попробуйте позже',
+  'iapErrProduct': 'Продукт подписки не найден — попробуйте позже',
+  'iapErrBuyStart': 'Не удалось начать покупку',
+  'iapErrBuyStartLater': 'Не удалось начать покупку — попробуйте позже',
+  'iapRestoreNone': 'Покупок для восстановления не найдено',
+  'iapErrRestore': 'Не удалось восстановить — попробуйте позже',
+  'iapErrPurchase': 'Ошибка оплаты — попробуйте ещё раз',
+  'iapErrVerifyRetry': 'Не удалось подтвердить чек — скоро повторим автоматически',
+  'iapErrVerify': 'Покупка не подтверждена ({status}). Напишите в чат поддержки — '
+      'проверим вручную.',
+  'iapPendingInfo': 'Платёж ждёт подтверждения (Ask to Buy) — после одобрения подписка включится автоматически',
+  'errAmountChanged': 'Сумма изменилась — посмотрите обновлённую запись',
 };
 
 const Map<String, dynamic> lEn = {
@@ -1523,6 +1562,25 @@ const Map<String, dynamic> lEn = {
       'separate account with another phone number.',
   'pwPayComingSoon': 'Payments are not connected yet — the subscription will work very soon',
   'subModuleThanks': '{module} subscription is active — thank you!',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': 'Support chat',
+  'subAutoRenewNote': 'The subscription renews automatically. {price} is charged '
+      '24 hours before the current period ends. Cancel any time: App Store → '
+      'Apple ID → Subscriptions.',
+  // --- Apple IAP (to'lov) toastlari — iap.dart ---
+  'iapErrService': 'Lost connection to the payment service — please try again',
+  'iapErrStore': 'The App Store is unavailable right now — try again later',
+  'iapErrProduct': 'Subscription product not found — try again later',
+  'iapErrBuyStart': 'Could not start the purchase',
+  'iapErrBuyStartLater': 'Could not start the purchase — try again later',
+  'iapRestoreNone': 'No purchases to restore',
+  'iapErrRestore': 'Restore failed — try again later',
+  'iapErrPurchase': 'Payment error — please try again',
+  'iapErrVerifyRetry': 'Could not verify the receipt — we will retry automatically shortly',
+  'iapErrVerify': 'Purchase not confirmed ({status}). Please write to the support '
+      'chat — we will check it manually.',
+  'iapPendingInfo': 'Payment is awaiting approval (Ask to Buy) — the subscription activates automatically once approved',
+  'errAmountChanged': 'The amount has changed — see the updated entry',
 };
 
 const Map<String, dynamic> lEs = {
@@ -2008,6 +2066,25 @@ const Map<String, dynamic> lEs = {
       'cuenta con un número de teléfono distinto.',
   'pwPayComingSoon': 'El pago aún no está conectado — la suscripción funcionará muy pronto',
   'subModuleThanks': 'La suscripción «{module}» está activa — ¡gracias!',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': 'Chat de soporte',
+  'subAutoRenewNote': 'La suscripción se renueva automáticamente. Se cobrarán '
+      '{price} 24 horas antes de que finalice el período actual. Cancela cuando '
+      'quieras: App Store → Apple ID → Suscripciones.',
+  // --- Apple IAP (to'lov) toastlari — iap.dart ---
+  'iapErrService': 'Se perdió la conexión con el servicio de pago — inténtalo de nuevo',
+  'iapErrStore': 'El App Store no está disponible ahora — inténtalo más tarde',
+  'iapErrProduct': 'Producto de suscripción no encontrado — inténtalo más tarde',
+  'iapErrBuyStart': 'No se pudo iniciar la compra',
+  'iapErrBuyStartLater': 'No se pudo iniciar la compra — inténtalo más tarde',
+  'iapRestoreNone': 'No hay compras para restaurar',
+  'iapErrRestore': 'No se pudo restaurar — inténtalo más tarde',
+  'iapErrPurchase': 'Error en el pago — inténtalo de nuevo',
+  'iapErrVerifyRetry': 'No se pudo verificar el recibo — lo reintentaremos automáticamente en breve',
+  'iapErrVerify': 'Compra no confirmada ({status}). Escribe al chat de soporte — '
+      'la revisaremos manualmente.',
+  'iapPendingInfo': 'El pago espera aprobación (Ask to Buy) — la suscripción se activará automáticamente al aprobarse',
+  'errAmountChanged': 'El importe ha cambiado — mira el registro actualizado',
 };
 
 const Map<String, dynamic> lFr = {
@@ -2493,6 +2570,25 @@ const Map<String, dynamic> lFr = {
       'Ouvrez un compte séparé avec un autre numéro de téléphone.',
   'pwPayComingSoon': 'Le paiement n\'est pas encore activé — l\'abonnement fonctionnera très bientôt',
   'subModuleThanks': 'L\'abonnement « {module} » est activé — merci !',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': 'Chat d\'assistance',
+  'subAutoRenewNote': 'L\'abonnement se renouvelle automatiquement. {price} sera '
+      'prélevé 24 heures avant la fin de la période en cours. Annulation à tout '
+      'moment : App Store → Apple ID → Abonnements.',
+  // --- Apple IAP (to'lov) toastlari — iap.dart ---
+  'iapErrService': 'Connexion au service de paiement perdue — réessayez',
+  'iapErrStore': 'L\'App Store est indisponible pour le moment — réessayez plus tard',
+  'iapErrProduct': 'Produit d\'abonnement introuvable — réessayez plus tard',
+  'iapErrBuyStart': 'Impossible de démarrer l\'achat',
+  'iapErrBuyStartLater': 'Impossible de démarrer l\'achat — réessayez plus tard',
+  'iapRestoreNone': 'Aucun achat à restaurer',
+  'iapErrRestore': 'Restauration impossible — réessayez plus tard',
+  'iapErrPurchase': 'Erreur de paiement — réessayez',
+  'iapErrVerifyRetry': 'Impossible de vérifier le reçu — nouvelle tentative automatique sous peu',
+  'iapErrVerify': 'Achat non confirmé ({status}). Écrivez au chat d\'assistance — '
+      'nous vérifierons manuellement.',
+  'iapPendingInfo': 'Le paiement attend une approbation (Ask to Buy) — l\'abonnement s\'activera automatiquement après validation',
+  'errAmountChanged': 'Le montant a changé — consultez l\'écriture mise à jour',
 };
 
 const Map<String, dynamic> lZh = {
@@ -2972,6 +3068,23 @@ const Map<String, dynamic> lZh = {
   'pwCapToy': '一个订阅只含一个宴会厅。需要再开一个，请用另一个手机号单独开一个账号。',
   'pwPayComingSoon': '支付尚未接入 — 订阅很快就会开放',
   'subModuleThanks': '「{module}」订阅已开通 — 谢谢！',
+  // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
+  'profSupport': '客服聊天',
+  'subAutoRenewNote': '订阅将自动续期。在当前周期结束前 24 小时将扣款 {price}。'
+      '随时可取消：App Store → Apple ID → 订阅。',
+  // --- Apple IAP (to'lov) toastlari — iap.dart ---
+  'iapErrService': '与支付服务的连接中断 — 请重试',
+  'iapErrStore': 'App Store 暂时不可用 — 请稍后再试',
+  'iapErrProduct': '未找到订阅商品 — 请稍后再试',
+  'iapErrBuyStart': '无法开始购买',
+  'iapErrBuyStartLater': '无法开始购买 — 请稍后再试',
+  'iapRestoreNone': '没有可恢复的购买',
+  'iapErrRestore': '恢复失败 — 请稍后再试',
+  'iapErrPurchase': '支付出错 — 请重试',
+  'iapErrVerifyRetry': '暂时无法验证收据 — 稍后会自动重试',
+  'iapErrVerify': '购买未确认（{status}）。请联系客服聊天 — 我们会人工核查。',
+  'iapPendingInfo': '付款正在等待批准（Ask to Buy）— 批准后订阅将自动开通',
+  'errAmountChanged': '金额已变更 — 请查看更新后的记录',
 };
 
 /// Til kodi → lug'at

@@ -29,11 +29,16 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
-  isModuleActive, MODULES, FREE_TOYXONA_BOOKINGS, isQuotaEnforceable,
+  isModuleActive, MODULES, FREE_TOYXONA_BOOKINGS, isQuotaEnforceable, requireActiveSub,
 } from '../lib/subscription.js';
 
 const router = Router();
 router.use(requireAuth);
+// O'CHIRILGAN PROFIL YOZA OLMASIN (debts.js/expenses.js bilan bir xil qatlam).
+// requireActiveSub pass-through: GET/HEAD/OPTIONS'ga DB'siz next, yozuvda faqat
+// soft-delete (profiles.deleted_at) profil 403 oladi — oddiy foydalanuvchiga
+// hech qanday ta'sir yo'q, obuna ham bu yerda TEKSHIRILMAYDI (kvota alohida).
+router.use(requireActiveSub);
 
 // ============================ Doimiylar ============================
 
@@ -54,6 +59,17 @@ const MAX_SUMMARY_BOOKINGS = 2000;
 const MAX_HALLS = 100;            // bitta egadagi to'yxonalar
 const MAX_MENUS_PER_HALL = 50;    // bitta to'yxonadagi narx toifalari
 const MAX_MENUS_TOTAL = MAX_HALLS * MAX_MENUS_PER_HALL;   // GET /halls embed chegarasi
+const MAX_SEARCH_RESULTS = 50;    // GET /bookings/search javobi chegarasi
+const DEF_SEARCH_RESULTS = 20;    // ?limit berilmasa
+// Raqamli qidiruvda JS-normallashtirilgan skan chegarasi (route izohiga qarang):
+// telefonlar bazada KIRITILGANIDEK ("+998 90 123-45-67") turadi, ilike esa faqat
+// ketma-ket raqamlarni topadi — shu sabab so'nggi N band JS'da ham tekshiriladi.
+const MAX_SEARCH_SCAN = 1000;
+// Takror to'lovni to'sish oynasi: shu vaqt ichida kelgan AYNAN bir xil to'lov
+// (band + summa + tur) yangi qator yaratmaydi — band mavjud holicha qaytariladi
+// (ijara.js POST /payments bilan bir xil qoida va qiymat).
+// Sabab: mobil timeout (20s) + Render sovuq starti + "qayta urinib ko'ring" xabari.
+export const DEDUP_MS = 90_000;
 // .in(...) bo'laklari — URL UZUNLIGI cheklovi uchun. 200 ta uuid ≈ 7.5 KB so'rov
 // satri berardi, bu ko'p proksi/serverlarning 8 KB sarlavha chegarasiga juda yaqin
 // (414 xavfi). 100 ta ≈ 3.7 KB — xavfsiz zaxira bilan.
@@ -263,6 +279,33 @@ export function sortBookings(rows) {
     String(a.event_date).localeCompare(String(b.event_date))
     || SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot)
     || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+}
+
+/** Qidiruv kiritmasini PostgREST `.or(...)` uchun XAVFSIZ tayyorlaydi (sof
+ *  funksiya — DB'siz test qilinadi). `.or` satrida `,` shartlarni, `(`/`)`
+ *  guruhlarni ajratadi, `%` esa ILIKE jokeri — foydalanuvchi kiritmasida bu
+ *  belgilar qolsa filtr sintaksisi BUZILADI (SQL injection emas — PostgREST
+ *  parametrlaydi — lekin 400/soxta natija ham xato). Shu belgilar OLIB
+ *  TASHLANADI, boshqaruv belgilariga clean() qoidasi qo'llanadi.
+ *  Qaytadi { text, digits }:
+ *    text   — mijoz NOMI uchun qidiruv matni (tozalangandan keyin kamida 2
+ *             belgi qolsa, aks holda null);
+ *    digits — TELEFON uchun kiritmadagi FAQAT raqamlar (kamida 3 ta bo'lsa,
+ *             aks holda null): "90-123 45 67" ham "+998901234567" ham bir xil
+ *             raqam qatoriga tushadi (saqlangan telefon qanday terilgan bo'lsa
+ *             shundoq qidiriladi — raqamlar KETMA-KET bo'lishi kutiladi).
+ *  Ikkalasi ham null bo'lsa — qidirib bo'lmaydi (route 400 beradi). */
+export function searchTerms(raw) {
+  const text = String(raw ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')   // clean() bilan bir xil boshqaruv-belgilar
+    .replace(/[%,()]/g, '')                    // PostgREST .or sintaksis belgilari
+    .replace(/\s+/g, ' ')
+    .trim();
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  return {
+    text: text.length >= 2 ? text.slice(0, 80) : null,      // client_name ham 80 belgi
+    digits: digits.length >= 3 ? digits.slice(0, 20) : null, // client_phone ham 20 belgi
+  };
 }
 
 // ============================ Obuna gate'i ============================
@@ -883,6 +926,75 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/toyxona/bookings/search?q=<matn>&limit=<n>
+// Mijoz NOMI yoki TELEFONI bo'yicha qidiruv (kamida 2 belgi; limit ≤ 50, default 20).
+// Telefon uchun kiritmadagi RAQAMLAR olinadi (kamida 3 ta bo'lsa) — "90 123" ham
+// "90-123" ham bir xil ishlaydi (searchTerms izohiga qarang). Natija GET /bookings
+// bilan AYNAN bir xil shakl (mapBooking: hall_name + items/payments/totals) —
+// mobil bir xil kartani chizadi. Tartib: event_date DESC (eng yangi to'y birinchi).
+// YO'L TO'QNASHUVI YO'Q: '/bookings/:id' ko'rinishidagi GET route umuman mavjud
+// emas (PATCH/DELETE alohida metodlar), shuning uchun 'search' hech qachon id deb
+// o'qilmaydi; baribir aniqlik uchun shu yerda — bookings bloki ichida — turadi.
+router.get('/bookings/search', async (req, res, next) => {
+  try {
+    const raw = String(req.query.q ?? '').trim();
+    if (raw.length < 2) {
+      return res.status(400).json({ success: false, error: 'Qidiruv uchun kamida 2 ta belgi kiriting' });
+    }
+    const { text, digits } = searchTerms(raw);
+    // Faqat sintaksis belgilaridan iborat kiritma ("%%", "()" ...) — qidirib bo'lmaydi
+    if (!text && !digits) {
+      return res.status(400).json({ success: false, error: "Qidiruv so'zi yaroqsiz — harf yoki raqam kiriting" });
+    }
+    const lim = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(lim) && lim > 0 ? Math.min(lim, MAX_SEARCH_RESULTS) : DEF_SEARCH_RESULTS;
+
+    // .or() ga FAQAT searchTerms tozalagan qiymatlar kiradi (%, `,`, `(`, `)`
+    // olib tashlangan) — foydalanuvchi kiritmasi filtr sintaksisini buza olmaydi.
+    const ors = [];
+    if (text) ors.push(`client_name.ilike.%${text}%`);
+    if (digits) ors.push(`client_phone.ilike.%${digits}%`);
+    const { data, error } = await supabaseAdmin
+      .from('bookings').select('*')
+      .eq('user_id', req.user.id)
+      .or(ors.join(','))
+      .order('event_date', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+
+    let rows = data || [];
+    // 2026-08-10 review: telefon bazada KIRITILGANIDEK saqlanadi ("+998 90 123-45-67"),
+    // ilike'dagi %<raqamlar>% esa faqat KETMA-KET raqamlarni topadi — real qatorlarning
+    // ko'pi o'tkazib yuborilardi. Shu sabab raqamli qidiruvda so'nggi MAX_SEARCH_SCAN
+    // band JS'da raqam-normallashtirib ham tekshiriladi (chegaralangan, indeksli tartib).
+    if (digits && rows.length < limit) {
+      const { data: scan, error: se } = await supabaseAdmin
+        .from('bookings').select('*')
+        .eq('user_id', req.user.id)
+        .not('client_phone', 'is', null)
+        .order('event_date', { ascending: false })
+        .limit(MAX_SEARCH_SCAN);
+      if (se) throw new Error(se.message);
+      const seen = new Set(rows.map((b) => b.id));
+      for (const b of scan || []) {
+        if (seen.has(b.id)) continue;
+        const ph = String(b.client_phone || '').replace(/\D/g, '');
+        if (ph.includes(digits)) { rows.push(b); seen.add(b.id); }
+      }
+      rows.sort((a, b) => (a.event_date < b.event_date ? 1 : a.event_date > b.event_date ? -1 : 0));
+      rows = rows.slice(0, limit);
+    }
+    const [{ itemsBy, paysBy }, halls] = await Promise.all([
+      loadChildren(rows.map((b) => b.id)),
+      hallNameMap(req.user.id),
+    ]);
+    res.json({
+      success: true,
+      data: rows.map((b) => mapBooking(b, halls.get(b.hall_id), itemsBy.get(b.id) || [], paysBy.get(b.id) || [])),
+    });
+  } catch (e) { next(e); }
+});
+
 // PATCH /api/toyxona/bookings/:id
 // { hall_id?, menu_id?, event_date?, slot?, client_name?, client_phone?, guests?,
 //   price_per_guest?, note?, status? }
@@ -994,12 +1106,27 @@ router.patch('/bookings/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// DELETE /api/toyxona/bookings/:id — QAT'IY o'chirish (items/payments cascade).
-// Yumshoq bekor qilish = PATCH { status: 'bekor' } (u sanani bo'shatadi, tarixni saqlaydi).
+// DELETE /api/toyxona/bookings/:id — QAT'IY o'chirish, FAQAT TO'LOVSIZ band uchun
+// (xato kiritilgan bandni tozalash). TO'LOVI BOR band o'chirilmaydi (409
+// HAS_PAYMENTS): cascade to'lov qatorlarini ham JIMGINA yo'q qilardi — egasi
+// QO'LIGA OLGAN pul barcha yakunlardan izsiz yo'qolardi (kassadagi naqd bilan
+// hisob mos kelmay qolardi). Bunday band uchun yagona yo'l — yumshoq bekor:
+// PATCH { status: 'bekor' } (sanani bo'shatadi, pul tarixi cancelledPaid'da
+// ko'rinib qoladi — foldSummary izohiga qarang).
 router.delete('/bookings/:id', async (req, res, next) => {
   try {
     const cur = await ownedBooking(req.user.id, req.params.id);
     if (!cur) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const { count, error: ce } = await supabaseAdmin
+      .from('booking_payments').select('id', { count: 'exact', head: true }).eq('booking_id', cur.id);
+    if (ce) throw new Error(ce.message);   // sanoq yiqilsa himoya JIMGINA ochilib qolmasin
+    if ((count || 0) > 0) {
+      return res.status(409).json({
+        success: false,
+        code: 'HAS_PAYMENTS',
+        error: "To'lovlari bor bandni o'chirib bo'lmaydi — avval 'bekor' qiling (pul tarixi saqlanadi)",
+      });
+    }
     const { error } = await supabaseAdmin.from('bookings').delete().eq('id', cur.id);
     if (error) throw new Error(error.message);
     res.json({ success: true });
@@ -1100,6 +1227,30 @@ router.post('/bookings/:id/payments', async (req, res, next) => {
     if (ce) throw new Error(ce.message);
     if ((count || 0) >= 50) {
       return res.status(400).json({ success: false, error: "Bitta bandga 50 tadan ortiq to'lov qo'shib bo'lmaydi" });
+    }
+
+    // TAKROR TO'LOVDAN HIMOYA (ijara.js POST /payments bilan bir xil oyna).
+    // Render sovuq startda javob mobil timeout'idan (20s) kechikishi mumkin;
+    // mobil esa foydalanuvchiga ATAYLAB "qayta urinib ko'ring" deydi. So'rov
+    // aslida bajarilgan bo'lsa, takror urinish AYNAN o'sha to'lovni IKKINCHI
+    // marta yozardi — avans ikki barobar ko'rinardi. Shu bois qisqa oynada
+    // (DEDUP_MS) bir xil (band + summa + tur) to'lov qayta yozilmaydi: band
+    // mavjud holicha qaytariladi (idempotent), avto-status ham QAYTA ishlamaydi.
+    // booking_payments'da user_id YO'Q — egalik yuqorida ownedBooking bilan
+    // tekshirilgan, booking_id filtri o'zi yetarli.
+    // Haqiqatan ikkita bir xil to'lovni ketma-ket kiritish kerak bo'lsa —
+    // oynadan keyin kiritiladi; pulni ikki marta sanagandan ko'ra shu yaxshiroq.
+    const dupSince = new Date(Date.now() - DEDUP_MS).toISOString();
+    const { data: dup } = await supabaseAdmin
+      .from('booking_payments').select('id')
+      .eq('booking_id', cur.id).eq('amount', amount).eq('kind', kind)
+      .gte('created_at', dupSince).limit(1);
+    if (dup && dup.length) {
+      return res.status(200).json({
+        success: true,
+        data: await loadOneBooking(req.user.id, cur.id),
+        deduped: true,
+      });
     }
 
     const row = { booking_id: cur.id, amount, kind, note };

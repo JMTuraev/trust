@@ -1,6 +1,10 @@
 name: trust_mobile
 description: "Trust — ishonchli hisob-kitob. UI prototip bilan 1:1 (prototype/template.html)."
 publish_to: "none"
+# 3.12.0 (2026-08-10): ijara/to'yxona modullari mukammallashtirildi, audit
+#          tuzatishlari: back-tugma (yordam chati / davlat-kodi varag'i / OTP),
+#          IAP pending/restore/lokalizatsiya, arxiv qatori, qulf endi kirishni
+#          to'smaydi, tizim sana tanlagichi ilova tilida (flutter_localizations).
 # 3.11.0 (2026-08-08): App Store qayta submit. Har bo'lim uchun ALOHIDA obuna
 #          (xarajat/qarz/ijarachi/toyxona), "Ijaradagi uylar" va "To'yxona"
 #          modullari, modul paywall'ida Apple 3.1.2 bloki (avtoyangilanish +
@@ -20,13 +24,16 @@ publish_to: "none"
 # 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
 # 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
 #          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.11.0+7
+version: 3.12.0+8
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
 
 dependencies:
   flutter:
+    sdk: flutter
+  # Tizim vidjetlari (sana tanlagich va h.k.) 6 tilda — MaterialApp delegatlari (main.dart)
+  flutter_localizations:
     sdk: flutter
   google_fonts: ^6.2.1
   shared_preferences: ^2.2.3

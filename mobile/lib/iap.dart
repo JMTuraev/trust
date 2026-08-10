@@ -17,6 +17,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'api.dart';
+// L10n ko'prigi: til store'da yashaydi, shu sabab store.L() o'qiladi.
+// store.dart o'zi iap.dart'ni import qiladi — Dart'da bunday halqa muammosiz
+// (circles_l10n.dart <-> store.dart aynan shu naqshda ishlaydi).
+import 'store.dart';
 
 class IapService {
   /// App Store Connect'dagi obuna mahsuloti IDsi bilan AYNAN bir xil bo'lishi SHART.
@@ -45,6 +49,12 @@ class IapService {
   /// Do'kondan yuklangan modul mahsulotlari: mahsulot ID -> tafsilot.
   static final Map<String, ProductDetails> _modProducts = {};
   static Timer? _busyTimer;
+
+  /// To'lov toastlari joriy tilda (2026-08-10 audit: ilgari o'zbekcha qotirilgan
+  /// edi — ruscha/inglizcha interfeysda ham). Kalit yo'q bo'lsa kalit nomi
+  /// qaytadi (store.Lf bilan bir xil himoya) — crash yo'q.
+  static String _t(String key) => '${store.L()[key] ?? key}';
+  static String _tf(String key, Map<String, String> vars) => store.Lf(key, vars);
 
   // ---- Store -> UI ko'priklari (store.dart ulaydi) ----
   /// Xato yuz berdi — foydalanuvchiga toast (o'zbekcha xabar).
@@ -107,7 +117,7 @@ class IapService {
         onError: (_) {
           _busyTimer?.cancel();
           onBusy?.call(false);
-          onError?.call("To'lov servisi bilan aloqa uzildi — qayta urinib ko'ring");
+          onError?.call(_t('iapErrService'));
         },
       );
       await _loadProduct();
@@ -142,29 +152,34 @@ class IapService {
   static Future<void> buy() async {
     if (!Platform.isIOS) return;
     if (!_storeReady) {
-      onError?.call("App Store hozir mavjud emas — keyinroq urinib ko'ring");
+      onError?.call(_t('iapErrStore'));
       return;
     }
     if (_product == null) {
       await _loadProduct();
       if (_product == null) {
-        onError?.call("Obuna mahsuloti topilmadi — keyinroq urinib ko'ring");
+        onError?.call(_t('iapErrProduct'));
         return;
       }
     }
     onBusy?.call(true);
+    // 2026-08-10 audit: buyModule bilan bir xil zaxira — StoreKit oynasi
+    // ochilmay stream jim qolsa spinner abadiy aylanmasin.
+    _armBusyTimeout();
     try {
       final ok = await _iap.buyNonConsumable(
         purchaseParam: PurchaseParam(productDetails: _product!),
       );
       // ok=false — StoreKit oynani ocha olmadi (kamdan-kam). Natija baribir stream'da keladi.
       if (ok == false) {
+        _busyTimer?.cancel();
         onBusy?.call(false);
-        onError?.call("Xaridni boshlab bo'lmadi");
+        onError?.call(_t('iapErrBuyStart'));
       }
     } catch (_) {
+      _busyTimer?.cancel();
       onBusy?.call(false);
-      onError?.call("Xaridni boshlab bo'lmadi — keyinroq urinib ko'ring");
+      onError?.call(_t('iapErrBuyStartLater'));
     }
   }
 
@@ -208,25 +223,34 @@ class IapService {
   /// MUHIM (2026-08-02 audit): hech qachon xarid qilmagan foydalanuvchida
   /// restorePurchases() HECH NARSA emitmaydi — ilgari spinner 20 soniya aylanib,
   /// so'ng JIMGINA to'xtardi va foydalanuvchi ilovani buzuq deb o'ylardi.
+  ///
+  /// 2026-08-10 audit: 3 soniyalik `await Future.delayed` oynasi olib tashlandi —
+  /// sekin tarmoq/Apple ID so'rovida natija 3 soniyadan KEYIN kelar va
+  /// foydalanuvchi allaqachon yolg'on "topilmadi" xabarini ko'rgan bo'lardi.
+  /// Endi listener-yo'naltirilgan 15s taymer (_armBusyTimeout naqshi): stream'da
+  /// haqiqiy natija kelsa (_onPurchases) taymer bekor bo'ladi, kelmasa 15s dan
+  /// keyin halol "topilmadi" + spinner o'chadi.
   static bool _sawResult = false;
+  static Timer? _restoreTimer;
   static Future<void> restore() async {
     if (!Platform.isIOS || !_storeReady) return;
     _sawResult = false;
     onBusy?.call(true);
-    _armBusyTimeout(); // tiklashda hech nima kelmasa spinner osilib qolmasin
+    _armBusyTimeout(); // taymer HAR DOIM busy'ni oxir-oqibat o'chiradi (zaxira)
     try {
       await _iap.restorePurchases();
-      // Natijalar purchaseStream orqali keladi — qisqa muhlat beramiz.
-      await Future.delayed(const Duration(seconds: 3));
-      if (!_sawResult) {
+      // Natijalar purchaseStream orqali keladi — 15 soniya kutamiz.
+      _restoreTimer?.cancel();
+      _restoreTimer = Timer(const Duration(seconds: 15), () {
+        if (_sawResult) return;
         _busyTimer?.cancel();
         onBusy?.call(false);
-        onError?.call('Tiklanadigan xarid topilmadi');
-      }
+        onError?.call(_t('iapRestoreNone'));
+      });
     } catch (_) {
       _busyTimer?.cancel();
       onBusy?.call(false);
-      onError?.call("Tiklab bo'lmadi — keyinroq urinib ko'ring");
+      onError?.call(_t('iapErrRestore'));
     }
   }
 
@@ -237,6 +261,9 @@ class IapService {
 
   static Future<void> _onPurchases(List<PurchaseDetails> purchases) async {
     _busyTimer?.cancel();
+    // Do'kon javob berdi — "topilmadi" taymeri endi kerak emas (bo'sh ro'yxat
+    // ATAYLAB bekor qilmaydi: u "hech narsa tiklanmadi" degani bo'lishi mumkin).
+    if (purchases.isNotEmpty) _restoreTimer?.cancel();
     for (final p in purchases) {
       // Tranzaksiyani YOPish (finishTransaction) — pending bo'lsa yopmaymiz; tasdiq
       // MUVAFFAQIYATSIZ bo'lsa ham yopmaymiz (keyingi ochilishda StoreKit qayta yuboradi,
@@ -244,7 +271,15 @@ class IapService {
       var finish = p.pendingCompletePurchase;
       switch (p.status) {
         case PurchaseStatus.pending:
+          // Ask to Buy (ota-ona tasdig'i) yoki bank tasdig'i — bu XATO EMAS.
+          // 2026-08-10 audit: yuqorida _busyTimer bekor qilingan edi va QAYTA
+          // qurilmasdi — global spinner ABADIY osilib qolardi (ilova qayta
+          // ochilganda StoreKit pending'ni qayta yuborganida ham). Endi taymer
+          // qayta quriladi (busy oxir-oqibat HAR DOIM o'chadi) va foydalanuvchi
+          // nima bo'layotganini toast'dan biladi.
           onBusy?.call(true);
+          _armBusyTimeout();
+          onError?.call(_t('iapPendingInfo'));
           finish = false;
           break;
         case PurchaseStatus.canceled:
@@ -253,7 +288,7 @@ class IapService {
         case PurchaseStatus.error:
           onBusy?.call(false);
           final m = p.error?.message ?? '';
-          onError?.call(m.isNotEmpty ? m : "To'lovda xatolik — qayta urinib ko'ring");
+          onError?.call(m.isNotEmpty ? m : _t('iapErrPurchase'));
           break;
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
@@ -273,15 +308,14 @@ class IapService {
             // status 0 — tarmoq/timeout; 5xx — server vaqtincha ishlamayapti;
             // 409 SUB_DB_NOT_READY — 020 migratsiya hali qo'llanmagan (deploy oynasi).
             // Bularda yopib yuborilsa: pul olingan, obuna yo'q, chek qaytarilmaydi.
-            onError?.call("Chekni tasdiqlab bo'lmadi — biroz o'tib avtomatik qayta urinamiz");
+            onError?.call(_t('iapErrVerifyRetry'));
             finish = false;
           } else {
             // MUHIM (2026-08-02 audit): 400/501 kabi DOIMIY xatolarda tranzaksiya
             // YOPILADI. Ilgari u ochiq qolar va StoreKit uni HAR bir ochilishda qayta
             // yuborardi: foydalanuvchidan pul olingan, premium yo'q, har startda qizil
             // xato, va o'sha SKU'ni qayta sotib ham bo'lmasdi.
-            onError?.call("Xarid tasdiqlanmadi (${res.status}). Iltimos, Yordam chatiga yozing — "
-                'biz qo\'lda tekshiramiz.');
+            onError?.call(_tf('iapErrVerify', {'status': '${res.status}'}));
             finish = true;
           }
           break;
@@ -341,6 +375,7 @@ class IapService {
 
   static void dispose() {
     _busyTimer?.cancel();
+    _restoreTimer?.cancel();
     _sub?.cancel();
   }
 }

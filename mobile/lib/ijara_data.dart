@@ -22,7 +22,7 @@
 // Shuning uchun GET'larda 404 alohida ushlanadi (_missing).
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:flutter/foundation.dart' show ChangeNotifier, visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'api.dart';
 import 'ijara_l10n.dart';
@@ -500,6 +500,81 @@ int ijMaxHouses(Map<String, dynamic> body, [int fallback = kIjaraMaxHouses]) {
   return v > 0 ? v : fallback;
 }
 
+// ===================== Ekran yordamchilari (sof, test qilinadi) =====================
+
+/// Oy menyusi variantlari (F9): TANLANGAN oyga nisbatan 24 oy orqaga va 6 oy
+/// oldinga. Joriy oy oraliqdan chiqib qolsa ham ro'yxatga QADALADI (chetiga
+/// qo'shiladi) — ega qaysi oyda bo'lmasin bir bosishda bugungi oyga qaytadi.
+List<DateTime> ijMonthOptions(DateTime selected, {DateTime? now}) {
+  final sel = ijMonthStart(selected);
+  final cur = ijMonthStart(now ?? DateTime.now());
+  final list = [for (var i = -24; i <= 6; i++) DateTime(sel.year, sel.month + i, 1)];
+  final has = list.any((d) => d.year == cur.year && d.month == cur.month);
+  if (!has) {
+    if (cur.isBefore(list.first)) {
+      list.insert(0, cur);
+    } else {
+      list.add(cur);
+    }
+  }
+  return list;
+}
+
+/// U2: bu oy uchun 'ijara' turidagi hisobi YOZILMAGAN faol uylar (oylik ijarasi
+/// belgilanganlar). Bekor qilingan hisob HISOB EMAS — uy ro'yxatda qoladi,
+/// kommunal/boshqa hisob esa ijara o'rnini bosmaydi.
+List<House> ijMissingRentHouses(Iterable<House> houses, Iterable<Charge> charges) {
+  final have = <String>{
+    for (final c in charges)
+      if (!c.cancelled && c.kind == 'ijara') c.houseId,
+  };
+  return [
+    for (final h in houses)
+      if (!h.archived && h.rentAmount > 0 && !have.contains(h.id)) h,
+  ];
+}
+
+/// U4: pill kaliti -> hisob holatlari guruhi. Pill bosilganda uylar ro'yxati
+/// shu holatdagi hisobi bor uylargagina toraytiriladi. 'qisman' ham
+/// "kutilmoqda" guruhida — u hali yopilmagan hisob.
+const Map<String, List<String>> kIjaraPillStates = {
+  'pending': ['kutish', 'qisman'],
+  'overdue': ['kechikkan'],
+  'paid': ['tolangan'],
+};
+
+/// U4: oy holat yakunlari — kutilmoqda (muddati o'tmagan qoldiq), kechikkan
+/// (muddati o'tgan qoldiq) va to'langan (davrda tushgan pul; sarlavhadagi
+/// "To'landi" bilan BIR XIL qoida — bog'lanmagan to'lovlar ham kiradi).
+Map<String, int> ijPillSums(Iterable<Charge> charges, Iterable<IjaraPayment> payments,
+    {DateTime? today}) {
+  final t = today ?? DateTime.now();
+  var pending = 0, overdue = 0;
+  for (final c in charges) {
+    switch (ijChargeState(c, today: t)) {
+      case 'kutish':
+      case 'qisman':
+        pending += c.left;
+      case 'kechikkan':
+        overdue += c.left;
+    }
+  }
+  return {
+    'pending': pending,
+    'overdue': overdue,
+    'paid': ijSumPeriod(charges, payments).paid,
+  };
+}
+
+/// U4: uyning SHU OY hisoblari orasida berilgan pill holatidagisi bormi.
+/// Notanish pill — filtr yo'q deb qabul qilinadi (ro'yxat to'liq qoladi).
+bool ijHouseMatchesPill(String pill, Iterable<Charge> houseCharges, {DateTime? today}) {
+  final states = kIjaraPillStates[pill];
+  if (states == null) return true;
+  final t = today ?? DateTime.now();
+  return houseCharges.any((c) => states.contains(ijChargeState(c, today: t)));
+}
+
 // ===================== Repozitoriy =====================
 
 /// Tarmoqli repozitoriy. Ekran `ListenableBuilder(listenable: ijaraRepo, ...)`
@@ -515,6 +590,17 @@ class IjaraRepo extends ChangeNotifier {
   bool loading = false;
   bool loaded = false;
   bool housesLoaded = false;
+
+  /// Davr (oy) yuklashidagi xato (F1): ro'yxat TANASIDA qayta urinish tugmali
+  /// inline banner chiziladi, sarlavha esa ishlayveradi. Mutatsiya xatolaridan
+  /// ALOHIDA maydon — ular toast bo'lib ketadi, banner emas.
+  String? loadError;
+
+  /// FAQAT TESTLAR UCHUN: true bo'lsa load()/loadHouses() tarmoqqa umuman
+  /// chiqmaydi. Widget-testlar repo'ni applyHouses/applyPage bilan urug'laydi —
+  /// test muhitidagi soxta HTTP (hamma so'rovga 400) urug'ni yuvib yubormasin.
+  @visibleForTesting
+  bool testOffline = false;
 
   /// /houses hali yo'q (404): ekran XATO emas, BO'SH holat ko'rsatadi.
   bool backendMissing = false;
@@ -540,6 +626,15 @@ class IjaraRepo extends ChangeNotifier {
     return list;
   }
 
+  /// Arxivlangan uylar (U7) — ro'yxat oxiridagi yig'ma bo'lim uchun.
+  /// GET /houses arxivlanganlarni ham beradi; ular _houses'da saqlanadi,
+  /// faqat ko'rsatish joyi alohida.
+  List<House> get archivedHouses {
+    final list = _houses.where((h) => h.archived).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return list;
+  }
+
   bool get hasHouses => houses.isNotEmpty;
 
   /// Server ruxsat etgan eng ko'p uy — GET /houses javobidagi
@@ -561,6 +656,9 @@ class IjaraRepo extends ChangeNotifier {
 
   /// Davr hisoblari — SERVER TARTIBIDA.
   List<Charge> get charges => List.unmodifiable(_charges);
+
+  /// Davr to'lovlari — SERVER TARTIBIDA (U4 pill yig'indilari shu ro'yxatdan).
+  List<IjaraPayment> get payments => List.unmodifiable(_payments);
 
   /// Bitta uyning davr hisoblari.
   List<Charge> chargesOf(String houseId) =>
@@ -661,30 +759,75 @@ class IjaraRepo extends ChangeNotifier {
 
   // ---------------- Yuklash ----------------
 
-  /// Davr ko'rinishi uchun hamma narsa: uylar (bir marta), davr hisoblari va
-  /// to'lovlari, xulosa. Ekran faqat shuni biladi.
+  /// So'rovlar poygasiga qarshi token (store._periodSeq naqshi, F2): har load()
+  /// yangi raqam oladi, ESKIRGAN javob (raqam mos kelmasa) TASHLANADI — tez
+  /// oy almashtirganda oldingi oyning kech kelgan javobi ekranni bosolmaydi.
+  /// reset() ham raqamni oshiradi: logout'dan keyin uchayotgan javob o'ladi.
+  int _seq = 0;
+
+  /// Davr ko'rinishi uchun hamma narsa: uylar (kerak bo'lsa), davr hisoblari
+  /// va to'lovlari, xulosa. Ekran faqat shuni biladi.
   Future<void> load(DateTime m, {bool silent = false}) async {
+    if (testOffline) return; // faqat testlar: urug'langan holat tegilmaydi
+    final seq = ++_seq;
     month = ijMonthStart(m);
+    // F4: eski oyning xulosasi yangi oy raqami bo'lib ko'rinmasin — avval
+    // tozalanadi; /summary yiqilsa periodTotals yuklangan qatorlardan hisoblaydi.
+    summary = const IjaraSummary();
+    loadError = null;
+    _clearErr();
     if (!silent) {
       loading = true;
-      _clearErr();
       notifyListeners();
     }
-    if (!housesLoaded) await loadHouses(notify: false);
+    if (!housesLoaded) await loadHouses(notify: false, seq: seq);
+    if (seq != _seq) return; // eskirgan — holatni yangiroq load boshqaradi
     await Future.wait([
-      _loadCharges(notify: false),
-      _loadSummary(notify: false),
+      _loadCharges(seq),
+      _loadSummary(seq),
     ]);
+    if (seq != _seq) return;
     loading = false;
     if (error == null) loaded = true;
     notifyListeners();
   }
 
+  /// Modulga KIRISH (F5/F9): ko'riladigan oy HAR DOIM joriy oyga qaytadi va
+  /// uylar ro'yxati har safar serverdan yangilanadi. Kesh bo'lsa skelet
+  /// chiqmaydi (loaded=true qoladi) — ro'yxat ustida yupqa progress ko'rinadi.
+  Future<void> enter() {
+    housesLoaded = false;
+    return load(DateTime.now());
+  }
+
   /// Joriy davrni jimgina qayta o'qish (mutatsiyalardan keyin).
   Future<void> refresh() => load(month, silent: true);
 
-  Future<void> loadHouses({bool notify = true}) async {
+  /// LOGOUT (F6): BUTUN modul holati tozalanadi — keyingi hisob oldingi
+  /// egasining uylarini ko'rmasin. store.dart chiqishda AYNAN `reset` nomi
+  /// bilan chaqiradi (nomni o'zgartirmang).
+  void reset() {
+    _seq++; // uchayotgan javoblar endi qo'llanilmaydi
+    _houses.clear();
+    _charges.clear();
+    _payments.clear();
+    month = ijMonthStart(DateTime.now());
+    summary = const IjaraSummary();
+    loading = false;
+    loaded = false;
+    housesLoaded = false;
+    backendMissing = false;
+    chargesMissing = false;
+    maxHouses = kIjaraMaxHouses;
+    loadError = null;
+    _clearErr();
+    notifyListeners();
+  }
+
+  Future<void> loadHouses({bool notify = true, int? seq}) async {
+    if (testOffline) return; // faqat testlar
     final r = await _req('GET', '/houses');
+    if (seq != null && seq != _seq) return; // eskirgan javob (F2)
     if (r.ok) {
       // Chegara serverdan keladi (tarif o'zgarsa ilova yangilanmasdan ham
       // to'g'ri). Shakl: body.limit.max_houses — ILDIZDA emas (FINDING 6).
@@ -695,13 +838,17 @@ class IjaraRepo extends ChangeNotifier {
       housesLoaded = true;
       _houses.clear();
     } else {
+      // Kesh SAQLANADI (F5: bor ro'yxat skeletga tushmasin) — faqat banner
+      // bayrog'i ko'tariladi.
       _fail(r);
+      loadError = r.error;
     }
     if (notify) notifyListeners();
   }
 
-  Future<void> _loadCharges({bool notify = true}) async {
+  Future<void> _loadCharges(int seq) async {
     final r = await _req('GET', '/charges?$_range');
+    if (seq != _seq) return; // eskirgan javob (F2)
     if (r.ok) {
       applyPage(ijParseCharges(ijChargesPayload(r.data, r.body)));
     } else if (_missing(r)) {
@@ -710,19 +857,24 @@ class IjaraRepo extends ChangeNotifier {
       _charges.clear();
       _payments.clear();
     } else {
+      // F1: ESKI OY qatorlari jim qolib ketmasin — davr tozalanadi, ro'yxat
+      // tanasida qayta urinish tugmali banner chiziladi (loadError).
       _fail(r);
+      loadError = r.error;
+      _charges.clear();
+      _payments.clear();
     }
-    if (notify) notifyListeners();
   }
 
-  Future<void> _loadSummary({bool notify = true}) async {
+  Future<void> _loadSummary(int seq) async {
     final r = await _req('GET', '/summary?$_range');
+    if (seq != _seq) return; // eskirgan javob (F2)
     if (r.ok && r.data is Map) {
       summary = IjaraSummary.fromJson(_map(r.data));
     }
-    // Xato bo'lsa jim o'tamiz: xulosa yordamchi blok, u yo'qligi uchun butun
-    // ekranni xato holatiga o'tkazish noto'g'ri bo'lardi (hisoblar allaqachon bor).
-    if (notify) notifyListeners();
+    // Xato bo'lsa jim o'tamiz: summary load() boshida tozalangan (F4), shuning
+    // uchun periodTotals yuklangan qatorlardan O'ZI hisoblaydi — eski oyning
+    // raqami hech qachon qolib ketmaydi.
   }
 
   /// Ko'rinadigan davr yakunlari. Server xulosasi bo'lmasa — yuklangan
@@ -750,7 +902,9 @@ class IjaraRepo extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    await loadHouses(notify: false);
+    // Uylar ro'yxatini refresh() o'zi qayta o'qiydi (bitta yo'l, bitta seq) —
+    // alohida loadHouses chaqirilsa poyga tokenidan chetda qolardi (F2).
+    housesLoaded = false;
     await refresh();
     return true;
   }
@@ -763,7 +917,7 @@ class IjaraRepo extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    await loadHouses(notify: false);
+    housesLoaded = false; // createHouse'dagi izohga qarang
     await refresh();
     return true;
   }
@@ -786,6 +940,41 @@ class IjaraRepo extends ChangeNotifier {
   Future<bool> addPayment(Map<String, dynamic> body) => _mutate('POST', '/payments', body: body);
 
   Future<bool> deletePayment(String id) => _mutate('DELETE', '/payments/$id');
+
+  // ---------------- Oy generatori (U2) ----------------
+
+  /// Ko'rilayotgan oy uchun tanlangan uylarga KETMA-KET 'ijara' hisobi yozadi
+  /// (davr — joriy ko'rilayotgan oy, summa — uyning oylik ijarasi). Bitta uy
+  /// xato bersa QOLGANLARI davom etadi; 402 (kvota) kelsa to'xtaydi — paywall
+  /// _req ichida allaqachon ochilgan, davomi ham shu xatoni olardi.
+  /// Qaytadi: yozilganlar soni. Oxirida davr BIR marta qayta o'qiladi.
+  Future<int> generateRentCharges(List<House> targets,
+      {void Function(int done, int total)? onProgress}) async {
+    _clearErr();
+    final seq = _seq; // reset/logout bo'lsa yozishni davom ettirmaymiz
+    final per = ijPeriod(month);
+    var ok = 0;
+    for (var i = 0; i < targets.length; i++) {
+      if (seq != _seq) return ok;
+      final h = targets[i];
+      final r = await _req('POST', '/charges', body: {
+        'house_id': h.id,
+        'period': per,
+        'kind': 'ijara',
+        'title': ij('kindIjara'),
+        'amount': h.rentAmount,
+      });
+      if (r.ok) {
+        ok++;
+      } else {
+        _fail(r);
+        if (r.status == 402) break;
+      }
+      onProgress?.call(i + 1, targets.length);
+    }
+    if (seq == _seq) await refresh();
+    return ok;
+  }
 
   /// Mutatsiya + davrni qayta o'qish. Muvaffaqiyatsizda `error`/`lastCode`
   /// to'ldiriladi va UI toast qiladi (402 bo'lsa paywall allaqachon ochilgan).

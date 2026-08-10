@@ -61,7 +61,14 @@ ChargesPage _page(Map<String, dynamic> body) =>
 
 /// Repo'ni tarmoqsiz, YUKLANGAN holatga keltiradi (ekran skelet/xato emas,
 /// ro'yxat chizadi). Yuklash yo'lining O'ZI ishlatiladi: applyHouses/applyPage.
+///
+/// testOffline (2026-08-10): modul endi HAR kirishda enter() bilan serverdan
+/// yangilanadi (F5) va xato javobda davr ro'yxatini TOZALAYDI (F1). Widget
+/// testda HTTP soxta 400 qaytaradi — bayroqsiz urug' yuvilib ketardi.
 void _seed({Map<String, dynamic>? body, Map<String, dynamic>? housesBody}) {
+  ijaraRepo.testOffline = true;
+  ijaraRepo.error = null;
+  ijaraRepo.loadError = null;
   ijaraRepo.month = ijMonthStart(DateTime.now());
   ijaraRepo.applyHouses(_houses(), housesBody);
   ijaraRepo.applyPage(_page(body ?? _cancelledBody()));
@@ -321,5 +328,69 @@ void main() {
     await _tapText(t, ij('addHouse'));
     expect(find.text(ij('capTitle')), findsOneWidget);
     expect(find.textContaining(uzOnly), findsNothing, reason: 'o\'zbekcha server matni chiqdi');
+  });
+
+  // ===================== 2026-08-10: enter()/reset()/arxiv =====================
+  // F5 (har kirishda yangilash), F9 (oy joriyga qaytadi), F6 (logout reset),
+  // F1/F4 (xatoda davr/xulosa tozalanadi), U7 (arxiv ro'yxati).
+  group('repo — enter()/reset()/arxiv', () {
+    test('reset(): BUTUN holat tozalanadi (store.dart logout\'da chaqiradi)', () {
+      _seed();
+      ijaraRepo.maxHouses = 9;
+      ijaraRepo.month = DateTime(2025, 2, 1);
+      ijaraRepo.error = 'eski xato';
+      ijaraRepo.loadError = 'eski xato';
+      ijaraRepo.reset();
+      expect(ijaraRepo.houses, isEmpty);
+      expect(ijaraRepo.archivedHouses, isEmpty);
+      expect(ijaraRepo.charges, isEmpty);
+      expect(ijaraRepo.payments, isEmpty);
+      expect(ijaraRepo.loading, isFalse);
+      expect(ijaraRepo.loaded, isFalse);
+      expect(ijaraRepo.housesLoaded, isFalse);
+      expect(ijaraRepo.error, isNull);
+      expect(ijaraRepo.loadError, isNull);
+      expect(ijaraRepo.lastCode, '');
+      expect(ijaraRepo.summary.charged, 0);
+      expect(ijaraRepo.maxHouses, kIjaraMaxHouses);
+      expect(ijaraRepo.month, ijMonthStart(DateTime.now()));
+    });
+
+    test('arxivlangan uy faollardan chiqadi, alohida ro\'yxatda turadi (U7)', () {
+      _seed();
+      ijaraRepo.applyHouses(ijParseHouses([
+        {'id': 'h1', 'name': 'Faol uy'},
+        {'id': 'h2', 'name': 'Eski uy', 'tenant_name': 'Karim aka', 'archived': true},
+      ]));
+      expect(ijaraRepo.houses.map((h) => h.id).toList(), ['h1']);
+      expect(ijaraRepo.archivedHouses.map((h) => h.id).toList(), ['h2']);
+      // Tafsilot qatlami arxivlangan uyni ham id bo'yicha topa oladi
+      expect(ijaraRepo.houseById('h2')?.archived, isTrue);
+      ijaraRepo.reset();
+    });
+
+    test('enter(): oy JORIYGA qaytadi; xato yuklashda kesh uylar QOLADI, '
+        'davr va xulosa TOZALANADI (F1/F4/F5/F9)', () async {
+      _seed(); // kesh: 1 uy + avgust hisoblari + server xulosasi
+      addTearDown(() {
+        ijaraRepo.reset();
+        ijaraRepo.testOffline = true;
+      });
+      ijaraRepo.testOffline = false; // haqiqiy yuklash yo'li (testda HTTP 400/xato)
+      ijaraRepo.month = DateTime(2024, 3, 1); // go'yo eski oyda qolib ketgan
+      await ijaraRepo.enter();
+      // F9: ko'riladigan oy joriy oy
+      expect(ijaraRepo.month, ijMonthStart(DateTime.now()));
+      // F5: uylar keshi saqlanadi (skeletga tushmaydi) — xato faqat bannerda
+      expect(ijaraRepo.houses, isNotEmpty, reason: 'kesh uylar yo\'qolmasin');
+      expect(ijaraRepo.loaded, isTrue, reason: 'sarlavha ishlayveradi');
+      // F1: eski oy qatorlari JIM qolib ketmaydi — davr tozalanadi + banner
+      expect(ijaraRepo.charges, isEmpty, reason: 'eski oy hisoblari qolmasin');
+      expect(ijaraRepo.payments, isEmpty);
+      expect(ijaraRepo.loadError, isNotNull, reason: 'inline banner ko\'rsatiladi');
+      // F4: eski oyning server xulosasi yangi oy raqami bo'lib qolmaydi
+      expect(ijaraRepo.summary.charged, 0);
+      expect(ijaraRepo.periodTotals.charged, 0);
+    });
   });
 }

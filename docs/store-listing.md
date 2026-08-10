@@ -1,82 +1,101 @@
 # Google Play store listing (UZ, latin)
 
-> Manba: Trust Play Store reliz tayyorlash (2026-07-18), kodga asoslangan.
+> ⚠️ **JONLI PLAY LISTING HALI YANGILANMAGAN (2026-08-10).** Play Console'dagi matn eski
+> (modullardan oldingi) versiya — Console'ga ko'chirish uchun MANBA aynan shu fayl.
+> Yangilangan: Ijaradagi uylar va To'yxona modullari (PO 2026-08-04), modul-boshiga narxlar,
+> push bildirishnomalar. App Store tavsifi bilan uyg'un.
+>
+> Asl manba: Trust Play Store reliz tayyorlash (2026-07-18), kodga asoslangan.
 
 ## 1. Ilova nomi (App title) — variantlar (≤ 30 belgi)
 
-- **Trust — Oldi-berdi daftari** (26)
-- **Trust — Qarz daftari + AI** (25)
-- **Trust: Qarz va oldi-berdi** (26)
-- **Trust — Ishonchli hisob-kitob** (29)
+- **Trustbook — qarz daftari** (24)
+- **Trustbook — nasiya daftari** (26)
+- **Trustbook: qarz, ijara, bron** (28)
+- **Trustbook — qarz va ijara** (25)
 
-> Tavsiya: **Trust — Oldi-berdi daftari** (brend + toifa aniq; «AI» versiyasi kalit so'z uchun yaxshi muqobil).
+> Tavsiya: **Trustbook — qarz daftari** (brend + eng kuchli kalit so'z; App Store'dagi
+> «Trustbook — xarajat va qarz» bilan bir brend). «qarz, ijara, bron» versiyasi 3 kalit
+> so'zni qamraydi — ASO uchun muqobil.
 
 ---
 
 ## 2. Qisqa tavsif (Short description) — variantlar (≤ 80 belgi)
 
-- **Ikki tomonlama qarz daftari, xarajat hisobi va Trust AI moliyaviy hamroh.** (73)
-- **Qarz va oldi-berdi — ikki tomon tasdiqlaydi. Xarajat hisobi + Trust AI.** (71)
+- **Qarz daftari, nasiya, ijara va to'yxona broni — ikki tomon tasdiqlaydi.** (71)
+- **Qarz va nasiya daftari, ijara hisobi, to'yxona broni — ikki tomon tasdiqlaydi.** (78)
 
 ---
 
 ## 3. To'liq tavsif (Full description) — ≤ 4000 belgi
 
-**Trust (Oldi-Berdi)** — qarz va oldi-berdilaringizni yon daftar yoki eslab qolishga emas, **ikki tomon tasdiqlaydigan** raqamli daftarga ishoning. Ustiga xarajatlaringizni tartibga soladigan va pulingiz haqida aniq raqam bilan gaplashadigan **Trust AI** moliyaviy hamroh qo'shildi.
+**Trustbook (Trust / Oldi-Berdi)** — qarz, nasiya, ijara va to'y bronlarini yon daftarga emas, **ikki tomon tasdiqlaydigan** raqamli daftarga yozing. Tasdiqlangan yozuv — **o'chirilmas dalil**; kerak paytda ilova o'zi eslatadi.
 
 «Hisobli do'st — ayrilmas.»
 
-🤝 **Ikki tomonlama tasdiq — yozilgan qarz inkor qilinmaydi**
-Siz qarz yozuvini kiritasiz, kontragent uni tasdiqlash kodi bilan tasdiqlaydi — va yozuv o'chirib bo'lmaydigan **dalil**ga aylanadi. Tasdiqdan keyin uni bir tomonlama o'chirib yoki o'zgartirib bo'lmaydi. Har qanday tuzatish faqat **ikkala tomon roziligi** bilan kiritiladi, eski qiymat esa **tarixda** saqlanib qoladi. Shu bois na «esimdan chiqdi», na «bunday gap bo'lmagan» degani o'tmaydi.
+🤝 **Qarz daftari — yozilgan qarz inkor qilinmaydi**
+Siz qarz yoki nasiya yozuvini kiritasiz, kontragent uni tasdiqlash kodi bilan tasdiqlaydi — va yozuv o'chirib bo'lmaydigan dalilga aylanadi. Tasdiqdan keyin uni bir tomonlama o'chirib yoki o'zgartirib bo'lmaydi: har qanday tuzatish faqat ikkala tomon roziligi bilan kiritiladi, eski qiymat tarixda qoladi. Na «esimdan chiqdi», na «bunday gap bo'lmagan» degani o'tmaydi. Kontragent Trustbook'da bo'lsa, daftar ikkala tomonda bir xil ko'rinadi; bo'lmasa ham yozuv sizning daftaringizda darhol ishlaydi.
 
-📖 **Bir joyda — ikkala tomonda bir xil**
-Har bir yozuv saqlanadi. Kontragent Trust'da bo'lsa va bog'lanishni qabul qilsa — yozuv, balans va o'zgarishlar unga ham xuddi shu ko'rinishda ochiladi. Kontragent hali Trust'da bo'lmasa ham, yozuv sizning daftaringizda darhol ishlab turadi; u ilovaga kirgach, bog'lanish so'rovi avtomatik boradi.
+🏠 **IJARADAGI UYLAR — uy egalari uchun**
+Uyini ijaraga bergan uy egasining butun hisobi bitta joyda:
+- Har uyda ijarachining ismi va telefoni — **ijarachiga ilova ham, hisob ham kerak emas**;
+- Oylik ijara, kommunal va boshqa hisob-kitoblar — oyma-oy;
+- To'lovlarni kiriting: har uy bo'yicha «hisoblandi / to'landi / qoldiq» doim ko'z oldingizda;
+- Bitta obunada 5 tagacha uy.
+Og'zaki kelishuv unutiladi — ijara daftari unutmaydi.
 
-💸 **Xarajat kundaligi — har so'm ko'z oldingizda**
-Oddiy jumla yozing (masalan, «oziq-ovqatga 120 000»), Trust AI uni o'zi kerakli papkaga saralab qo'yadi. Oylik chegara (limit) qo'ying, qancha sarflaganingiz va qancha qolganini ko'ring, oyingiz jonli chiziqqa aylansin.
+💒 **TO'YXONA — to'yxona egalari uchun**
+Qog'oz jurnal o'rniga telefondagi bron daftari:
+- Sana + vaqt (nahorgi osh, tushlik, kechki) bo'yicha bron;
+- **Bitta sana-vaqtga ikki marta band qilishdan himoya** — ustma-ust bron texnik jihatdan imkonsiz;
+- Mehmonlar soni × mehmon boshiga narx + qo'shimcha xizmatlar (musiqa, fotograf, tort…);
+- Avans va yakuniy to'lovlar, har bron bo'yicha qoldiq;
+- Mijozni ism yoki telefon bo'yicha bir soniyada qidirish — **mijozga ilova kerak emas**.
 
-🤖 **Trust AI — moliyaviy hamrohingiz**
-Trust AI daftaringizni o'qiydi va pul, xarajat hamda qarzlaringiz haqidagi savollarga **aniq raqam bilan** javob beradi:
-- «Bu oy qanday ketyapman?»
-- «Eng ko'p nimaga sarfladim?»
-- «Kimda pulim qolib ketgan?»
+💸 **Xarajat kundaligi**
+Oddiy jumla yozing («oziq-ovqatga 120 000») — yozuv o'zi kerakli toifaga tushadi. Oylik chegara qo'ying, qancha sarflab, qancha qolganini ko'ring.
 
-Kerak bo'lganda oylik chegara taklif qiladi yoki qarzdorga muloyim eslatma yuborishni taklif etadi. Javoblarni sun'iy intellekt tayyorlaydi — xato bo'lishi mumkin, shuning uchun muhim raqamni daftardan tekshiring. Yoqmagan javobni bir bosishda belgilashingiz (flag) mumkin.
+🤖 **Trust AI — moliyaviy hamroh**
+Daftaringizni o'qib, pul, xarajat va qarzlar haqidagi savollarga aniq raqam bilan javob beradi. AI xato qilishi mumkin — muhim raqamni daftardan tekshiring; yoqmagan javobni bir bosishda belgilaysiz (flag).
 
-🔔 **Eslatma va valyutalar**
-Qarzdorga bosim o'tkazmasdan muloyim eslatma yuboring. Turli valyutalardagi hisob-kitoblarni yuriting — tanlangan valyuta yozuvning ikkala tomonida ham bir xil ko'rinadi.
+🔔 **Push eslatmalar**
+Yozuv tasdig'i, to'lov va muddatlar haqida bildirishnoma telefoningizga keladi; qarzdorga esa bosimsiz, muloyim eslatma yuborasiz.
 
-👥 **Kim uchun?**
-- Do'st, qo'ni-qo'shni va qarindoshlar bilan oldi-berdi qiladiganlar
-- Bozor, do'kon va mayda savdo bilan shug'ullanuvchilar
-- O'z xarajatini nazoratda ushlamoqchi bo'lgan har bir kishi
+💳 **Narxlar — faqat kerakli modulga to'lang**
+Har modul bepul boshlanadi (5 ta yozuv), keyin oylik obuna:
+- Xarajat — $4.99/oy
+- Qarz daftari — $7.99/oy
+- Ijaradagi uylar — $12.99/oy (5 tagacha uy)
+- To'yxona — $24.99/oy (1 ta to'yxona)
+Narxlar do'kon valyutangizda avtomatik ko'rsatiladi.
 
 🔒 **Ishonch va maxfiylik**
-Trust ismi bejiz emas. Kirish telefon raqami va SMS kod (OTP) orqali, ilovaga esa 4 xonali PIN bilan. Trust AI'ga ma'lumot yuborilganda **telefon raqamingiz yuborilmaydi**, kontragent ismlari esa **taxallus** bilan almashtiriladi — ya'ni tahlil deyarli identifikatsiyalanmagan ma'lumot ustida ketadi. Ma'lumotlar shifrlangan aloqa orqali uzatiladi.
+Kirish — telefon raqami va SMS kod (OTP), ilovaga — 4 xonali PIN bilan. Trust AI'ga telefon raqamingiz yuborilmaydi, kontragent ismlari taxallus bilan almashtiriladi. Ma'lumotlar shifrlangan aloqa orqali uzatiladi.
 
 🌐 **6 tilda:** o'zbek, rus, ingliz, ispan, fransuz va xitoy. Tungi rejim bor.
 
-Qarzni yodda emas — **Trust**'da saqlang. Na unutiladi, na inkor qilinadi.
+Qarzni ham, ijarani ham, bronni ham yodda emas — **Trustbook**'da saqlang. Na unutiladi, na inkor qilinadi.
 
 ---
 
 ## 4. «Yangiliklar» (What's new) — ≤ 500 belgi
 
-Yangi bosh ekran (Hub): xarajat, qarz daftari va Trust AI endi bitta joyda.
+🏠 Yangi modul: IJARADAGI UYLAR — 5 tagacha uy, ijarachi ismi-telefoni, oylik ijara/kommunal hisob-kitoblar, to'lov va qoldiq. Ijarachiga ilova kerak emas.
 
-✨ Trust AI — moliyaviy hamroh: daftaringizni o'qib, pul, xarajat va qarz haqida aniq raqam bilan javob beradi.
+💒 Yangi modul: TO'YXONA — nahor/tushlik/kechki bronlar, mehmon soni bo'yicha hisob, avans; ikki marta band qilishdan himoya. Mijoz qidiruvi.
 
-🤝 Ikki tomonlama tasdiq yaxshilandi — bog'lanish so'rovi va yozuv tasdig'i ikkala qurilmada ham to'g'ri ko'rinadi.
+🔔 Push bildirishnomalar — tasdiq va eslatmalar endi telefonga keladi.
 
-🌙 Tungi rejim, 6 til va ko'plab kichik tuzatishlar.
+💳 Modul-boshiga obuna: faqat kerakli bo'limga to'laysiz; har modulda 5 ta yozuv bepul.
 
 
 ## Ochiq savollar / PO tasdig'i kerak
 
-- [ ] Narx/obuna: kodda «7 kun bepul, keyin $9/oy» va «to'lov tez orada ulanadi» bor — to'lov hali ulanmagan. Listingda narx yoziladimi, sinov muddati va yakuniy narx qanday — PO tasdiqlasin (Play'da narx va obuna shartlari aniq bo'lishi shart).
-- [ ] PDF dalil / «Ulashish (PDF)»: kodda tShareSoon/tPdfSoon = «tez orada» — hali ishlamaydi. Listingda tayyor funksiya sifatida da'vo qilmadim; PO ishga tushsa qo'shishni tasdiqlasin.
-- [ ] Circles/Doira (ROSCA) bo'limi hozircha UI-mock (CirclesRepo) — listingda umuman tilga olinmadi. Bu to'g'ri, lekin PO tasdiqlasin.
-- [ ] AI provayderi (Anthropic) nomi listingda ochiq yozilsinmi yoki yo'q — huquqiy/marketing qarori PO'da (privacy-policy'da baribir oshkor qilinadi).
-- [ ] Ishga tushirishda qaysi tillar/mamlakatlar yoqiladi — 6 til kodda bor, lekin release'da hammasi faol bo'ladimi PO tasdiqlasin.
-- [ ] «Har so'm» va valyuta: ilova ko'p valyutani qo'llaydi, lekin asosiy bozor O'zbekiston (so'm) — marketing urg'usini PO tasdiqlasin.
-- [ ] Yosh reytingi 18+ (checklist §4) — listing matnida yoshga oid cheklov targ'ib qilinmagan; Play formasi bilan mosligini PO tekshirsin.
+- [ ] **Play Billing hali ulanmagan** (server `google_play` → 501). Listing narx bo'limi bilan hozir chiqadimi, yoki billing ulangach — PO qarori. iOS'da Apple IAP yuborilgan (review'da, 2026-08-09).
+- [ ] **Bepul kvota:** listing «5 ta yozuv» deydi (kod defaulti). Render'da qarz/xarajat vaqtincha 300 (`FREE_*` env) — publish oldidan env qatorlari olib tashlansin (play-store-checklist §6a), aks holda listing va'dasi realdan qattiqroq ko'rinadi.
+- [ ] **Narxlar** Apple narx nuqtalarida ($4.99/$7.99/$12.99/$24.99). Play Console obunalarida ham shu nuqtalar tanlansin; server katalogidagi butun sonlar ($5/$8/$13/$24) faqat ilova ichidagi xabar matnlarida.
+- [ ] **Skrinshotlar:** eski 5 ta «Trust» brendli rasm — yangi modullar (Ijara, To'yxona) va «Trustbook» nomi bilan yangilansin.
+- [ ] **Ilova nomi Play'da** hozir «Trust» — «Trustbook»ga rebrending shu listing bilan birga qilinsinmi (App Store'da allaqachon «Trustbook»).
+- [ ] AI provayderi (Anthropic) nomi listingda ochiq yozilsinmi — huquqiy/marketing qarori PO'da (privacy-policy'da baribir oshkor qilinadi).
+- [ ] PDF dalil / «Ulashish (PDF)» hali «tez orada» — listingda tayyor funksiya sifatida da'vo qilinmadi.
+- [ ] Circles/Doira (ROSCA) hali UI-mock — listingda tilga olinmadi; PO tasdiqlasin.

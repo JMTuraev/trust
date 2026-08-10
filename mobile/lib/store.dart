@@ -20,6 +20,9 @@ import 'l10n.dart';
 import 'ledger/debt_ledger.dart';
 import 'circles_data.dart';
 import 'circles_l10n.dart';
+// Modul repolari — logout'da reset() qilinadi (eski akkaunt ma'lumoti qolmasin)
+import 'ijara_data.dart' show ijaraRepo;
+import 'toyxona_data.dart' show toyRepo;
 import 'ai_blocks.dart' show parseAiBlocks;
 
 // 2026-07-17: ovoz/STT butunlay olib tashlandi — ilova FAQAT MATN (docs/ai-character.md §11).
@@ -1947,6 +1950,15 @@ class TrustStore extends ChangeNotifier {
     final r = await call();
     _busy = false;
     if (!r.ok) {
+      // 409 AMOUNT_CHANGED (debtConfirm expected_amount): muallif tasdiq
+      // kutayotganda summani tahrirlagan — foydalanuvchi ko'rib turgan raqam
+      // eskirgan. Umumiy xato toasti o'rniga aniq xabar + daftar DARHOL qayta
+      // yuklanadi, shunda yangi summa ekranda ko'rinadi va qayta tasdiqlanadi.
+      if (r.status == 409 && r.code == 'AMOUNT_CHANGED') {
+        toast_(L()['errAmountChanged'] as String? ?? r.error);
+        await _refetchLedger(partnerId);
+        return;
+      }
       toast_(r.error);
       return;
     }
@@ -2037,7 +2049,19 @@ class TrustStore extends ChangeNotifier {
   // ---- Yozuv amallari ----
   // Ochiq daftar id'si: o'z hamkorim (clientId) YOKI kiruvchi bog'lanish (inLinkId)
   String? _ledPid() => (S['clientId'] ?? S['inLinkId']) as String?;
-  void ledgerConfirm_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirm(id), okMsg: L()['okConfirmed'] as String);
+  // Tasdiqlashda foydalanuvchi KO'RIB TURGAN summa expected_amount bo'lib
+  // ketadi — server hozirgi summa bilan solishtiradi (409 AMOUNT_CHANGED
+  // ishlovi _ledgerAct'da). Yozuv holatda topilmasa (poyga) — eski xatti-
+  // harakat: summasiz so'rov, server o'zi hal qiladi (orqaga mos).
+  void ledgerConfirm_(String id) {
+    final pid = _ledPid()!;
+    DebtEntry? cur;
+    for (final e in _ledgerFor(pid).entries) {
+      if (e.id == id) cur = e;
+    }
+    _ledgerAct(pid, () => Api.debtConfirm(id, expectedAmount: cur?.amount),
+        okMsg: L()['okConfirmed'] as String);
+  }
   void ledgerReject_(String id) => _ledgerAct(_ledPid()!, () => Api.debtReject(id), okMsg: L()['okRejected'] as String);
   void ledgerConfirmOp_(String id) => _ledgerAct(_ledPid()!, () => Api.debtConfirmOp(id), okMsg: L()['okConfirmed'] as String);
   void ledgerRejectOp_(String id) => _ledgerAct(_ledPid()!, () => Api.debtRejectOp(id), okMsg: L()['okRejected'] as String);
@@ -3217,6 +3241,11 @@ class TrustStore extends ChangeNotifier {
     _landFallback?.cancel(); // chiqishdan keyin eski akkaunt yozuvlarini qaytarmasin
     _xfReorderT?.cancel(); // muzlatilgan papka tartibi ham eski akkauntdan qolmasin
     _xfFrozenOrder = null;
+    // Modul repolari (Ijaradagi uylar / To'yxona) o'z holatini store'dan
+    // TASHQARIDA saqlaydi — reset qilinmasa keyingi kirgan akkaunt oldingi
+    // foydalanuvchining uylari/bronlarini bir lahza ko'rardi (2026-08-10 audit).
+    ijaraRepo.reset();
+    toyRepo.reset();
     set({
       'stage': 'welcome', 'phone': '', 'otpVal': '', 'pinVal': '',
       'screen': 'hub', 'clientId': null, 'receiptId': null, 'sheetOpen': false,
@@ -3242,6 +3271,21 @@ class TrustStore extends ChangeNotifier {
       'aiMsgs': <Map<String, dynamic>>[], 'aiInput': '', 'aiLoaded': false,
       'aiLoading': false, 'aiError': null, 'aiSending': false, 'aiSendErr': null,
       'aiLastText': null, 'aiLimited': false, 'aiLimitKind': null,
+      // 2026-08-10 audit: akkauntga xos qoldiqlar ham tozalanadi — badge'lar,
+      // chat keshi, davr filtri, eslatma cooldown'lari, xarajat tray/jurnali va
+      // o'chirish modali oldingi akkauntdan yangi foydalanuvchiga o'tib qolardi.
+      // Qiymatlar S init'dagi standartlarning AYNAN o'zi.
+      'notifCounts': <String, Map<String, dynamic>>{},
+      'srvMsgs': <String, List<Map<String, dynamic>>>{},
+      'msgUnread': <String, int>{},
+      'homeFilter': 'all', 'homeFilterFrom': 0, 'homeFilterTo': 0,
+      'homeFilterOpen': false,
+      'homePeriod': <String, Map<String, int>>{},
+      'homePeriodOk': false, 'homePeriodLoading': false,
+      'remTimes': <String, int>{},
+      'xfTray': <Map<String, dynamic>>[],
+      'xfLog': <Map<String, dynamic>>[],
+      'delOtpOpen': false, 'delOtpBusy': false, 'delOtpPhone': '',
     });
     SharedPreferences.getInstance().then((sp) => sp.remove('trust_avatar'));
   }
@@ -3479,6 +3523,10 @@ class TrustStore extends ChangeNotifier {
       S['inLinkId'] != null ||
       S['receiptId'] != null ||
       S['notifOpen'] == true ||
+      // Yordam chati (z:13) — 2026-08-10 audit: ro'yxatda YO'Q edi, shu sabab
+      // Android "orqaga" chatni yopish o'rniga ILOVADAN chiqib ketardi
+      // (closeTopLayer_ uni allaqachon biladi — faqat shu bayroq yetishmasdi).
+      S['supportOpen'] == true ||
       S['archOpen'] == true ||
       S['rejOpen'] == true ||
       S['pdfOpen'] == true ||
@@ -3549,7 +3597,14 @@ class TrustStore extends ChangeNotifier {
   }
 
   /// Apparat "orqaga" biror qatlamni yopishi kerakmi?
-  bool layerOpen() => S['stage'] == 'app' && _anyLayerOpen();
+  ///
+  /// Davlat-kodi varag'i (ccOpen, z:60) ONBOARDING bosqichida ham ochiladi
+  /// (telefon/OTP ekranidagi bayroq tugmasi) — shu sabab u stage tekshiruvidan
+  /// MUSTAQIL bloklanadi: ilgari `stage != 'app'` bo'lgani uchun canPop true
+  /// bo'lib, "orqaga" varaqni yopish o'rniga OTP o'rtasida ILOVANI o'ldirardi
+  /// (2026-08-10 audit). closeTopLayer_ ccOpen'ni allaqachon yopa oladi.
+  bool layerOpen() =>
+      S['ccOpen'] != null || (S['stage'] == 'app' && _anyLayerOpen());
 
   // ---------------- Modul ekranlarining O'Z qatlamlari ----------------
   // Ijaradagi uylar / To'yxona kabi modullar butun holatini O'Z State'ida
@@ -3834,7 +3889,12 @@ class TrustStore extends ChangeNotifier {
         if (pendingIn.length == 1) {
           set({'linkDecisionId': pendingIn.first['id'] as String});
         } else {
-          goHome_();
+          // 2+ so'rov: BILDIRISHNOMALAR paneli ochiladi (hubOpenNotifs bilan
+          // AYNAN bir kalit) — har so'rov u yerda alohida qator, bosilsa qaror
+          // sheet'i. Ilgari goHome_() edi: home ro'yxatida pending so'rovlar
+          // UMUMAN ko'rinmaydi, foydalanuvchi bo'sh ro'yxatga qarab qolardi
+          // (2026-08-10 audit).
+          set({'notifOpen': true});
         }
       },
       // Skelet: boot/hydrate paytida (mavjud skelHome bayrog'i bilan bir xil manba)
@@ -5136,7 +5196,10 @@ class TrustStore extends ChangeNotifier {
           final n = _txs().where((t) => t['st'] == 'arch').length;
           return n > 0 ? n.toString() : '';
         }(),
-        'isPlain': true, 'isSwitch': false, 'tap': () {},
+        'isPlain': true, 'isSwitch': false,
+        // Arxiv ekrani — home header'dagi tugma bilan AYNAN bir kalit
+        // ('openArch'). 2026-08-10 audit: qator "o'lik" edi (bo'sh closure).
+        'tap': () => set({'archOpen': true}),
       },
       // Obuna: 7 kun bepul sinov, keyin $9/oy (to'lov integratsiyasi keyingi bosqichda)
       {

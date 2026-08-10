@@ -460,6 +460,157 @@ void main() {
     });
   });
 
+  // F9: oy menyusi TANLANGAN oy atrofida quriladi, joriy oy doim ro'yxatda.
+  group('ijMonthOptions (F9)', () {
+    final now = DateTime(2026, 8, 10);
+
+    test('tanlangan oy atrofida: 24 oy orqaga / 6 oy oldinga', () {
+      final opts = ijMonthOptions(DateTime(2026, 8, 1), now: now);
+      expect(opts.length, 31);
+      expect(opts.first, DateTime(2024, 8, 1));
+      expect(opts.last, DateTime(2027, 2, 1));
+      expect(opts.any((d) => d.year == 2026 && d.month == 8), isTrue);
+      // Yil chegarasidan o'tish DateTime normalizatsiyasi bilan to'g'ri
+      expect(opts.contains(DateTime(2025, 12, 1)), isTrue);
+    });
+
+    test("uzoq O'TMISH tanlangan — joriy oy oxiriga QADALADI", () {
+      final opts = ijMonthOptions(DateTime(2022, 1, 1), now: now);
+      expect(opts.last, DateTime(2026, 8, 1));
+      expect(opts.first, DateTime(2020, 1, 1));
+    });
+
+    test('uzoq KELAJAK tanlangan — joriy oy boshiga qadaladi', () {
+      final opts = ijMonthOptions(DateTime(2030, 6, 1), now: now);
+      expect(opts.first, DateTime(2026, 8, 1));
+      expect(opts[1], DateTime(2028, 6, 1));
+    });
+
+    test('joriy oy oraliqda bo\'lsa takror QO\'SHILMAYDI', () {
+      final opts = ijMonthOptions(DateTime(2026, 9, 1), now: now);
+      expect(opts.where((d) => d.year == 2026 && d.month == 8).length, 1);
+    });
+  });
+
+  // U2: oy generatori rejasi — qaysi uylarga hisob yozilishi kerak.
+  group('ijMissingRentHouses (U2)', () {
+    House hs(String id, {int rent = 1000000, bool archived = false}) => House.fromJson({
+          'id': id,
+          'name': 'Uy $id',
+          'rent_amount': rent,
+          'archived': archived,
+        });
+    Charge ch(String houseId, {String kind = 'ijara', String status = ''}) => Charge.fromJson({
+          'id': 'c-$houseId-$kind',
+          'house_id': houseId,
+          'kind': kind,
+          'amount': 5,
+          'status': status,
+        });
+
+    test("shu oy uchun ijara hisobi yo'q faol uylar topiladi", () {
+      final res = ijMissingRentHouses([hs('a'), hs('b')], [ch('a')]);
+      expect(res.map((h) => h.id).toList(), ['b']);
+    });
+
+    test('arxivlangan va ijarasi belgilanmagan uylar sanalmaydi', () {
+      final res = ijMissingRentHouses(
+        [hs('a', archived: true), hs('b', rent: 0), hs('c')],
+        const [],
+      );
+      expect(res.map((h) => h.id).toList(), ['c']);
+    });
+
+    test("BEKOR qilingan ijara hisobi HISOB EMAS — uy ro'yxatda qoladi", () {
+      final res = ijMissingRentHouses([hs('a')], [ch('a', status: 'bekor')]);
+      expect(res.map((h) => h.id).toList(), ['a']);
+    });
+
+    test("kommunal/boshqa hisob ijara o'rnini bosmaydi", () {
+      final res = ijMissingRentHouses([hs('a')], [ch('a', kind: 'kommunal')]);
+      expect(res.map((h) => h.id).toList(), ['a']);
+    });
+
+    test("hamma uyda hisob bor -> bo'sh (banner chiqmaydi)", () {
+      expect(ijMissingRentHouses([hs('a')], [ch('a')]), isEmpty);
+    });
+  });
+
+  // U4: sarlavha ostidagi holat pill'lari va ular bo'yicha uy filtri.
+  group('ijPillSums / ijHouseMatchesPill (U4)', () {
+    final today = DateTime(2026, 8, 10);
+
+    test("kutilmoqda / kechikkan / to'langan yig'indilari", () {
+      final page = ijParseCharges({
+        'charges': [
+          // kutish: muddati kelmagan, to'lanmagan
+          {'id': 'a', 'house_id': 'h1', 'amount': 1000, 'due_date': '2026-08-20'},
+          // kechikkan: muddati o'tgan
+          {'id': 'b', 'house_id': 'h1', 'amount': 700, 'due_date': '2026-08-01'},
+          // tolangan: to'liq yopilgan
+          {
+            'id': 'c',
+            'house_id': 'h2',
+            'amount': 500,
+            'payments': [
+              {'id': 'p1', 'charge_id': 'c', 'amount': 500}
+            ],
+          },
+          // bekor: umuman sanalmaydi
+          {'id': 'd', 'house_id': 'h2', 'amount': 900, 'status': 'bekor'},
+        ],
+        'payments': [
+          // Umumiy (bog'lanmagan) tushum — "to'langan" yig'indisiga kiradi
+          {'id': 'p2', 'house_id': 'h1', 'amount': 250},
+        ],
+      });
+      final s = ijPillSums(page.charges, page.payments, today: today);
+      expect(s['pending'], 1000);
+      expect(s['overdue'], 700);
+      expect(s['paid'], 750, reason: "500 bog'langan + 250 umumiy");
+    });
+
+    test("QISMAN to'langan hisob 'kutilmoqda' guruhida (qoldiq bilan)", () {
+      final page = ijParseCharges([
+        {
+          'id': 'a',
+          'house_id': 'h1',
+          'amount': 1000,
+          'due_date': '2026-08-20',
+          'payments': [
+            {'id': 'p', 'charge_id': 'a', 'amount': 400}
+          ],
+        },
+      ]);
+      final s = ijPillSums(page.charges, page.payments, today: today);
+      expect(s['pending'], 600);
+      expect(s['overdue'], 0);
+      expect(s['paid'], 400);
+    });
+
+    test('uy filtri: pill holatiga mos hisobi bor uygina qoladi', () {
+      final overdue = ijParseCharges([
+        {'id': 'b', 'house_id': 'h1', 'amount': 700, 'due_date': '2026-08-01'}
+      ]).charges;
+      expect(ijHouseMatchesPill('overdue', overdue, today: today), isTrue);
+      expect(ijHouseMatchesPill('paid', overdue, today: today), isFalse);
+      expect(ijHouseMatchesPill('pending', overdue, today: today), isFalse);
+      // Notanish pill — filtr yo'q (ro'yxat to'liq qoladi)
+      expect(ijHouseMatchesPill('yoq', overdue, today: today), isTrue);
+      // Bo'sh oy — hech qaysi pillga tushmaydi
+      expect(ijHouseMatchesPill('pending', const <Charge>[], today: today), isFalse);
+    });
+
+    test('pill guruhlari kIjaraStates lug\'atidan chiqmaydi', () {
+      expect(kIjaraPillStates.keys.toSet(), {'pending', 'overdue', 'paid'});
+      for (final states in kIjaraPillStates.values) {
+        for (final s in states) {
+          expect(kIjaraStates, contains(s));
+        }
+      }
+    });
+  });
+
   group('ijara_l10n — 6 til qamrovi', () {
     final en = kIjaraLangs['en']!;
     final tokenRe = RegExp(r'\{(\w+)\}');
@@ -483,6 +634,25 @@ void main() {
           final want = tokenRe.allMatches(en[k]!).map((m) => m[1]).toSet();
           final got = tokenRe.allMatches(e.value[k]!).map((m) => m[1]).toSet();
           expect(got, want, reason: '${e.key}: $k tokenlari mos emas');
+        }
+      }
+    });
+
+    test('2026-08-10 UX kalitlari 6 tilda ham bor (tez to\'lov, generator, arxiv...)', () {
+      // Umumiy qamrov testi kalitlar TENGLIGINI tekshiradi; bu ro'yxat esa
+      // yangi funksiya kalitlari BUTUNLAY o'chirib yuborilishidan qo'riqlaydi.
+      const fresh = [
+        'quickPay', 'overpaidNote', 'overdue', 'periodLoadFailed',
+        'call', 'callFailed',
+        'pillPending', 'pillOverdue', 'pillPaid', 'pillEmpty',
+        'genChargesBanner', 'genChargesBtn', 'genSheetTitle', 'genSheetBody',
+        'genTotal', 'genProgress', 'genDoneAll', 'genDonePart',
+        'archivedSection', 'unarchive', 'unarchived',
+        'tenantChangeNote', 'cancelledCharge',
+      ];
+      for (final e in kIjaraLangs.entries) {
+        for (final k in fresh) {
+          expect('${e.value[k] ?? ''}'.trim(), isNotEmpty, reason: '${e.key}: $k yo\'q');
         }
       }
     });

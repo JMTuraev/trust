@@ -11,8 +11,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeTotals, autoStatusAfterPayment, sortBookings, overMax, foldSummary,
-  money, isUniqueViolation, readHallFilter,
-  isDateStr, daysBetween, monthBounds, SLOTS, STATUSES,
+  money, isUniqueViolation, readHallFilter, searchTerms,
+  isDateStr, daysBetween, monthBounds, SLOTS, STATUSES, DEDUP_MS,
 } from './toyxona.js';
 
 // ============================ Pul validatsiyasi ============================
@@ -353,4 +353,75 @@ test('monthBounds — dekabr yil chegarasidan oshmaydi', () => {
   assert.deepEqual(monthBounds(new Date('2026-12-20T00:00:00Z')), {
     from: '2026-12-01', to: '2026-12-31',
   });
+});
+
+// ============================================================
+// TAKROR TO'LOVDAN HIMOYA (2026-08-10 — ijara.js dagi qoidaning ko'chirmasi)
+// POST /bookings/:id/payments ham "qayta urinib ko'ring" dan keyin ikkinchi
+// marta kelishi mumkin — bir xil (band + summa + tur) to'lov DEDUP_MS oynasida
+// qayta yozilmaydi. Oyna chegaralari ijara.test.js bilan BIR XIL qulflanadi.
+// ============================================================
+test('DEDUP — oyna mobil timeout va sovuq startdan UZUNROQ', () => {
+  assert.ok(DEDUP_MS >= 60_000, 'dedup oynasi juda qisqa — takror to\'lov o\'tib ketadi');
+  // Cheksiz ham bo'lmasin: haqiqatan ikkita bir xil to'lovni kiritish imkoni qolsin
+  // (masalan bitta to'yga ketma-ket ikki marta 5 mln avans).
+  assert.ok(DEDUP_MS <= 10 * 60_000, 'dedup oynasi juda uzun — haqiqiy takror to\'lov bloklanadi');
+  assert.ok(Number.isInteger(DEDUP_MS) && DEDUP_MS > 0);
+});
+
+// ============================================================
+// QIDIRUV KIRITMASI (GET /bookings/search) — PostgREST .or() xavfsizligi.
+// `,` shartlarni, `(`/`)` guruhlarni ajratadi, `%` — ILIKE jokeri: bular
+// foydalanuvchi kiritmasidan OLIB TASHLANADI (aks holda filtr sintaksisi
+// buziladi). Telefon qidiruvida faqat RAQAMLAR ishlatiladi.
+// ============================================================
+
+test('searchTerms — oddiy matn: nom qidiruvi, raqam yo\'q', () => {
+  assert.deepEqual(searchTerms('Karim aka'), { text: 'Karim aka', digits: null });
+});
+
+test('searchTerms — PostgREST sintaksis belgilari (% , ( )) OLIB TASHLANADI', () => {
+  assert.deepEqual(searchTerms('Karim%'), { text: 'Karim', digits: null });
+  assert.deepEqual(searchTerms('Karim,aka'), { text: 'Karimaka', digits: null });
+  assert.deepEqual(searchTerms('(Karim)'), { text: 'Karim', digits: null });
+  // Faqat sintaksis belgilaridan iborat kiritma — hech narsa qolmaydi (route 400)
+  assert.deepEqual(searchTerms('%%(),'), { text: null, digits: null });
+});
+
+test('searchTerms — telefon: kamida 3 raqam, bo\'shliq/chiziqcha ahamiyatsiz', () => {
+  // "90-123 45 67" ham "+998901234567" ham bir xil raqam qatoriga tushadi
+  assert.deepEqual(searchTerms('90-123 45 67'), { text: '90-123 45 67', digits: '901234567' });
+  assert.equal(searchTerms('+998 90 123-45-67').digits, '998901234567');
+  // 2 ta raqam telefon qidiruvi uchun YETARLI EMAS (soxta keng natija bermasin)
+  assert.equal(searchTerms('90').digits, null);
+  assert.equal(searchTerms('901').digits, '901');
+});
+
+test('searchTerms — 2 belgidan qisqa matn nom qidiruviga YARAMAYDI', () => {
+  assert.equal(searchTerms('K').text, null);
+  assert.equal(searchTerms('  K  ').text, null);
+  // 2 belgi — chegara, o'tadi
+  assert.equal(searchTerms('Ka').text, 'Ka');
+  // Tozalashdan KEYIN qisqarib qolsa ham null ("K%" -> "K")
+  assert.equal(searchTerms('K%').text, null);
+});
+
+test('searchTerms — boshqaruv belgilari va ortiqcha bo\'shliqlar clean() kabi siqiladi', () => {
+  assert.equal(searchTerms('Karim\taka').text, 'Karim aka');
+  assert.equal(searchTerms('  Karim   aka  ').text, 'Karim aka');
+});
+
+test('searchTerms — buzuq kirish (null/undefined/son) yiqilmaydi', () => {
+  assert.deepEqual(searchTerms(null), { text: null, digits: null });
+  assert.deepEqual(searchTerms(undefined), { text: null, digits: null });
+  assert.deepEqual(searchTerms(''), { text: null, digits: null });
+  // Massiv/son kelsa ham String(...) orqali xavfsiz o'tadi
+  assert.deepEqual(searchTerms(901234567), { text: '901234567', digits: '901234567' });
+});
+
+test('searchTerms — uzunlik chegarasi: nom 80, telefon 20 belgidan oshmaydi', () => {
+  // client_name/clean(...,80) va client_phone/clean(...,20) bilan bir xil shift —
+  // qidiruv naqshi saqlangan qiymatdan uzun bo'lishi ma'nosiz (va URL shishiradi).
+  assert.equal(searchTerms('a'.repeat(200)).text.length, 80);
+  assert.equal(searchTerms('9'.repeat(60)).digits.length, 20);
 });

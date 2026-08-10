@@ -1,5 +1,7 @@
 // Trust — asosiy kompozitsiya. Prototipdagi ekran/overlay z-tartibi bilan 1:1.
 import 'package:flutter/material.dart';
+// Tizim vidjetlari (sana tanlagich, matn menyulari) ilova tilida chiqishi uchun
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
 import 'store.dart';
 import 'theme.dart';
@@ -68,8 +70,32 @@ class TrustApp extends StatelessWidget {
       builder: (context, _) {
         final dark = store.S['dark'] == true;
         final p = pal(dark);
+        // Ilova tili -> MaterialApp locale: tizim sana tanlagichi (showDatePicker),
+        // copy/paste menyusi va h.k. ilova tilida chiqadi. MaterialApp shu
+        // ListenableBuilder ichida — setLang() notifyListeners() chaqiradi va
+        // locale DARHOL almashadi (dark rejim bilan bir xil yo'l).
+        final lang = '${store.S['lang'] ?? 'uz'}';
         return MaterialApp(
           debugShowCheckedModeBanner: false,
+          locale: Locale(lang),
+          // l10n.dart kLangs bilan BIR XIL olti til (tartib kLangMeta'dagidek)
+          supportedLocales: const [
+            Locale('uz'), Locale('en'), Locale('ru'),
+            Locale('es'), Locale('fr'), Locale('zh'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          // Qo'llanmaydigan til so'ralsa (kelajakda yangi til qo'shilsa-yu,
+          // ro'yxat yangilanmasa) — birinchi tilga emas, INGLIZCHAGA tushamiz.
+          localeResolutionCallback: (locale, supported) {
+            for (final l in supported) {
+              if (l.languageCode == locale?.languageCode) return l;
+            }
+            return const Locale('en');
+          },
           theme: ThemeData(
             brightness: dark ? Brightness.dark : Brightness.light,
             scaffoldBackgroundColor: p.bg,
@@ -124,7 +150,13 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
         final p = curPal();
         final backToHub = v['hubBackable'] == true;
         final atRoot = v['hubAtRoot'] == true;
+        // layerOpen ONBOARDING'da ham true bo'la oladi: davlat-kodi varag'i
+        // (ccOpen, z:60) telefon/OTP bosqichida ochiladi — store.layerOpen()
+        // uni stage'dan mustaqil bloklaydi (2026-08-10 audit).
         final layerOpen = v['layerOpen'] == true;
+        // OTP bosqichi: apparat "orqaga" telefon qadamiga qaytaradi (ekrandagi
+        // < tugma bilan AYNAN bir yo'l — backToPhone), ilova yopilmaydi.
+        final onbOtp = v['isOnbOtp'] == true;
         return PopScope(
           // Android apparat "orqaga": ochiq overlay/sheet bo'lsa — o'shani yopadi;
           // bo'lim ekranidan (Hamkorlar / Xarajat / AI / Profil) hub'ga qaytadi;
@@ -134,11 +166,18 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
           // bo'lardi. Ilovada bitta route bo'lgani uchun tizim buni "chiqish" deb
           // bajarardi — ya'ni hamkor daftaridan/chekdan orqaga bosish ILOVANI
           // YOPARDI. Endi qatlam ochiq bo'lsa pop tizimga berilmaydi.
-          canPop: !layerOpen && !backToHub && !atRoot,
+          canPop: !layerOpen && !backToHub && !atRoot && !onbOtp,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
             if (layerOpen) {
               (v['closeTopLayer'] as bool Function())();
+              return;
+            }
+            // OTP'da orqaga — telefon qadamiga (SMS kutish tuzog'idan chiqish
+            // yo'li; ilgari bu bosish ILOVANI butunlay yopardi). ccOpen ochiq
+            // bo'lsa yuqoridagi layerOpen avval varaqni yopadi.
+            if (onbOtp) {
+              v['backToPhone']();
               return;
             }
             // Modul ekranining O'Z qatlami (Ijaradagi uylar / To'yxona: uy

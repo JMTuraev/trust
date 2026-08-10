@@ -144,15 +144,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     return null;
   }
 
-  /// Bepul limit tugagan va obuna yo'q — karta bosilsa paywall ochiladi.
-  bool _modLocked(Map<String, dynamic> v, String module) {
-    final e = _modOf(v, module);
-    if (e == null || e['active'] == true) return false;
-    final used = (e['used'] as int?) ?? 0;
-    final limit = (e['limit'] as int?) ?? 0;
-    return limit > 0 && used >= limit;
-  }
-
   /// Paywall'ni ochadi. Store hali qo'llamasa false qaytaradi — chaqiruvchi
   /// odatdagi navigatsiyaga tushadi (hub hech qachon "o'lik" bo'lib qolmaydi).
   bool _openPaywall(Map<String, dynamic> v, String module) {
@@ -183,7 +174,7 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     //   limit > kModChipMaxLimit — env "sinov rejimi" qiymati (render.yaml: 300),
     //                              «7/300» bosh ekranda ichki qiymatni oshkor qiladi
     if (!locked && (limit <= 0 || limit > kModChipMaxLimit)) return null;
-    return Container(
+    final chip = Container(
       padding: EdgeInsets.symmetric(vertical: 3, horizontal: locked ? 7 : 9),
       decoration: BoxDecoration(
         color: p.field,
@@ -200,6 +191,10 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           : Tx('$used/$limit',
               size: 11, w: FontWeight.w600, color: p.t1, tab: true, maxLines: 1),
     );
+    // Qulf chipi BOSILADIGAN — paywall'ga qisqa yo'l (2026-08-10 audit: karta
+    // o'zi endi paywall emas, BO'LIMNI ochadi — pastdagi _hubShell izohi).
+    // Ichki Tap tashqi (karta) Tap'dan ustun: gesture arena'da ichki g'olib.
+    return locked ? Tap(onTap: () => _openPaywall(v, module), child: chip) : chip;
   }
 
   /// Kartaning PASTKI-O'NG burchagidagi tarif («$5/oy»).
@@ -260,13 +255,14 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     required List<Widget> body,
     required VoidCallback onTap,
   }) {
-    // Bepul limit tugagan va obuna yo'q -> bo'lim emas, paywall ochiladi.
-    final locked = _modLocked(v, module);
+    // 2026-08-10 audit: qulf endi KIRISHNI to'smaydi — karta bosilganda DOIM
+    // bo'lim ochiladi. Backend o'qishni hech qachon bloklamaydi: limit tugagan
+    // foydalanuvchi ham O'Z yozuvlarini ko'ra olishi kerak edi, karta esa
+    // paywall'ga burab ma'lumotni «garovga» olardi. Paywall YOZISHDA (server
+    // 402 -> Api.onPaymentRequired -> openPaywall_) o'zi ochiladi; qulf CHIPI
+    // ko'rinib turadi va bosilsa paywall'ni ochadi (_modChip).
     return Tap(
-      onTap: () {
-        if (locked && _openPaywall(v, module)) return;
-        onTap();
-      },
+      onTap: onTap,
       child: Container(
         height: kHubCardH, // QAT'IY — izoh kHubCardH ustida
         clipBehavior: Clip.antiAlias, // prototip: overflow:hidden (watermark)
@@ -449,8 +445,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   /// bog'langan edi). O'sha bayroq — OBUNA UI'sining avariya tugmasi (hisoblagich,
   /// qulf, paywall), modulning MAVJUDLIGI emas. Uni o'chirish qurilgan bo'limni
   /// butunlay yetib bo'lmas qilib qo'yardi. Bayroq false bo'lganda karta o'zi
-  /// to'g'ri "so'nadi": modSubs bo'sh -> chip yo'q, _modLocked false -> tap
-  /// odatdagi navigatsiya.
+  /// to'g'ri "so'nadi": modSubs bo'sh -> chip yo'q; tap esa HAR DOIM odatdagi
+  /// navigatsiya (2026-08-10: qulf ham kirishni to'smaydi — _hubShell izohi).
   List<Widget> _moduleMenus(Map<String, dynamic> v, Pal p, bool dark) => [
         const SizedBox(height: 10),
         _menuCard(v, p, dark,
@@ -475,8 +471,9 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
       ];
 
   // Menga kelgan pending bog'lanish so'rovlari banneri (item 7) — brend uslubi:
-  // p.field fon, r14, ink matn; bosilganda hubOpenReq (1 ta bo'lsa to'g'ridan
-  // ochadi, ko'p bo'lsa Qarz Daftar ro'yxatiga o'tadi).
+  // p.field fon, r14, ink matn; bosilganda hubOpenReq (1 ta bo'lsa qaror
+  // sheet'ini to'g'ridan ochadi, ko'p bo'lsa BILDIRISHNOMALAR panelini —
+  // so'rovlar o'sha yerda alohida qator bo'lib turadi, 2026-08-10 audit).
   Widget _pendingBanner(Map<String, dynamic> v, Pal p) {
     return Tap(
       onTap: () => v['hubOpenReq'](),

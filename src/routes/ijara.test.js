@@ -320,10 +320,13 @@ test('BEKOR — uzilgan to\'lov (charge_id null) tushumda QOLADI, pul yo\'qolmay
 });
 
 // ============================================================
-// TAKROR TO'LOVDAN HIMOYA (review 2026-08-04, #10)
+// TAKROR YOZUVDAN HIMOYA (review 2026-08-04, #10 + 2026-08-10 kengaytmasi)
 // Mobil timeout 20s, Render sovuq starti undan uzoqroq bo'lishi mumkin va mobil
-// foydalanuvchiga ATAYLAB "qayta urinib ko'ring" deydi — ya'ni bir xil to'lov
+// foydalanuvchiga ATAYLAB "qayta urinib ko'ring" deydi — ya'ni bir xil yozuv
 // ikki marta yozilishi REAL stsenariy, nazariy emas. Dedup oynasi shuni to'sadi.
+// Endi BITTA oyna IKKI yo'lni qoplaydi: POST /payments (uy + yozuv + summa) va
+// POST /charges (uy + oy + tur + summa, 'bekor' hisobga olinmaydi) — hisob-kitob
+// ikki marta yozilsa talab ham, bepul kvota sarfi ham ikki barobar bo'lardi.
 // ============================================================
 test('DEDUP — oyna mobil timeout va sovuq startdan UZUNROQ', () => {
   // Mobil ijara_data.dart da so'rov timeouti 20s. Oyna undan sezilarli uzun
@@ -331,4 +334,10 @@ test('DEDUP — oyna mobil timeout va sovuq startdan UZUNROQ', () => {
   assert.ok(DEDUP_MS >= 60_000, 'dedup oynasi juda qisqa — takror to\'lov o\'tib ketadi');
   // Cheksiz ham bo'lmasin: haqiqatan ikkita bir xil to'lovni kiritish imkoni qolsin.
   assert.ok(DEDUP_MS <= 10 * 60_000, 'dedup oynasi juda uzun — haqiqiy takror to\'lov bloklanadi');
+});
+
+test('DEDUP — oyna butun son millisekund (Date hisobi aniq bo\'lsin)', () => {
+  // `new Date(Date.now() - DEDUP_MS)` ikkala route'da ham ishlatiladi — kasr
+  // qiymat ISO satrga o'tishda jimgina yaxlitlanib, oyna siljib ketmasin.
+  assert.ok(Number.isInteger(DEDUP_MS) && DEDUP_MS > 0);
 });

@@ -5,7 +5,7 @@
 ## Tarkib
 - `src/` — Node.js + Express backend (API)
 - `mobile/` — Flutter mobil ilova (Android + iOS, UI prototip bilan 1:1)
-- `supabase/migrations/` — PostgreSQL sxema (001 init, 002 trust modeli)
+- `supabase/migrations/` — PostgreSQL sxema (001 init … 020 modul obunalari, 021 to'yxona, 022 ijara)
 
 ## Stack
 Node.js + Express · Supabase (PostgreSQL, Auth) · devsms.uz (O'zbekiston OTP) · Flutter
@@ -79,7 +79,7 @@ Status modeli: `pending → confirmed → archived`, bir tomonlama yozuvlar `unc
 | GET | `/api/subs/status` | `{ legacy_premium: {active, until}, modules: [{module, active, active_until, soon, price_usd, product_id, used, free_limit}] }` — xarajat $5 · qarz $8 · ijarachi $13 (maks 5 uy) · toyxona $24 (1 ta to'yxona). Bepul: har modulda 5 yozuv |
 | POST | `/api/profile/me/subscription/verify` | `{ platform, module?, purchase_token \| receipt_data }` — `module` berilmasa eski $9 premium oqimi. `product_id` KLIENTDAN OLINMAYDI (serverdagi katalogdan) |
 
-Eski `$9 premium` (`profiles.premium_until`) — muddati tugaguncha BARCHA modullarga kirish (grandfather). Modul obunalari: `module_subs` (020 migratsiya).
+Eski `$9 premium` (`profiles.premium_until`) — muddati tugaguncha BARCHA modullarga kirish (grandfather). Modul obunalari: `module_subs` (020 migratsiya). Do'kon narxlari Apple narx nuqtalarida: $4.99 / $7.99 / $12.99 / $24.99 (katalogdagi butun son faqat ilova ichidagi matnlar uchun; 2026-08-09 App Store submissioni).
 
 ### To'yxona (021 migratsiya)
 | Metod | Yo'l | Tavsif |
@@ -89,6 +89,7 @@ Eski `$9 premium` (`profiles.premium_until`) — muddati tugaguncha BARCHA modul
 | GET/POST | `/api/toyxona/halls/:hallId/menus` | Narx turlari: «Oddiy 150 000», «Lyuks 200 000» — bir marta yaratiladi, bron qilishda tanlanadi |
 | PATCH/DELETE | `/api/toyxona/menus/:id` | Narx turini tahrirlash/o'chirish. Eski bronlar TEGILMAYDI (narx va nom bron ichida snapshot) |
 | GET | `/api/toyxona/bookings?from&to&hall_id` | Bronlar + `items[]`, `payments[]`, `totals{food,extras,total,paid,left}`. Standart — joriy oy (Toshkent vaqti); `hall_id=none` — to'yxonasiz yozuvlar |
+| GET | `/api/toyxona/bookings/search?q=&limit=` | Mijoz ismi yoki telefoni bo'yicha qidiruv (kamida 2 belgi; `limit` ≤ 50, default 20; telefon uchun kiritmadagi raqamlar olinadi). Natija `GET /bookings` bilan bir xil shakl, tartib `event_date DESC` |
 | POST | `/api/toyxona/bookings` | Yangi bron. Sana+vaqt band bo'lsa `409 SLOT_TAKEN` — ustma-ust bron BAZA darajasida imkonsiz |
 | PATCH/DELETE | `/api/toyxona/bookings/:id` | Tahrirlash (sana/vaqt/zal o'zgarsa qayta tekshiriladi) · o'chirish. Yumshoq bekor — `status:'bekor'` |
 | POST/DELETE | `/api/toyxona/bookings/:id/items` · `/items/:itemId` | Qo'shimcha xizmatlar smetasi (musiqa, fotograf, tort…) |
@@ -127,4 +128,4 @@ docker build -t trust-backend .
 docker run -d --env-file .env -p 3000:3000 --restart unless-stopped trust-backend
 ```
 
-Supabase migratsiyalari: `supabase/migrations/001..003` ni SQL Editor'da tartib bilan ishga tushiring (idempotent — qayta yurgizish xavfsiz). Batafsil: `SOZLASH.md`.
+Supabase migratsiyalari: `supabase/migrations/001..022` ni SQL Editor'da tartib bilan ishga tushiring (idempotent — qayta yurgizish xavfsiz). Batafsil: `SOZLASH.md`.

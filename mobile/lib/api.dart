@@ -240,7 +240,14 @@ class Api {
         'direction': direction, 'amount': amount, 'currency': currency, 'acted_at': actedAt,
         if (due != null && due.isNotEmpty) 'due': due, if (note.isNotEmpty) 'note': note,
       });
-  static Future<ApiRes> debtConfirm(String id) => _req('POST', '/api/debts/$id/confirm');
+  /// Qarz yozuvini tasdiqlash. expectedAmount — foydalanuvchi EKRANDA KO'RGAN
+  /// summa (ixtiyoriy, orqaga mos): server joriy summa bilan solishtiradi,
+  /// muallif tasdiq kutayotganda tahrirlagan bo'lsa 409 {code:'AMOUNT_CHANGED',
+  /// amount} qaytadi — eski raqamni "ko'r-ko'rona" tasdiqlab yubormaymiz.
+  /// Berilmasa tana bo'sh ketadi — eski server ham, eski xatti-harakat ham buzilmaydi.
+  static Future<ApiRes> debtConfirm(String id, {num? expectedAmount}) =>
+      _req('POST', '/api/debts/$id/confirm',
+          body: {if (expectedAmount != null) 'expected_amount': expectedAmount});
   static Future<ApiRes> debtReject(String id) => _req('POST', '/api/debts/$id/reject');
   /// Pending repay/settle amalini rad etish (qarz yozuvi uchun emas — u /reject).
   static Future<ApiRes> debtRejectOp(String id) => _req('POST', '/api/debts/$id/reject-op');

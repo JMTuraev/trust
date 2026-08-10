@@ -234,6 +234,23 @@ router.post('/:id/confirm', async (req, res, next) => {
     if (debt.status !== 'pending') return res.status(400).json({ success: false, error: 'Faqat tasdiqlanmagan qarz tasdiqlanadi' });
     if (debt.created_by === req.user.id) return res.status(403).json({ success: false, error: 'O\'z yozuvingizni tasdiqlay olmaysiz' });
 
+    // IXTIYORIY himoya (orqaga mos — maydon berilmasa eski xatti-harakat):
+    // mobil EKRANDA KO'RSATGAN summani expected_amount qilib yuboradi. Muallif
+    // tasdiq kutayotganda summani o'zgartirgan bo'lsa (PATCH pending), eski
+    // ekrandagi "Tasdiqlash" YANGI summani bilmasdan bosilgan bo'ladi — 409 +
+    // joriy summa qaytadi, mobil yangilangan qiymatni ko'rsatib qayta so'raydi.
+    const expected = req.body?.expected_amount;
+    if (expected !== undefined && expected !== null && expected !== '') {
+      if (Number(expected) !== Number(debt.amount)) {
+        return res.status(409).json({
+          success: false,
+          code: 'AMOUNT_CHANGED',
+          error: "Summa o'zgargan — yangilangan qiymatni ko'rib, qayta tasdiqlang",
+          amount: Number(debt.amount),
+        });
+      }
+    }
+
     const { data, error } = await supabaseAdmin.from('debts')
       .update({ status: 'active', updated_at: nowIso() })
       .eq('id', debt.id).eq('status', 'pending').select().maybeSingle();
@@ -534,6 +551,21 @@ router.patch('/:id', requireActiveSub, async (req, res, next) => {
       }
       const { data, error } = await supabaseAdmin.from('debts').update(patch).eq('id', debt.id).select().single();
       if (error) throw new Error(error.message);
+      // PENDING (ikki tomonlama) yozuv qarshi tomonning "tasdiqlaysizmi?"
+      // kartasida ALLAQACHON turibdi — jim tahrir u KO'RGAN summadan boshqa
+      // summani tasdiqlatib yuborardi. Shu bois xabar ketadi. Tur ATAYLAB
+      // 'debt_new' (pending yaratilishdagi tur): mobil push-routing va badge
+      // (PARTNER_BADGE_TYPES) faqat ro'yxatdagi turlarni biladi, 'debt_new'
+      // ikkalasida ham bor va daftarni to'g'ri ochadi. oneSided (faqat
+      // muallifning lokal yozuvi) holatida xabar YO'Q — qarshi tomon yo'q;
+      // pending esa faqat twoSided bo'ladi (POST'dagi status qoidasi).
+      if (debt.status === 'pending') {
+        const name = await meName(req.user.id);
+        await notify(otherParty(partner, req.user.id), req.user.id, 'debt_new',
+          `${name} qarzni o'zgartirdi`,
+          `Qarz yozuvi (o'zgartirildi) · ${fmt(data.amount)} ${data.currency} — tasdiqlaysizmi?`, partner.id,
+          { amount: Number(data.amount), currency: data.currency });
+      }
       return res.json({ success: true, data });
     }
 

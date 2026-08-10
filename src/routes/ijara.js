@@ -25,10 +25,17 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
-import { isModuleActive, isQuotaEnforceable, MODULES, FREE_IJARA_CHARGES } from '../lib/subscription.js';
+import {
+  isModuleActive, isQuotaEnforceable, MODULES, FREE_IJARA_CHARGES, requireActiveSub,
+} from '../lib/subscription.js';
 
 const router = Router();
 router.use(requireAuth);
+// O'CHIRILGAN PROFIL YOZA OLMASIN (debts.js/expenses.js bilan bir xil qatlam).
+// requireActiveSub pass-through: GET/HEAD/OPTIONS'ga DB'siz next, yozuvda faqat
+// soft-delete (profiles.deleted_at) profil 403 oladi — oddiy foydalanuvchiga
+// hech qanday ta'sir yo'q, obuna ham bu yerda TEKSHIRILMAYDI (kvota alohida).
+router.use(requireActiveSub);
 
 // ============================ Doimiylar ============================
 
@@ -50,8 +57,9 @@ const MAX_HOUSE_ROWS = 5000;    // GET /houses yakuni uchun o'qiladigan qatorlar
 // chegarasi shunga qarab keng (50 bo'lsa faol uy arxiv orasida chiqib qolardi).
 const MAX_HOUSE_LIST = 200;
 const MAX_PAYMENTS_PER_CHARGE = 50;
-// Takror to'lovni to'sish oynasi: shu vaqt ichida kelgan AYNAN bir xil to'lov
-// (uy + yozuv + summa) yangi qator yaratmaydi — mavjudi qaytariladi.
+// Takror yozuvni to'sish oynasi: shu vaqt ichida kelgan AYNAN bir xil to'lov
+// (uy + yozuv + summa) YOKI hisob-kitob (uy + oy + tur + summa) yangi qator
+// yaratmaydi — mavjudi qaytariladi (POST /payments va POST /charges).
 // Sabab: mobil timeout (20s) + Render sovuq starti + "qayta urinib ko'ring" xabari.
 export const DEDUP_MS = 90_000;
 // .in(...) bo'laklari — URL UZUNLIGI cheklovi (toyxona.js bilan bir xil hisob:
@@ -703,6 +711,29 @@ router.post('/charges', requireChargeQuota, async (req, res, next) => {
       }
     }
     const title = clean(b.title, 120);
+
+    // TAKROR HISOB-KITOBDAN HIMOYA (POST /payments dagi DEDUP_MS oynasi bilan
+    // bir xil). Mobil timeout (20s) + Render sovuq starti + "qayta urinib
+    // ko'ring" xabari: birinchi so'rov aslida bajarilgan bo'lsa, takror urinish
+    // AYNAN o'sha yozuvni IKKINCHI marta yaratardi — oy hisobida talab ikki
+    // barobar ko'rinardi va bepul kvotadan ham ikkita joy yeyilardi. Qisqa
+    // oynada bir xil (uy + oy + tur + summa) faol yozuv topilsa — mavjudi
+    // qaytariladi (idempotent), insert ham, yangi kvota sarfi ham YO'Q
+    // (requireChargeQuota faqat o'qib tekshiradi — sanoq o'zgarmaydi).
+    const dupSince = new Date(Date.now() - DEDUP_MS).toISOString();
+    const { data: dup } = await supabaseAdmin
+      .from('rent_charges').select('id')
+      .eq('user_id', req.user.id).eq('house_id', house.id)
+      .eq('period', period).eq('kind', kind).eq('amount', amount)
+      .neq('status', 'bekor')
+      .gte('created_at', dupSince).limit(1);
+    if (dup && dup.length) {
+      return res.status(200).json({
+        success: true,
+        data: await loadOneCharge(req.user.id, dup[0].id),
+        deduped: true,
+      });
+    }
 
     const { data: created, error } = await supabaseAdmin.from('rent_charges').insert({
       user_id: req.user.id, house_id: house.id, period, kind, title, amount, due_date,
