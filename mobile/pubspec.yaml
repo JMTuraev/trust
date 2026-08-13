@@ -1,6 +1,10 @@
 name: trust_mobile
 description: "Trust — ishonchli hisob-kitob. UI prototip bilan 1:1 (prototype/template.html)."
 publish_to: "none"
+# 3.12.1 (2026-08-13): Apple 2.1(a) reject (iPad oq ekran) tuzatildi — runApp
+#          endi DARHOL chaqiriladi (birinchi kadr har doim chiziladi), store/push
+#          init fonda timeout+try/catch bilan, keychain o'qish/yozish himoyalangan
+#          (istisno otmaydi), boot-splash zaxirasi welcome'ga o'tkazadi.
 # 3.12.0 (2026-08-10): ijara/to'yxona modullari mukammallashtirildi, audit
 #          tuzatishlari: back-tugma (yordam chati / davlat-kodi varag'i / OTP),
 #          IAP pending/restore/lokalizatsiya, arxiv qatori, qulf endi kirishni
@@ -24,7 +28,7 @@ publish_to: "none"
 # 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
 # 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
 #          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.12.0+8
+version: 3.12.1+9
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

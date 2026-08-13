@@ -1,4 +1,5 @@
 // Trust — asosiy kompozitsiya. Prototipdagi ekran/overlay z-tartibi bilan 1:1.
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 // Tizim vidjetlari (sana tanlagich, matn menyulari) ilova tilida chiqishi uchun
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -42,22 +43,48 @@ import 'screens/archive.dart';
 import 'screens/lang_sheet.dart';
 import 'screens/paywall_sheet.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await store.init();
+  // MUHIM (2026-08-13, Apple 2.1(a) reject — iPad'da OQ EKRAN):
+  // Ilgari store.init() va PushService.init() runApp'dan OLDIN await qilinardi.
+  // Ulardan bittasi (keychain o'qish, Firebase init, SharedPreferences) osilib
+  // qolsa yoki istisno bersa runApp UMUMAN chaqirilmasdi — Flutter birinchi
+  // kadrni chizmasdi va foydalanuvchi ABADIY oq ekran ko'rardi (App Review
+  // iPad Air 11 M3 / iPadOS 26.6 da aynan shu: skrinshotda faqat status bar).
+  // Endi birinchi kadr (boot-splash) DARHOL chiziladi, init fonda ketadi —
+  // har qadam timeout + try/catch bilan. Eng yomon holatda ham foydalanuvchi
+  // welcome ekranini ko'radi (store.bootFallback_), oq ekran EMAS.
+  runApp(const TrustApp());
+  unawaited(_bootstrap());
+}
+
+/// Fon initsializatsiya — runApp'dan KEYIN ishlaydi; hech bir xato/osilish
+/// birinchi kadrni to'sa olmaydi. Tartib eski main() bilan bir xil:
+/// store.init -> push init -> pending push -> sync.
+Future<void> _bootstrap() async {
+  try {
+    // store.init() tarmoqni KUTMAYDI (_tryResume fire-and-forget), shuning
+    // uchun 8s faqat lokal storage/keychain osilib qolishidan himoya.
+    await store.init().timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // Init yiqildi yoki osildi — boot-splashda qolib ketmaymiz: welcome'ga.
+    store.bootFallback_();
+  }
   // FCM push: Firebase'ni ko'taramiz (google-services.json bo'lmasa jim o'tadi).
   // Ilova ochiq payt kelgan push tizim tray'da chiqmaydi — toast qilib ko'rsatamiz.
-  await PushService.init();
+  // Callback'lar init'dan OLDIN o'rnatiladi: listener birinchi xabaridan boshlab ushlansin.
   PushService.onForeground = (title, body) => store.toast_(body.isEmpty ? title : body);
   // Foreground push DATA: partner-card badge appears within a second (optimistic
   // bump + silent hydrate) — no app restart needed.
   PushService.onForegroundData = (data) => store.pushArrived_(data);
   // Push BOSILGANDA tegishli ekranga o'tamiz (2026-08-02 audit: ilgari e'tiborsiz qolardi).
   PushService.onOpened = (data) => store.openFromPush(data);
+  try {
+    await PushService.init().timeout(const Duration(seconds: 12));
+  } catch (_) {/* push'siz davom etamiz — UI allaqachon ochiq */}
   final pendingPush = PushService.drainInitial(); // ilova push bilan ochilgan bo'lsa
   if (pendingPush != null) store.openFromPush(pendingPush);
   PushService.sync(); // login bo'lgan bo'lsa tokenni serverga bog'laydi (await EMAS — UI kutmasin)
-  runApp(const TrustApp());
 }
 
 class TrustApp extends StatelessWidget {

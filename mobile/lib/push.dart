@@ -1,5 +1,8 @@
 // Trust — FCM push xizmati (Android).
 // init(): Firebase'ni ko'taradi (google-services.json bo'lmasa jim o'tadi — dev muhit yiqilmasin).
+// MUHIM (2026-08-13, Apple 2.1(a)): init() endi runApp'dan KEYIN chaqiriladi
+// (main._bootstrap) va ichida timeout'lar bor — Firebase osilib qolsa ham UI
+// allaqachon ochiq bo'ladi (ilgari oq ekran sababchilaridan biri shu edi).
 // sync(): bildirishnoma ruxsatini so'raydi, FCM tokenni oladi va backendga bog'laydi.
 // unregister(): logout'da tokenni serverdan uzadi va FCM tokenni bekor qiladi
 //   (shu qurilmada boshqa akkaunt kirsa, eski akkauntning push'i kelmasin).
@@ -33,7 +36,9 @@ class PushService {
 
   static Future<void> init() async {
     try {
-      await Firebase.initializeApp();
+      // Timeout: iOS'da plist/APNs muammosida initializeApp ba'zan javobsiz
+      // qoladi — 8s dan keyin push'siz davom etamiz (UI baribir ochiq).
+      await Firebase.initializeApp().timeout(const Duration(seconds: 8));
       _ready = true;
       // FCM token o'zi yangilanib qolsa — serverga qayta bog'laymiz
       FirebaseMessaging.instance.onTokenRefresh.listen((t) {
@@ -52,9 +57,14 @@ class PushService {
         final d = Map<String, dynamic>.from(m.data);
         if (onOpened != null) { onOpened!(d); } else { _pendingOpen = d; }
       });
-      // Ilova butunlay yopiq bo'lib, push bilan ochilgan
-      final initial = await FirebaseMessaging.instance.getInitialMessage();
-      if (initial != null) _pendingOpen = Map<String, dynamic>.from(initial.data);
+      // Ilova butunlay yopiq bo'lib, push bilan ochilgan. O'Z try'ida:
+      // bu chaqiruv kechiksa/yiqilsa _ready saqlanib qoladi (push ishlayveradi).
+      try {
+        final initial = await FirebaseMessaging.instance
+            .getInitialMessage()
+            .timeout(const Duration(seconds: 3));
+        if (initial != null) _pendingOpen = Map<String, dynamic>.from(initial.data);
+      } catch (_) {/* boshlang'ich push yo'q/kechikdi — jim */}
     } catch (_) {
       // Firebase sozlanmagan — push'siz davom etamiz (ilova yiqilmasin)
       _ready = false;

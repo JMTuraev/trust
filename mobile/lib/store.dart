@@ -583,6 +583,15 @@ class TrustStore extends ChangeNotifier {
     }
   }
 
+  /// main._bootstrap zaxirasi (2026-08-13, Apple 2.1(a) reject): init yiqilsa
+  /// yoki timeout'ga uchrasa boot-splashda abadiy qolmaslik uchun welcome'ga
+  /// o'tkazadi. Token saqlanib qolgan bo'lsa ham bu XAVFSIZ: _tryResume keyinroq
+  /// tugasa stage'ni o'zi to'g'rilaydi ('app'/'pin'), login oqimi esa har doim
+  /// welcome'dan boshlab ishlaydi. FAQAT 'boot'da turgan bo'lsak tegamiz.
+  void bootFallback_() {
+    if (S['stage'] == 'boot') set({'stage': 'welcome'});
+  }
+
   // Saqlangan token bilan sessiyani tiklash.
   // MUHIM: 401 (token yaroqsiz) va tarmoq/server xatosi (status 0/5xx) ni AJRATAMIZ —
   // aks holda vaqtinchalik uzilishда yaroqli sessiya "chiqib ketgan" ko'rinardi.

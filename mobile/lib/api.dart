@@ -45,17 +45,22 @@ class Api {
   static String? errWaking;
 
   static Future<void> loadToken() async {
+    // SecureStore o'zi istisno otmaydi (2026-08-13 himoyasi) — xatoda null keladi.
     token = await SecureStore.readToken();
     // Bir martalik migratsiya: eski (plaintext SharedPreferences) token'ni secure storage'ga ko'chiramiz.
-    if (token == null) {
-      final sp = await SharedPreferences.getInstance();
-      final legacy = sp.getString('trust_token');
-      if (legacy != null) {
-        token = legacy;
-        await SecureStore.writeToken(legacy);
-        await sp.remove('trust_token'); // plaintext nusxani o'chiramiz
+    // try/catch (2026-08-13): SharedPreferences yiqilsa ham startup davom etsin —
+    // bu yo'l runApp'dan oldin emas, lekin baribir stage'ni welcome'ga yetkazish shart.
+    try {
+      if (token == null) {
+        final sp = await SharedPreferences.getInstance();
+        final legacy = sp.getString('trust_token');
+        if (legacy != null) {
+          token = legacy;
+          await SecureStore.writeToken(legacy);
+          await sp.remove('trust_token'); // plaintext nusxani o'chiramiz
+        }
       }
-    }
+    } catch (_) {/* migratsiyasiz davom etamiz */}
   }
 
   static Future<void> saveToken(String? t) async {
