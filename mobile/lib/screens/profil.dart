@@ -504,7 +504,9 @@ class _SubCard extends StatelessWidget {
   Widget _modRow(Pal p, Map<String, dynamic> e,
       {required bool legacy, required bool last, required bool dark}) {
     final String module = '${e['module'] ?? ''}';
-    final bool active = legacy || e['active'] == true;
+    // Bepul modul (Xarajatlar, PO 2026-09-08): «Bepul» holati + mint pill, bosilmaydi
+    final bool free = subsModuleFree(module, v['modSubs']);
+    final bool active = free || legacy || e['active'] == true;
     final bool soon = e['soon'] == true;
     final int used = (e['used'] as int?) ?? 0;
     final int limit = (e['limit'] as int?) ?? 0;
@@ -518,7 +520,10 @@ class _SubCard extends StatelessWidget {
 
     String state;
     Color stateColor = p.t2;
-    if (legacy) {
+    if (free) {
+      state = subTr('subFree', 'Bepul');
+      stateColor = p.mint;
+    } else if (legacy) {
       state = subTr('subModLegacy', 'Premium obunangizga kiritilgan');
       stateColor = p.mint;
     } else if (active) {
@@ -542,7 +547,9 @@ class _SubCard extends StatelessWidget {
     // O'ngdagi pill: faol → PRO (gradient); sotuvda → «Obuna bo'lish» (gradient,
     // limit tugagan bo'lsa glow bilan); tez kunda → hech narsa.
     Widget? trailing;
-    if (active) {
+    if (free) {
+      trailing = PillBadge.mint(subTr('subFree', 'Bepul'), h: 28);
+    } else if (active) {
       trailing = PillBadge.pro(h: 28);
     } else if (!soon) {
       trailing = ConstrainedBox(

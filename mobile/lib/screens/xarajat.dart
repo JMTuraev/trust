@@ -94,24 +94,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     return s;
   }
 
-  // ---- Modul obunasi (xarajat) — home_hub._modOf bilan bir xil HIMOYALI o'qish:
-  // kalitlar yo'q bo'lsa "bepul" deb qaraladi, ilova buzilmaydi ----
-  Map<String, dynamic>? _modXar(Map<String, dynamic> v) {
-    final raw = v['modSubs'];
-    if (raw is! List) return null;
-    for (final e in raw) {
-      if (e is Map && e['module'] == 'xarajat') return e.cast<String, dynamic>();
-    }
-    return null;
-  }
-
-  bool _isPro(Map<String, dynamic> v) =>
-      v['modSubsLegacy'] == true || _modXar(v)?['active'] == true;
-
-  void _openPaywall(Map<String, dynamic> v) {
-    final f = v['openPaywall'];
-    if (f is Function) f('xarajat');
-  }
+  // MODUL OBUNASI/PAYWALL BU EKRANDA YO'Q (PO 2026-09-08): Xarajatlar menyusi
+  // TO'LIQ BEPUL — limit, qulf, «PRO oling» pilli va hisoblagich olib tashlandi.
 
   /// Papka ikonka qutisi gradienti (DESIGN_SPEC §5.11): transport → brend,
   /// oziq-ovqat → mint→cyan, uy → pink→violet, boshqa → amber→coral,
@@ -213,6 +197,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       if (res.statusCode >= 400 || map['success'] == false) return null;
       return ((map['data'] as List?) ?? []).cast<Map<String, dynamic>>();
     } catch (_) {
+      Api.useFallback(); // asosiy manzil ochilmasa zaxira (api.dart)
       return null; // oflayn — karta ichida xabar ko'rsatiladi
     }
   }
@@ -1033,56 +1018,21 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ),
             ],
           ),
-          const SizedBox(width: 8),
-          _proPill(v, p),
         ],
       ),
     );
-  }
-
-  /// h36 gradient pill: obuna faol — "PRO" (bosilmaydi); aks holda "PRO oling" →
-  /// modul paywall'i (v['openPaywall']('xarajat') — hub kartasi bilan bir xil callback).
-  Widget _proPill(Map<String, dynamic> v, Pal p) {
-    final pro = _isPro(v);
-    final pill = Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        gradient: Tb.brand,
-        borderRadius: BorderRadius.circular(Tb.rPill),
-        boxShadow: pro ? null : Tb.glow,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.workspace_premium_rounded, size: 14, color: Colors.white),
-          const SizedBox(width: 4),
-          Tx(pro ? 'PRO' : 'PRO oling', // TODO l10n ("PRO oling" — dizayn §5.11 matni)
-              size: 13, w: FontWeight.w700, color: Colors.white, font: TbFont.body, maxLines: 1),
-        ],
-      ),
-    );
-    if (pro) return pill;
-    return Tap(onTap: () => _openPaywall(v), child: pill);
   }
 
   // ================= JAMI KARTASI (DESIGN_SPEC §5.11) =================
-  // Chap: davr balansi (count-up), kirim/chiqim, oylik limit + qoldiq.
-  // O'ng: 110px halqa (limitdan foiz) yoki limit yo'q bo'lsa "Chegarani qo'yish" CTA.
-  // Limit mantig'i — store: xarLimit / limEdit (limEditToggle, limEditSet, limSave).
+  // Chap: davr balansi (count-up), kirim/chiqim.
+  // O'ng: 110px halqa — davr XARAJATI DAROMADGA nisbatan foizda.
+  //
+  // OYLIK LIMIT OLIB TASHLANDI (PO 2026-09-08): «chegara» raqami o'zboshimcha
+  // edi (qayerdan olingani mantiqsiz), foydalanuvchi uni qo'lda kiritishi
+  // kerak edi va u xarajatlarga hech qanday MA'NO bermasdi. Halqa endi
+  // haqiqiy ma'lumotdan: qancha topding — shuncha ishlatding.
   Widget _balance(Map<String, dynamic> v, Pal p) {
     final L0 = store.L();
-    final lim = store.S['xarLimit'] as int? ?? 0;
-    final hasLim = lim > 0;
-    final editing = v['limEditOpen'] == true;
-    final pctInt = (v['limPct'] as int? ?? 0).clamp(0, 100);
-    final over = hasLim && pctInt >= 100;
-    final limColor = over ? p.coral : p.mint;
-    void toggleEdit() {
-      final f = v['limEditToggle'];
-      if (f is Function) f();
-    }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 0),
       child: GlassCard(
@@ -1136,91 +1086,53 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                           ),
                         ],
                       ),
-                      if (hasLim) ...[
-                        const SizedBox(height: 12),
-                        Tap(
-                          onTap: toggleEdit,
-                          scale: 0.98,
-                          child: Tx('Limit ${v['limTotTxt'] ?? ''}', // TODO l10n ("Limit" — barcha tillarda o'xshash)
-                              size: 14, color: p.t2, maxLines: 1, ellipsis: true),
-                        ),
-                        const SizedBox(height: 2),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Tx('${v['limRemainTxt'] ?? ''}', size: 15, w: FontWeight.w600,
-                              color: limColor, maxLines: 1),
-                        ),
-                      ],
                     ],
                   ),
                 ),
                 const SizedBox(width: 16),
-                if (hasLim)
-                  Tap(
-                    onTap: toggleEdit,
-                    child: _LimitRing(
-                      pct: pctInt / 100,
-                      color: over ? p.coral : p.cyan,
-                      track: p.ink.withValues(alpha: .08),
-                      label: '${v['limPctTxt'] ?? '$pctInt%'}',
-                      sub: 'limitdan', // TODO l10n
-                    ),
-                  )
-                else
-                  // Limit yo'q — "Chegarani qo'yish" CTA (GlassBtn'ga aniq kenglik: Row ichida
-                  // Container shrink-wrap bo'lib, matn chetga yopishib qolmasin)
-                  SizedBox(
-                    width: 132,
-                    child: GlassBtn(
-                      label: editing
-                          ? (L0['btnCancelShort'] as String? ?? 'Bekor')
-                          : (L0['aiBudgetSet'] as String? ?? "Chegarani qo'yish"),
-                      onTap: toggleEdit,
-                      h: 44,
-                      fs: 13,
-                    ),
-                  ),
+                _incomeRing(v, p),
               ],
             ),
-            // Limit tahriri (inline): summa maydoni + Saqlash
-            if (editing) ...[
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GlassField(
-                      h: 48,
-                      icon: Icons.account_balance_wallet_outlined,
-                      focused: true,
-                      child: StoreField(
-                        value: '${v['limEditVal'] ?? ''}',
-                        onChanged: (t) => (v['limEditSet'] as Function)(t),
-                        hint: L0['xfIncAmtHint'] as String? ?? 'Summa',
-                        keyboardType: TextInputType.number,
-                        autofocus: true,
-                        style: tbStyle(size: 16, w: FontWeight.w600, color: p.ink, tab: true),
-                        onSubmit: () => (v['limSave'] as Function)(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 112,
-                    child: GradientBtn(
-                      label: L0['btnSave'] as String? ?? 'Saqlash',
-                      onTap: () => (v['limSave'] as Function)(),
-                      h: 48,
-                      fs: 14,
-                      glow: false,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// Davr XARAJATI daromadga nisbatan (%) — 110px halqa.
+  ///
+  /// DAROMAD YO'Q bo'lsa (PO 2026-09-08): BO'SH halqa UMUMAN chizilmaydi —
+  /// nol foizli halqa ma'nosiz bezak edi. O'rniga o'sha slotda ikki qatorli
+  /// «Daromadni kiriting» chaqirig'i turadi; bosilsa Daromad papkasi ochiladi
+  /// (kirim faqat o'sha yerdan kiritiladi).
+  /// Foiz 100 dan oshsa halqa to'la va coral: «topganingdan ko'p ishlatding» —
+  /// bu ogohlantirish, xato emas.
+  Widget _incomeRing(Map<String, dynamic> v, Pal p) {
+    if (v['xfRingHasInc'] != true) {
+      return Tap(
+        key: const ValueKey('xfRingNoInc'),
+        child: SizedBox(
+          width: 110,
+          child: Tx(
+            _t('xfRingAddInc', 'Daromadni kiriting'),
+            size: 16, w: FontWeight.w600, color: p.cyan,
+            font: TbFont.head, maxLines: 2, lh: 20, align: TextAlign.right,
+          ),
+        ),
+        onTap: () {
+          final f = v['xfIncOpen'];
+          if (f is Function) f();
+        },
+      );
+    }
+    final pct = (v['xfRingPct'] as int?) ?? 0;
+    return _LimitRing(
+      key: const ValueKey('xfRing'),
+      pct: (pct / 100).clamp(0.0, 1.0),
+      color: pct >= 100 ? p.coral : (pct >= 80 ? p.amber : p.cyan),
+      track: p.ink.withValues(alpha: .08),
+      label: '$pct%',
+      sub: _t('xfRingSub', 'daromaddan'),
     );
   }
 
@@ -2114,22 +2026,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   }
 
   // ================= PASTKI QATLAM =================
-  /// Input ustidagi yo'riqnoma (DESIGN_SPEC §5.11): bepul hisoblagich "3/5 bepul
-  /// yozuv ishlatildi"; PRO — "PRO · Cheksiz xarajat yozuvi"; limit noma'lum yoki
-  /// sinov qiymati (> kSubLimitDisplayMax, hub chipi bilan bir xil qoida) — avvalgi
-  /// AI yo'riqnomasi. Qaytadi: [matn, rang].
-  List<dynamic> _inputHint(Map<String, dynamic> v, Pal p) {
-    final L0 = store.L();
-    if (_isPro(v)) return ['PRO · ${L0['pwBenXar1'] as String? ?? 'Cheksiz xarajat yozuvi'}', p.cyan];
-    final e = _modXar(v);
-    final used = (e?['used'] as int?) ?? 0;
-    final limit = (e?['limit'] as int?) ?? 0;
-    if (e != null && limit > 0 && limit <= kSubLimitDisplayMax) {
-      final txt = _tf('pwUsed', {'used': '$used', 'limit': '$limit'}, '$used/$limit bepul yozuv ishlatildi');
-      return [txt, used >= limit ? p.amber : p.t4];
-    }
-    return [L0['xarInputHint'] as String, p.t4];
-  }
+  /// Input ustidagi yo'riqnoma. HISOBLAGICH/PRO YO'Q (PO 2026-09-08):
+  /// Xarajatlar to'liq bepul — doim oddiy AI yo'riqnomasi. Qaytadi: [matn, rang].
+  List<dynamic> _inputHint(Map<String, dynamic> v, Pal p) =>
+      [store.L()['xarInputHint'] as String, p.t4];
 
   Widget _bottomOverlay(Map<String, dynamic> v, Pal p) {
     final hint = _inputHint(v, p);
@@ -3182,6 +3082,7 @@ class _LimitRing extends StatelessWidget {
   final String sub;
   final double size;
   const _LimitRing({
+    super.key,
     required this.pct,
     required this.color,
     required this.track,

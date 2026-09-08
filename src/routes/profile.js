@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import {
   computeSubscription, getSubscription, countUsage,
-  getModulesStatus, productIdForModule,
+  getModulesStatus, productIdForModule, isFreeModule,
 } from '../lib/subscription.js';
 import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
 import { sendOtp, checkOtpCode } from '../services/otp.js';
@@ -200,6 +200,8 @@ router.post(
       const modKey = String(req.body?.module ?? '').trim();
       const pid = productIdForModule(modKey);
       if (!pid) return res.status(400).json({ success: false, error: "Noma'lum modul" });
+      // Bepul modul (Xarajatlar, PO 2026-09-08) sotilmaydi — chek qabul qilinmaydi.
+      if (isFreeModule(modKey)) return res.status(400).json({ success: false, error: "Bu bo'lim bepul — obuna kerak emas" });
 
       // ===================== Apple App Store (TIRIK) =====================
       if (platform === 'app_store') {

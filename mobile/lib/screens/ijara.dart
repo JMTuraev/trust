@@ -23,7 +23,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, TextInputFormatter, TextEditingValue, TextSelection;
+    show
+        Clipboard,
+        ClipboardData,
+        FilteringTextInputFormatter,
+        LengthLimitingTextInputFormatter,
+        TextInputFormatter,
+        TextEditingValue,
+        TextSelection;
 import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -91,6 +98,76 @@ class _GroupFmt extends TextInputFormatter {
     }
     return TextEditingValue(text: res, selection: TextSelection.collapsed(offset: pos));
   }
+}
+
+/// 023 — O'zbekiston telefon maskasi: "+998 90 123 45 67".
+///
+/// KURSOR HAR DOIM OXIRDA. _GroupFmt dagi kursor saqlash hiylasi bu yerda
+/// ATAYLAB ISHLATILMADI: prefiks ("+998 ") majburiy qo'yilgani uchun kursorni
+/// o'rtaga tiklash foydalanuvchini prefiks ichiga tushirib qo'yardi va u
+/// terganida raqam prefiksdan oldin paydo bo'lardi. Telefon raqami ketma-ket
+/// teriladi — o'rtadan tahrirlash real ehtiyoj emas.
+///
+/// "998" ni FAQAT BIR MARTA olib tashlaydi: milliy raqam ham 998 bilan
+/// boshlanishi mumkin (99 8xx xx xx) — ikki marta kesilsa raqam yo'qolardi.
+class _PhoneFmt extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
+    final t = ijPhoneMask(newV.text);
+    return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+  }
+}
+
+/// Xom matndan milliy 9 ta raqam ("901234567"). To'liq bo'lmasa qisqaroq.
+String ijPhoneNat(String s) {
+  var d = s.replaceAll(RegExp(r'[^0-9]'), '');
+  if (d.startsWith('998')) d = d.substring(3);
+  return d.length > 9 ? d.substring(0, 9) : d;
+}
+
+/// "+998 90 123 45 67" ko'rinishi. Bo'sh kirsa — bo'sh chiqadi (maydon
+/// "+998 " bilan to'lib turmasin, aks holda hint ko'rinmaydi va bo'sh
+/// raqam "kiritilgan" bo'lib serverga ketardi).
+String ijPhoneMask(String s) {
+  final d = ijPhoneNat(s);
+  if (d.isEmpty) return '';
+  final b = StringBuffer('+998 ');
+  for (var i = 0; i < d.length; i++) {
+    if (i == 2 || i == 5 || i == 7) b.write(' ');
+    b.write(d[i]);
+  }
+  return b.toString();
+}
+
+/// Raqam O'ZBEKISTON shaklidami: 9 ta milliy raqam yoki 998 + 9 ta.
+///
+/// NEGA shunchaki "9 ta raqam bormi" DEB TEKSHIRILMAYDI: chet el raqamida
+/// ham 9 dan ortiq raqam bo'ladi va uni kesib maskaga solish boshqa odamning
+/// telefonini BUZIB YUBORARDI (+7 495 123 45 67 -> +998 74 951 23 45).
+bool ijPhoneIsUz(String s) {
+  final d = s.replaceAll(RegExp(r'[^0-9]'), '');
+  return d.length == 9 || (d.length == 12 && d.startsWith('998'));
+}
+
+/// Saqlangan raqamni ko'rsatishga tayyorlaydi: O'zbekiston shaklida bo'lsa
+/// maska qo'llanadi, aks holda (chet el raqami, eski yozuv) MATN O'ZGARMAYDI.
+String ijPhoneShow(String s) {
+  final raw = s.trim();
+  if (raw.isEmpty) return '';
+  return ijPhoneIsUz(raw) ? ijPhoneMask(raw) : raw;
+}
+
+/// Saqlashga tayyorlaydi. '' = raqam kiritilmagan (bu ham to'g'ri holat),
+/// null = CHALA raqam — saqlanmaydi, ega xabar ko'radi.
+String? ijPhoneNorm(String s) {
+  final raw = s.trim();
+  if (raw.isEmpty) return '';
+  if (ijPhoneIsUz(raw)) return ijPhoneMask(raw);
+  final d = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  // Maska bilan terilayotgan, hali tugallanmagan raqam
+  if (raw.startsWith('+998') || d.length < 9) return null;
+  // Chet el / eski yozuv — TEGILMAYDI
+  return raw;
 }
 
 int _digits(String s) {
@@ -180,7 +257,10 @@ class _IjaraScreenState extends State<IjaraScreen> {
   bool _monthMenu = false;
   bool _capOpen = false; // 5 ta uy chegarasi xabari
   Map<String, dynamic>? _confirm; // {title, body, danger, run}
-  Map<String, dynamic>? _houseEdit; // {id?, name, tenant, phone, rent}
+  Map<String, dynamic>? _houseEdit; // {id?, name}
+  // 023: ijarachi ALOHIDA forma — uy avval kiritiladi, ijarachi kartochka
+  // ichidan qo'shiladi (uy ijarachisiz ham bo'ladi).
+  Map<String, dynamic>? _tenantEdit; // {houseId, name, phone, rent, cur, dueDay, had}
   Map<String, dynamic>? _chargeEdit; // {houseId, id?, kind, title, amount, due}
   Map<String, dynamic>? _payEdit; // {houseId, chargeId, amount, date, note}
 
@@ -295,6 +375,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
   bool get _anyModal =>
       _confirm != null ||
       _houseEdit != null ||
+      _tenantEdit != null ||
       _chargeEdit != null ||
       _payEdit != null ||
       _gen != null ||
@@ -323,6 +404,10 @@ class _IjaraScreenState extends State<IjaraScreen> {
     }
     if (_chargeEdit != null) {
       setState(() => _chargeEdit = null);
+      return true;
+    }
+    if (_tenantEdit != null) {
+      setState(() => _tenantEdit = null);
       return true;
     }
     if (_houseEdit != null) {
@@ -364,6 +449,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
             if (_gen != null) _genModal(p),
             if (_confirm != null) _confirmModal(p),
             if (_houseEdit != null) _houseModal(p),
+            if (_tenantEdit != null) _tenantModal(p),
             if (_chargeEdit != null) _chargeModal(p),
             if (_payEdit != null) _payModal(p),
             ToastView(open: _toast.isNotEmpty, text: _toast),
@@ -746,17 +832,35 @@ class _IjaraScreenState extends State<IjaraScreen> {
   /// bar (to'langan ulushi), ostida qoldiq qatori (ortiqcha to'lov / kechikkan
   /// hisoblar soni), keyin holat filtri chiplari (U4).
   Widget _summary(Pal p) {
-    final t = ijaraRepo.periodTotals;
     final n = ijaraRepo.houses.length;
+    final curs = ijaraRepo.currenciesInUse;
+    // 023: bir nechta valyuta ishlatilsa yakunlar QO'SHILMAYDI — har valyuta
+    // uchun alohida karta chiziladi (so'm + dollar bitta songa aylansa bu
+    // ekrandagi eng katta pul xatosi bo'lardi).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Cap(ij('summaryCap', {'month': '${ijMonth(_month.month)} ${_month.year}', 'n': '$n'})),
+        for (var i = 0; i < curs.length; i++) ...[
+          const SizedBox(height: 12),
+          _summaryCard(p, curs[i], curs.length > 1),
+        ],
+        _summaryPills(p),
+      ],
+    );
+  }
+
+  /// Bitta valyuta uchun xulosa kartasi.
+  Widget _summaryCard(Pal p, String cur, bool multi) {
+    final t = multi ? ijaraRepo.periodTotalsOf(cur) : ijaraRepo.periodTotals;
     // F3: manfiy qoldiq = ORTIQCHA to'lov. Yalang'och absolyut son chiqmaydi:
     // '+' belgisi + mint + "Oldindan to'langan" izohi (qarz bilan adashmasin).
     final over = t.left < 0;
-    final pills = ijPillSums(ijaraRepo.charges, ijaraRepo.payments);
-    final anyPill =
-        (pills['pending'] ?? 0) != 0 || (pills['overdue'] ?? 0) != 0 || (pills['paid'] ?? 0) != 0;
-    final overdueN = ijaraRepo.houses.fold<int>(0, (s, h) => s + ijaraRepo.overdueOf(h.id));
+    final overdueN = ijaraRepo.houses
+        .where((h) => !multi || h.currency == cur)
+        .fold<int>(0, (s, h) => s + ijaraRepo.overdueOf(h.id));
     final ratio = t.charged > 0 ? (t.paid / t.charged).clamp(0.0, 1.0) : 0.0;
-    final leftTxt = over ? '+${ijFx(t.left)} ${ij('som')}' : ijMoney(t.left);
+    final leftTxt = over ? '+${ijFx(t.left)} ${ijCurSym(cur)}' : ijMoneyCur(t.left, cur);
 
     Widget col(String label, String value, Color c) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -771,95 +875,99 @@ class _IjaraScreenState extends State<IjaraScreen> {
           ],
         );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Cap(ij('summaryCap', {'month': '${ijMonth(_month.month)} ${_month.year}', 'n': '$n'})),
-        const SizedBox(height: 12),
-        GlassCard(
-          r: Tb.rCard,
-          pad: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return GlassCard(
+      r: Tb.rCard,
+      pad: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(child: col(ij('chargedLabel'), ijMoney(t.charged), p.ink)),
-                  const SizedBox(width: 16),
-                  Expanded(child: col(ij('paidLabel'), ijMoney(t.paid), p.mint)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Progress: to'langan / hisoblangan (mint -> cyan)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox(
-                  height: 8,
-                  child: Stack(
-                    children: [
-                      Container(color: p.ink.withValues(alpha: .10)),
-                      FractionallySizedBox(
-                        widthFactor: ratio,
-                        alignment: Alignment.centerLeft,
-                        child: Container(decoration: const BoxDecoration(gradient: Tb.mintCyan)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              // Sarlavha raqami — QOLDIQ (ega uchun eng muhim son: yig'ilmagan pul).
-              Row(
-                children: [
-                  Tx('${ij('leftLabel')} ', size: 13, color: p.t2),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Tx(leftTxt, size: 13, w: FontWeight.w600, color: _leftColor(t.left, p), tab: true),
-                    ),
-                  ),
-                  if (over) ...[
-                    Tx(' · ', size: 13, color: p.t2),
-                    Flexible(
-                      child: Tx(ij('overpaidNote'), size: 13, w: FontWeight.w600, color: p.mint, maxLines: 1, ellipsis: true),
-                    ),
-                  ] else if (overdueN > 0) ...[
-                    Tx(' · ', size: 13, color: p.t2),
-                    Flexible(
-                      child: Tx(overdueN == 1 ? ij('overdue') : ij('overdueN', {'n': '$overdueN'}),
-                          size: 13, w: FontWeight.w600, color: p.coral, maxLines: 1, ellipsis: true),
-                    ),
-                  ],
-                ],
-              ),
+              Expanded(child: col(ij('chargedLabel'), ijMoneyCur(t.charged, cur), p.ink)),
+              const SizedBox(width: 16),
+              Expanded(child: col(ij('paidLabel'), ijMoneyCur(t.paid, cur), p.mint)),
             ],
           ),
-        ),
-        // U4: oy holat chiplari — bosilsa ro'yxat shu holat bo'yicha filtrlanadi
-        if (anyPill) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          const SizedBox(height: 16),
+          // Progress: to'langan / hisoblangan (mint -> cyan)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 8,
+              child: Stack(
+                children: [
+                  Container(color: p.ink.withValues(alpha: .10)),
+                  FractionallySizedBox(
+                    widthFactor: ratio,
+                    alignment: Alignment.centerLeft,
+                    child: Container(decoration: const BoxDecoration(gradient: Tb.mintCyan)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Sarlavha raqami — QOLDIQ (ega uchun eng muhim son: yig'ilmagan pul).
+          Row(
             children: [
-              _pill(p, 'pending', ij('pillPending'), pills['pending'] ?? 0, p.amber),
-              _pill(p, 'overdue', ij('pillOverdue'), pills['overdue'] ?? 0, p.coral),
-              _pill(p, 'paid', ij('pillPaid'), pills['paid'] ?? 0, p.mint),
+              Tx('${ij('leftLabel')} ', size: 13, color: p.t2),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Tx(leftTxt, size: 13, w: FontWeight.w600, color: _leftColor(t.left, p), tab: true),
+                ),
+              ),
+              if (over) ...[
+                Tx(' · ', size: 13, color: p.t2),
+                Flexible(
+                  child: Tx(ij('overpaidNote'), size: 13, w: FontWeight.w600, color: p.mint, maxLines: 1, ellipsis: true),
+                ),
+              ] else if (overdueN > 0) ...[
+                Tx(' · ', size: 13, color: p.t2),
+                Flexible(
+                  child: Tx(overdueN == 1 ? ij('overdue') : ij('overdueN', {'n': '$overdueN'}),
+                      size: 13, w: FontWeight.w600, color: p.coral, maxLines: 1, ellipsis: true),
+                ),
+              ],
             ],
           ),
         ],
-      ],
+      ),
+    );
+  }
+
+  /// U4: oy holat chiplari — bosilsa ro'yxat shu holat bo'yicha filtrlanadi.
+  /// 023: aralash valyutada chip yig'indisi ma'nosiz bo'lardi, shuning uchun
+  /// unda faqat YORLIQ ko'rsatiladi (filtr o'zi avvalgidek ishlaydi).
+  Widget _summaryPills(Pal p) {
+    final multi = ijaraRepo.mixedCurrency;
+    final pills = ijPillSums(ijaraRepo.charges, ijaraRepo.payments);
+    final anyPill =
+        (pills['pending'] ?? 0) != 0 || (pills['overdue'] ?? 0) != 0 || (pills['paid'] ?? 0) != 0;
+    if (!anyPill) return const SizedBox.shrink();
+    final cur = ijaraRepo.currenciesInUse.first;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _pill(p, 'pending', ij('pillPending'), multi ? null : pills['pending'] ?? 0, p.amber, cur),
+          _pill(p, 'overdue', ij('pillOverdue'), multi ? null : pills['overdue'] ?? 0, p.coral, cur),
+          _pill(p, 'paid', ij('pillPaid'), multi ? null : pills['paid'] ?? 0, p.mint, cur),
+        ],
+      ),
     );
   }
 
   /// U4: bitta holat chipi (PillChip h36). Rang nuqtasi holatni bildiradi
   /// (kechikkan — coral, to'langan — mint, kutilmoqda — amber).
-  Widget _pill(Pal p, String key, String label, int sum, Color accent) {
+  Widget _pill(Pal p, String key, String label, int? sum, Color accent, String cur) {
     final on = _pillFilter == key;
     return PillChip(
       h: 36,
-      label: '$label · ${ijFx(sum)}',
+      label: sum == null ? label : '$label · ${ijFx(sum)} ${ijCurSym(cur)}',
       selected: on,
       leading: Container(
         width: 8,
@@ -974,7 +1082,8 @@ class _IjaraScreenState extends State<IjaraScreen> {
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Tx(ijMoney(t.left), size: 16, w: FontWeight.w600, color: sumColor, tab: true),
+              child: Tx(ijMoneyCur(t.left, h.currency),
+                  size: 16, w: FontWeight.w600, color: sumColor, tab: true),
             ),
             const SizedBox(height: 3),
             // U6: "Bu oyda hisob yo'q" qatori BOSILADI — hisob formasi
@@ -1187,11 +1296,20 @@ class _IjaraScreenState extends State<IjaraScreen> {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: h.rentAmount > 0
-                ? Tx(ijMoney(h.rentAmount), size: 36, w: FontWeight.w600, color: p.ink, tab: true)
+                ? Tx(ijMoneyCur(h.rentAmount, h.currency),
+                    size: 36, w: FontWeight.w600, color: p.ink, tab: true)
                 : Tx(ij('noRent'), size: 20, w: FontWeight.w600, color: p.t3),
           ),
           const SizedBox(height: 6),
-          Tx('${ijMonth(_month.month)} ${_month.year}', size: 14, color: p.t2),
+          Tx(
+            h.dueDay > 0
+                ? '${ijMonth(_month.month)} ${_month.year} · ${ij('dueDayShort', {'d': '${h.dueDay}'})}'
+                : '${ijMonth(_month.month)} ${_month.year}',
+            size: 14,
+            color: p.t2,
+            maxLines: 2,
+            ellipsis: true,
+          ),
         ],
       ),
     );
@@ -1202,7 +1320,14 @@ class _IjaraScreenState extends State<IjaraScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Cap(ij('tenantCap')),
+        Row(
+          children: [
+            Expanded(child: Cap(ij('tenantCap'))),
+            // Ijarachi bor bo'lsa — tahrirlash; yo'q bo'lsa pastdagi CTA.
+            if (!noTenant)
+              _MiniBtn(ij('edit'), icon: Icons.edit_outlined, onTap: () => _openTenant(h)),
+          ],
+        ),
         const SizedBox(height: 12),
         GlassCard(
           r: Tb.rCard,
@@ -1219,7 +1344,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
                         size: 15, w: FontWeight.w600, color: noTenant ? p.t3 : p.ink, maxLines: 2, ellipsis: true),
                     const SizedBox(height: 3),
                     if (h.tenantPhone.isEmpty)
-                      Tx(ij('noPhone'), size: 13, color: p.t4)
+                      Tx(noTenant ? ij('emptyHouse') : ij('noPhone'), size: 13, color: p.t4)
                     else
                       // Raqamga bosish — nusxalash (eski xatti-harakat saqlanadi)
                       Tap(
@@ -1231,7 +1356,8 @@ class _IjaraScreenState extends State<IjaraScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Flexible(
-                              child: Tx(h.tenantPhone, size: 13, color: p.t2, maxLines: 1, ellipsis: true, tab: true),
+                              child: Tx(ijPhoneShow(h.tenantPhone),
+                                  size: 13, color: p.t2, maxLines: 1, ellipsis: true, tab: true),
                             ),
                             const SizedBox(width: 6),
                             Icon(Icons.copy_rounded, size: 14, color: p.t4),
@@ -1249,6 +1375,33 @@ class _IjaraScreenState extends State<IjaraScreen> {
             ],
           ),
         ),
+        // 023: uy ijarachisiz ham bo'ladi — kartochka ichidan qo'shiladi.
+        if (noTenant) ...[
+          const SizedBox(height: 12),
+          GradientBtn(
+            label: ij('addTenant'),
+            h: 48,
+            icon: Icons.person_add_alt_1_rounded,
+            onTap: () => _openTenant(h),
+          ),
+        ] else ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(Icons.event_available_rounded, size: 15, color: p.t4),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Tx(
+                  h.dueDay > 0 ? ij('dueDayShort', {'d': '${h.dueDay}'}) : ij('dueDayNone'),
+                  size: 13,
+                  color: p.t4,
+                  maxLines: 1,
+                  ellipsis: true,
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1281,13 +1434,13 @@ class _IjaraScreenState extends State<IjaraScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _totalRow(p, ij('chargedLabel'), ijMoney(t.charged), p.ink),
+              _totalRow(p, ij('chargedLabel'), ijMoneyCur(t.charged, h.currency), p.ink),
               const SizedBox(height: 8),
-              _totalRow(p, ij('paidLabel'), ijMoney(t.paid), p.mint),
+              _totalRow(p, ij('paidLabel'), ijMoneyCur(t.paid, h.currency), p.mint),
               const SizedBox(height: 12),
               Container(height: 1, color: p.hairline),
               const SizedBox(height: 12),
-              _totalRow(p, ij('leftLabel'), ijMoney(t.left), _leftColor(t.left, p), big: true),
+              _totalRow(p, ij('leftLabel'), ijMoneyCur(t.left, h.currency), _leftColor(t.left, p), big: true),
             ],
           ),
         ),
@@ -1401,7 +1554,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
-                    child: Tx(ijMoney(c.amount),
+                    child: Tx(ijMoneyCur(c.amount, ijaraRepo.currencyOf(c.houseId)),
                         size: 15, w: FontWeight.w600, color: c.cancelled ? p.t4 : p.ink, tab: true),
                   ),
                   const SizedBox(height: 3),
@@ -1486,7 +1639,8 @@ class _IjaraScreenState extends State<IjaraScreen> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
-              child: Tx('+${ijMoney(pay.amount)}', size: 15, w: FontWeight.w600, color: p.mint, tab: true),
+              child: Tx('+${ijMoneyCur(pay.amount, ijaraRepo.currencyOf(pay.houseId))}',
+                  size: 15, w: FontWeight.w600, color: p.mint, tab: true),
             ),
           ),
           const SizedBox(width: 4),
@@ -1604,7 +1758,12 @@ class _IjaraScreenState extends State<IjaraScreen> {
   /// ko'rsatiladi, jami summa ostida. Yozish ketma-ket, jarayon "2/5..." ko'rinadi.
   Widget _genModal(Pal p) {
     final list = _gen!;
-    final total = list.fold<int>(0, (s, h) => s + h.rentAmount);
+    // 023: ro'yxatda so'mli va dollarli uy aralash bo'lishi mumkin — yakun
+    // VALYUTA BO'YICHA ajratiladi (qo'shib yuborish pul xatosi bo'lardi).
+    final totals = <String, int>{};
+    for (final h in list) {
+      totals[h.currency] = (totals[h.currency] ?? 0) + h.rentAmount;
+    }
     void close() {
       if (!_genBusy) setState(() => _gen = null);
     }
@@ -1636,7 +1795,8 @@ class _IjaraScreenState extends State<IjaraScreen> {
                           child: Tx(h.name, size: 14, w: FontWeight.w500, color: p.ink, maxLines: 1, ellipsis: true),
                         ),
                         const SizedBox(width: 12),
-                        Tx(ijMoney(h.rentAmount), size: 14, w: FontWeight.w600, color: p.ink, tab: true),
+                        Tx(ijMoneyCur(h.rentAmount, h.currency),
+                            size: 14, w: FontWeight.w600, color: p.ink, tab: true),
                       ],
                     ),
                   ),
@@ -1650,10 +1810,18 @@ class _IjaraScreenState extends State<IjaraScreen> {
                     Tx(ij('genTotal'), size: 14, w: FontWeight.w600, color: p.t2),
                     const SizedBox(width: 12),
                     Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Tx(ijMoney(total), size: 18, w: FontWeight.w600, color: p.ink, tab: true),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (final c in kIjaraCurrencies)
+                            if ((totals[c] ?? 0) != 0)
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Tx(ijMoneyCur(totals[c]!, c),
+                                    size: 18, w: FontWeight.w600, color: p.ink, tab: true),
+                              ),
+                        ],
                       ),
                     ),
                   ],
@@ -1702,17 +1870,29 @@ class _IjaraScreenState extends State<IjaraScreen> {
       setState(() => _capOpen = true);
       return;
     }
-    setState(() => _houseEdit = {'name': '', 'tenant': '', 'phone': '', 'rent': ''});
+    setState(() => _houseEdit = {'name': ''});
   }
 
-  void _openEditHouse(House h) => setState(() => _houseEdit = {
-        'id': h.id,
-        'name': h.name,
-        'tenant': h.tenantName,
-        'phone': h.tenantPhone,
+  void _openEditHouse(House h) => setState(() => _houseEdit = {'id': h.id, 'name': h.name});
+
+  // ---- Ijarachi qo'shish / tahrirlash (023) ----
+
+  /// Uy kartochkasi ichidan ochiladi. Uy ALLAQACHON mavjud — shuning uchun
+  /// 5-uy chegarasi bu yerda tekshirilmaydi (yangi uy yaratilmaydi).
+  void _openTenant(House h) => setState(() => _tenantEdit = {
+        'houseId': h.id,
+        'name': h.tenantName,
+        'phone': ijPhoneShow(h.tenantPhone),
         'rent': h.rentAmount > 0 ? ijFx(h.rentAmount) : '',
+        'cur': h.currency,
+        'dueDay': h.dueDay > 0 ? '${h.dueDay}' : '',
+        // Forma sarlavhasi va "chiqarish" tugmasi uchun (serverga ketmaydi)
+        'had': h.tenantName.isNotEmpty || h.tenantPhone.isNotEmpty,
       });
 
+  /// UY formasi (023 dan keyin): FAQAT uy. Ijarachi, ijara summasi, pul birligi
+  /// va to'lov kuni bu yerda EMAS — ular ijarachi formasida (uy ijarachisiz
+  /// ham bo'ladi: bo'sh turgan kvartira ham ro'yxatda ko'rinishi kerak).
   Widget _houseModal(Pal p) {
     final e = _houseEdit!;
     final isNew = e['id'] == null;
@@ -1727,28 +1907,10 @@ class _IjaraScreenState extends State<IjaraScreen> {
           const SizedBox(height: 20),
           _field(p, ij('houseNameLabel'), '${e['name']}', (v) => setState(() => e['name'] = v),
               hint: ij('houseNamePh'), icon: Icons.apartment_rounded),
-          const SizedBox(height: 16),
-          _field(p, ij('tenantNameLabel'), '${e['tenant']}', (v) => setState(() => e['tenant'] = v),
-              hint: ij('tenantNamePh'), icon: Icons.person_outline_rounded),
-          const SizedBox(height: 16),
-          _field(p, ij('tenantPhoneLabel'), '${e['phone']}', (v) => setState(() => e['phone'] = v),
-              phone: true, icon: Icons.smartphone_rounded),
-          // U8: ijarachi almashganda uy o'chirilmasin — shu formada yangilanadi,
-          // o'tgan oylar tarixi uyda qoladi. Yumshoq eslatma (faqat tahrirda).
-          if (!isNew) ...[
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded, size: 15, color: p.t4),
-                const SizedBox(width: 7),
-                Expanded(child: Tx(ij('tenantChangeNote'), size: 13, color: p.t4, lh: 18)),
-              ],
-            ),
+          if (isNew) ...[
+            const SizedBox(height: 10),
+            _note(p, ij('houseOnlyNote')),
           ],
-          const SizedBox(height: 16),
-          _field(p, ij('rentAmountLabel'), '${e['rent']}', (v) => setState(() => e['rent'] = v),
-              number: true, icon: Icons.payments_outlined),
           const SizedBox(height: 24),
           GradientBtn(label: ij('save'), loading: _busy, onTap: () => _saveHouse(e)),
           if (!isNew) ...[
@@ -1764,18 +1926,132 @@ class _IjaraScreenState extends State<IjaraScreen> {
     );
   }
 
+  /// IJARACHI formasi (023): ism · telefon (+998 maskasi) · oylik ijara
+  /// (oldida so'm/$ almashtirgichi) · to'lov kuni.
+  Widget _tenantModal(Pal p) {
+    final e = _tenantEdit!;
+    final had = e['had'] == true;
+    final cur = '${e['cur']}';
+    void close() => setState(() => _tenantEdit = null);
+    return _sheet(
+      close,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTitle(p, had ? ij('editTenant') : ij('newTenant'), close),
+          const SizedBox(height: 20),
+          _field(p, ij('tenantNameLabel'), '${e['name']}', (v) => setState(() => e['name'] = v),
+              hint: ij('tenantNamePh'), icon: Icons.person_outline_rounded),
+          const SizedBox(height: 16),
+          _field(p, ij('tenantPhoneLabel'), '${e['phone']}', (v) => setState(() => e['phone'] = v),
+              phone: true, hint: '+998 90 123 45 67', icon: Icons.smartphone_rounded),
+          const SizedBox(height: 16),
+          // Summa maydonining ICHIDA, oldida — pul birligi almashtirgichi.
+          _moneyField(p, ij('rentAmountLabel'), '${e['rent']}',
+              (v) => setState(() => e['rent'] = v),
+              cur: cur, onCur: (c) => setState(() => e['cur'] = c)),
+          const SizedBox(height: 16),
+          _field(p, ij('dueDayLabel'), '${e['dueDay']}', (v) => setState(() => e['dueDay'] = v),
+              hint: ij('dueDayPh'), day: true, icon: Icons.event_available_rounded),
+          const SizedBox(height: 10),
+          _note(p, ij('dueDayNote')),
+          if (had) ...[
+            const SizedBox(height: 10),
+            _note(p, ij('tenantChangeNote')),
+          ],
+          const SizedBox(height: 24),
+          GradientBtn(label: ij('save'), loading: _busy, onTap: () => _saveTenant(e)),
+          if (had) ...[
+            const SizedBox(height: 6),
+            TextBtn(label: ij('removeTenant'), color: p.coral, onTap: () => _askRemoveTenant(e)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Ikonkali kichik izoh qatori (forma ostidagi tushuntirishlar).
+  Widget _note(Pal p, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.info_outline_rounded, size: 15, color: p.t4),
+        const SizedBox(width: 7),
+        Expanded(child: Tx(text, size: 13, color: p.t4, lh: 18)),
+      ],
+    );
+  }
+
+  Future<void> _saveTenant(Map<String, dynamic> e) async {
+    final name = '${e['name']}'.trim();
+    if (name.isEmpty) {
+      _toastMsg(ij('needTenantName'));
+      return;
+    }
+    // Telefon IXTIYORIY, lekin kiritilgan bo'lsa TO'LIQ bo'lishi shart —
+    // yarim raqam bilan qo'ng'iroq tugmasi ishlamas va ega buni faqat
+    // ijarachiga zarur bo'lganda bilib qolardi.
+    final phone = ijPhoneNorm('${e['phone']}');
+    if (phone == null) {
+      _toastMsg(ij('badPhone'));
+      return;
+    }
+    // To'lov kuni ixtiyoriy (bo'sh = kelishilmagan), lekin 1..31 dan
+    // tashqarisi yozilmaydi — server ham rad etadi.
+    final dayTxt = '${e['dueDay']}'.trim();
+    final day = dayTxt.isEmpty ? 0 : (int.tryParse(dayTxt) ?? -1);
+    if (dayTxt.isNotEmpty && (day < 1 || day > 31)) {
+      _toastMsg(ij('badDueDay'));
+      return;
+    }
+    final body = <String, dynamic>{
+      'tenant_name': name,
+      'tenant_phone': phone,
+      'rent_amount': _digits('${e['rent']}'),
+      'currency': ijCurOf(e['cur']),
+      'due_day': day > 0 ? day : '',
+    };
+    setState(() => _busy = true);
+    final ok = await ijaraRepo.patchHouse('${e['houseId']}', body);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (ok) _tenantEdit = null;
+    });
+    ok ? _toastMsg(ij('tenantSaved')) : _toastErr();
+  }
+
+  /// Ijarachini chiqarish: FAQAT ism/telefon/to'lov kuni tozalanadi. Ijara
+  /// summasi va pul birligi UYDA QOLADI — ular obyektning narxi, keyingi
+  /// ijarachi uchun ham o'sha (va oy generatori ularsiz ishlamaydi).
+  void _askRemoveTenant(Map<String, dynamic> e) {
+    final houseId = '${e['houseId']}';
+    setState(() {
+      _tenantEdit = null;
+      _confirm = {
+        'title': ij('removeTenant'),
+        'body': ij('removeTenantBody'),
+        'danger': true,
+        'run': () async {
+          final ok = await ijaraRepo.patchHouse(
+              houseId, {'tenant_name': '', 'tenant_phone': '', 'due_day': ''});
+          if (!mounted) return;
+          ok ? _toastMsg(ij('tenantRemoved')) : _toastErr();
+        },
+      };
+    });
+  }
+
   Future<void> _saveHouse(Map<String, dynamic> e) async {
     final name = '${e['name']}'.trim();
     if (name.isEmpty) {
       _toastMsg(ij('needHouseName'));
       return;
     }
-    final body = <String, dynamic>{
-      'name': name,
-      'tenant_name': '${e['tenant']}'.trim(),
-      'tenant_phone': '${e['phone']}'.trim(),
-      'rent_amount': _digits('${e['rent']}'),
-    };
+    // 023: uy formasida FAQAT nom bor — ijarachi/summa maydonlari yuborilmaydi
+    // (yuborilsa PATCH ularni bo'shatib, mavjud ijarachini o'chirib yuborardi).
+    final body = <String, dynamic>{'name': name};
     setState(() => _busy = true);
     final ok = e['id'] == null
         ? await ijaraRepo.createHouse(body)
@@ -1819,8 +2095,18 @@ class _IjaraScreenState extends State<IjaraScreen> {
         'title': ij('kindIjara'),
         // Oylik ijara belgilangan bo'lsa — summa avtomatik to'ladi
         'amount': h.rentAmount > 0 ? ijFx(h.rentAmount) : '',
-        'due': null,
+        // 023: uyda to'lov kuni belgilangan bo'lsa muddat AVTOMATIK to'ladi
+        // (qisqa oyda oxirgi kunga suriladi) — ega uni qo'lda tanlamasin.
+        'due': _dueFromDay(h.dueDay),
       });
+
+  /// Ko'rilayotgan oy + uyning to'lov kuni -> muddat sanasi. 0 yoki oy
+  /// kunidan katta bo'lsa oyning OXIRGI kuni (31-fevral bo'lmasin).
+  DateTime? _dueFromDay(int day) {
+    if (day < 1 || day > 31) return null;
+    final last = DateTime(_month.year, _month.month + 1, 0).day;
+    return DateTime(_month.year, _month.month, day > last ? last : day);
+  }
 
   void _openEditCharge(Charge c) => setState(() => _chargeEdit = {
         'houseId': c.houseId,
@@ -1861,8 +2147,13 @@ class _IjaraScreenState extends State<IjaraScreen> {
           _field(p, ij('chargeTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
               hint: ij('chargeTitlePh'), icon: Icons.description_outlined),
           const SizedBox(height: 16),
-          _field(p, ij('amountLabel'), '${e['amount']}', (v) => setState(() => e['amount'] = v),
-              number: true, icon: Icons.payments_outlined),
+          _field(
+              p,
+              '${ij('amountLabel')} · ${ijCurSym(ijaraRepo.currencyOf('${e['houseId']}'))}',
+              '${e['amount']}',
+              (v) => setState(() => e['amount'] = v),
+              number: true,
+              icon: Icons.payments_outlined),
           const SizedBox(height: 16),
           Cap(ij('dueDateLabel')),
           const SizedBox(height: 10),
@@ -1904,7 +2195,8 @@ class _IjaraScreenState extends State<IjaraScreen> {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Tx('${e['amount']} ${ij('som')}', size: 32, w: FontWeight.w600, color: p.t3, tab: true),
+            child: Tx('${e['amount']} ${ijCurSym(ijaraRepo.currencyOf('${e['houseId']}'))}',
+                size: 32, w: FontWeight.w600, color: p.t3, tab: true),
           ),
           const SizedBox(height: 6),
           Tx('${ijKind('${e['kind']}')} · ${due == null ? ij('noDue') : ijDateLong(due)}',
@@ -2067,7 +2359,9 @@ class _IjaraScreenState extends State<IjaraScreen> {
             hintColor: p.t6,
           ),
           const SizedBox(height: 4),
-          Center(child: Tx('${ij('payAmountLabel')} · ${ij('som')}', size: 14, color: p.t2)),
+          Center(child: Tx(
+              '${ij('payAmountLabel')} · ${ijCurSym(ijaraRepo.currencyOf('${e['houseId']}'))}',
+              size: 14, color: p.t2)),
           const SizedBox(height: 20),
           if (open.isNotEmpty) ...[
             Cap(ij('payTargetCap')),
@@ -2148,7 +2442,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
   void _askDeletePayment(IjaraPayment pay) {
     setState(() => _confirm = {
           'title': ij('confirmDeleteTitle'),
-          'body': '${ijMoney(pay.amount)}\n${ij('confirmDeleteBody')}',
+          'body': '${ijMoneyCur(pay.amount, ijaraRepo.currencyOf(pay.houseId))}\n${ij('confirmDeleteBody')}',
           'danger': true,
           'run': () async {
             final ok = await ijaraRepo.deletePayment(pay.id);
@@ -2196,6 +2490,73 @@ class _IjaraScreenState extends State<IjaraScreen> {
     );
   }
 
+  /// 023 — pul maydoni: summa inputining OLDIDA pul birligi almashtirgichi
+  /// (so'm / \$). Valyuta summa bilan BIR MAYDONDA turadi — alohida chiplar
+  /// qatori bo'lsa ega summani terib, valyutani almashtirishni unutardi.
+  Widget _moneyField(
+    Pal p,
+    String label,
+    String value,
+    ValueChanged<String> onChanged, {
+    required String cur,
+    required ValueChanged<String> onCur,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Cap(label),
+        const SizedBox(height: 10),
+        GlassField(
+          h: 52,
+          focused: value.isNotEmpty,
+          padding: const EdgeInsets.only(left: 6, right: 16),
+          child: Row(
+            children: [
+              for (final c in kIjaraCurrencies) ...[
+                _curSeg(p, c, c == cur, () => onCur(c)),
+                const SizedBox(width: 4),
+              ],
+              const SizedBox(width: 6),
+              Expanded(
+                child: StoreField(
+                  value: value,
+                  onChanged: onChanged,
+                  hint: '0',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_GroupFmt()],
+                  style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: true),
+                  hintColor: p.t5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Pul birligi segmenti (maydon ichidagi ixcham tanlagich).
+  Widget _curSeg(Pal p, String cur, bool on, VoidCallback onTap) {
+    return Tap(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 38,
+        constraints: const BoxConstraints(minWidth: 42),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: on ? p.ink : p.glass2,
+          border: Border.all(color: on ? p.ink : p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rPill),
+        ),
+        child: Tx(ijCurSym(cur),
+            size: 13, w: FontWeight.w600, color: on ? p.bg : p.t2,
+            maxLines: 1, ellipsis: true, font: TbFont.body),
+      ),
+    );
+  }
+
   /// Yorliqli maydon (Cap + GlassField ichida StoreField).
   Widget _field(
     Pal p,
@@ -2205,6 +2566,7 @@ class _IjaraScreenState extends State<IjaraScreen> {
     String? hint,
     bool number = false,
     bool phone = false,
+    bool day = false,
     int lines = 1,
     IconData? icon,
   }) {
@@ -2223,11 +2585,17 @@ class _IjaraScreenState extends State<IjaraScreen> {
             hint: (hint == null || hint.isEmpty) ? null : hint,
             keyboardType: phone
                 ? TextInputType.phone
-                : (number ? TextInputType.number : TextInputType.text),
-            inputFormatters: number ? [_GroupFmt()] : null,
+                : (number || day ? TextInputType.number : TextInputType.text),
+            // day: oyning kuni — guruhlash YO'Q ("5" "5" bo'lib qolsin),
+            // ko'pi bilan 2 raqam (31 dan uzuni terilmasin).
+            inputFormatters: phone
+                ? [_PhoneFmt()]
+                : (day
+                    ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)]
+                    : (number ? [_GroupFmt()] : null)),
             maxLines: lines,
             minLines: lines > 1 ? lines : 1,
-            style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: number || phone),
+            style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: number || phone || day),
             hintColor: p.t5,
           ),
         ),

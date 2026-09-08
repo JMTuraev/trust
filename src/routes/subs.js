@@ -1,5 +1,5 @@
 // Modul obunalari (PO 2026-08-04) — mobil hub kartalari uchun yagona holat endpointi.
-// Har modul alohida oylik obuna: xarajat $5 · qarz $8 · ijarachi $13 · toyxona $24 (har zal).
+// Har modul alohida oylik obuna: xarajat BEPUL (2026-09-08) · qarz $8 · ijarachi $13 · toyxona $21.
 // Eski $9 premium (profiles.premium_until) — muddati tugaguncha BARCHA modullarga kirish.
 // Sotib olish tekshiruvi bu yerda EMAS — u /api/profile/purchase'da (bitta chek oqimi).
 import { Router } from 'express';
@@ -15,7 +15,7 @@ router.use(rateLimit({ windowMs: 60_000, max: 30 }));
 
 // GET /api/subs/status — MOBIL KONTRAKT (o'zgartirsangiz mobil store.dart bilan sinxron):
 // { success, legacy_premium: { active, until },
-//   modules: [{ module, active, active_until, soon, price_usd, product_id, used, free_limit }] }
+//   modules: [{ module, active, free, active_until, soon, price_usd, product_id, used, free_limit }] }
 router.get('/status', async (req, res, next) => {
   try {
     const [r, modules] = await Promise.all([

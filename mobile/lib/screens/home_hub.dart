@@ -163,23 +163,16 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
 
   /// To'rtta karta (tartib: Xarajatlar, Qarz daftar, Ijaradagi uylar, To'yxona).
   ///
-  /// Sub matnlar — REAL ma'lumot (store.vals()):
-  ///   Xarajatlar -> shu oy jami («−2 340 000 so'm»)
-  ///   Qarz daftar -> «{d} faol qarz · {p} hamkor»
-  ///   Ijara -> «{n} hisob-kitob · {w} kutilmoqda» (404/bo'sh: modul tavsifi)
-  ///   To'yxona -> «Bu oyda {n} to'y» (404/bo'sh: modul tavsifi)
-  /// Bo'sh hub (birinchi kirish): Xarajat va Qarz sub'lari o'rniga eski
-  /// _emptyBody'ning sarlavha/CTA matni; Qarz kartasi bosilsa hubAddDebt.
+  /// NOM OSTIDA SUB MATN YO'Q (PO 2026-09-08): faktlar/tavsif/CTA kartadan
+  /// olib tashlandi — faqat nom va tarif (bepul modulda tarif o'rniga
+  /// yuqori-o'ngda «Bepul» badge). Bo'sh hub (birinchi kirish): Qarz kartasi
+  /// bosilsa hubAddDebt (yangi hamkor oqimi), aks holda bo'lim ochiladi.
   List<Widget> _cards(Map<String, dynamic> v, Pal p, bool empty) => [
         _card(
           v, p,
           module: 'xarajat',
           asset: 'assets/illustrations/xarajat.png',
           icon: Icons.account_balance_wallet_outlined,
-          pro: false,
-          sub: empty
-              ? Tx(v['hubEmptyXarTitle'] as String, size: 13, color: p.t2, maxLines: 2, ellipsis: true)
-              : _moneySub(p, '${v['hubXarTxt']} ${v['hubXarUnit']}'),
           onTap: () => v['hubOpenXar'](),
         ),
         _card(
@@ -187,11 +180,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           module: 'qarz',
           asset: 'assets/illustrations/daftar.png',
           icon: Icons.description_outlined,
-          pro: true,
-          sub: empty
-              // Eski bo'sh-holat CTA («+ Qarz qo'shish») — karta bosilsa hubAddDebt
-              ? Tx(v['hubEmptyDebtBtn'] as String, size: 13, w: FontWeight.w600, color: p.cyan, maxLines: 2, ellipsis: true)
-              : _textSub(p, v['hubDebtSub'] as String),
           onTap: () => empty ? v['hubAddDebt']() : v['hubOpenDebt'](),
         ),
         _card(
@@ -199,8 +187,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           module: 'ijarachi',
           asset: 'assets/illustrations/ijara.png',
           icon: Icons.apartment_rounded,
-          pro: true,
-          sub: _textSub(p, v['hubIjaraSub'] as String),
           onTap: () => v['hubOpenIjara'](),
         ),
         _card(
@@ -208,27 +194,18 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
           module: 'toyxona',
           asset: 'assets/illustrations/toyxona.png',
           icon: Icons.favorite_border_rounded,
-          pro: true,
-          sub: _textSub(p, v['hubToySub'] as String),
           onTap: () => v['hubOpenToy'](),
         ),
       ];
 
-  /// Pul summasi sub'i: «...» bilan KESILMAYDI — sig'masa kichrayadi.
-  Widget _moneySub(Pal p, String t) => FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Tx(t, size: 13, color: p.t2, tab: true, maxLines: 1),
-      );
-
-  /// Matnli sub (faktlar / modul tavsifi): 2 qatorgacha o'raladi.
-  Widget _textSub(Pal p, String t) => Tx(t, size: 13, color: p.t2, tab: true, maxLines: 2, ellipsis: true);
-
   // ──────────────────── UMUMIY KARTA QOBIG'I ────────────────────
   // Hub'dagi BARCHA kartalar AYNAN shu qobiqdan chiqadi. Anatomiya (tepadan):
-  //   [yuqori-o'ng: PRO badge yoki modul chipi «3/5» / qulf]  ->
+  //   [yuqori-o'ng: «Bepul» badge (bepul modul) yoki TARIF 12 t4]  ->
   //   markazda illyustratsiya (asset yo'q bo'lsa gradient qutidagi ikonka)  ->
-  //   nom 17/600 (Inter Tight)  ->  sub 13 t2 + o'ng chetda tarif 12 t4.
+  //   nom 17/600 (Inter Tight)  ->
+  //   [pastki-chap: «N ta yozuv bepul» mint badge / «Bepul limit tugadi» coral,
+  //    bosilsa paywall — _freeChip].
+  //   Sub matn YO'Q (PO 2026-09-08).
   //
   // 2026-08-10 audit: qulf KIRISHNI to'smaydi — karta bosilganda DOIM bo'lim
   // ochiladi. Backend o'qishni hech qachon bloklamaydi: limit tugagan
@@ -242,13 +219,13 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     required String module,
     required String asset,
     required IconData icon,
-    required bool pro,
-    required Widget sub,
     required VoidCallback onTap,
   }) {
     final name = modStr(kModNameKey[module] ?? '');
-    // Modul chipi (hisoblagich/qulf) PRO badge'dan USTUN — bir joyda bittasi.
-    final badge = _modChip(v, p, module) ?? (pro ? PillBadge.pro() : null);
+    // PRO badge YO'Q (2026-09-08): modullar alohida sotiladi — faqat modul chipi.
+    final badge = _modChip(v, p, module);
+    final priceTx = _priceTx(v, p, module); // null = bepul modul
+    final freeTx = _freeChip(v, p, module); // null = badge chizilmaydi
     return Tap(
       onTap: onTap,
       child: GlassCard(
@@ -258,10 +235,27 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Badge qatori — badge bo'lmasa ham 24px: to'rttala karta bir xil tuzilma
+            // Yuqori-o'ng qatori — «Bepul» badge (bepul modul) VA TARIF
+            // (PO 2026-09-08: narx nom ostidan YUQORI-O'NG burchakka ko'chdi).
+            // Hech biri bo'lmasa ham 24px: to'rttala karta bir xil tuzilma.
+            // Tor kartada (320pt, ru/fr) sig'masa BUTUN qator kichrayadi.
             SizedBox(
               height: 24,
-              child: Align(alignment: Alignment.topRight, child: badge ?? const SizedBox.shrink()),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (badge != null) badge,
+                      if (badge != null && priceTx != null) const SizedBox(width: 6),
+                      if (priceTx != null) priceTx,
+                    ],
+                  ),
+                ),
+              ),
             ),
             // Illyustratsiya — qolgan bo'sh joyni egallaydi, kvadrat (max 140).
             // O'lcham LayoutBuilder'dan: FittedBox EMAS — yuklanmagan Image
@@ -285,21 +279,17 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               alignment: Alignment.centerLeft,
               child: Tx(name, size: 17, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 1),
             ),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(flex: 3, child: sub),
-                const SizedBox(width: 6),
-                // Tarif tor kartada (320pt, fr/ru) toshmasin — sig'masa kichrayadi
-                Flexible(
-                  flex: 2,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: FittedBox(fit: BoxFit.scaleDown, child: _priceTx(v, p, module)),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 8),
+            // PASTKI qatori — «N ta yozuv bepul» (PO 2026-09-08). Badge
+            // bo'lmasa ham 22px: to'rttala karta bir xil tuzilma.
+            SizedBox(
+              height: 22,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: freeTx == null
+                    ? const SizedBox.shrink()
+                    : FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: freeTx),
+              ),
             ),
           ],
         ),
@@ -337,37 +327,51 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     return false;
   }
 
-  /// Kartaning yuqori-o'ng chipi (PRO badge o'rnida):
-  ///   bepul, limit tugamagan -> «3/5» hisoblagich (PillBadge.muted)
-  ///   limit tugagan          -> FAQAT qulf ikonkasi (bosilsa paywall)
-  ///   obuna faol / legacy / server qo'llamaydi -> chip yo'q (null)
+  /// Kartaning yuqori-o'ng chipi: FAQAT «Bepul» badge (modul hamma uchun
+  /// bepul bo'lsa — Xarajatlar, PO 2026-09-08). Boshqa modullarda null —
+  /// o'sha joyni TARIF egallaydi (_priceTx).
   ///
-  /// NARX BU YERDA YO'Q (PO 2026-08-04): tarif HAR kartaning sub qatori o'ng
-  /// chetida doimiy turadi (_priceTx). Qulf chipida ham ko'rsatilsa,
-  /// qulflangan modulda bitta karta ichida bir xil narx IKKI marta chiqardi.
+  /// Hisoblagich va qulf endi bu yerda EMAS: ular PASTKI «N ta yozuv bepul»
+  /// badge'iga ko'chdi (_freeChip, PO 2026-09-08) — bitta kartada bir xil
+  /// fakt ikki joyda turmasin.
   Widget? _modChip(Map<String, dynamic> v, Pal p, String module) {
-    final e = _modOf(v, module);
-    if (e == null || e['active'] == true) return null;
-    final used = (e['used'] as int?) ?? 0;
-    final limit = (e['limit'] as int?) ?? 0;
-    final locked = limit > 0 && used >= limit;
-    // Hisoblagich chizilmaydigan hollar (QULF chipi bularga bo'ysunmaydi):
-    //   limit <= 0             — server limitni bilmaydi
-    //   limit > kModChipMaxLimit — env "sinov rejimi" qiymati (render.yaml: 300),
-    //                              «7/300» bosh ekranda ichki qiymatni oshkor qiladi
-    if (!locked && (limit <= 0 || limit > kModChipMaxLimit)) return null;
-    if (!locked) return PillBadge.muted('$used/$limit');
-    // Qulf chipi BOSILADIGAN — paywall'ga qisqa yo'l (2026-08-10 audit: karta
-    // o'zi endi paywall emas, BO'LIMNI ochadi — _card izohi).
+    // Legacy premium bo'lsa ham ko'rinadi: bu tarif haqidagi fakt, holat nishoni emas.
+    if (subsModuleFree(module, v['modSubs'])) {
+      return KeyedSubtree(
+        key: ValueKey('hubFree_$module'),
+        child: PillBadge.mint(modStr('subFree')),
+      );
+    }
+    return null;
+  }
+
+  /// Kartaning PASTKI-CHAP badge'i — «N ta yozuv bepul» (PO 2026-09-08).
+  ///
+  /// DINAMIK: `n` = qolgan bepul yozuvlar (limit − used), manba
+  /// store.subsFreeEntries (server `used`ini o'qiydi) — yozuv qo'shilganda
+  /// o'zi kamayadi. Limit tugaganda coral «Bepul limit tugadi» + qulf
+  /// ikonkasi, BOSILSA paywall (karta o'zi baribir bo'limni ochadi —
+  /// 2026-08-10 audit: qulf KIRISHNI to'smaydi).
+  /// null (badge yo'q): bepul modul, obuna faol, «tez orada», legacy premium.
+  Widget? _freeChip(Map<String, dynamic> v, Pal p, String module) {
+    final e = subsFreeEntries(module, v['modSubs'], legacy: v['modSubsLegacy'] == true);
+    if (e == null) return null;
+    final left = e['left'] ?? 0;
+    if (left > 0) {
+      return KeyedSubtree(
+        key: ValueKey('hubFreeLeft_$module'),
+        child: PillBadge.mint(modStrF('subFreeLeft', {'n': '$left'}), h: 22),
+      );
+    }
     // Ichki Tap tashqi (karta) Tap'dan ustun: gesture arena'da ichki g'olib.
     return Tap(
       key: ValueKey('hubLock_$module'),
       onTap: () => _openPaywall(v, module),
-      child: PillBadge.muted('', icon: Icons.lock_outline_rounded),
+      child: PillBadge.coral(modStr('subFreeOver'), h: 22, icon: Icons.lock_outline_rounded),
     );
   }
 
-  /// Kartaning sub qatori O'NG chetidagi tarif («$5/oy», 12 t4).
+  /// Kartaning YUQORI-O'NG burchagidagi tarif («$5/oy», 12 t4) — chip yonida.
   ///
   /// MANBA — SERVER: modSubs[].price (GET /api/subs/status). Lokal
   /// `kSubModuleDefaults` FAQAT oflayn zaxira (server javob bermadi / legacy
@@ -381,7 +385,10 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   ///
   /// VALYUTA (PO qarori 2026-08-04): `modPriceLabel` avval DO'KON narxini oladi
   /// (foydalanuvchi haqiqatan to'laydigan summa), u bo'lmasa katalog narxini.
-  Widget _priceTx(Map<String, dynamic> v, Pal p, String module) {
+  ///
+  /// BEPUL modulda (subsModuleFree) null — tarif yo'q, «Bepul» badge yuqorida.
+  Widget? _priceTx(Map<String, dynamic> v, Pal p, String module) {
+    if (subsModuleFree(module, v['modSubs'])) return null;
     final price = (_modOf(v, module)?['price'] as int?) ?? modDefPrice(module);
     return Tx(modPriceLabel(module, price), size: 12, w: FontWeight.w500, color: p.t4, tab: true, maxLines: 1);
   }
@@ -510,8 +517,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
               const Expanded(child: Center(child: Skel(w: 72, h: 72, r: 20))),
               const SizedBox(height: 10),
               const Skel(wf: .6, h: 16, r: 6),
-              const SizedBox(height: 6),
-              const Skel(wf: .4, h: 12, r: 6),
+              const SizedBox(height: 8),
+              const Skel(wf: .55, h: 22, r: 999),
             ],
           ),
         ),

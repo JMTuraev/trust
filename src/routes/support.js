@@ -44,6 +44,9 @@ router.post('/telegram-webhook', async (req, res) => {
     // Admin chat id hali sozlanmagan — logga chiqaramiz (bir martalik sozlash yordami)
     if (!config.support.adminChatId) {
       console.log(`SUPPORT: SUPPORT_TG_CHAT_ID o'rnatilmagan. Sizning chat id'ingiz: ${chatId} — Render env'ga qo'ying.`);
+      // Bir martalik sozlash yordami: chat id'ni o'sha chatning o'ziga yozib beramiz
+      // (Render logini ochish shart emas). Admin sozlangach bu tarmoq ishlamaydi.
+      tgSend(chatId, `Trustbook support: bu chat id = ${chatId}\nRender env'ga qo'ying: SUPPORT_TG_CHAT_ID=${chatId}`);
       return;
     }
     if (chatId !== String(config.support.adminChatId)) return; // faqat admin gapiradi

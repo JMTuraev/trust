@@ -11,3 +11,10 @@ key.properties
 # Local build/agent artifacts
 claude_*.txt
 claude_*.bat
+
+# Lokal yordamchi fayllar (agent/tekshiruv chiqishlari)
+flutter_*.bat
+flutter_*_out.txt
+Claude outputs/
+_claude_tmp/
+_to_delete/

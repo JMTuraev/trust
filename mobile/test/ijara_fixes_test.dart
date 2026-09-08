@@ -394,4 +394,58 @@ void main() {
       expect(ijaraRepo.periodTotals.charged, 0);
     });
   });
+  group('023 — telefon maskasi (+998 XX XXX XX XX)', () {
+    test('ketma-ket terishda prefiks o\'zi qo\'yiladi', () {
+      expect(ijPhoneMask('9'), '+998 9');
+      expect(ijPhoneMask('+998 9'), '+998 9');
+      expect(ijPhoneMask('+998 90'), '+998 90');
+      expect(ijPhoneMask('+998 90 1'), '+998 90 1');
+      expect(ijPhoneMask('901234567'), '+998 90 123 45 67');
+    });
+
+    test('998 FAQAT BIR MARTA kesiladi — 99 8xx xx xx yo\'qolmasin', () {
+      // Milliy raqamning o'zi 998 bilan boshlanishi mumkin
+      expect(ijPhoneNat('998998123 45'), '99812345');
+      expect(ijPhoneMask('+998 998 12 34 5'), '+998 99 812 34 5');
+    });
+
+    test('yopishtirilgan raqamlar — turli shakl, bitta natija', () {
+      const want = '+998 90 123 45 67';
+      expect(ijPhoneMask('+998901234567'), want);
+      expect(ijPhoneMask('998901234567'), want);
+      expect(ijPhoneMask('90 123 45 67'), want);
+      expect(ijPhoneMask('(90) 123-45-67'), want);
+      // Ortiqcha raqamlar kesiladi (9 ta milliy raqam)
+      expect(ijPhoneMask('9012345678888'), want);
+    });
+
+    test('bo\'sh kirish — bo\'sh chiqadi (hint ko\'rinsin, bo\'sh raqam saqlanmasin)', () {
+      expect(ijPhoneMask(''), '');
+      expect(ijPhoneMask('   '), '');
+      expect(ijPhoneMask('+998'), '');
+      expect(ijPhoneNat(''), '');
+    });
+
+    test('ijPhoneShow — chet el raqami BUZILMAYDI', () {
+      expect(ijPhoneShow('901234567'), '+998 90 123 45 67');
+      expect(ijPhoneShow('998901234567'), '+998 90 123 45 67');
+      // 11 ta raqam — O'zbekiston shakli emas, o'zgarmaydi
+      expect(ijPhoneShow('+7 495 123 45 67'), '+7 495 123 45 67');
+      expect(ijPhoneShow('ofis'), 'ofis');
+      expect(ijPhoneShow(''), '');
+    });
+
+    test('ijPhoneNorm — chala raqam SAQLANMAYDI, chet el raqami tegilmaydi', () {
+      expect(ijPhoneNorm(''), '');
+      expect(ijPhoneNorm('   '), '');
+      expect(ijPhoneNorm('901234567'), '+998 90 123 45 67');
+      expect(ijPhoneNorm('+998 90 123 45 67'), '+998 90 123 45 67');
+      // Chala — null (xato xabari)
+      expect(ijPhoneNorm('+998 90 12'), isNull);
+      expect(ijPhoneNorm('12345'), isNull);
+      // Chet el — o'zgarmaydi
+      expect(ijPhoneNorm('+7 495 123 45 67'), '+7 495 123 45 67');
+    });
+  });
+
 }

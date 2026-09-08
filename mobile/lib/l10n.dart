@@ -91,7 +91,7 @@ const Map<String, dynamic> lUz = {
   'tReminderSent': 'Eslatma yuborildi — {name} push oladi',
   // OBUNA MATNLARI — 2026-08-04: eski «7 kun bepul, keyin $9/oy» modeli
   // yopildi (TRIAL_DAYS=0 · 2026-07-28), narx endi HAR BO'LIMGA alohida
-  // (xarajat $5, qarz $8, ijarachi $13, to'yxona $24). Shu sababli profil
+  // (xarajat bepul, qarz $8, ijarachi $13, to'yxona $21). Shu sababli profil
   // kartasi va bu satrlar BITTA narxni ATAMAYDI: aniq summa faqat modul
   // paywall'ida va do'kon (StoreKit) narxi bo'lganda ko'rsatiladi.
   'subInfo': 'Har bo\'lim alohida obuna — bepul limitdan keyin faqat kerakli '
@@ -241,6 +241,10 @@ const Map<String, dynamic> lUz = {
   'stCancelledL': 'Bekor qilindi',
   'subPremium': 'Premium',
   'subFree': "Bepul",
+  'xfRingSub': "daromaddan",
+  'xfRingAddInc': "Daromadni kiriting",
+  'subFreeLeft': "{n} ta yozuv bepul",
+  'subFreeOver': "Bepul limit tugadi",
   'supportTitle': "Yordam chati",
   'supportEmpty': "Savol, muammo yoki taklifingizni yozing — jamoamiz shu yerning o'zida javob beradi.",
   'supportHint': "Xabar yozing...",
@@ -292,7 +296,7 @@ const Map<String, dynamic> lUz = {
   'delOtpSentTo': 'Raqamingizga yuborilgan SMS kodni kiriting:',
   'delOtpSentTo2': 'SMS kod yuborildi:',
   'delOtpBtn': 'O\'chirish',
-  // Narx ATAYLAB yo'q (2026-08-04): tarif endi modul-boshiga ($5/$8/$13/$24) —
+  // Narx ATAYLAB yo'q (2026-08-04): tarif endi modul-boshiga (bepul/$8/$13/$21) —
   // bitta qotirilgan narx har doim noto'g'ri bo'ladi. Narx faqat do'kondan keladi.
   'errSubExpired': 'Bepul limit tugagan — davom etish uchun shu bo\'lim obunasi kerak',
   'profPinChange': 'PIN kodni o\'zgartirish',
@@ -470,7 +474,7 @@ const Map<String, dynamic> lUz = {
   'homeTitle': 'Qarz daftari',
   'fltCap': 'DAVR',
   // --- MODUL OBUNALARI (hub chiplari + screens/paywall_sheet.dart) ---
-  // Narxlar: xarajat $5, qarz $8, ijarachi $13, to'yxona $24 (oyiga).
+  // Narxlar: xarajat bepul (2026-09-08), qarz $8, ijarachi $13, to'yxona $21 (oyiga).
   // PO 2026-08-04: 'modIjarachi' EGA tomonidan o'qiladi — «Ijarachi» (tenant)
   // noto'g'ri edi, chunki obunani UY EGASI sotib oladi. Kalit NOMI o'zgarmaydi
   // (backend modul kaliti 'ijarachi', DB check constraint) — faqat QIYMAT.
@@ -812,6 +816,10 @@ const Map<String, dynamic> lRu = {
   'stCancelledL': 'Отменён',
   'subPremium': 'Premium',
   'subFree': "Бесплатно",
+  'xfRingSub': "от дохода",
+  'xfRingAddInc': "Введите доход",
+  'subFreeLeft': "{n} записей бесплатно",
+  'subFreeOver': "Бесплатный лимит исчерпан",
   'supportTitle': "Чат поддержки",
   'supportEmpty': "Напишите вопрос, проблему или предложение — наша команда ответит прямо здесь.",
   'supportHint': "Напишите сообщение...",
@@ -1315,6 +1323,10 @@ const Map<String, dynamic> lEn = {
   'stCancelledL': 'Cancelled',
   'subPremium': 'Premium',
   'subFree': "Free",
+  'xfRingSub': "of income",
+  'xfRingAddInc': "Add income",
+  'subFreeLeft': "{n} free entries",
+  'subFreeOver': "Free limit reached",
   'supportTitle': "Support chat",
   'supportEmpty': "Write your question, problem or suggestion — our team will reply right here.",
   'supportHint': "Write a message...",
@@ -1818,6 +1830,10 @@ const Map<String, dynamic> lEs = {
   'stCancelledL': 'Cancelado',
   'subPremium': 'Premium',
   'subFree': "Gratis",
+  'xfRingSub': "del ingreso",
+  'xfRingAddInc': "Añadir ingreso",
+  'subFreeLeft': "{n} registros gratis",
+  'subFreeOver': "Límite gratuito alcanzado",
   'supportTitle': "Chat de soporte",
   'supportEmpty': "Escribe tu pregunta, problema o sugerencia: nuestro equipo responderá aquí mismo.",
   'supportHint': "Escribe un mensaje...",
@@ -2322,6 +2338,10 @@ const Map<String, dynamic> lFr = {
   'stCancelledL': 'Annulé',
   'subPremium': 'Premium',
   'subFree': "Gratuit",
+  'xfRingSub': "du revenu",
+  'xfRingAddInc': "Ajouter un revenu",
+  'subFreeLeft': "{n} entrées gratuites",
+  'subFreeOver': "Limite gratuite atteinte",
   'supportTitle': "Chat d'assistance",
   'supportEmpty': "Écrivez votre question, problème ou suggestion — notre équipe répondra ici même.",
   'supportHint': "Écrivez un message...",
@@ -2825,6 +2845,10 @@ const Map<String, dynamic> lZh = {
   'stCancelledL': '已取消',
   'subPremium': '高级版',
   'subFree': "免费",
+  'xfRingSub': "占收入",
+  'xfRingAddInc': "录入收入",
+  'subFreeLeft': "免费 {n} 条",
+  'subFreeOver': "免费额度已用完",
   'supportTitle': "支持聊天",
   'supportEmpty': "写下您的问题、疑问或建议 — 我们的团队会在这里回复。",
   'supportHint': "输入消息...",

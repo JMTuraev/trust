@@ -85,6 +85,8 @@ Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body}) as
   } on TimeoutException {
     return ApiRes(false, null, ty('errWaking'), 0);
   } catch (_) {
+    // Ulanish xatosi: asosiy manzil ochilmasa zaxiraga o'tamiz (api.dart) — keyingi so'rov o'sha yerga
+    Api.useFallback();
     return ApiRes(false, null, ty('errNetwork'), 0);
   }
 }

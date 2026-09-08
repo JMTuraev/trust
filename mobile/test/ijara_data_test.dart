@@ -649,6 +649,11 @@ void main() {
         'genTotal', 'genProgress', 'genDoneAll', 'genDonePart',
         'archivedSection', 'unarchive', 'unarchived',
         'tenantChangeNote', 'cancelledCharge',
+        // 023 — ijarachi formasi, pul birligi, to'lov kuni
+        'addTenant', 'newTenant', 'editTenant', 'removeTenant', 'removeTenantBody',
+        'tenantSaved', 'tenantRemoved', 'needTenantName', 'badPhone',
+        'currencyLabel', 'dueDayLabel', 'dueDayPh', 'dueDayNote', 'badDueDay',
+        'dueDayShort', 'dueDayNone', 'rentNotSet', 'houseOnlyNote', 'emptyHouse',
       ];
       for (final e in kIjaraLangs.entries) {
         for (final k in fresh) {
@@ -698,4 +703,47 @@ void main() {
       expect(kIjaraKinds, ['ijara', 'kommunal', 'boshqa']);
     });
   });
+  group('023 — pul birligi va to\'lov kuni', () {
+    test('valyutalar ro\'yxati backend CURRENCIES bilan bir xil', () {
+      expect(kIjaraCurrencies, ['UZS', 'USD']);
+    });
+
+    test('ijCurOf — noma\'lum/bo\'sh qiymat UZS ga tushadi (summa belgisiz qolmasin)', () {
+      expect(ijCurOf('USD'), 'USD');
+      expect(ijCurOf('usd'), 'USD');
+      expect(ijCurOf(' uzs '), 'UZS');
+      expect(ijCurOf('EUR'), 'UZS');
+      expect(ijCurOf(null), 'UZS');
+      expect(ijCurOf(''), 'UZS');
+      expect(ijCurOf(7), 'UZS');
+    });
+
+    test('ijMoneyCur — uy valyutasida chiqadi', () {
+      store.S['lang'] = 'uz';
+      expect(ijMoneyCur(1234567, 'UZS'), "1 234 567 so'm");
+      expect(ijMoneyCur(1200, 'USD'), r'1 200 $');
+      // Ortiqcha to'lov (manfiy) minus bilan — valyuta o'zgarmaydi
+      expect(ijMoneyCur(-500, 'USD'), r'−500 $');
+    });
+
+    test('House.fromJson — currency/due_day o\'qiladi, axlat qiymat 0/UZS bo\'ladi', () {
+      final ok = House.fromJson({
+        'id': 'h1', 'name': 'Uy', 'rent_amount': 3000000,
+        'currency': 'USD', 'due_day': 5,
+      });
+      expect(ok.currency, 'USD');
+      expect(ok.dueDay, 5);
+
+      // Ustun yo'q (eski backend) — UZS va "kelishilmagan"
+      final old = House.fromJson({'id': 'h2', 'name': 'Uy 2'});
+      expect(old.currency, 'UZS');
+      expect(old.dueDay, 0);
+
+      // Chegaradan tashqari kun — 0 (yolg'on muddat yasalmasin)
+      expect(House.fromJson({'id': 'h3', 'name': 'x', 'due_day': 0}).dueDay, 0);
+      expect(House.fromJson({'id': 'h4', 'name': 'x', 'due_day': 32}).dueDay, 0);
+      expect(House.fromJson({'id': 'h5', 'name': 'x', 'due_day': 31}).dueDay, 31);
+    });
+  });
+
 }

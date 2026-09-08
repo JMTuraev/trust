@@ -7,9 +7,23 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'secure.dart';
 
-// Backend manzili. Default — PRODUCTION Render serveri (release APK to'g'ri ishlashi uchun).
-// Lokal test: flutter run --dart-define=API_URL=http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000).
-const String apiUrl = String.fromEnvironment('API_URL', defaultValue: 'https://trust-backend-ft1s.onrender.com');
+// Backend manzili.
+// 2026-09-08: ASOSIY manzil — o'z domenimiz api.trustbook.uz (Cloudflare proxy -> Render).
+// Sabab: O'zbekiston tarmoqlari (Wi-Fi/provayder DNS) onrender.com'ga ba'zan
+// ulanolmaydi — OTP SMS umuman yuborilmasdi. ZAXIRA — eski Render manzili:
+// asosiy manzilga ULANIB BO'LMASA (DNS/TLS/socket xatosi; timeout EMAS — u cold
+// start) Api.base zaxiraga o'tadi va so'rov BIR marta qayta yuboriladi. Ulanish
+// xatosi so'rov serverga yetmasdan chiqadi — POST'ni qayta yuborish xavfsiz.
+// Ilova qayta ochilguncha zaxirada qoladi (sticky).
+// Lokal test: flutter run --dart-define=API_URL=http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000)
+// — API_URL berilsa zaxiraga o'tish O'CHADI (lokal server yiqilsa prod'ga sakramasin).
+const String kApiPrimary = String.fromEnvironment('API_URL', defaultValue: kApiDefault);
+const String kApiDefault = 'https://api.trustbook.uz';
+const String kApiFallback = 'https://trust-backend-ft1s.onrender.com';
+
+/// Joriy backend manzili — barcha so'rovlar shu orqali (eski `apiUrl` nomi saqlandi:
+/// circles_data/ijara_data/toyxona_data/xarajat/store/profil/paywall shuni ishlatadi).
+String get apiUrl => Api.base;
 
 /// Eski (butun ilova) premium obunasining App Store mahsuloti — backend
 /// PREMIUM_PRODUCT_ID bilan AYNAN bir xil. Modul obunalari iap.dart'da.
@@ -33,6 +47,20 @@ class ApiRes {
 
 class Api {
   static String? token;
+  /// Joriy manzil: kApiPrimary, ulanish xatosidan keyin kApiFallback (sticky).
+  static String base = kApiPrimary;
+  static bool get onFallback => base == kApiFallback;
+  /// Zaxiraga o'tish mumkinmi — faqat default (prod) manzilda. Testda/lokalda yo'q.
+  static bool get canFallback => kApiPrimary == kApiDefault && !onFallback;
+  /// Ulanish xatosi qayd etildi (boshqa so'rov yordamchilari ham chaqiradi):
+  /// asosiy manzil ishlamasa zaxiraga o'tamiz. true = o'tildi (qayta urinish mumkin).
+  static bool useFallback() {
+    if (!canFallback) return false;
+    base = kApiFallback;
+    return true;
+  }
+  /// Testlar uchun: manzilni asosiyga qaytarish.
+  static void resetBase() => base = kApiPrimary;
   // Sessiya davomida token muddati o'tsa (401) — store shu callback orqali logout qiladi.
   static void Function()? onUnauthorized;
   // 402 — obuna/kvota to'sig'i. Kod uzatiladi: 'SUB_EXPIRED' (o'zimniki) yoki
@@ -68,9 +96,10 @@ class Api {
     await SecureStore.writeToken(t);
   }
 
-  static Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body, int timeoutSec = 20}) async {
+  static Future<ApiRes> _req(String method, String path,
+      {Map<String, dynamic>? body, int timeoutSec = 20, bool retried = false}) async {
     try {
-      final uri = Uri.parse('$apiUrl$path');
+      final uri = Uri.parse('$base$path');
       final headers = {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
@@ -123,6 +152,11 @@ class Api {
       // Render bepul plan cold-start ~30-50s uxlaydi — buni tarmoq uzilishidan ajratamiz.
       return ApiRes(false, null, errWaking ?? 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
     } catch (_) {
+      // Ulanish xatosi (DNS/TLS/socket) — asosiy manzil ochilmayapti. Zaxiraga o'tib
+      // BIR marta qayta uramiz; so'rov serverga yetmagan, shuning uchun xavfsiz.
+      if (!retried && useFallback()) {
+        return _req(method, path, body: body, timeoutSec: timeoutSec, retried: true);
+      }
       return ApiRes(false, null, errNetwork ?? 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
     }
   }

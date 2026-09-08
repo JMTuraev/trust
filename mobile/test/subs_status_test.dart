@@ -20,8 +20,9 @@ Map<String, dynamic> fullBody() => {
       'legacy_premium': {'active': false, 'until': null},
       'modules': [
         {
-          'module': 'xarajat', 'active': false, 'active_until': null, 'soon': false,
-          'price_usd': 5, 'product_id': 'trust_xarajat_monthly', 'used': 3, 'free_limit': 5,
+          // PO 2026-09-08: Xarajatlar HAMMA uchun bepul — server free:true, active:true, $0
+          'module': 'xarajat', 'active': true, 'free': true, 'active_until': null, 'soon': false,
+          'price_usd': 0, 'product_id': 'trust_xarajat_monthly', 'used': 3, 'free_limit': 0,
         },
         {
           'module': 'qarz', 'active': true, 'active_until': '2026-09-04T00:00:00Z', 'soon': false,
@@ -33,7 +34,7 @@ Map<String, dynamic> fullBody() => {
         },
         {
           'module': 'toyxona', 'active': false, 'active_until': null, 'soon': true,
-          'price_usd': 24, 'product_id': 'trust_toyxona_monthly', 'used': 0, 'free_limit': 0,
+          'price_usd': 21, 'product_id': 'trust_toyxona_monthly', 'used': 0, 'free_limit': 0,
         },
       ],
     };
@@ -48,12 +49,15 @@ void main() {
     test('maydonlar UI kontraktiga mos ko\'chadi (limit=free_limit, price=price_usd)', () {
       final x = mapSubsModules(fullBody()).first;
       expect(x['module'], 'xarajat');
-      expect(x['active'], isFalse);
+      expect(x['active'], isTrue); // bepul modul doim faol
+      expect(x['free'], isTrue);
       expect(x['soon'], isFalse);
       expect(x['used'], 3);
-      expect(x['limit'], 5);
-      expect(x['price'], 5);
+      expect(x['limit'], 0);
+      expect(x['price'], 0);
       expect(x['product'], 'trust_xarajat_monthly');
+      // Pullik modulda free:false
+      expect(mapSubsModules(fullBody())[1]['free'], isFalse);
     });
 
     test('faol modul: active + active_until', () {
@@ -70,7 +74,7 @@ void main() {
         expect(e['limit'], 0);
       }
       expect(m[2]['price'], 13); // ijarachi
-      expect(m[3]['price'], 24); // toyxona
+      expect(m[3]['price'], 21); // toyxona
     });
 
     test('server tartibi teskari bo\'lsa ham UI tartibi barqaror', () {
@@ -109,15 +113,30 @@ void main() {
 
     test('maydonlar yo\'q -> nol/false, narx lokal standartdan', () {
       final m = mapSubsModules({
-        'modules': [{'module': 'xarajat'}],
+        'modules': [{'module': 'qarz'}],
       }).first;
       expect(m['active'], isFalse);
+      expect(m['free'], isFalse);
       expect(m['soon'], isFalse);
       expect(m['used'], 0);
       expect(m['limit'], 0);
-      expect(m['price'], 5); // kSubModuleDefaults
-      expect(m['product'], 'trust_xarajat_monthly'); // ID yo'q -> yasaladi
+      expect(m['price'], 8); // kSubModuleDefaults
+      expect(m['product'], 'trust_qarz_monthly'); // ID yo'q -> yasaladi
       expect(m['until'], isNull);
+      // Xarajat: server free aytmasa ham lokal standart BEPUL -> active:true
+      final x = mapSubsModules({'modules': [{'module': 'xarajat'}]}).first;
+      expect(x['free'], isTrue);
+      expect(x['active'], isTrue);
+      expect(x['price'], 0);
+      // Server free:false desa — server ustun
+      final x2 = mapSubsModules({'modules': [{'module': 'xarajat', 'free': false}]}).first;
+      expect(x2['free'], isFalse);
+      expect(x2['active'], isFalse);
+      // subsModuleFree: ro'yxat -> standart
+      expect(subsModuleFree('xarajat', const []), isTrue);
+      expect(subsModuleFree('xarajat', null), isTrue);
+      expect(subsModuleFree('qarz', const []), isFalse);
+      expect(subsModuleFree('xarajat', [x2]), isFalse);
     });
 
     // PO 2026-08-04: ijarachi/toyxona OCHILDI — lokal standart endi soon:false,
@@ -133,7 +152,7 @@ void main() {
       expect(m[0]['used'], 7); // soon emas -> hisoblagich ko'chadi
       expect(m[0]['limit'], 3);
       expect(m[1]['soon'], isFalse);
-      expect(m[1]['price'], 24);
+      expect(m[1]['price'], 21);
     });
 
     // Mantiq O'ZI joyida qoladi: kelgusida yangi modul "tez orada" bo'lishi
@@ -185,18 +204,19 @@ void main() {
   group('subsPaywallEntry', () {
     test('server qatoridan olinadi', () {
       final mods = mapSubsModules(fullBody());
-      final pw = subsPaywallEntry('xarajat', mods);
-      expect(pw['module'], 'xarajat');
-      expect(pw['price'], 5);
+      final pw = subsPaywallEntry('qarz', mods);
+      expect(pw['module'], 'qarz');
+      expect(pw['price'], 8);
       expect(pw['soon'], isFalse);
-      expect(pw['used'], 3);
+      expect(pw['used'], 12);
       expect(pw['limit'], 5);
-      expect(pw['product'], 'trust_xarajat_monthly');
+      expect(pw['product'], 'trust_qarz_monthly');
     });
 
     test('server ro\'yxatida yo\'q -> lokal standartdan yasaladi', () {
       final pw = subsPaywallEntry('toyxona', const []);
-      expect(pw['price'], 24);
+      expect(pw['price'], 21);
+      expect(pw['free'], isFalse);
       expect(pw['soon'], isFalse); // modul ochiq — paywall'da haqiqiy CTA
       expect(pw['used'], 0);
       expect(pw['limit'], 0);
@@ -331,11 +351,16 @@ void main() {
   });
 
   group('kSubModuleDefaults (kontrakt narxlari)', () {
-    test('xarajat 5, qarz 8, ijarachi 13, toyxona 24', () {
-      expect(kSubModuleDefaults['xarajat']!['price'], 5);
+    test('xarajat bepul (0), qarz 8, ijarachi 13, toyxona 21', () {
+      expect(kSubModuleDefaults['xarajat']!['price'], 0);
+      expect(kSubModuleDefaults['xarajat']!['free'], isTrue);
       expect(kSubModuleDefaults['qarz']!['price'], 8);
       expect(kSubModuleDefaults['ijarachi']!['price'], 13);
-      expect(kSubModuleDefaults['toyxona']!['price'], 24);
+      expect(kSubModuleDefaults['toyxona']!['price'], 21);
+      // Faqat xarajat bepul
+      for (final m in ['qarz', 'ijarachi', 'toyxona']) {
+        expect(kSubModuleDefaults[m]!['free'], isNot(true), reason: '$m bepul bo\'lib qolgan');
+      }
     });
 
     // PO 2026-08-04: To'yxona va Ijaradagi uylar QURILDI — hub'da oddiy menyu,

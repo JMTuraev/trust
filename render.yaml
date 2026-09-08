@@ -121,6 +121,20 @@ services:
         value: "300"
       - key: FREE_EXPENSE_ENTRIES
         value: "300"
+      # ---- Yordam chati -> Telegram (src/routes/support.js) ----
+      # Token/chat id/secret FAQAT Dashboard'da (repo PUBLIC). Chat id: botga (yoki bot
+      # qo'shilgan guruhga) xabar yozing — SUPPORT_TG_CHAT_ID hali yo'q ekan, bot chat id'ni
+      # o'sha chatga o'zi yozib beradi. Secret: ixtiyoriy tasodifiy satr (32+ belgi).
+      - key: SUPPORT_TG_BOT_TOKEN
+        sync: false
+      - key: SUPPORT_TG_CHAT_ID
+        sync: false
+      - key: SUPPORT_TG_WEBHOOK_SECRET
+        sync: false
+      # Webhook manzili: domen tayyor bo'lsa https://api.trustbook.uz, aks holda bo'sh
+      # qoldiring (kod defaulti — onrender manzili).
+      - key: SUPPORT_PUBLIC_URL
+        sync: false
       # Link modeli sozlamalari (ixtiyoriy — defaultlari kodda bor)
       - key: REJECT_SIGNAL_DELAY_HOURS
         value: "24"

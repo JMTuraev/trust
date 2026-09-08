@@ -42,6 +42,13 @@ router.use(requireActiveSub);
 export const KINDS = ['ijara', 'kommunal', 'boshqa'];
 export const STATUSES = ['kutilmoqda', 'tolangan', 'bekor'];
 
+// 023 — uy valyutasi. O'zbekistonda ijara so'mda ham, dollarda ham kelishiladi
+// va bitta egada ikkalasi ham bo'ladi — shuning uchun valyuta PROFILDA emas,
+// HAR UYDA. rent_amount ma'nosi o'zgarmaydi: butun son, shu ro'yxatdagi belgi
+// bilan o'qiladi. Ro'yxat 023 dagi rent_houses_currency_chk bilan bir xil
+// bo'lishi SHART (o'zgartirsangiz ikkalasini birga o'zgartiring).
+export const CURRENCIES = ['UZS', 'USD'];
+
 // QAT'IY chegara — YAGONA manba src/lib/subscription.js (MODULES.ijarachi.max_units).
 // Bu yerda takrorlanmaydi: katalog o'zgarsa route AVTOMATIK ergashadi (022 dagi
 // trigger esa SQL bo'lgani uchun qo'lda sinxronlanadi — o'sha fayldagi izohga qarang).
@@ -94,6 +101,29 @@ function clean(v, n) {
  *  TURGA QAT'IY: JS'da Number(null)===0, Number('')===0, Number([])===0 —
  *  ilgari to'yxonada shu sabab PATCH {amount: null} kelishilgan summani JIMGINA
  *  0 ga tushirardi. Faqat haqiqiy son yoki sof raqamli satr qabul qilinadi. */
+/**
+ * 023 — pul birligi o'quvchi. null/bo'sh -> null ("berilmagan"),
+ * noto'g'ri -> false (chaqiruvchi 400 qaytaradi). `false` va `null` ATAYLAB
+ * farqlanadi: PATCH da "tegilmadi" bilan "xato qiymat" bir xil bo'lib qolmasin.
+ */
+function readCurrency(v) {
+  if (v == null || v === '') return null;
+  const c = String(v).trim().toUpperCase();
+  return CURRENCIES.includes(c) ? c : false;
+}
+
+/**
+ * 023 — oylik to'lov kuni (1..31). null/bo'sh -> null ("kelishilmagan",
+ * DB da NULL), noto'g'ri -> false. 29/30/31 ni RAD ETMAYMIZ — qisqa oyda
+ * dueDateFor uni oyning oxirgi kuniga siqadi.
+ */
+function readDueDay(v) {
+  if (v == null || v === '') return null;
+  const n = Math.round(Number(v));
+  if (!Number.isInteger(n) || n < 1 || n > 31) return false;
+  return n;
+}
+
 export function money(v, { allowZero = false } = {}) {
   let n;
   if (typeof v === 'number') {
@@ -123,6 +153,28 @@ export function isPeriodStr(v) {
   if (typeof v !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return false;
   const y = Number(v.slice(0, 4));
   return y >= 2000 && y <= 2100;
+}
+
+/** Oyning kun soni (1..12 oy raqami bilan). 'YYYY-MM' uchun. */
+export function daysInPeriod(period) {
+  const y = Number(String(period).slice(0, 4));
+  const m = Number(String(period).slice(5, 7));
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/**
+ * Uyning oylik to'lov kuni (due_day) + oy -> 'YYYY-MM-DD' muddat.
+ * 29/30/31 QISQA OYDA OYNING OXIRGI KUNIGA SIQILADI — aks holda fevralda
+ * muddat "31-fevral" bo'lib yaroqsiz sana chiqardi (022 dagi due_date date
+ * ustuni uni rad etardi va butun hisob-kitob yozilmasdan qolardi).
+ * due_day null/noto'g'ri bo'lsa null qaytadi — "muddat kelishilmagan".
+ */
+export function dueDateFor(period, dueDay) {
+  if (!isPeriodStr(period)) return null;
+  const d = Math.round(Number(dueDay));
+  if (!Number.isInteger(d) || d < 1 || d > 31) return null;
+  const day = Math.min(d, daysInPeriod(period));
+  return `${period}-${String(day).padStart(2, '0')}`;
 }
 
 /** 'YYYY-MM-DD' -> 'YYYY-MM'. Oraliq filtri OY aniqligida ishlaydi. */
@@ -407,6 +459,11 @@ function mapHouse(h, totals) {
     tenant_name: h.tenant_name,
     tenant_phone: h.tenant_phone,
     rent_amount: Number(h.rent_amount) || 0,
+    // 023: valyuta HAR DOIM to'ldirilgan (ustun hali qo'shilmagan bo'lsa ham
+    // 'UZS') — mobil summani belgisiz chizib qo'ymasin.
+    currency: CURRENCIES.includes(h.currency) ? h.currency : 'UZS',
+    // 023: to'lov kuni NULL bo'lishi MUMKIN = "kelishilmagan" (eslatma yo'q).
+    due_day: h.due_day == null ? null : Number(h.due_day) || null,
     archived: !!h.archived,
     sort: Number(h.sort) || 0,
     created_at: h.created_at,
@@ -513,7 +570,8 @@ router.get('/houses', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/ijara/houses  { name, tenant_name?, tenant_phone?, rent_amount? }
+// POST /api/ijara/houses
+//   { name, tenant_name?, tenant_phone?, rent_amount?, currency?, due_day? }
 // 5 TA UY — QAT'IY CHEGARA (403). Ikki qatlam: bu tekshiruv + 022 dagi trigger.
 router.post('/houses', async (req, res, next) => {
   try {
@@ -530,6 +588,15 @@ router.post('/houses', async (req, res, next) => {
       }
     }
 
+    const currency = readCurrency(req.body?.currency);
+    if (currency === false) {
+      return res.status(400).json({ success: false, error: "Pul birligi noto'g'ri (UZS / USD)" });
+    }
+    const due_day = readDueDay(req.body?.due_day);
+    if (due_day === false) {
+      return res.status(400).json({ success: false, error: "To'lov kuni noto'g'ri (1-31)" });
+    }
+
     const used = await activeHouseCount(req.user.id);
     if (used >= MAX_HOUSES) return res.status(403).json(houseLimitBody(used));
 
@@ -539,7 +606,8 @@ router.post('/houses', async (req, res, next) => {
     if (ce) throw new Error(ce.message);
 
     const { data, error } = await supabaseAdmin.from('rent_houses').insert({
-      user_id: req.user.id, name, tenant_name, tenant_phone, rent_amount, sort: count || 0,
+      user_id: req.user.id, name, tenant_name, tenant_phone, rent_amount,
+      currency: currency || 'UZS', due_day, sort: count || 0,
     }).select().single();
     if (error) {
       // 2-qatlam: parallel so'rov yuqoridagi sanoqni chetlab o'tgan bo'lsa trigger to'sadi
@@ -551,7 +619,8 @@ router.post('/houses', async (req, res, next) => {
 });
 
 // PATCH /api/ijara/houses/:id
-//   { name?, tenant_name?, tenant_phone?, rent_amount?, archived?, sort? }
+//   { name?, tenant_name?, tenant_phone?, rent_amount?, currency?, due_day?,
+//     archived?, sort? }
 // QAT'IY o'chirish YO'Q — arxivlash (tarix va pul yakuni yo'qolmasin).
 router.patch('/houses/:id', async (req, res, next) => {
   try {
@@ -572,6 +641,22 @@ router.patch('/houses/:id', async (req, res, next) => {
       const a = money(b.rent_amount, { allowZero: true });
       if (a == null) return res.status(400).json({ success: false, error: "Ijara summasi noto'g'ri" });
       patch.rent_amount = a;
+    }
+    // 023: valyuta va to'lov kuni. due_day uchun bo'sh qiymat "tozalash"
+    // (= kelishilmagan) demakdir — tenant_name/phone bilan bir xil qoida.
+    if (b.currency !== undefined) {
+      const c = readCurrency(b.currency);
+      if (c === false || c == null) {
+        return res.status(400).json({ success: false, error: "Pul birligi noto'g'ri (UZS / USD)" });
+      }
+      patch.currency = c;
+    }
+    if (b.due_day !== undefined) {
+      const d = readDueDay(b.due_day);
+      if (d === false) {
+        return res.status(400).json({ success: false, error: "To'lov kuni noto'g'ri (1-31)" });
+      }
+      patch.due_day = d;
     }
     if (b.archived !== undefined) patch.archived = !!b.archived;
     if (b.sort !== undefined) {
@@ -684,6 +769,7 @@ router.post('/charges', requireChargeQuota, async (req, res, next) => {
         return res.status(400).json({ success: false, error: "Muddat noto'g'ri (YYYY-MM-DD)" });
       }
     }
+    const explicitDue = due_date != null;
 
     // period: aniq berilgan > muddat oyi > Toshkent joriy oyi
     let period;
@@ -694,6 +780,13 @@ router.post('/charges', requireChargeQuota, async (req, res, next) => {
       }
     } else {
       period = due_date ? periodOf(due_date) : currentPeriod();
+    }
+
+    // 023: muddat berilmagan bo'lsa uyning to'lov kunidan yasaladi (oy MA'LUM
+    // bo'lgandan KEYIN — shuning uchun period hisoblangandan so'ng turadi).
+    // Aniq berilgan due_date har doim ustun; due_day yo'q bo'lsa null qoladi.
+    if (!explicitDue && house.due_day != null) {
+      due_date = dueDateFor(period, house.due_day);
     }
 
     // Summa: aniq berilgan > uyning ijara haqi. Nol/bo'sh summa yozuv sifatida

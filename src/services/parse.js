@@ -543,7 +543,7 @@ const CAT_HINTS = {
   'Kommunal': 'svet, gaz, suv, internet, telefon, kvartira ijarasi',
   "Ko'ngilochar": "kino, konsert, o'yin, sayohat, dam olish, obunalar",
   'Kiyim': 'kiyim-kechak, poyabzal, aksessuar',
-  'Salomatlik': 'dori, apteka, shifokor, klinika, sport zali',
+  'Salomatlik': 'dori, apteka, shifokor, klinika, tish, analiz (FAQAT tibbiyot)',
   'Boshqa': 'yuqoridagilarning hech biriga mos kelmasa',
 };
 
@@ -561,7 +561,8 @@ QOIDALAR:
 5. Ro'yxatda mos toifa yo'q bo'lsa: category="Boshqa" va new_category_suggestion maydoniga yangi nom taklif qil. Nom uslubi: o'zbekcha, 1-2 so'z, bosh harf bilan, birlikda; juda tor EMAS ("Lavash" emas — "Fastfud"), juda keng EMAS ("Xarajat" emas). Yaxshi misollar: "Ta'lim", "Sovg'a", "Remont", "Sport", "Uy-ro'zg'or", "Go'zallik". Yangi nom ro'yxatdagiga ma'nodosh bo'lsa, taklif QILMA — mavjudini tanla.
 6. confidence: matn aniq bo'lsa 0.9+, summa/ma'no noaniq bo'lsa <0.8.
 7. Aralash gapda har amal yo'nalishini O'Z bo'lagidagi so'zlarga qarab aniqla: "oylik oldim 4 mln kreditga 200 ming berdim" -> daromad 4000000 VA xarajat 200000 (bitta gapdagi boshqa bo'lak so'zlari amal yo'nalishini o'zgartirmasin).
-8. Shevaga bardoshli bo'l: aldim=oldim, bardim=berdim, bazar=bozor, shipoxona=klinika, savdo etdim=xarid qildim. Ekin dori/o'g'it/urug' = Dehqonchilik taklif qil (Salomatlik EMAS).${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
+8. Shevaga bardoshli bo'l: aldim=oldim, bardim=berdim, bazar=bozor, shipoxona=klinika, savdo etdim=xarid qildim. Ekin dori/o'g'it/urug' = Dehqonchilik taklif qil (Salomatlik EMAS).
+9. SALOMATLIK faqat TIBBIYOT: dori, apteka, shifokor, klinika, tish, analiz. Shaxsiy parvarish TIBBIYOT EMAS — sartarosh, soch olish/oldirish, soqol, go'zallik saloni, manikyur, pedikyur, kosmetika, atir = "Go'zallik" taklif qil (Salomatlik EMAS). Sport zali/fitnes = "Sport" taklif qil.${shots ? `\n\nMISOLLAR (shu foydalanuvchining tuzatishlari — uslubiga moslash):\n${shots}` : ''}`;
 }
 
 async function callLlm({ url, key, model, text, categories, fewshots, timeoutMs }) {

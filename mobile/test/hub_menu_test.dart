@@ -116,7 +116,7 @@ void main() {
         'modules': [
           {
             'module': 'toyxona', 'active': false, 'soon': false,
-            'used': 5, 'free_limit': 5, 'price_usd': 24,
+            'used': 5, 'free_limit': 5, 'price_usd': 21,
           },
         ],
       }),
@@ -170,13 +170,15 @@ void main() {
     await t.pump();
   });
 
-  testWidgets('Xarajat paywall\'ida chegara izohi YO\'Q (obyekt tushunchasi yo\'q)',
+  // Qarz — obyekt tushunchasi yo'q modul (xarajat 2026-09-08 dan BEPUL,
+  // uning paywall'i umuman ochilmaydi — pastdagi test).
+  testWidgets('Qarz paywall\'ida chegara izohi YO\'Q (obyekt tushunchasi yo\'q)',
       (t) async {
     _atHub();
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
-    store.openPaywall_('xarajat');
+    store.openPaywall_('qarz');
     await t.pump();
     expect(find.byType(PaywallSheet), findsOneWidget);
     expect(find.text(lUz['pwCapIjara'] as String), findsNothing);
@@ -184,6 +186,17 @@ void main() {
 
     store.paywallClose_();
     await t.pump();
+  });
+
+  testWidgets('Xarajat BEPUL (PO 2026-09-08) — paywall OCHILMAYDI', (t) async {
+    _atHub();
+    await t.pumpWidget(const TrustApp());
+    await t.pump();
+
+    store.openPaywall_('xarajat');
+    await t.pump();
+    expect(find.byType(PaywallSheet), findsNothing);
+    expect(store.S['paywall'], isNull);
   });
 
   // Tor ekran (320pt) + eng uzun tarjimalar: karta ichidagi hech narsa toshib
@@ -210,7 +223,7 @@ void main() {
             },
             {
               'module': 'toyxona', 'active': false, 'soon': false,
-              'used': 1, 'free_limit': 1, 'price_usd': 24, // qulf + «$24/oy»
+              'used': 1, 'free_limit': 1, 'price_usd': 21, // qulf + «$21/oy»
             },
           ],
         }),
@@ -222,8 +235,9 @@ void main() {
       expect(t.takeException(), isNull, reason: '$lang: overflow/xato');
       final name = kLangs[lang]!['modToyxona'] as String;
       expect(find.text(name), findsOneWidget, reason: '$lang: To\'yxona kartasi yo\'q');
-      expect(find.text(kLangs[lang]!['modToyxonaDesc'] as String), findsOneWidget,
-          reason: '$lang: tavsif yo\'q');
+      // Nom ostida sub matn (tavsif) YO'Q — PO 2026-09-08
+      expect(find.text(kLangs[lang]!['modToyxonaDesc'] as String), findsNothing,
+          reason: '$lang: tavsif hali chiqyapti');
     });
   }
 

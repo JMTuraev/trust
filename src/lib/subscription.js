@@ -1,7 +1,7 @@
 // Obuna (subscription) — YAGONA haqiqat manbai (server-side).
 //
 // MODUL OBUNALARI (PO 2026-08-04) — yagona $9 premium o'rniga HAR MODUL alohida:
-//   xarajat $5/oy · qarz $8/oy · ijarachi (Ijaradagi uylar) $13/oy · toyxona $24/oy.
+//   xarajat BEPUL (PO 2026-09-08: hamma uchun doim) · qarz $8/oy · ijarachi (Ijaradagi uylar) $13/oy · toyxona $21/oy.
 //   Chegaralar: ijarachi maks 5 uy, toyxona 1 ta to'yxona (MODULES.max_units) —
 //   ko'proq kerak bo'lsa alohida akkaunt (PO 2026-08-04, «har zalga» modeli bekor).
 //   Bepul tarif: har modulda 5 ta yozuv (mobil menyu kartalarida "0/5"), keyin paywall.
@@ -42,13 +42,16 @@ export const PREMIUM_PRODUCT_ID = 'trust_premium_monthly';
 // alohida ro'yxatdan o'tadi (PO: "bu bizga muammo emas") — ya'ni tiered SKU ham kerak emas.
 //   max_units — obuna qoplaydigan obyektlar soni. Majburlash MODUL route'larida
 //   (toyxona: halls, ijarachi: rent_houses) — bu yerda faqat yagona manba sifatida turadi.
+//   free:true — modul HAMMA uchun DOIM bepul (PO 2026-09-08: Xarajatlar). Kvota
+//   majburlanmaydi, sotib bo'lmaydi (400), /status'da active:true + free:true qaytadi
+//   (eski mobil versiyalar ham «obuna faol» deb ko'radi — qulf/hisoblagich yo'q).
 export const MODULES = {
-  xarajat:  { price_usd: 5,  product_id: 'trust_xarajat_monthly' },
+  xarajat:  { price_usd: 0,  product_id: 'trust_xarajat_monthly', free: true },
   qarz:     { price_usd: 8,  product_id: 'trust_qarz_monthly' },
   // "Ijaradagi uylar" (PO 2026-08-04 nomi) — kalit 'ijarachi' saqlanadi: u 020 dagi
   // check-constraint'da qatnashadi va ko'rinadigan nom l10n'dan keladi.
   ijarachi: { price_usd: 13, product_id: 'trust_ijarachi_monthly', max_units: 5 },
-  toyxona:  { price_usd: 24, product_id: 'trust_toyxona_monthly', max_units: 1 },
+  toyxona:  { price_usd: 21, product_id: 'trust_toyxona_monthly', max_units: 1 },
 };
 // ≤ WARN_DAYS kun qolganda mobil "To'lov muddati yaqinlashdi" bannerini ko'rsatadi (faqat premium)
 export const WARN_DAYS = 3;
@@ -254,6 +257,11 @@ export function productIdForModule(module) {
   return MODULES[module]?.product_id ?? null;
 }
 
+/** Modul hamma uchun doim bepulmi (MODULES[].free)? Kvota va xarid unga qo'llanmaydi. */
+export function isFreeModule(module) {
+  return !!MODULES[module]?.free;
+}
+
 /** userId uchun `module` faolmi? Legacy premium (profiles.premium_until kelajakda) —
  *  grandfather: BARCHA modullar uchun faol hisoblanadi. */
 export async function isModuleActive(userId, module) {
@@ -322,7 +330,8 @@ export async function getModulesStatus(userId, now = new Date()) {
     const own = byModule.get(module);
     const ownUntil = own?.active_until ? new Date(own.active_until) : null;
     const ownActive = !!(ownUntil && ownUntil > now);
-    const active = legacyActive || ownActive;
+    // Bepul modul (free:true) — DOIM faol: hisoblagich/qulf/paywall yo'q.
+    const active = !!cfg.free || legacyActive || ownActive;
     // active_until — ko'rsatish uchun eng uzoq muddat (legacy va modul obunasidan kattasi)
     let activeUntil = null;
     if (active) {
@@ -343,6 +352,7 @@ export async function getModulesStatus(userId, now = new Date()) {
     return {
       module,
       active,
+      free: !!cfg.free,
       active_until: activeUntil,
       soon: !!cfg.soon,
       price_usd: cfg.price_usd,
@@ -381,6 +391,7 @@ export const requireWriteAccess = requireActiveSub;
  *  ("5 bepul" va'dasi buzilardi). Shuning uchun kvota BUTUN TO'PLAM bo'yicha sanaladi. */
 export async function expenseQuotaBlock(userId, n = 1) {
   if (n <= 0) return null;
+  if (isFreeModule('xarajat')) return null; // PO 2026-09-08: Xarajatlar hamma uchun bepul
   if (await isModuleActive(userId, 'xarajat')) return null;
   // 020 qo'llanmagan -> obuna sotib bo'lmaydi -> kvota majburlanmaydi (xavfsizlik klapani)
   if (!(await moduleSubsAvailable(userId))) return null;

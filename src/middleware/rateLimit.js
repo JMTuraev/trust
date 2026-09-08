@@ -1,6 +1,8 @@
 // Oddiy xotira-ichi rate limit (bitta instans uchun yetarli — Render/VPS).
 // Har rateLimit() O'Z bucket'iga ega — endpoint chegaralari bir-birini yemaydi
 // (aks holda global /api limiter va /parse limiter bitta bucketni ikki marta sanardi).
+import { clientIp } from '../services/clientIp.js';
+
 const allBuckets = [];
 
 // global:true — IP bo'yicha emas, BUTUN servis bo'yicha yagona hisoblagich.
@@ -9,7 +11,8 @@ export function rateLimit({ windowMs = 60_000, max = 10, global = false } = {}) 
   const buckets = new Map();
   allBuckets.push(buckets);
   return (req, res, next) => {
-    const key = global ? '__all__' : (req.ip || 'unknown');
+    // Cloudflare ortida req.ip = chekka IP — haqiqiy klient clientIp() dan (services/clientIp.js)
+    const key = global ? '__all__' : clientIp(req);
     const now = Date.now();
     let b = buckets.get(key);
     if (!b || now - b.start > windowMs) {

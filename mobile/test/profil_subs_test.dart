@@ -31,19 +31,24 @@ void _atProfil({
 }
 
 /// Server javobi -> 'modSubs' qatorlari (store'dagi sof funksiya bilan).
-List<Map<String, dynamic>> _mods({int xarUsed = 3, int xarLimit = 5}) =>
+/// Xarajatlar HAMMA uchun bepul (PO 2026-09-08) — hisoblagich holatlari
+/// Ijaradagi uylar (ijUsed/ijLimit) orqali tekshiriladi.
+List<Map<String, dynamic>> _mods({int ijUsed = 3, int ijLimit = 5}) =>
     mapSubsModules({
       'modules': [
         {
-          'module': 'xarajat', 'active': false, 'soon': false,
-          'used': xarUsed, 'free_limit': xarLimit, 'price_usd': 5,
+          'module': 'xarajat', 'active': true, 'free': true, 'soon': false,
+          'used': 3, 'free_limit': 0, 'price_usd': 0,
         },
         {
           'module': 'qarz', 'active': true, 'soon': false,
           'active_until': _kQarzUntil, 'price_usd': 8,
         },
-        {'module': 'ijarachi', 'active': false, 'soon': false, 'price_usd': 13},
-        {'module': 'toyxona', 'active': false, 'soon': false, 'price_usd': 24},
+        {
+          'module': 'ijarachi', 'active': false, 'soon': false,
+          'used': ijUsed, 'free_limit': ijLimit, 'price_usd': 13,
+        },
+        {'module': 'toyxona', 'active': false, 'soon': false, 'price_usd': 21},
       ],
     });
 
@@ -80,16 +85,19 @@ void main() {
 
     // qarz — faol, tugash sanasi bilan
     expect(find.text('Faol · ${_localDate(_kQarzUntil)} gacha'), findsOneWidget);
-    // xarajat — bepul, ma'noli limit (3/5) -> hisoblagich ko'rinadi
+    // xarajat — HAMMA uchun bepul: holat «Bepul» + mint pill «Bepul»
+    // (profil sarlavhasida ham «Bepul» reja matni bor -> kamida 2 ta)
+    expect(find.text(_uz('subFree')), findsAtLeastNWidgets(2));
+    // ijarachi — bepul reja, ma'noli limit (3/5) -> hisoblagich ko'rinadi
     expect(find.text('3/5 bepul yozuv ishlatildi'), findsOneWidget);
-    // Faol bo'lmagan 3 ta bo'limda CTA (faol qarzda YO'Q)
-    expect(find.text(_uz('subModSubscribe')), findsNWidgets(3));
+    // Faol bo'lmagan 2 ta pullik bo'limda CTA (faol qarz va bepul xarajatda YO'Q)
+    expect(find.text(_uz('subModSubscribe')), findsNWidgets(2));
     // Hech qachon obuna bo'lmagan odamga «Obunani yangilash» chiqmaydi
     expect(find.text(_uz('subRenew')), findsNothing);
   });
 
   testWidgets('limit tugagan bo\'lim — «Bepul limit tugagan»', (t) async {
-    _atProfil(mods: _mods(xarUsed: 5, xarLimit: 5));
+    _atProfil(mods: _mods(ijUsed: 5, ijLimit: 5));
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
@@ -98,7 +106,7 @@ void main() {
   });
 
   testWidgets('production limiti (300) — hisoblagich CHIZILMAYDI', (t) async {
-    _atProfil(mods: _mods(xarUsed: 7, xarLimit: 300));
+    _atProfil(mods: _mods(ijUsed: 7, ijLimit: 300));
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
@@ -123,8 +131,9 @@ void main() {
     // Eski sarlavha AYNAN avvalgidek
     expect(find.text('Premium · ${_localDate(_kPremUntil)} gacha'), findsOneWidget);
     expect(find.text(_uz('subPremiumBody')), findsOneWidget);
-    // Har bir modul — premiumga kiritilgan, sotib olish CTAsi YO'Q
-    expect(find.text(_uz('subModLegacy')), findsNWidgets(4));
+    // Pullik 3 modul — premiumga kiritilgan; xarajat «Bepul»; sotib olish CTAsi YO'Q
+    expect(find.text(_uz('subModLegacy')), findsNWidgets(3));
+    expect(find.text(_uz('subFree')), findsAtLeastNWidgets(2));
     expect(find.text(_uz('subModSubscribe')), findsNothing);
     // Boshqarish tugmasi joyida
     expect(find.text(_uz('subManage')), findsOneWidget);

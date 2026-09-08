@@ -222,15 +222,73 @@ Map<String, Map<String, dynamic>> bumpNotifCounts(Map counts, String partnerId,
 /// MODULES) ham `soon` bayrog'ini tashladi — shu ikki manba SINXRON qoladi.
 /// Obyekt chegaralari: ijarachi — 5 uy, toyxona — 1 to'yxona (paywall'da
 /// aytiladi: screens/paywall_sheet.dart, kModCapUnits).
+/// free:true — modul HAMMA uchun DOIM bepul (PO 2026-09-08: Xarajatlar):
+/// hub'da «Bepul» badge, hisoblagich/qulf/paywall yo'q, tarif chizilmaydi.
+/// Server ham shu bayroqni yuboradi (GET /api/subs/status modules[].free);
+/// bu yerdagi qiymat — oflayn zaxira. Yagona haqiqat: subsModuleFree().
 const Map<String, Map<String, dynamic>> kSubModuleDefaults = {
-  'xarajat': {'price': 5, 'soon': false},
+  'xarajat': {'price': 0, 'soon': false, 'free': true},
   'qarz': {'price': 8, 'soon': false},
   'ijarachi': {'price': 13, 'soon': false},
-  'toyxona': {'price': 24, 'soon': false},
+  'toyxona': {'price': 21, 'soon': false},
 };
+
+/// Modul hamma uchun bepulmi? Server yozuvi (`modSubs[].free`) ustun, u
+/// bo'lmasa lokal standart (kSubModuleDefaults). `mods` — store.vals()['modSubs']
+/// yoki istalgan ro'yxat; boshqa shakl bo'lsa standartga tushadi.
+bool subsModuleFree(String module, dynamic mods) {
+  if (mods is List) {
+    for (final e in mods) {
+      if (e is Map && e['module'] == module) return e['free'] == true;
+    }
+  }
+  return kSubModuleDefaults[module]?['free'] == true;
+}
 
 /// Kartalar tartibi — server qanday tartibda yuborsa ham UI barqaror qoladi.
 const List<String> kSubModuleOrder = ['xarajat', 'qarz', 'ijarachi', 'toyxona'];
+
+/// Bepul yozuvlar soni — UI KO'RSATADIGAN tarif (PO 2026-09-08: har modulda 5).
+///
+/// NEGA QOTIRILGAN ZAXIRA: production'da render.yaml FREE_*_ENTRIES = "300"
+/// (Play Billing ulanmaguncha hech kim to'siqqa urilmasin), ya'ni server
+/// `free_limit` TARIF emas, ichki sinov qiymati. Kartada foydalanuvchiga
+/// TARIF aytiladi. Billing yoqilganda render.yaml 5 ga qo'yilsa — server
+/// qiymati ishonchli bo'ladi va o'zi ishlatiladi (subsFreeEntries).
+const int kSubFreeEntries = 5;
+
+/// Hub kartasi pastidagi «N ta yozuv bepul» badge'i uchun hisob.
+///
+/// Qaytadi: {limit, used, left} — `left` = qolgan bepul yozuvlar (>= 0).
+/// null = badge UMUMAN chizilmaydi:
+///   - modul hamma uchun bepul (xarajat) — yuqorida «Bepul» badge bor
+///   - obuna FAOL yoki «tez orada»
+///   - eski umumiy premium (legacy: hamma modul ochiq)
+///
+/// LIMIT MANBASI: server `free_limit` FAQAT ishonchli bo'lsa
+/// (0 < limit <= kSubLimitDisplayMax), aks holda kSubFreeEntries.
+/// USED MANBASI: har doim server (shuning uchun badge DINAMIK — yozuv
+/// qo'shilganda o'zi kamayadi). Server yozuvi bo'lmasa used=0, ya'ni
+/// kartada tarif fakti («5 ta yozuv bepul») turadi.
+Map<String, int>? subsFreeEntries(String module, dynamic mods, {bool legacy = false}) {
+  if (legacy) return null;
+  if (subsModuleFree(module, mods)) return null;
+  var limit = kSubFreeEntries;
+  var used = 0;
+  if (mods is List) {
+    for (final e in mods) {
+      if (e is! Map || e['module'] != module) continue;
+      if (e['active'] == true || e['soon'] == true) return null;
+      final l = _subInt(e['limit']);
+      if (l > 0 && l <= kSubLimitDisplayMax) limit = l;
+      final u = _subInt(e['used']);
+      if (u > 0) used = u;
+      break;
+    }
+  }
+  final left = limit - used;
+  return {'limit': limit, 'used': used, 'left': left < 0 ? 0 : left};
+}
 
 /// Hisoblagichni KO'RSATISH shifti (faqat UI uchun — ma'lumot KLAMP QILINMAYDI).
 ///
@@ -285,10 +343,14 @@ List<Map<String, dynamic>> mapSubsModules(dynamic raw) {
     // modullar ochiq — hech biri "tez orada" emas; mantiq esa joyida qoladi,
     // kelgusi modul qo'shilsa yana kerak bo'ladi)
     final soon = m['soon'] == true || (m['soon'] == null && def?['soon'] == true);
+    // free: server aytmasa lokal standart (xarajat — PO 2026-09-08). Bepul modul
+    // DOIM faol hisoblanadi: hisoblagich/qulf mantiqi unga tegmaydi.
+    final free = m['free'] == true || (m['free'] == null && def?['free'] == true);
     final pid = '${m['product_id'] ?? ''}'.trim();
     out.add({
       'module': name,
-      'active': m['active'] == true,
+      'active': free || m['active'] == true,
+      'free': free,
       'soon': soon,
       'used': soon ? 0 : _subInt(m['used']),
       'limit': soon ? 0 : _subInt(m['free_limit']),
@@ -383,6 +445,7 @@ Map<String, dynamic> subsPaywallEntry(String module, List<Map<String, dynamic>> 
   return {
     'module': module,
     'price': _subInt(def?['price']),
+    'free': def?['free'] == true,
     'soon': def?['soon'] == true,
     'used': 0,
     'limit': 0,
@@ -525,9 +588,30 @@ class TrustStore extends ChangeNotifier {
   bool _hydrating = false;
   final Map<String, bool> _opsSeen = {};
 
+  /// LOKAL xarajat o'zgarishlari hisoblagichi (qo'shish/o'chirish/tahrir).
+  /// hydrate so'rov yuborishdan oldin qiymatni oladi va javob kelganda
+  /// solishtiradi — oraliqda o'zgarish bo'lgan bo'lsa serverning ESKI ro'yxati
+  /// qo'llanmaydi (aks holda yangi yozuv ko'rinib, keyin «yo'qolib» qolardi).
+  int _xarSeq = 0;
+
+  /// Serverdan kelgan ro'yxatni qo'yayotgan payt — hisoblagich oshmaydi.
+  bool _xarFromServer = false;
+
   void set(Map<String, dynamic> patch) {
+    if (patch.containsKey('xarEntries') && !_xarFromServer) _xarSeq++;
     S.addAll(patch);
     notifyListeners();
+  }
+
+  /// Serverdan kelgan xarajat ro'yxatini qo'llash (lokal o'zgarish sifatida
+  /// SANALMAYDI) — hydrate va davr almashtirish shuni ishlatadi.
+  void _setFromServer(Map<String, dynamic> patch) {
+    _xarFromServer = true;
+    try {
+      set(patch);
+    } finally {
+      _xarFromServer = false;
+    }
   }
 
   Future<void> init() async {
@@ -863,14 +947,21 @@ class TrustStore extends ChangeNotifier {
     try {
       // Xarajatlar tanlangan davr bo'yicha tortiladi (polling ham shu davrni
       // saqlaydi — aks holda filtrlangan ro'yxat standart javob bilan yuvilardi)
+      // Lokal o'zgarish qorovuli (2026-09-08 bug): so'rovlar YUBORILGANDAN keyin
+      // foydalanuvchi yozuv qo'shsa/o'chirsa, serverdan kelayotgan ESKI ro'yxat
+      // uni «yuvib» ketardi — yozuv paydo bo'lib, keyin yo'qolib, keyingi
+      // yuklashda yana qaytardi (PO shu holatni ko'rdi: oylik kiritdi -> yo'qoldi
+      // -> qayta kirganda bor edi). Endi javob eskirgan bo'lsa xarEntries
+      // UMUMAN qo'llanmaydi — keyingi poll (15s) yoki ekranga qaytish yangilaydi.
+      final seq0 = _xarSeq;
       final rs = await Future.wait([
-        Api.partners(), Api.notifications(), _xfFetchExpenses(), Api.getLimit(), Api.links(),
+        Api.partners(), Api.notifications(), _xfFetchExpenses(), Api.links(),
         Api.notifCounts(),
         // Chat unread counts only while the chat UI exists (kChatEnabled) —
         // with the flag off this request was dead weight on every 15s poll.
         if (kChatEnabled) Api.unreadCounts(),
       ]);
-      final pr = rs[0], nr = rs[1], er = rs[2], lr = rs[3], kr = rs[4], cr = rs[5];
+      final pr = rs[0], nr = rs[1], er = rs[2], kr = rs[3], cr = rs[4];
       var plist = <Map<String, dynamic>>[];
       final patch = <String, dynamic>{};
       if (pr.ok && pr.data is List) {
@@ -891,7 +982,7 @@ class TrustStore extends ChangeNotifier {
       }
       if (kChatEnabled) {
         // O'qilmagan xabarlar (badge) — hamkor qatorlarida ko'rinadi
-        final ur = rs[6];
+        final ur = rs[5];
         if (ur.ok && ur.data is Map) {
           patch['msgUnread'] = (ur.data as Map).map((k, v) => MapEntry('$k', _numToInt(v)));
         }
@@ -899,16 +990,14 @@ class TrustStore extends ChangeNotifier {
       if (nr.ok && nr.data is List) {
         patch['notifs'] = (nr.data as List).cast<Map<String, dynamic>>().map(_mapNotif).toList();
       }
-      if (er.ok && er.data is List) {
+      // Qorovul: so'rov yuborilgandan beri lokal o'zgarish bo'lmagan bo'lsagina
+      if (er.ok && er.data is List && _xarSeq == seq0) {
         patch['xarEntries'] = (er.data as List).cast<Map<String, dynamic>>().map(_mapExpense).toList();
-      }
-      if (lr.ok && lr.data is Map) {
-        patch['xarLimit'] = _numToInt((lr.data as Map)['monthly_limit']);
       }
       if (kr.ok && kr.data is List) {
         patch['links'] = (kr.data as List).cast<Map<String, dynamic>>().map(_mapLink).toList();
       }
-      if (patch.isNotEmpty) set(patch);
+      if (patch.isNotEmpty) _setFromServer(patch);
 
       // Modul obunalari (hisoblagich + qulf) — hub ma'lumoti bilan bir oqimda,
       // lekin ALOHIDA va throttle bilan: bu so'rov yiqilsa hydrate buzilmaydi.
@@ -1357,6 +1446,8 @@ class TrustStore extends ChangeNotifier {
   /// Modul paywall'ini ochish (hub kartasi qulfi yoki 402 javobi).
   void openPaywall_(String module) {
     if (module.isEmpty) return;
+    // Bepul modulda (Xarajatlar, PO 2026-09-08) paywall YO'Q — sotib olinmaydi
+    if (subsModuleFree(module, _modSubs())) return;
     set({'paywall': subsPaywallEntry(module, _modSubs())});
   }
 
@@ -2744,7 +2835,7 @@ class TrustStore extends ChangeNotifier {
       return;
     }
     final list = (r.data as List).cast<Map<String, dynamic>>().map(_mapExpense).toList();
-    set({'xarEntries': list});
+    _setFromServer({'xarEntries': list});
     // 1000 ta server-cheklovga urilish — HAR davr uchun halol ogohlantirish
     // (katta oy/uzun custom ham jim kesilmasin; reviewer, 2026-08-04)
     if (list.length >= 1000) {
@@ -3173,21 +3264,6 @@ class TrustStore extends ChangeNotifier {
     set({'xfTray': tray.where((x) => x['id'] != id).toList()});
     // confirm orqali saqlaymiz — parsed bilan birga (lug'at o'rganadi: keyingi safar AI o'zi topadi)
     await _xcConfirm(t['src'] as String, 'text', [a], [Map<String, dynamic>.from(t['action'] as Map)]);
-  }
-
-  Future<void> limSave_() async {
-    final v = int.tryParse((S['limEdit'] ?? '') as String) ?? 0;
-    if (v == 0) {
-      toast_(L()['tSum']);
-      return;
-    }
-    final r = await Api.setLimit(v);
-    if (!r.ok) {
-      toast_(r.error);
-      return;
-    }
-    set({'xarLimit': v, 'limEdit': null});
-    toast_(L()['tLimitUpdated']);
   }
 
   // ---------------- Onboarding — real OTP (SMS) ----------------
@@ -4098,13 +4174,6 @@ class TrustStore extends ChangeNotifier {
         .toList()
       ..sort((a, b) => (b['v'] as int).compareTo(a['v'] as int));
     final maxCat = perCat.isNotEmpty ? perCat[0]['v'] as int : 1;
-    final monthOut = entries.where((e) => e['kind'] == 'x' && (e['days'] as int) < 30).fold<int>(0, (s, e) => s + (e['a'] as int));
-    final lim = S['xarLimit'] as int;
-    final ratio = lim > 0 ? monthOut / lim : 0.0;
-    final limOver = ratio > 1;
-    final limNear = !limOver && ratio >= 0.8;
-    final limHot = limOver || limNear;
-    final limRem = (lim - monthOut).abs();
 
     // Chat items
     final chron = entries.reversed.toList()
@@ -4150,28 +4219,9 @@ class TrustStore extends ChangeNotifier {
     final nowM = DateTime.now().month - 1;
 
     return {
-      'limPct': math.min(100, (ratio * 100).round()),
-      'limPctTxt': '${(ratio * 100).round()}%',
-      'limBar': limHot ? red : ink,
-      'limRemainC': limHot ? red : mut,
-      'limSpentTxt': money(monthOut, 'UZS'),
-      'limTotTxt': money(lim, 'UZS'),
-      'limRemainTxt': lim == 0
-          ? (L()['limitNone'] as String)
-          : (limOver ? (L()['limitOver'] as String) : Lf('limitLeftPfx', {'a': '${money(limRem, 'UZS')}'})),
-      'limNoteTxt': lim == 0
-          ? (L()['limitNoteNone'] as String)
-          : limOver
-              ? Lf('limitOverBy', {'n': '${money(limRem, 'UZS')}'})
-              : limNear
-                  ? Lf('limitNearLeft', {'a': '${money(limRem, 'UZS')}'})
-                  : Lf('limitLeftPfx', {'a': '${money(limRem, 'UZS')}'}),
-      'limBtnTxt': S['limEdit'] != null ? (L()['btnCancelShort'] as String) : (L()['btnChange'] as String),
-      'limEditOpen': S['limEdit'] != null,
-      'limEditVal': S['limEdit'] ?? '',
-      'limEditSet': (String t) => set({'limEdit': t.replaceAll(RegExp(r'[^\d]'), '')}),
-      'limSave': () => limSave_(),
-      'limEditToggle': () => set({'limEdit': S['limEdit'] == null ? (S['xarLimit']).toString() : null}),
+      // OYLIK LIMIT OLIB TASHLANDI (PO 2026-09-08): «chegara» qiymati
+      // o'zboshimcha edi va foydalanuvchiga hech narsa bermasdi. O'rniga
+      // xarajat/daromad halqasi — xfRingPct (pastda, xfInVal bilan yonma-yon).
       'xtChat': S['xarTab'] == 'chat', 'xtHisobot': S['xarTab'] == 'hisobot',
       'xarTabs': [['chat', L()['tabChat'] as String], ['hisobot', L()['segReports'] as String]]
           .map((kv) => {
@@ -4411,6 +4461,13 @@ class TrustStore extends ChangeNotifier {
           'xfBalVal': xfBal.abs(),
           'xfInVal': xfTin,
           'xfOutVal': xfTout,
+          // «Daromaddan» halqasi (PO 2026-09-08 — oylik limit o'rniga):
+          // davr XARAJATI davr DAROMADIGA nisbatan. Daromad yo'q bo'lsa halqa
+          // bo'sh/kulrang va «Daromad kiriting» chaqirig'i turadi (xfIncOpen).
+          // Foiz KLAMP QILINMAYDI — 100 dan oshsa ham rost ko'rsatiladi.
+          'xfRingHasInc': xfTin > 0,
+          'xfRingPct': xfTin > 0 ? (xfTout / xfTin * 100).round() : 0,
+          'xfIncOpen': () => set({'xfDetail': 'Daromad', 'xfIncSub': null}),
           'xfBalPos': xfBal >= 0,
           'xfInTxt': '+${_fx(xfTin)}',
           'xfOutTxt': '−${_fx(xfTout)}',
@@ -4571,6 +4628,7 @@ class TrustStore extends ChangeNotifier {
           return <String, dynamic>{
             'xfMonth': '', 'xfBalCap': 'BALANS', 'xfBalTxt': '+0', 'xfBalPos': true,
             'xfBalVal': 0, 'xfInVal': 0, 'xfOutVal': 0,
+            'xfRingHasInc': false, 'xfRingPct': 0, 'xfIncOpen': () {},
             'xfInTxt': '+0', 'xfOutTxt': '−0',
             'xfInFolders': <Map<String, dynamic>>[], 'xfOutFolders': <Map<String, dynamic>>[],
             'xfEmptyAll': true, 'xfDetailOpen': false, 'xfDEmoji': '', 'xfDName': '',

@@ -30,6 +30,8 @@ Future<ApiRes> _circlesReq(String method, String path) async {
   } on TimeoutException {
     return ApiRes(false, null, 'Server uyg\'onmoqda — biroz kuting va qayta urinib ko\'ring', 0);
   } catch (_) {
+    // Ulanish xatosi: asosiy manzil ochilmasa zaxiraga o'tamiz (api.dart) — keyingi so'rov o'sha yerga
+    Api.useFallback();
     return ApiRes(false, null, 'Server bilan aloqa yo\'q — internetni tekshiring', 0);
   }
 }

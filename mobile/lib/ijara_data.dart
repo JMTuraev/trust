@@ -82,6 +82,8 @@ Future<ApiRes> _req(String method, String path, {Map<String, dynamic>? body}) as
   } on TimeoutException {
     return ApiRes(false, null, ij('errWaking'), 0);
   } catch (_) {
+    // Ulanish xatosi: asosiy manzil ochilmasa zaxiraga o'tamiz (api.dart) — keyingi so'rov o'sha yerga
+    Api.useFallback();
     return ApiRes(false, null, ij('errNetwork'), 0);
   }
 }
@@ -101,7 +103,30 @@ String ijFx(num v) {
 
 /// "1 234 567 so'm" — moliyaviy matn hech qachon kesilmaydi.
 /// Manfiy qiymat (ortiqcha to'lov) minus bilan ko'rsatiladi.
+/// DIQQAT: bu UY VALYUTASINI BILMAYDI — uy konteksti bor joyda
+/// `ijMoneyCur(v, house.currency)` ishlatiladi (023).
 String ijMoney(num v) => '${v < 0 ? '−' : ''}${ijFx(v)} ${ij('som')}';
+
+/// 023 — qo'llab-quvvatlanadigan valyutalar. Backend CURRENCIES va
+/// 023 dagi rent_houses_currency_chk bilan BIR XIL bo'lishi shart.
+const String kIjaraCurUzs = 'UZS';
+const String kIjaraCurUsd = 'USD';
+const List<String> kIjaraCurrencies = [kIjaraCurUzs, kIjaraCurUsd];
+
+/// Serverdan kelgan xom qiymatni xavfsiz valyutaga aylantiradi (noma'lum
+/// yoki bo'sh -> UZS; ustun hali qo'shilmagan backend ham shu yo'l bilan
+/// to'g'ri ishlaydi).
+String ijCurOf(dynamic raw) {
+  final c = '${raw ?? ''}'.trim().toUpperCase();
+  return kIjaraCurrencies.contains(c) ? c : kIjaraCurUzs;
+}
+
+/// Valyuta belgisi: UZS -> tilga qarab "so'm/сум/UZS", USD -> "\$".
+String ijCurSym(String cur) => cur == kIjaraCurUsd ? '\$' : ij('som');
+
+/// "1 234 567 so'm" / "1 200 \$" — UY VALYUTASI bilan.
+String ijMoneyCur(num v, String cur) =>
+    '${v < 0 ? '−' : ''}${ijFx(v)} ${ijCurSym(cur)}';
 
 /// DateTime -> 'YYYY-MM-DD' (mahalliy sana; UTC'ga o'girilmaydi).
 String ijYmd(DateTime d) =>
@@ -178,6 +203,15 @@ class House {
   final String tenantName;
   final String tenantPhone;
   final int rentAmount;
+
+  /// 023 — uy valyutasi: 'UZS' yoki 'USD'. rentAmount VA shu uyning barcha
+  /// hisob-kitoblari SHU birlikda o'qiladi. Server bermasa 'UZS' (eski uylar).
+  final String currency;
+
+  /// 023 — oylik to'lov kuni (1..31) yoki 0 = kelishilmagan. Yangi hisob
+  /// yaratishda muddat (due_date) shu kundan yasaladi; 0 bo'lsa muddat yo'q.
+  final int dueDay;
+
   final int sort;
   final bool archived;
 
@@ -194,6 +228,8 @@ class House {
     this.tenantName = '',
     this.tenantPhone = '',
     this.rentAmount = 0,
+    this.currency = kIjaraCurUzs,
+    this.dueDay = 0,
     this.sort = 0,
     this.archived = false,
     this.totals = const {},
@@ -209,6 +245,12 @@ class House {
       tenantName: (j['tenant_name'] as String?) ?? '',
       tenantPhone: (j['tenant_phone'] as String?) ?? '',
       rentAmount: _int(j['rent_amount']),
+      currency: ijCurOf(j['currency']),
+      // 1..31 dan tashqarisi (null, 0, axlat) — "kelishilmagan" = 0
+      dueDay: (() {
+        final d = _int(j['due_day']);
+        return d >= 1 && d <= 31 ? d : 0;
+      })(),
       sort: _int(j['sort']),
       archived: j['archived'] == true,
       totals: t,
@@ -877,13 +919,45 @@ class IjaraRepo extends ChangeNotifier {
     // raqami hech qachon qolib ketmaydi.
   }
 
+  /// 023 — ko'rinadigan uylarda AMALDA ishlatilayotgan valyutalar (tartibi
+  /// kIjaraCurrencies bo'yicha barqaror). Bitta bo'lsa ekran avvalgidek bitta
+  /// yakun ko'rsatadi; ikkitasi bo'lsa yakunlar VALYUTA BO'YICHA AJRATILADI.
+  List<String> get currenciesInUse {
+    final set = <String>{for (final h in houses) h.currency};
+    final list = [for (final c in kIjaraCurrencies) if (set.contains(c)) c];
+    return list.isEmpty ? const [kIjaraCurUzs] : list;
+  }
+
+  /// 023 — birdan ortiq valyuta ishlatilyaptimi. TRUE bo'lsa server xulosasi
+  /// (summary) ISHLATILMAYDI: u so'm va dollarni bitta songa qo'shib yuboradi,
+  /// bu esa pul xatosi. Bunday holatda yakunlar lokal, valyuta bo'yicha
+  /// ajratilgan holda hisoblanadi.
+  bool get mixedCurrency => currenciesInUse.length > 1;
+
+  /// Uy id -> valyuta (yakunlarni ajratish uchun tez qidiruv).
+  String currencyOf(String houseId) => houseById(houseId)?.currency ?? kIjaraCurUzs;
+
+  /// 023 — bitta valyuta bo'yicha davr yakunlari.
+  IjaraTotals periodTotalsOf(String cur) => ijSumPeriod(
+        _charges.where((c) => currencyOf(c.houseId) == cur),
+        _payments.where((pm) => currencyOf(pm.houseId) == cur),
+      );
+
+  /// 023 — bitta valyuta bo'yicha pill yig'indilari.
+  Map<String, int> pillSumsOf(String cur) => ijPillSums(
+        _charges.where((c) => currencyOf(c.houseId) == cur),
+        _payments.where((pm) => currencyOf(pm.houseId) == cur),
+      );
+
   /// Ko'rinadigan davr yakunlari. Server xulosasi bo'lmasa — yuklangan
   /// hisoblar VA taqsimlanmagan to'lovlardan hisoblanadi (raqamlar ro'yxat
   /// bilan doim mos bo'lsin). Ilgari bu yerda faqat ijSumCharges edi: hisob
   /// bekor qilinganda backend unga bog'langan to'lovni UZADI, natijada qo'lga
   /// olingan pul sarlavhadagi yakundan YO'QOLARDI (server esa uni sanaydi).
   IjaraTotals get periodTotals {
-    if (summary.charged != 0 || summary.paid != 0) {
+    // 023: aralash valyutada server xulosasi noto'g'ri (so'm + dollar) —
+    // lokal hisobga tushamiz va UI yakunlarni ajratib ko'rsatadi.
+    if (!mixedCurrency && (summary.charged != 0 || summary.paid != 0)) {
       return IjaraTotals(charged: summary.charged, paid: summary.paid, left: summary.left);
     }
     return ijSumPeriod(_charges, _payments);

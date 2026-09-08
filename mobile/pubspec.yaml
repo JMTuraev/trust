@@ -35,7 +35,7 @@ publish_to: "none"
 # 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
 # 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
 #          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.13.0+10
+version: 3.13.1+11
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
@@ -82,3 +82,5 @@ flutter:
   assets:
     # Trustbook belgisi (qalqon+daftar, oq/shaffof) — ilova ichidagi logo (ui.dart TrustMark)
     - assets/icon/mark.png
+    # Hub/onboarding illyustratsiyalari (Storyset, shaffof PNG 768px)
+    - assets/illustrations/

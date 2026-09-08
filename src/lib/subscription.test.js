@@ -252,7 +252,8 @@ test('MODUL — 020 migratsiya yo\'q: backend yiqilmaydi, "obuna yo\'q" deb ishl
   assert.equal(await isModuleActive(OWNER, 'qarz'), false);
   const st = await getModulesStatus(OWNER);
   assert.equal(st.length, 4);
-  assert.ok(st.every((m) => m.active === false));
+  // Bepul modul (xarajat) DOIM faol; qolganlari obunasiz — faol emas
+  assert.ok(st.every((m) => m.active === !!m.free));
 });
 
 test('MODUL — getModulesStatus shakli (mobil kontrakt) va narxlar', async () => {
@@ -265,10 +266,12 @@ test('MODUL — getModulesStatus shakli (mobil kontrakt) va narxlar', async () =
       assert.ok(k in m, `${m.module} javobida '${k}' yo'q — mobil kontrakt buzildi`);
     }
   }
-  assert.equal(by.xarajat.price_usd, 5);
+  assert.equal(by.xarajat.price_usd, 0); // PO 2026-09-08: bepul
+  assert.equal(by.xarajat.free, true);
+  for (const m of ['qarz', 'ijarachi', 'toyxona']) assert.equal(by[m].free, false);
   assert.equal(by.qarz.price_usd, 8);
   assert.equal(by.ijarachi.price_usd, 13);
-  assert.equal(by.toyxona.price_usd, 24);
+  assert.equal(by.toyxona.price_usd, 21);
   // Kelajak modullar "soon", sotib olinmagan
   // PO 2026-08-04: Ijaradagi uylar va To'yxona ham OCHIQ menyu (soon YO'Q) — xarajat/qarz kabi
   assert.equal(by.ijarachi.soon, false);
@@ -287,20 +290,21 @@ test('MODUL — getModulesStatus shakli (mobil kontrakt) va narxlar', async () =
   assert.equal(by.qarz.active_until, null);
 });
 
-test('MODUL — xarajat kvotasi: obuna bo\'lsa o\'tadi, bo\'lmasa 402 + module maydoni', async () => {
-  // Obuna bor -> kvota tugagan bo'lsa ham o'tadi
+test('MODUL — xarajat HAMMA uchun bepul (PO 2026-09-08): obunasiz va kvota tugagan bo\'lsa ham o\'tadi', async () => {
   __setDbForTests(modScenario({ rows: [{ module: 'xarajat', active_until: FUTURE }], expenses: 9999 }));
   const ok = await runMw(requireExpenseQuota, { user: { id: OWNER }, method: 'POST' });
   assert.equal(ok.nextCalled, true, 'xarajat obunasi bilan yozuv bloklandi!');
 
-  // Obuna yo'q va kvota tugagan -> 402, mobil uchun module maydoni bilan
+  // Obuna yo'q va "kvota" tugagan -> baribir o'tadi (modul bepul, 402 YO'Q)
   __setDbForTests(modScenario({ expenses: 9999 }));
   const no = await runMw(requireExpenseQuota, { user: { id: OWNER }, method: 'POST' });
-  assert.equal(no.nextCalled, false);
-  assert.equal(no.res.statusCode, 402);
-  assert.equal(no.res.body.code, 'SUB_EXPIRED');
-  assert.equal(no.res.body.module, 'xarajat', '402 javobida module yo\'q — mobil qaysi paywallni ochishni bilmaydi');
-  assert.match(no.res.body.error, /\$5\/oy/, 'xabarda modul narxi ($5) ko\'rsatilmagan');
+  assert.equal(no.nextCalled, true, 'bepul xarajat moduli 402 berdi!');
+  // /status: bepul modul DOIM faol, narxsiz
+  const st = await getModulesStatus(OWNER);
+  const x = st.find((m) => m.module === 'xarajat');
+  assert.equal(x.active, true);
+  assert.equal(x.free, true);
+  assert.equal(x.price_usd, 0);
 });
 
 test('MODUL — qarz kvotasi 402 javobi module:qarz va $8 narx bilan', async () => {
@@ -328,10 +332,11 @@ test('MODUL — 020 yo\'q va kvota tugagan: yozuv BLOKLANMAYDI (to\'lash yo\'li 
 
 test('MODUL — 020 BOR va kvota tugagan: odatdagidek 402 (klapan faqat jadval yo\'qligida)', async () => {
   __resetModuleSubsReady();
-  __setDbForTests(modScenario({ expenses: 9999 }));
-  const r = await runMw(requireExpenseQuota, { user: { id: OWNER }, method: 'POST' });
+  // xarajat endi bepul — klapan tekshiruvi QARZ moduli orqali (mexanizm bir xil)
+  __setDbForTests(modScenario({ debts: 9999 }));
+  const r = await runMw(requireNewDebtQuota, { user: { id: OWNER }, params: { partnerId: PARTNER } });
   assert.equal(r.res.statusCode, 402);
-  assert.equal(r.res.body.module, 'xarajat');
+  assert.equal(r.res.body.module, 'qarz');
   __resetModuleSubsReady();
 });
 
@@ -365,18 +370,16 @@ test('XARID — noma\'lum modul null (chaqiruvchi 400 beradi), premiumga TUSHMAY
 });
 
 // ---- To'plamli xarajat kvotasi (review 2026-08-04 #12): "5 bepul" 9 ga aylanmasin ----
-import { expenseQuotaBlock, FREE_EXPENSE_ENTRIES } from './subscription.js';
+import { expenseQuotaBlock, FREE_EXPENSE_ENTRIES, isFreeModule } from './subscription.js';
 
-test('KVOTA — 4/5 da turgan user 5 ta amallik to\'plam yubora olmaydi (5 bepul = 5)', async () => {
+test('KVOTA — xarajat bepul (PO 2026-09-08): to\'plam istalgan hajmda bloklanmaydi', async () => {
   __resetModuleSubsReady();
   __setDbForTests(modScenario({ expenses: FREE_EXPENSE_ENTRIES - 1 }));
-  // Bitta yozuv sig'adi
   assert.equal(await expenseQuotaBlock(OWNER, 1), null);
-  // 2 ta esa limitdan oshadi -> 402 tanasi
-  const block = await expenseQuotaBlock(OWNER, 2);
-  assert.ok(block, 'to\'plam limitdan oshdi, lekin bloklanmadi — "5 bepul" buziladi');
-  assert.equal(block.code, 'SUB_EXPIRED');
-  assert.equal(block.module, 'xarajat');
+  assert.equal(await expenseQuotaBlock(OWNER, 2), null);
+  assert.equal(await expenseQuotaBlock(OWNER, 50), null);
+  assert.equal(isFreeModule('xarajat'), true);
+  assert.equal(isFreeModule('qarz'), false);
   __resetModuleSubsReady();
 });
 

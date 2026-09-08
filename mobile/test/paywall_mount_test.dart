@@ -32,8 +32,13 @@ void main() {
     expect(find.byType(HomeHubScreen), findsNothing, reason: 'hub ochiq emas');
     expect(find.byType(PaywallSheet), findsNothing, reason: 'boshida paywall yo\'q');
 
-    // Api.onPaymentRequired modulli 402'da AYNAN shuni chaqiradi
+    // Xarajatlar HAMMA uchun bepul (PO 2026-09-08) — paywall OCHILMAYDI
     store.openPaywall_('xarajat');
+    await t.pump();
+    expect(find.byType(PaywallSheet), findsNothing, reason: 'bepul modulga paywall ochildi');
+
+    // Api.onPaymentRequired modulli 402'da AYNAN shuni chaqiradi (pullik modul)
+    store.openPaywall_('qarz');
     await t.pump();
     expect(find.byType(PaywallSheet), findsOneWidget,
         reason: 'hub bo\'lmagan ekranda ham paywall ko\'rinishi SHART');

@@ -6,9 +6,11 @@
 //      2×2 grid, bir xil o'lcham.
 //   2) O'LCHAM ham bir xil: grid rejimida Expanded qatorlar, ixcham rejimda
 //      kHubCardH — har ikkisida to'rttala karta teng bo'yda.
-//   3) TARIF har kartaning sub qatori O'NG chetida va FAQAT ma'lumotdan
+//   3) TARIF har kartada YUQORI-O'NG burchakda va FAQAT ma'lumotdan
 //      (server modSubs[].price, oflaynda kSubModuleDefaults) — widget ichida
 //      qotirilgan narx satri bir marta tarif o'zgargach 6 tilda chiqib ketgan.
+//      Nom ostida SUB MATN YO'Q (PO 2026-09-08). Xarajatlar HAMMA uchun BEPUL:
+//      «Bepul» badge (hubFree_xarajat), tarif/hisoblagich/qulf yo'q.
 //   4) 404 HOLATI — bugungi production'da /api/ijara/summary va
 //      /api/toyxona/summary YO'Q. O'shanda karta TINCH nol holatida chizilishi
 //      shart: xato ham, spinner ham, crash ham bo'lmasin. PO qurilmada AYNAN
@@ -59,6 +61,9 @@ String _name(String nameKey) => lUz[nameKey] as String;
 
 /// Kartalar tartibi (2×2 grid): Xarajatlar, Qarz daftar, Ijara, To'yxona.
 const _modules = ['xarajat', 'qarz', 'ijarachi', 'toyxona'];
+
+/// Pastki badge matni: «{n} ta yozuv bepul» (PO 2026-09-08).
+String _freeLeft(int n) => (lUz['subFreeLeft'] as String).replaceAll('{n}', '$n');
 
 /// Hub kartalari — _card har biriga ValueKey('hubCard_<modul>') beradi.
 Finder _card(String module) => find.byKey(ValueKey('hubCard_$module'));
@@ -136,7 +141,7 @@ void main() {
       expect(rects[2].top, greaterThan(rects[0].bottom));
     });
 
-    testWidgets('har kartada: NOM + sub + tarif', (t) async {
+    testWidgets('har kartada: NOM + tarif; sub matn YO\'Q; Xarajatlar BEPUL', (t) async {
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -148,22 +153,28 @@ void main() {
       for (final key in ['modXarajat', 'modQarz', 'modIjarachi', 'modToyxona']) {
         expect(find.text(_name(key)), findsOneWidget, reason: '${_name(key)} kartasi yo\'q');
       }
-      // Sub qatorlar — real ma'lumot
-      expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsOneWidget);
-      expect(find.text('Bu oyda 4 to\'y'), findsOneWidget);
-      // Xarajat: shu oy jami («−150 000 so'm») — store qiymati bilan aynan
+      // Nom ostida SUB MATN YO'Q (PO 2026-09-08) — faktlar ham, tavsif ham
+      expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsNothing);
+      expect(find.text('Bu oyda 4 to\'y'), findsNothing);
       final hv = store.vals();
-      expect(find.text('${hv['hubXarTxt']} ${hv['hubXarUnit']}'), findsOneWidget);
-      // Tarif — har kartaning sub qatori o'ng chetida (oflayn zaxira narxlari)
-      for (final price in [5, 8, 13, 24]) {
+      expect(find.text('${hv['hubXarTxt']} ${hv['hubXarUnit']}'), findsNothing);
+      expect(find.text(lUz['modIjarachiDesc'] as String), findsNothing);
+      expect(find.text(lUz['modToyxonaDesc'] as String), findsNothing);
+      // Tarif — pullik 3 karta (oflayn zaxira narxlari: qarz 8, ijara 13, to'yxona 21)
+      for (final price in [8, 13, 21]) {
         expect(find.text('\$$price/oy'), findsOneWidget, reason: '\$$price/oy yo\'q');
       }
+      // Xarajatlar BEPUL: tarif yo'q, «Bepul» badge bor
+      expect(find.text('\$0/oy'), findsNothing);
+      expect(find.text('\$5/oy'), findsNothing);
+      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsOneWidget);
+      expect(find.text(lUz['subFree'] as String), findsOneWidget);
     });
 
-    // PO talabi so'zma-so'z: tarif PASTKI-O'NG burchakda, hamma kartada bir xil
+    // Tarif YUQORI-O'NG burchakda (PO 2026-09-08), pullik kartalarda bir xil
     // joyda. Matn mavjudligini tekshirish yetarli emas edi — u kartaning
     // o'rtasida turib ham testdan o'tib ketardi.
-    testWidgets('tarif AYNAN pastki-o\'ng burchakda (4 kartada ham)', (t) async {
+    testWidgets('tarif AYNAN yuqori-o\'ng burchakda (3 pullik kartada)', (t) async {
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -177,52 +188,50 @@ void main() {
           .toList();
       expect(cardRects.length, 4);
 
-      for (final price in [5, 8, 13, 24]) {
+      for (final price in [8, 13, 21]) {
         final pr = t.getRect(find.text('\$$price/oy'));
         // Qaysi kartaga tegishli
         final card = cardRects.firstWhere((c) => c.contains(pr.center),
             orElse: () => Rect.zero);
         expect(card, isNot(Rect.zero), reason: '\$$price/oy hech bir kartada emas');
-        // O'ng chetga taqalgan (pad 16) va pastda (pad 16)
+        // O'ng chetga taqalgan (pad 16) va tepada (pad 16 + 24pt chip qatori)
         expect(card.right - pr.right, closeTo(16, 1.5),
             reason: '\$$price/oy o\'ng chetda emas');
-        expect(card.bottom - pr.bottom, lessThan(24),
-            reason: '\$$price/oy pastki burchakda emas');
+        expect(pr.top - card.top, lessThan(28),
+            reason: '\$$price/oy yuqori burchakda emas');
       }
     });
 
-    testWidgets('PRO badge — Qarz/Ijara/To\'yxona da bor, Xarajatda YO\'Q', (t) async {
-      _atHub(); // modSubs bo'sh -> chip yo'q, PRO badge ko'rinadi
+    testWidgets('PRO badge hech qaysi kartada YO\'Q (modullar alohida sotiladi)', (t) async {
+      _atHub(); // modSubs bo'sh -> chip ham, PRO ham yo'q
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('PRO'), findsNWidgets(3));
-      final xar = t.getRect(_card('xarajat'));
-      for (final pro in t.widgetList(find.text('PRO'))) {
-        final r = t.getRect(find.byWidget(pro));
-        expect(xar.contains(r.center), isFalse, reason: 'Xarajat kartasida PRO chiqdi');
-      }
+      expect(find.text('PRO'), findsNothing);
     });
   });
 
-  // ─────────────────── 2. YANGI KARTALARDAGI SUB ───────────────────
-  group('ma\'lumot bor — karta faktlarni ko\'rsatadi', () {
-    testWidgets('Ijara: hisob-kitob/kutilmoqda', (t) async {
+  // ─────────────────── 2. FAKTLAR STORE'DA QOLADI, KARTADA CHIZILMAYDI ───────
+  // PO 2026-09-08: nom ostidagi sub matn olib tashlandi. store.vals() qiymatlari
+  // (hubIjaraSub/hubToySub) boshqa ekranlar uchun hisoblanaveradi.
+  group('ma\'lumot bor — kartada sub YO\'Q, store qiymatlari bor', () {
+    testWidgets('Ijara: hisob-kitob/kutilmoqda faqat store\'da', (t) async {
       _atHub(ijara: const {'left': 4200000, 'count': 3, 'pending': 2});
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsOneWidget);
-      // Faktlar bor ekan, tavsif sub-qatordan chiqib ketadi
+      expect(store.vals()['hubIjaraSub'], '3 hisob-kitob · 2 kutilmoqda');
+      expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsNothing);
       expect(find.text(lUz['modIjarachiDesc'] as String), findsNothing);
     });
 
-    testWidgets('To\'yxona: bandlar soni', (t) async {
+    testWidgets('To\'yxona: bandlar soni faqat store\'da', (t) async {
       _atHub(toy: const {'left': 18500000, 'count': 4, 'pending': 1});
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('Bu oyda 4 to\'y'), findsOneWidget);
+      expect(store.vals()['hubToySub'], 'Bu oyda 4 to\'y');
+      expect(find.text('Bu oyda 4 to\'y'), findsNothing);
       expect(find.text(lUz['modToyxonaDesc'] as String), findsNothing);
     });
 
@@ -235,7 +244,7 @@ void main() {
       // ko'rsatmaydi — bo'lim ekrani ko'rsatadi)
       expect(store.vals()['hubIjaraTxt'], '−350 000');
       expect(store.vals()['hubIjaraPos'], isFalse);
-      expect(find.text('1 hisob-kitob · 0 kutilmoqda'), findsOneWidget);
+      expect(find.text('1 hisob-kitob · 0 kutilmoqda'), findsNothing);
       expect(t.takeException(), isNull);
     });
   });
@@ -243,7 +252,7 @@ void main() {
   // ─────────────────── 3. 404 / BO'SH — TINCH NOL HOLATI ───────────────────
   // Bugungi production'da endpointlar YO'Q. Bu — PO qurilmada ko'radigan holat.
   group('404 / ma\'lumot yo\'q — karta tinch nol holatida', () {
-    testWidgets('sub-qatorda modul TAVSIFI, xato/spinner YO\'Q', (t) async {
+    testWidgets('tavsif ham, xato/spinner ham YO\'Q — karta tinch', (t) async {
       _atHub(); // ijara/toy null — aynan 404 dan keyingi holat
       await t.pumpWidget(const TrustApp());
       await t.pump();
@@ -252,9 +261,9 @@ void main() {
       expect(_cards(), findsNWidgets(4));
       expect(find.text(_name('modIjarachi')), findsOneWidget);
       expect(find.text(_name('modToyxona')), findsOneWidget);
-      // Faktlar yo'q ekan, sub-qatorda modul tavsifi turadi
-      expect(find.text(lUz['modIjarachiDesc'] as String), findsOneWidget);
-      expect(find.text(lUz['modToyxonaDesc'] as String), findsOneWidget);
+      // Sub matn YO'Q (PO 2026-09-08) — tavsif ham chizilmaydi
+      expect(find.text(lUz['modIjarachiDesc'] as String), findsNothing);
+      expect(find.text(lUz['modToyxonaDesc'] as String), findsNothing);
       // Hech qanday xato nishoni yo'q. Skelet ham yo'q — kartalar CHIZILGAN
       // (hub 404 tufayli "abadiy yuklanmoqda" holatida qolib ketmasin).
       expect(t.takeException(), isNull);
@@ -273,9 +282,10 @@ void main() {
       for (final h in hs) {
         expect(h, kHubCardH, reason: 'bo\'sh holatda stack tirqishli: $hs');
       }
-      // Bo'sh holat matni/CTA saqlangan (eski _emptyBody)
-      expect(find.text(lUz['hubEmptyExpTitle'] as String), findsOneWidget);
-      expect(find.text(lUz['hubEmptyDebtBtn'] as String), findsOneWidget);
+      // Bo'sh holat matni/CTA ham kartada YO'Q (PO 2026-09-08) — Qarz kartasi
+      // bosilsa baribir hubAddDebt (keyingi test)
+      expect(find.text(lUz['hubEmptyExpTitle'] as String), findsNothing);
+      expect(find.text(lUz['hubEmptyDebtBtn'] as String), findsNothing);
       expect(t.takeException(), isNull);
     });
 
@@ -341,14 +351,14 @@ void main() {
     });
   });
 
-  // ─────────────────── 4. TARIF (sub qatori o'ng cheti) ───────────────────
+  // ─────────────────── 4. TARIF (yuqori-o'ng burchak) ───────────────────
   group('narx — faqat ma\'lumotdan', () {
     testWidgets('SERVER narxi lokal zaxirani almashtiradi', (t) async {
       _atHub(
         mods: mapSubsModules({
           'modules': [
-            // Server tarifi lokal kSubModuleDefaults (5) dan BOSHQA
-            {'module': 'xarajat', 'active': false, 'soon': false,
+            // Server tarifi lokal kSubModuleDefaults (qarz 8) dan BOSHQA
+            {'module': 'qarz', 'active': false, 'soon': false,
               'used': 1, 'free_limit': 5, 'price_usd': 7},
           ],
         }),
@@ -357,7 +367,52 @@ void main() {
       await t.pump();
 
       expect(find.text('\$7/oy'), findsOneWidget, reason: 'server narxi ishlatilmadi');
-      expect(find.text('\$5/oy'), findsNothing, reason: 'eskirgan lokal narx chiqdi');
+      expect(find.text('\$8/oy'), findsNothing, reason: 'eskirgan lokal narx chiqdi');
+    });
+
+    // PO 2026-09-08: Xarajatlar HAMMA uchun DOIM bepul. Eski server «5/5, $5»
+    // desa ham (free maydoni yo'q) lokal standart bepul — badge, qulf yo'q.
+    testWidgets('Xarajatlar BEPUL: badge bor, tarif/hisoblagich/qulf YO\'Q', (t) async {
+      _atHub(
+        mods: mapSubsModules({
+          'modules': [
+            {'module': 'xarajat', 'active': false, 'soon': false,
+              'used': 5, 'free_limit': 5, 'price_usd': 5},
+          ],
+        }),
+      );
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsOneWidget);
+      expect(find.text(lUz['subFree'] as String), findsOneWidget);
+      expect(find.byKey(const ValueKey('hubLock_xarajat')), findsNothing);
+      expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
+      expect(find.text('5/5'), findsNothing);
+      expect(find.text('\$5/oy'), findsNothing);
+      expect(find.text('\$0/oy'), findsNothing);
+      // Paywall bepul modulga OCHILMAYDI (store.openPaywall_ qaytaradi)
+      store.openPaywall_('xarajat');
+      await t.pump();
+      expect(find.byType(PaywallSheet), findsNothing);
+      expect(store.S['paywall'], isNull);
+    });
+
+    testWidgets('server free:false desa — xarajat oddiy pullik modul (server ustun)', (t) async {
+      _atHub(
+        mods: mapSubsModules({
+          'modules': [
+            {'module': 'xarajat', 'active': false, 'soon': false, 'free': false,
+              'used': 5, 'free_limit': 5, 'price_usd': 5},
+          ],
+        }),
+      );
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsNothing);
+      expect(find.byKey(const ValueKey('hubLock_xarajat')), findsOneWidget);
+      expect(find.text('\$5/oy'), findsOneWidget);
     });
 
     testWidgets('QULF chipida narx YO\'Q — bir kartada ikki marta chiqmasin',
@@ -366,21 +421,24 @@ void main() {
         mods: mapSubsModules({
           'modules': [
             {'module': 'toyxona', 'active': false, 'soon': false,
-              'used': 5, 'free_limit': 5, 'price_usd': 24},
+              'used': 5, 'free_limit': 5, 'price_usd': 21},
           ],
         }),
       );
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      // Tarif faqat BITTA joyda — sub qatori o'ng chetida
-      expect(find.text('\$24/oy'), findsOneWidget);
-      // Qulf chipi PRO badge O'RNIDA: To'yxona kartasida PRO yo'q, boshqa ikkisida bor
+      // Tarif faqat BITTA joyda — yuqori-o'ngda, qulf chipi yonida
+      expect(find.text('\$21/oy'), findsOneWidget);
+      // Qulf chipi To'yxona kartasida; PRO badge hech qayerda yo'q
       expect(find.byKey(const ValueKey('hubLock_toyxona')), findsOneWidget);
-      expect(find.text('PRO'), findsNWidgets(2));
+      expect(find.text('PRO'), findsNothing);
     });
 
-    testWidgets('«3/5» hisoblagich — PRO badge o\'rnida', (t) async {
+    // PASTKI badge «N ta yozuv bepul» — DINAMIK: server `used` o'sgan sari
+    // kamayadi. Eski «3/5» hisoblagich chipi (yuqori-o'ngda) shu badge bilan
+    // ALMASHTIRILDI — bitta fakt ikki joyda turmasin.
+    testWidgets('«N ta yozuv bepul» badge — yozuv qo\'shilsa kamayadi', (t) async {
       _atHub(
         mods: mapSubsModules({
           'modules': [
@@ -392,9 +450,19 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('3/5'), findsOneWidget);
-      expect(find.text('PRO'), findsNWidgets(2));
-      // «7/300» — sinov limiti hisoblagichda KO'RINMAYDI (kModChipMaxLimit)
+      // 5 − 3 = 2 qoldi (ijarachi); qolgan ikki pullik kartada server yozuvi
+      // yo'q -> lokal tarif 5
+      expect(find.byKey(const ValueKey('hubFreeLeft_ijarachi')), findsOneWidget);
+      expect(find.text(_freeLeft(2)), findsOneWidget);
+      expect(find.text(_freeLeft(5)), findsNWidgets(2)); // qarz + toyxona
+      // Eski hisoblagich chipi YO'Q
+      expect(find.text('3/5'), findsNothing);
+      expect(find.text('PRO'), findsNothing);
+      // Bepul modulda (Xarajatlar) badge UMUMAN yo'q — yuqorida «Bepul» turadi
+      expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
+
+      // «7/300» — render.yaml sinov limiti TARIF emas: kartada 5 lik tarif
+      // qo'llanadi, 7 yozuv bilan limit tugagan ko'rinadi
       _atHub(
         mods: mapSubsModules({
           'modules': [
@@ -406,7 +474,39 @@ void main() {
       store.set({});
       await t.pump();
       expect(find.text('7/300'), findsNothing);
-      expect(find.text('PRO'), findsNWidgets(3));
+      expect(find.text('PRO'), findsNothing);
+      expect(find.byKey(const ValueKey('hubLock_ijarachi')), findsOneWidget);
+      expect(find.text(lUz['subFreeOver'] as String), findsOneWidget);
+    });
+
+    testWidgets('server yozuvi YO\'Q — uch pullik kartada «5 ta yozuv bepul»',
+        (t) async {
+      _atHub(); // modSubs bo'sh
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.text(_freeLeft(5)), findsNWidgets(3));
+      for (final m in ['qarz', 'ijarachi', 'toyxona']) {
+        expect(find.byKey(ValueKey('hubFreeLeft_$m')), findsOneWidget, reason: m);
+      }
+      expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets('OBUNA FAOL — pastki badge YO\'Q (limit tugashi yo\'q)', (t) async {
+      _atHub(
+        mods: mapSubsModules({
+          'modules': [
+            {'module': 'qarz', 'active': true, 'soon': false,
+              'used': 9, 'free_limit': 5, 'price_usd': 8},
+          ],
+        }),
+      );
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.byKey(const ValueKey('hubFreeLeft_qarz')), findsNothing);
+      expect(find.byKey(const ValueKey('hubLock_qarz')), findsNothing);
     });
 
     testWidgets('OBUNA FAOL bo\'lsa ham tarif ko\'rinadi (bir xillik)', (t) async {
@@ -510,7 +610,7 @@ void main() {
             {'module': 'ijarachi', 'active': false, 'soon': false,
               'used': 4, 'free_limit': 5, 'price_usd': 13},
             {'module': 'toyxona', 'active': false, 'soon': false,
-              'used': 1, 'free_limit': 1, 'price_usd': 24}, // qulf chipi
+              'used': 1, 'free_limit': 1, 'price_usd': 21}, // qulf chipi
           ],
         }),
       );

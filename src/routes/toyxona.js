@@ -315,7 +315,7 @@ export function searchTerms(raw) {
 // bilan). Endi umumiy manbadan import qilinadi: getModulesStatus() ham AYNAN shu
 // konstantani `free_limit` sifatida qaytaradi, ya'ni mobil kartadagi "0/5"
 // hisoblagichi va bu yerdagi majburlash BIR-BIRIDAN AJRALIB KETA OLMAYDI.
-// Qolgan kechiktirilgan qism: $24/oy HAR TO'YXONAGA (MODULES.toyxona.per_unit) —
+// Qolgan kechiktirilgan qism: $21/oy HAR TO'YXONAGA (MODULES.toyxona.per_unit) —
 // to'yxona soni bo'yicha hisob-kitob hali yo'q, u ham subs sessiyasida.
 
 /** YANGI BAND kvotasi. O'qish (GET) hech qachon bloklanmaydi; zal/xizmat/to'lov
@@ -364,7 +364,7 @@ async function ownedBooking(userId, id) {
 
 /** Faol (arxivlanmagan) to'yxonalar soni chegaradan oshdimi?
  *  Oshgan bo'lsa tayyor xato obyektini, aks holda null qaytaradi.
- *  Chegara — MODULES.toyxona.max_units (PO 2026-08-04: $24 = BITTA to'yxona;
+ *  Chegara — MODULES.toyxona.max_units (PO 2026-08-04: $21 (2026-09-08 gacha $24) = BITTA to'yxona;
  *  do'konlar obunada miqdorni qo'llamaydi, shuning uchun ko'proq zal SOTIB
  *  BO'LMAYDI — ega alohida akkaunt ochadi). Katalogda max_units yo'q/0 bo'lsa
  *  chegara qo'llanmaydi (kelajakda pog'onali SKU'ga o'tilsa shu yerda ishlaydi). */
@@ -595,7 +595,7 @@ router.post('/halls', async (req, res, next) => {
     if ((count || 0) >= MAX_HALLS) {
       return res.status(400).json({ success: false, error: `To'yxonalar soni ${MAX_HALLS} tadan oshmasin` });
     }
-    // BITTA TO'YXONA QOIDASI (PO 2026-08-04): $24 obuna FAQAT bitta to'yxonani
+    // BITTA TO'YXONA QOIDASI (PO 2026-08-04): obuna FAQAT bitta to'yxonani
     // qoplaydi — do'konlar obunada "miqdor"ni qo'llamaydi (2026-08-04-iap-per-unit-research).
     // Ko'proq kerak bo'lsa ega alohida akkaunt ochadi. Yagona manba —
     // MODULES.toyxona.max_units (subscription.js), majburlash SHU YERDA.

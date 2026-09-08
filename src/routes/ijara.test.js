@@ -15,6 +15,7 @@ import {
   money, isDateStr, isPeriodStr, periodOf, currentPeriod, daysBetween, monthBounds,
   readHouseFilter, chargeTotals, autoChargeStatus, foldCharges, foldHouses,
   sortCharges, isHouseLimitError, MAX_HOUSES, KINDS, STATUSES, DEDUP_MS,
+  CURRENCIES, daysInPeriod, dueDateFor,
 } from './ijara.js';
 
 // ============================ Chegara va katalog ============================
@@ -340,4 +341,36 @@ test('DEDUP — oyna butun son millisekund (Date hisobi aniq bo\'lsin)', () => {
   // `new Date(Date.now() - DEDUP_MS)` ikkala route'da ham ishlatiladi — kasr
   // qiymat ISO satrga o'tishda jimgina yaxlitlanib, oyna siljib ketmasin.
   assert.ok(Number.isInteger(DEDUP_MS) && DEDUP_MS > 0);
+});
+
+// ============================ 023 — valyuta va to'lov kuni ============================
+
+test("valyutalar ro'yxati — 023 dagi CHECK bilan bir xil", () => {
+  assert.deepEqual(CURRENCIES, ['UZS', 'USD']);
+});
+
+test('daysInPeriod — oy uzunligi (kabisa yili ham)', () => {
+  assert.equal(daysInPeriod('2026-01'), 31);
+  assert.equal(daysInPeriod('2026-02'), 28);
+  assert.equal(daysInPeriod('2024-02'), 29); // kabisa
+  assert.equal(daysInPeriod('2026-04'), 30);
+  assert.equal(daysInPeriod('2026-12'), 31);
+});
+
+test("dueDateFor — to'lov kuni muddat sanasiga aylanadi", () => {
+  assert.equal(dueDateFor('2026-09', 5), '2026-09-05');
+  assert.equal(dueDateFor('2026-09', 30), '2026-09-30');
+  // Eng muhim holat: qisqa oyda OXIRGI kunga siqiladi (31-fevral bo'lmasin)
+  assert.equal(dueDateFor('2026-02', 31), '2026-02-28');
+  assert.equal(dueDateFor('2024-02', 30), '2024-02-29');
+  assert.equal(dueDateFor('2026-04', 31), '2026-04-30');
+});
+
+test('dueDateFor — noto\'g\'ri kirish null qaytaradi (muddat yozilmaydi)', () => {
+  assert.equal(dueDateFor('2026-09', 0), null);
+  assert.equal(dueDateFor('2026-09', 32), null);
+  assert.equal(dueDateFor('2026-09', null), null);
+  assert.equal(dueDateFor('2026-09', undefined), null);
+  assert.equal(dueDateFor('2026-13', 5), null);   // yaroqsiz oy
+  assert.equal(dueDateFor('', 5), null);
 });
