@@ -1,8 +1,10 @@
-// Arxiv ekrani — headerdagi tugma orqali ochiladi.
+// Arxiv ekrani — Qarz daftar headeridagi tugma orqali ochiladi.
 // Arxivlangan hamkorlar ro'yxati; "Arxivdan chiqarish" bosilsa asosiy ro'yxatga qaytadi.
+// Dizayn: DESIGN_SPEC "dark glass + gradient" (ScreenHeader · surface qatorlar · RingAvatar · GlassBtn).
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
+import '../theme.dart';
 
 class ArchiveScreen extends StatelessWidget {
   const ArchiveScreen({super.key});
@@ -17,57 +19,43 @@ class ArchiveScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header: orqaga tugmasi + sarlavha bitta qatorda (home.dart uslubi)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: [
-              BackBtn(onTap: () => v['closeArch']()),
-              const SizedBox(width: 8),
-              Expanded(
-                // Moliyaviy ilova: sarlavha to'liq ko'rinsin — "..." bilan kesilmaydi
-                child: Tx(L0['archTitle'] as String, size: 21, w: FontWeight.w700, color: p.ink, ls: -0.3,
-                    maxLines: 2),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-          child: Tx(L0['archSub'] as String, size: 12.5, color: p.t3),
+        ScreenHeader(
+          title: L0['archTitle'] as String,
+          subtitle: L0['archSub'] as String,
+          onBack: () => v['closeArch'](),
         ),
         Expanded(
           child: rows.isEmpty
-              ? Center(child: Tx(L0['archEmpty'] as String, size: 13.5, color: p.t3))
+              ? Center(child: Tx(L0['archEmpty'] as String, size: 15, color: p.t3))
               : ListView(
-                  padding: const EdgeInsets.only(top: 6, bottom: 24),
+                  padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 120),
                   children: [
                     for (final r in rows)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+                        constraints: const BoxConstraints(minHeight: 76),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: p.surface,
+                          borderRadius: BorderRadius.circular(Tb.rRow),
+                          border: Border.all(color: p.glassBd),
+                        ),
                         child: Row(
                           children: [
-                            TrustAvatar(initials: r['initials'] as String, size: 44),
+                            RingAvatar(initials: r['initials'] as String, size: 48, seed: '${r['name']}', dot: p.t6),
                             const SizedBox(width: 12),
                             Expanded(
                               // Hamkor nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
-                              child: Tx(r['name'], size: 14.5, w: FontWeight.w600, color: p.ink,
-                                  maxLines: 2),
+                              child: Tx(r['name'], size: 16, w: FontWeight.w600, color: p.ink, maxLines: 2),
                             ),
                             const SizedBox(width: 10),
-                            Tap(
+                            // Ichki padding'li shisha pill (PillChip) — qatorda ixcham tugma
+                            PillChip(
+                              label: L0['restoreBtn'] as String,
+                              selected: false,
                               onTap: r['restore'],
-                              child: Container(
-                                height: 32,
-                                padding: const EdgeInsets.symmetric(horizontal: 14),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: p.ink,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Tx(L0['restoreBtn'] as String, size: 12.5, w: FontWeight.w600, color: p.bg),
-                              ),
+                              h: 36,
+                              leading: Icon(Icons.refresh_rounded, size: 16, color: p.t1),
                             ),
                           ],
                         ),

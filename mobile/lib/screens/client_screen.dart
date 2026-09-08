@@ -1,15 +1,18 @@
 // Hamkor sahifasi — QARZ DAFTARI (ledger). Erkin matnli chat YO'Q (spec 4.1).
-// Tuzilma: header (balans) → tasdiqlash cardlari → eski yozuvlar (join review)
-// → lenta (qarz kartochkalari) → 3 aqlli tugma / input panel → dialoglar.
+// Dizayn: prototype/redesign/DESIGN_SPEC.md §5.8 (Hamkor chati) + §5.9 (Yangi yozuv sheet).
+// Tuzilma: header (BackBtn · RingAvatar · ism · ⋯) → banner (Trust'da emas / kutilmoqda)
+// → lenta (teskari: balans kartasi · eski yozuvlar · pufaklar · tasdiq kartalari pastda)
+// → BottomPanel (Qarz berish · Qarzni yopish · eslatma) → sheet'lar (yozuv formasi,
+// menyu, profil, tarix/tahrir, barchasini tasdiqlash).
+// Barcha store.vals() kalitlari va callback'lar avvalgi bilan bir xil.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection;
-import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
 
-// "Kutilmoqda"/tasdiq urg'usi uchun issiq rang (amber-700)
-const _amber = Color(0xFFB45309);
+/// Dizayn matni uchun L() kaliti yo'q bo'lsa — uz-fallback (xarajat.dart _t naqshi).
+String _t(String key, String fb) => (store.L()[key] as String?) ?? fb;
 
 // Summani jonli "x xxx xxx" ko'rinishida guruhlovchi formatter (xarajat bilan bir xil mantiq).
 class _GroupFmt extends TextInputFormatter {
@@ -73,18 +76,22 @@ class _GroupFmt extends TextInputFormatter {
 ///
 /// Side comes from the store feed map ('right' = value outflow from the viewer,
 /// 'left' = inflow; see `sideFor` in debt_ledger.dart). Unknown/empty side
-/// falls back to the legacy full-width card so the feed never breaks.
-/// Visuals (monochrome system):
-/// - right ("sent"): subtle [Pal.card2] tint, no border, small bottom-right corner;
-/// - left ("received"): [Pal.bg] with hairline border, small bottom-left corner.
+/// falls back to a full-width glass card so the feed never breaks.
+/// Visuals (DESIGN_SPEC §5.8):
+/// - right ("men berdim"): mint 10% fon + mint 25% chegara, pastki-o'ng r8;
+/// - left ("u berdi"): coral 8% fon + coral 20% chegara, pastki-chap r8;
+/// - [tone] 'glass' (qaytarish / hisob-kitob): glass2 fon + glassBd chegara.
 class LedgerFeedBubble extends StatelessWidget {
   final String side; // 'right' | 'left' | '' (unknown -> full-width)
   final Pal pal;
   final VoidCallback? onTap;
   final Widget child;
 
-  /// Bubble width as a fraction of the feed width (spec: ~78-80%; interactive
-  /// cards may pass up to ~0.92 for usability).
+  /// 'mint' | 'coral' | 'glass'. null → tomondan kelib chiqadi (right→mint, left→coral).
+  final String? tone;
+
+  /// Bubble width as a fraction of the feed width (spec: 270/358 ≈ 0.76–0.80;
+  /// interactive cards may pass up to ~0.92 for usability).
   final double widthFactor;
 
   const LedgerFeedBubble({
@@ -93,6 +100,7 @@ class LedgerFeedBubble extends StatelessWidget {
     required this.pal,
     required this.child,
     this.onTap,
+    this.tone,
     this.widthFactor = 0.80,
   });
 
@@ -101,8 +109,23 @@ class LedgerFeedBubble extends StatelessWidget {
     final isRight = side == 'right';
     final isLeft = side == 'left';
     final aligned = isRight || isLeft;
+    final tn = tone ?? (isRight ? 'mint' : isLeft ? 'coral' : 'glass');
+    final Color fill, bd;
+    switch (tn) {
+      case 'mint':
+        fill = pal.mint.withValues(alpha: .10);
+        bd = pal.mint.withValues(alpha: .25);
+        break;
+      case 'coral':
+        fill = pal.coral.withValues(alpha: .08);
+        bd = pal.coral.withValues(alpha: .20);
+        break;
+      default:
+        fill = pal.glass2;
+        bd = pal.glassBd;
+    }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Align(
         alignment: isRight
             ? Alignment.centerRight
@@ -114,15 +137,15 @@ class LedgerFeedBubble extends StatelessWidget {
           child: Tap(
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               decoration: BoxDecoration(
-                color: isRight ? pal.card2 : pal.bg,
-                border: isRight ? null : Border.all(color: pal.hair2),
+                color: fill,
+                border: Border.all(color: bd),
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(14),
-                  topRight: const Radius.circular(14),
-                  bottomLeft: Radius.circular(isLeft ? 5 : 14),
-                  bottomRight: Radius.circular(isRight ? 5 : 14),
+                  topLeft: const Radius.circular(Tb.rRow),
+                  topRight: const Radius.circular(Tb.rRow),
+                  bottomLeft: Radius.circular(isLeft ? 8 : Tb.rRow),
+                  bottomRight: Radius.circular(isRight ? 8 : Tb.rRow),
                 ),
               ),
               child: child,
@@ -142,210 +165,310 @@ class ClientScreen extends StatefulWidget {
 }
 
 class _ClientScreenState extends State<ClientScreen> {
-  Widget _menuItem(Pal p, String label, VoidCallback onTap, {bool top = false}) {
-    return Tap(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: top ? BoxDecoration(border: Border(top: BorderSide(color: p.hair2))) : null,
-        child: Tx(label, size: 13.5, w: FontWeight.w500, color: p.ink),
+  // Oy qisqartmalari (muddat sanasini ixcham ko'rsatish uchun)
+  static const _mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
+  String _dueLabel(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return store.L()['lblDue'] as String;
+    return '${d.day}-${_mon[d.month - 1]}';
+  }
+
+  // ---------------- Balans kartasi (lenta markazida) ----------------
+  // balLines: "U sizga: 1 500 000 so'm · shundan … · muddati o'tdi" — birinchi ':'
+  // dan keyingi qismning boshi summa (30/600), qolgan " · …" qo'shimchalar 12 t3.
+  Widget _balanceCard(Map<String, dynamic> v, Pal p, List<Map<String, dynamic>> balLines) {
+    final L0 = v['L'] as Map<String, dynamic>;
+    final rows = <Widget>[];
+    if (balLines.isEmpty) {
+      rows.add(Tx(L0['subZero'] as String, size: 13, color: p.t2, align: TextAlign.center));
+      rows.add(const SizedBox(height: 2));
+      rows.add(Tx(L0['zero'] as String, size: 30, w: FontWeight.w600, color: p.t1, tab: true, align: TextAlign.center));
+    }
+    for (var i = 0; i < balLines.length; i++) {
+      final b = balLines[i];
+      final text = b['text'] as String;
+      final color = b['color'] as Color;
+      final m = RegExp(r'[:：]\s*').firstMatch(text);
+      if (i > 0) rows.add(const SizedBox(height: 8));
+      if (m == null) {
+        rows.add(Tx(text, size: i == 0 ? 20 : 14, w: FontWeight.w600, color: color, tab: true, align: TextAlign.center));
+        continue;
+      }
+      final label = text.substring(0, m.start);
+      final rest = text.substring(m.end);
+      final parts = rest.split(' · ');
+      final amount = parts.first;
+      final sfx = parts.length > 1 ? parts.sublist(1).join(' · ') : '';
+      rows.add(Tx(label, size: 13, color: p.t2, align: TextAlign.center));
+      rows.add(const SizedBox(height: 2));
+      rows.add(FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Tx(amount, size: i == 0 ? 30 : 20, w: FontWeight.w600, color: color, tab: true, ls: -0.5),
+      ));
+      if (sfx.isNotEmpty) {
+        rows.add(const SizedBox(height: 2));
+        rows.add(Tx(sfx, size: 12, color: p.t3, align: TextAlign.center, maxLines: 3));
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Center(
+        child: GlassCard(
+          r: Tb.rRow,
+          pad: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: rows),
+        ),
       ),
     );
   }
 
-  // Kichik teg-chip (tasdiqsiz / nizoli / tahrirlangan)
-  Widget _chip(String text, Color fg, Color bg) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 7),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-        child: Tx(text, size: 10, w: FontWeight.w600, color: fg, ls: .3),
-      );
-
-  // ---------------- Tasdiqlash kartochkasi (sticky, ekran tepasida) ----------------
+  // ---------------- Tasdiqlash kartasi (lentaning eng pastida, amber) ----------------
   Widget _confirmCard(Map<String, dynamic> m, Pal p) {
     final isEdit = m['isEdit'] == true;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: p.card2,
-        border: Border.all(color: _amber.withValues(alpha: .45)),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(width: 6, height: 6, decoration: const BoxDecoration(color: _amber, shape: BoxShape.circle)),
-          const SizedBox(width: 7),
-          Tx(m['cap'] as String, size: 10.5, w: FontWeight.w700, color: _amber, ls: 1.1),
-        ]),
-        const SizedBox(height: 10),
-        if (isEdit) ...[
-          Tx(m['title'] as String, size: 14, w: FontWeight.w600, color: p.ink),
-          const SizedBox(height: 8),
-          for (final d in (m['diffs'] as List).cast<Map<String, dynamic>>())
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(children: [
-                SizedBox(width: 58, child: Tx(d['label'] as String, size: 12, color: p.t3)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FractionallySizedBox(
+          widthFactor: 0.9,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: p.amber.withValues(alpha: .10),
+              border: Border.all(color: p.amber.withValues(alpha: .30)),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(Tb.rRow),
+                topRight: Radius.circular(Tb.rRow),
+                bottomLeft: Radius.circular(8),
+                bottomRight: Radius.circular(Tb.rRow),
+              ),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 7, height: 7, decoration: BoxDecoration(color: p.amber, shape: BoxShape.circle)),
+                const SizedBox(width: 7),
+                Expanded(child: Tx(m['cap'] as String, size: 12, w: FontWeight.w700, color: p.amber, ls: 1, font: TbFont.body)),
+              ]),
+              const SizedBox(height: 10),
+              if (isEdit) ...[
+                Tx(m['title'] as String, size: 15, w: FontWeight.w600, color: p.ink),
+                const SizedBox(height: 8),
+                for (final d in (m['diffs'] as List).cast<Map<String, dynamic>>())
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      SizedBox(width: 62, child: Tx(d['label'] as String, size: 13, color: p.t3)),
+                      Expanded(
+                        // Eski→yangi qiymatlar (summa/muddat/izoh) — moliyaviy diff
+                        // "..." bilan kesilmaydi, sig'masa qatorga o'raladi.
+                        child: Row(children: [
+                          Flexible(child: Tx(d['old'] as String, size: 13, color: p.t4, tab: true)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Icon(Icons.arrow_forward_rounded, size: 14, color: p.t4),
+                          ),
+                          Flexible(child: Tx(d['new'] as String, size: 13, w: FontWeight.w600, color: p.ink, tab: true)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+              ] else ...[
+                Tx(m['title'] as String, size: 15, w: FontWeight.w500, color: p.ink),
+                const SizedBox(height: 4),
+                Tx(m['amount'] as String, size: 24, w: FontWeight.w600, color: p.ink, tab: true),
+                const SizedBox(height: 4),
+                Tx(m['sub'] as String, size: 13, color: p.t2),
+              ],
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: GlassBtn(label: store.L()['btnReject'] as String, onTap: m['reject'] as VoidCallback, h: 44, fs: 14)),
+                const SizedBox(width: 8),
                 Expanded(
-                  // Eski→yangi qiymatlar (summa/muddat/izoh) — moliyaviy diff
-                  // "..." bilan kesilmaydi, sig'masa qatorga o'raladi.
-                  child: Row(children: [
-                    Flexible(child: Tx(d['old'] as String, size: 12.5, color: p.t4)),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: ChevRight(color: p.t4)),
-                    Flexible(child: Tx(d['new'] as String, size: 12.5, w: FontWeight.w600, color: p.ink)),
-                  ]),
+                  child: GradientBtn(
+                    label: store.L()['btnConfirm'] as String,
+                    onTap: m['confirm'] as VoidCallback,
+                    icon: Icons.check_rounded,
+                    h: 44,
+                    fs: 14,
+                    glow: false,
+                  ),
                 ),
               ]),
-            ),
-        ] else ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Expanded(child: Tx(m['title'] as String, size: 14.5, w: FontWeight.w600, color: p.ink)),
-              const SizedBox(width: 10),
-              Tx(m['amount'] as String, size: 17, w: FontWeight.w700, color: p.ink, tab: true),
-            ],
+            ]),
           ),
-          const SizedBox(height: 3),
-          Tx(m['sub'] as String, size: 11.5, color: p.t3),
-        ],
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: GhostBtn(label: store.L()['btnReject'] as String, onTap: m['reject'] as VoidCallback, h: 40, fs: 13)),
-          const SizedBox(width: 10),
-          Expanded(child: InkBtn(label: store.L()['btnConfirm'] as String, onTap: m['confirm'] as VoidCallback, h: 40, fs: 13)),
-        ]),
-      ]),
+        ),
+      ),
     );
   }
 
   // ---------------- Eski yozuv (join review) kartochkasi ----------------
   Widget _reviewCard(Map<String, dynamic> m, Pal p) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: p.bg,
-        border: Border.all(color: p.bd2),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Expanded(child: Tx(m['title'] as String, size: 14.5, w: FontWeight.w600, color: p.ink)),
-            const SizedBox(width: 10),
-            Tx(m['amount'] as String, size: 16, w: FontWeight.w700, color: p.ink, tab: true),
-          ],
-        ),
-        const SizedBox(height: 3),
-        Tx(m['sub'] as String, size: 11.5, color: p.t3),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: GhostBtn(label: store.L()['btnRejectShort'] as String, onTap: m['reject'] as VoidCallback, h: 38, fs: 12.5)),
-          const SizedBox(width: 10),
-          Expanded(child: InkBtn(label: store.L()['btnConfirm'] as String, onTap: m['confirm'] as VoidCallback, h: 38, fs: 12.5)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GlassCard(
+        r: Tb.rRow,
+        pad: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(child: Tx(m['title'] as String, size: 15, w: FontWeight.w600, color: p.ink)),
+              const SizedBox(width: 10),
+              Tx(m['amount'] as String, size: 18, w: FontWeight.w600, color: p.ink, tab: true),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Tx(m['sub'] as String, size: 13, color: p.t2),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: GlassBtn(label: store.L()['btnRejectShort'] as String, onTap: m['reject'] as VoidCallback, h: 40, fs: 13)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: GradientBtn(
+                label: store.L()['btnConfirm'] as String,
+                onTap: m['confirm'] as VoidCallback,
+                icon: Icons.check_rounded,
+                h: 40,
+                fs: 13,
+                glow: false,
+              ),
+            ),
+          ]),
         ]),
-      ]),
+      ),
     );
+  }
+
+  // Holat pill'i: muddati o'tdi coral · faol mint · yopildi muted · kutilmoqda amber ·
+  // rad/bekor/nizoli coral · tasdiqlangan amal muted.
+  Widget _statusPill(Map<String, dynamic> m, Pal p) {
+    final L0 = store.L();
+    if ((m['overdue'] as String).isNotEmpty) return PillBadge.coral(m['overdue'] as String);
+    if (m['isActive'] == true) return PillBadge.mint(m['stLabel'] as String);
+    if (m['isClosed'] == true) return PillBadge.muted(m['stLabel'] as String);
+    if (m['isDead'] == true || m['disputed'] == true) return PillBadge.coral(m['stLabel'] as String);
+    if (m['stLabel'] == L0['stPending']) return PillBadge.amber(m['stLabel'] as String);
+    return PillBadge.muted(m['stLabel'] as String);
   }
 
   // ---------------- Lenta: qarz kartochkasi (chat-style bubble) ----------------
   Widget _feedCard(Map<String, dynamic> m, Pal p) {
     final dead = m['isDead'] == true;
+    final closed = m['isClosed'] == true;
     final side = m['side'] as String? ?? '';
-    // Tinted ("sent") bubble: p.field blends into p.card2 — use the stronger
-    // neutral fill for the progress track and neutral tag chips there.
-    final fill = side == 'right' ? p.barbg : p.field;
+    final amount = m['amount'] as String;
+    // Qarz yozuvi summasi belgi (+/−) bilan keladi; qaytarish/hisob-kitob — belgisiz.
+    final isDebt = amount.startsWith('+') || amount.startsWith('−');
+    final tone = !isDebt ? 'glass' : (side == 'right' ? 'mint' : side == 'left' ? 'coral' : 'glass');
+    final Color iconBg, iconFg;
+    final IconData icon;
+    if (!isDebt) {
+      iconBg = p.ink.withValues(alpha: .10);
+      iconFg = p.ink;
+      icon = Icons.refresh_rounded;
+    } else if (side == 'left') {
+      iconBg = p.coral.withValues(alpha: .15);
+      iconFg = p.coral;
+      icon = Icons.south_west_rounded;
+    } else {
+      iconBg = p.mint.withValues(alpha: .15);
+      iconFg = p.mint;
+      icon = Icons.north_east_rounded;
+    }
+    final amountColor = (dead || closed) ? p.t3 : (m['amountColor'] as Color);
     final progW = (m['progW'] as int).toDouble();
+    final showProg = (m['progText'] as String).isNotEmpty;
+
     final tags = <Widget>[];
-    if (m['oneSided'] == true) tags.add(_chip(store.L()['tagUnconfirmed'] as String, _amber, _amber.withValues(alpha: .12)));
-    if (m['reviewing'] == true) tags.add(_chip(store.L()['tagReviewing'] as String, p.t2, fill));
-    if (m['disputed'] == true) tags.add(_chip(store.L()['tagDisputed'] as String, p.red, p.red.withValues(alpha: .12)));
-    if (m['edited'] == true) tags.add(_chip(store.L()['tagEdited'] as String, p.t3, fill));
+    if (m['oneSided'] == true) tags.add(PillBadge.amber(store.L()['tagUnconfirmed'] as String, h: 20));
+    if (m['reviewing'] == true) tags.add(PillBadge.muted(store.L()['tagReviewing'] as String, h: 20));
+    if (m['disputed'] == true) tags.add(PillBadge.coral(store.L()['tagDisputed'] as String, h: 20));
+    if (m['edited'] == true) tags.add(PillBadge.muted(store.L()['tagEdited'] as String, h: 20));
 
     return Opacity(
-      opacity: dead ? 0.5 : 1,
+      opacity: dead ? 0.55 : 1,
       child: LedgerFeedBubble(
         side: side,
         pal: p,
+        tone: tone,
         onTap: m['open'] as VoidCallback,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: Row(children: [
-                    Container(width: 6, height: 6, decoration: BoxDecoration(color: m['stColor'] as Color, shape: BoxShape.circle)),
-                    const SizedBox(width: 8),
-                    // Yozuv sarlavhasi — "..." bilan kesilmaydi, 2 qatorga o'raladi
-                    Flexible(child: Tx(m['title'] as String, size: 14.5, w: FontWeight.w600, color: p.ink, maxLines: 2)),
-                    const SizedBox(width: 8),
-                    Tx(m['stLabel'] as String, size: 10.5, w: FontWeight.w600, color: m['stColor'] as Color, ls: .2),
-                  ]),
-                ),
-                const SizedBox(width: 8),
-                Tx(m['amount'] as String, size: 16, w: FontWeight.w700, color: m['amountColor'] as Color, tab: true,
-                    align: TextAlign.right),
-              ],
+          Row(children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+              child: Icon(icon, size: 14, color: iconFg),
             ),
+            const SizedBox(width: 8),
+            // Yozuv sarlavhasi — "..." bilan kesilmaydi, 2 qatorga o'raladi
+            Expanded(child: Tx(m['title'] as String, size: 13, color: p.t2, maxLines: 2)),
+          ]),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Tx(amount, size: 24, w: FontWeight.w600, color: amountColor, tab: true),
+          ),
+          if ((m['note'] as String).isNotEmpty) ...[
             const SizedBox(height: 4),
+            Tx(m['note'] as String, size: 14, color: p.t1),
+          ],
+          // Progress (faol/yopilgan qarz)
+          if (showProg) ...[
+            const SizedBox(height: 8),
             Row(children: [
-              Tx(m['date'] as String, size: 11.5, color: p.t4),
-              if ((m['due'] as String).isNotEmpty) ...[
-                Tx('  ·  ', size: 11.5, color: p.t5),
-                Tx(m['due'] as String, size: 11.5, color: p.t4, tab: true),
-              ],
+              Expanded(child: Tx(m['progText'] as String, size: 12, color: p.t2, tab: true)),
+              const SizedBox(width: 8),
+              Tx('${closed ? 100 : progW.round()}%', size: 12, w: FontWeight.w600, color: p.t2, tab: true),
             ]),
-            if ((m['note'] as String).isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Tx(m['note'] as String, size: 12.5, color: p.t2),
-            ],
-            // Progress (faol/yopilgan qarz)
-            if ((m['progText'] as String).isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: Stack(children: [
-                  Container(height: 5, color: fill),
-                  FractionallySizedBox(
-                    widthFactor: (progW / 100).clamp(0.0, 1.0),
-                    child: Container(height: 5, color: m['isClosed'] == true ? p.green : p.ink),
-                  ),
-                ]),
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Stack(children: [
+                Container(height: 6, color: p.ink.withValues(alpha: .10)),
+                FractionallySizedBox(
+                  widthFactor: closed ? 1.0 : (progW / 100).clamp(0.0, 1.0),
+                  child: Container(height: 6, decoration: const BoxDecoration(gradient: Tb.mintCyan)),
+                ),
+              ]),
+            ),
+          ],
+          if ((m['forgivenText'] as String).isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Tx(m['forgivenText'] as String, size: 12, color: p.t2, tab: true),
+          ],
+          const SizedBox(height: 8),
+          // Meta qator: sana · muddat + holat pill
+          Row(children: [
+            Expanded(
+              child: Tx(
+                [m['date'] as String, if ((m['due'] as String).isNotEmpty) m['due'] as String].join(' · '),
+                size: 12, color: p.t4, tab: true, maxLines: 2,
               ),
-              const SizedBox(height: 5),
-              Tx(m['progText'] as String, size: 11, color: p.t3, tab: true),
-            ],
-            if ((m['forgivenText'] as String).isNotEmpty) ...[
-              const SizedBox(height: 3),
-              Tx(m['forgivenText'] as String, size: 11, color: p.t3, tab: true),
-            ],
-            if ((m['overdue'] as String).isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Tx(m['overdue'] as String, size: 11, w: FontWeight.w600, color: p.red, tab: true),
-            ],
-            if (tags.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(spacing: 6, runSpacing: 6, children: tags),
-            ],
-            if (m['canCancel'] == true) ...[
-              const SizedBox(height: 10),
-              Tap(
-                onTap: m['cancel'] as VoidCallback,
-                child: Tx(store.L()['btnCancelFull'] as String, size: 12.5, w: FontWeight.w600, color: p.red),
-              ),
-            ],
+            ),
+            const SizedBox(width: 8),
+            _statusPill(m, p),
+          ]),
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: tags),
+          ],
+          if (m['canCancel'] == true) ...[
+            const SizedBox(height: 10),
+            Tap(
+              onTap: m['cancel'] as VoidCallback,
+              child: Tx(store.L()['btnCancelFull'] as String, size: 13, w: FontWeight.w600, color: p.coral),
+            ),
+          ],
         ]),
       ),
     );
   }
 
   // ---------------- Bo'sh holat ----------------
-  // Skroll-xavfsiz: input panel + klaviatura maydonni siqqanda ham overflow bermaydi.
+  // Skroll-xavfsiz: pastki panel + klaviatura maydonni siqqanda ham overflow bermaydi.
   Widget _empty(Pal p) => LayoutBuilder(
         builder: (ctx, c) => SingleChildScrollView(
           child: ConstrainedBox(
@@ -356,115 +479,90 @@ class _ClientScreenState extends State<ClientScreen> {
       );
 
   Widget _emptyBody(Pal p) => Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2, width: 2)),
-            child: Center(child: Tx('₮', size: 34, w: FontWeight.w700, color: p.t4)),
-          ),
-          const SizedBox(height: 16),
-          Tx(store.L()['noDebtTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1, align: TextAlign.center),
-          const SizedBox(height: 6),
-          Tx(store.L()['noDebtSub'] as String,
-              size: 12, color: p.t4, align: TextAlign.center, lh: 17),
-        ]),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(32, 0, 32, 100),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.glass,
+                border: Border.all(color: p.glassBd),
+              ),
+              child: Icon(Icons.description_outlined, size: 32, color: p.t3),
+            ),
+            const SizedBox(height: 16),
+            Tx(store.L()['noDebtTitle'] as String, size: 15, w: FontWeight.w600, color: p.t1, align: TextAlign.center),
+            const SizedBox(height: 6),
+            Tx(store.L()['noDebtSub'] as String, size: 13, color: p.t4, align: TextAlign.center, lh: 18),
+          ]),
+        ),
       );
 
-  // ---------------- Panel maydonlari ----------------
-  Widget _panelField(Pal p, String label, String value, ValueChanged<String> onCh,
-      {String? hint, bool number = false}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Tx(label, size: 11, w: FontWeight.w600, color: p.t3, ls: .3),
-      const SizedBox(height: 5),
-      Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.centerLeft,
-        decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(10)),
-        child: StoreField(
-          value: value,
-          onChanged: onCh,
-          hint: hint,
-          keyboardType: number ? const TextInputType.numberWithOptions(decimal: false) : null,
-          style: GoogleFonts.inter(fontSize: 15, fontWeight: number ? FontWeight.w700 : FontWeight.w500, color: p.ink),
-        ),
-      ),
-    ]);
-  }
-
-  // Oy qisqartmalari (muddat sanasini ixcham ko'rsatish uchun)
-  static const _mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
-  String _dueLabel(String iso) {
-    final d = DateTime.tryParse(iso);
-    if (d == null) return store.L()['lblDue'] as String;
-    return '${d.day}-${_mon[d.month - 1]}';
-  }
-
-  // ---------------- Input panel (lend/borrow/close) ----------------
-  // Dizayn: 1-qator — summa+valyuta (bitta maydon) + muddat (kalendar); sana YO'Q.
-  //         2-qator — Telegram/Instagram uslubidagi izoh input + dumaloq send.
-  Widget _inputPanel(BuildContext context, Map<String, dynamic> v, Pal p) {
+  // ---------------- Yangi yozuv sheet'i (lend/borrow/close) — §5.9 ----------------
+  // Ilgari inline pastki panel edi; endi SheetShell ichidagi forma. Callback'lar
+  // (chSetA/chSetCur/chSetDue/chSetNote/chSetReason/chSubmit/chClosePanel) o'zgarmagan.
+  Widget _txSheet(BuildContext context, Map<String, dynamic> v, Pal p) {
     final L0 = v['L'] as Map<String, dynamic>;
     final isClose = v['chIsClose'] == true;
+    final isLend = v['chIsLend'] == true;
+    final isBorrow = v['chIsBorrow'] == true;
     final curs = (v['chCurs'] as List).cast<String>();
-    final title = v['chIsLend'] == true
+    final title = isLend
         ? L0['lendDebt'] as String
-        : v['chIsBorrow'] == true
+        : isBorrow
             ? L0['borrowDebt'] as String
             : L0['closeDebt'] as String;
+    final amtStr = v['chA'] as String;
+    final amt = int.tryParse(amtStr.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+    final amtColor = isLend ? p.mint : (isBorrow ? p.coral : p.ink);
+    final due = v['chDue'] as String;
 
     final children = <Widget>[
+      // Sarlavha 20/600 + o'ngda 44px ✕
       Row(children: [
-        Tx(title, size: 12.5, w: FontWeight.w600, color: p.t3, ls: .3),
-        const Spacer(),
-        Tap(
-          onTap: v['chClosePanel'] as VoidCallback,
-          child: Icon(Icons.close_rounded, size: 19, color: p.t3),
-        ),
+        Expanded(child: Tx(title, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head)),
+        GlassIconBtn(icon: Icons.close_rounded, onTap: v['chClosePanel'] as VoidCallback),
       ]),
-      const SizedBox(height: 10),
+      const SizedBox(height: 6),
+      // Hamkor: **Ism** 14 t2
+      Row(children: [
+        RingAvatar(initials: v['cInitials'] as String, size: 24, seed: v['cName'] as String, ring: 1.5),
+        const SizedBox(width: 8),
+        Flexible(child: Tx(v['cName'] as String, size: 14, w: FontWeight.w600, color: p.t2, maxLines: 1, ellipsis: true)),
+      ]),
+      const SizedBox(height: 18),
     ];
 
     if (isClose) {
       // Qaysi qarzni yopish — chip tanlash
       final chips = (v['chCloseChips'] as List).cast<Map<String, dynamic>>();
       if (chips.isEmpty) {
-        children.add(Tx(L0['noClosable'] as String, size: 12.5, color: p.t3));
+        children.add(Tx(L0['noClosable'] as String, size: 14, color: p.t3));
+        children.add(const SizedBox(height: 14));
       } else {
         children.add(SizedBox(
-          height: 38,
+          height: 40,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              for (final c in chips) ...[
-                Tap(
-                  onTap: c['pick'] as VoidCallback,
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: c['sel'] == true ? p.ink : p.field,
-                      borderRadius: BorderRadius.circular(10),
-                      border: c['locked'] == true ? Border.all(color: p.bd2) : null,
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        width: 5, height: 5,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: c['sel'] == true ? p.bg : (c['dir'] == 'in' ? p.green : p.red),
+              for (var i = 0; i < chips.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                PillChip(
+                  label: chips[i]['label'] as String,
+                  selected: chips[i]['sel'] == true,
+                  onTap: chips[i]['pick'] as VoidCallback,
+                  leading: chips[i]['locked'] == true
+                      ? Icon(Icons.lock_outline_rounded, size: 14, color: chips[i]['sel'] == true ? p.bg : p.t4)
+                      : Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: chips[i]['sel'] == true ? p.bg : (chips[i]['dir'] == 'in' ? p.mint : p.coral),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 7),
-                      Tx(c['label'] as String, size: 12.5, w: FontWeight.w600,
-                          color: c['sel'] == true ? p.bg : p.ink, tab: true),
-                      if (c['locked'] == true) ...[
-                        const SizedBox(width: 6),
-                        Icon(Icons.lock_outline, size: 12, color: c['sel'] == true ? p.bg : p.t4),
-                      ],
-                    ]),
-                  ),
                 ),
               ],
             ],
@@ -474,88 +572,143 @@ class _ClientScreenState extends State<ClientScreen> {
         // Kechirish varianti — faqat u menga qarzdor bo'lsa (toMe)
         if (v['chCloseIsMine'] != true) {
           children.add(Row(children: [
-            Expanded(child: _segBtn(p, L0['gotMoney'] as String, v['chReason'] == 'returned', () => v['chSetReason']('returned'))),
+            Expanded(
+              child: PillChip(
+                label: L0['gotMoney'] as String,
+                selected: v['chReason'] == 'returned',
+                onTap: () => v['chSetReason']('returned'),
+                h: 44,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _segBtn(p, L0['forgave'] as String, v['chReason'] == 'forgiven', () => v['chSetReason']('forgiven'))),
+            Expanded(
+              child: PillChip(
+                label: L0['forgave'] as String,
+                selected: v['chReason'] == 'forgiven',
+                onTap: () => v['chSetReason']('forgiven'),
+                h: 44,
+              ),
+            ),
           ]));
-          children.add(const SizedBox(height: 12));
+          children.add(const SizedBox(height: 14));
         }
       }
     }
 
-    // 1-QATOR: summa+valyuta birlashtirilgan maydon (+ lend/borrow'da muddat kalendar).
-    children.add(Row(children: [
-      Expanded(child: _amtCurField(v, p, isClose: isClose, curs: curs)),
-      if (!isClose) ...[
-        const SizedBox(width: 10),
-        _dueField(context, v, p),
-      ],
-    ]));
+    // Summa 46/600 tab + valyuta segmenti (h40 shisha pill; yopishda valyuta qat'iy)
+    final amountField = StoreField(
+      value: amtStr,
+      onChanged: (t) => v['chSetA'](t),
+      hint: '0',
+      hintColor: p.t6,
+      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+      inputFormatters: [_GroupFmt()],
+      style: tbStyle(size: 46, w: FontWeight.w600, color: amtColor, tab: true, ls: -1),
+    );
+    final curSeg = isClose
+        ? Tx(v['chCur'] as String, size: 16, w: FontWeight.w600, color: p.t2, tab: true)
+        : _curSegment(p, curs, v['chCur'] as String, (c) => v['chSetCur'](c));
+    if (curs.length <= 2 || isClose) {
+      children.add(Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(child: amountField),
+        const SizedBox(width: 12),
+        curSeg,
+      ]));
+    } else {
+      children.add(amountField);
+      children.add(const SizedBox(height: 10));
+      children.add(Align(alignment: Alignment.centerLeft, child: curSeg));
+    }
+    children.add(const SizedBox(height: 14));
 
-    // 2-QATOR: Telegram/Instagram uslubidagi izoh input + dumaloq send.
-    children.add(const SizedBox(height: 12));
-    children.add(_telegramRow(v, p));
-
-    // Klaviatura ochilganda panel overflow bermasligi uchun — skroll + balandlik cheklovi.
-    final maxH = MediaQuery.of(context).size.height * 0.62;
-    return Container(
-      constraints: BoxConstraints(maxHeight: maxH),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: p.bg,
-        border: Border(top: BorderSide(color: p.hair)),
-        boxShadow: const [BoxShadow(offset: Offset(0, -3), blurRadius: 14, color: Color(0x14000000))],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    // Chiplar qatori: [cal] sana (bugun) · [clock amber] muddat (kalendar)
+    if (!isClose) {
+      final dateIso = v['chDate'] as String;
+      children.add(SizedBox(
+        height: 40,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            PillChip(
+              label: dateIso.isEmpty ? _dueLabel(DateTime.now().toIso8601String()) : _dueLabel(dateIso),
+              selected: false,
+              onTap: null,
+              leading: Icon(Icons.calendar_today_rounded, size: 16, color: p.t2),
+            ),
+            const SizedBox(width: 8),
+            PillChip(
+              label: due.isEmpty ? L0['lblDue'] as String : _dueLabel(due),
+              selected: due.isNotEmpty,
+              onTap: () => _pickDue(context, v),
+              leading: Icon(Icons.schedule_rounded, size: 16, color: due.isNotEmpty ? p.bg : p.amber),
+            ),
+            if (due.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              GlassIconBtn(icon: Icons.close_rounded, onTap: () => v['chSetDue'](''), size: 40, iconSize: 18),
+            ],
+          ],
         ),
+      ));
+      children.add(const SizedBox(height: 14));
+    }
+
+    // Izoh — h48 shisha pill
+    children.add(GlassField(
+      h: 48,
+      child: StoreField(
+        value: v['chNote'] as String,
+        onChanged: (t) => v['chSetNote'](t),
+        hint: L0['noteHintDots'] as String,
+        style: tbStyle(size: 15, color: p.ink),
       ),
+    ));
+    children.add(const SizedBox(height: 18));
+    children.add(GradientBtn(
+      label: _t('sendEntry', 'Yozuvni yuborish'), // TODO l10n
+      icon: Icons.send_rounded,
+      onTap: v['chSubmit'] as VoidCallback,
+      enabled: amt > 0,
+    ));
+    children.add(const SizedBox(height: 10));
+    children.add(Center(
+      child: Tx(
+        v['accepted'] == true
+            ? _t('entryPendingHint', "Hamkor tasdiqlagach yozuv faol bo'ladi") // TODO l10n
+            : L0['hintBook'] as String,
+        size: 13, color: p.t4, align: TextAlign.center,
+      ),
+    ));
+
+    return SheetShell(
+      onClose: v['chClosePanel'] as VoidCallback,
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 
-  // Summa (jonli "x xxx xxx") + valyuta dropdown — FONSIZ (bg yo'q), pastki chiziqli.
-  Widget _amtCurField(Map<String, dynamic> v, Pal p, {required bool isClose, required List<String> curs}) {
+  // UZS|USD segmenti — h40 shisha pill, tanlangan oq fon + bg matn
+  Widget _curSegment(Pal p, List<String> curs, String cur, ValueChanged<String> onPick) {
     return Container(
-      height: 46,
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2, width: 1.5))),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Expanded(
-          child: StoreField(
-            value: v['chA'] as String,
-            onChanged: (t) => v['chSetA'](t),
-            hint: '0',
-            keyboardType: const TextInputType.numberWithOptions(decimal: false),
-            inputFormatters: [_GroupFmt()],
-            style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w600, color: p.ink),
-          ),
-        ),
-        // Valyuta dropdown — yopishda qarz valyutasi qat'iy (o'zgarmaydi)
-        if (isClose)
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Tx(v['chCur'] as String, size: 13.5, w: FontWeight.w600, color: p.t3),
-          )
-        else
-          PopupMenuButton<String>(
-            onSelected: (c) => v['chSetCur'](c),
-            color: p.bg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            itemBuilder: (_) => [
-              for (final c in curs)
-                PopupMenuItem<String>(
-                  value: c,
-                  height: 42,
-                  child: Tx(c, size: 14, w: v['chCur'] == c ? FontWeight.w700 : FontWeight.w500, color: p.ink),
-                ),
-            ],
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Tx(v['chCur'] as String, size: 14, w: FontWeight.w600, color: p.t2),
-                Icon(Icons.arrow_drop_down_rounded, size: 20, color: p.t3),
-              ]),
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: p.glass,
+        border: Border.all(color: p.glassBd),
+        borderRadius: BorderRadius.circular(Tb.rPill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (final c in curs)
+          Tap(
+            onTap: () => onPick(c),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: cur == c ? p.ink : Colors.transparent,
+                borderRadius: BorderRadius.circular(Tb.rPill),
+              ),
+              child: Tx(c, size: 13, w: FontWeight.w700, color: cur == c ? p.bg : p.t2, font: TbFont.num),
             ),
           ),
       ]),
@@ -563,239 +716,279 @@ class _ClientScreenState extends State<ClientScreen> {
   }
 
   // Muddat — kalendar orqali tanlanadi (matn kiritish YO'Q).
-  Widget _dueField(BuildContext context, Map<String, dynamic> v, Pal p) {
+  Future<void> _pickDue(BuildContext context, Map<String, dynamic> v) async {
     final L0 = v['L'] as Map<String, dynamic>;
     final iso = v['chDue'] as String;
     final set = v['chSetDue'] as ValueChanged<String>;
-    return Tap(
-      onTap: () async {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final init = DateTime.tryParse(iso) ?? today;
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: init.isBefore(today) ? today : init,
-          firstDate: today,
-          lastDate: DateTime(now.year + 5),
-          helpText: L0['dueHelp'] as String,
-        );
-        if (picked != null) {
-          set('${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
-        }
-      },
-      child: Container(
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          border: Border.all(color: iso.isEmpty ? p.bd2 : p.ink, width: iso.isEmpty ? 1 : 1.4),
-          borderRadius: BorderRadius.circular(17),
+    final p = curPal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final init = DateTime.tryParse(iso) ?? today;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: init.isBefore(today) ? today : init,
+      firstDate: today,
+      lastDate: DateTime(now.year + 5),
+      helpText: L0['dueHelp'] as String,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: (p.isDark ? const ColorScheme.dark() : const ColorScheme.light()).copyWith(
+            primary: p.violet,
+            onPrimary: Colors.white,
+            surface: p.surface,
+            onSurface: p.ink,
+          ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.event_outlined, size: 16, color: iso.isEmpty ? p.t4 : p.ink),
-          const SizedBox(width: 6),
-          Tx(iso.isEmpty ? L0['lblDue'] as String : _dueLabel(iso), size: 13,
-              w: iso.isEmpty ? FontWeight.w500 : FontWeight.w600, color: iso.isEmpty ? p.t3 : p.ink, tab: true),
-          if (iso.isNotEmpty) ...[
-            const SizedBox(width: 5),
-            Tap(
-              onTap: () => set(''),
-              child: Icon(Icons.close_rounded, size: 14, color: p.t4),
-            ),
-          ],
-        ]),
+        child: child!,
       ),
     );
+    if (picked != null) {
+      set('${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+    }
   }
 
-  // Telegram/Instagram uslubidagi izoh input + dumaloq send tugma.
-  // Bir qatorli matn markazda turadi (balanslangan padding), ko'p qatorda yuqoriga o'sadi.
-  Widget _telegramRow(Map<String, dynamic> v, Pal p) {
-    final L0 = v['L'] as Map<String, dynamic>;
-    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-          decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(23)),
-          child: StoreField(
-            value: v['chNote'] as String,
-            onChanged: (t) => v['chSetNote'](t),
-            hint: L0['noteHintDots'] as String,
-            maxLines: 4,
-            minLines: 1,
-            style: GoogleFonts.inter(fontSize: 15, color: p.ink, height: 1.25),
-          ),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Tap(
-        onTap: v['chSubmit'] as VoidCallback,
-        child: Container(
-          width: 46, height: 46,
-          decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: Icon(Icons.send_rounded, size: 20, color: p.bg),
-            ),
-          ),
-        ),
-      ),
-    ]);
-  }
-
-  Widget _segBtn(Pal p, String label, bool on, VoidCallback onTap) => Tap(
-        onTap: onTap,
-        child: Container(
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: on ? p.ink : p.field,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Tx(label, size: 12.5, w: FontWeight.w600, color: on ? p.bg : p.t2),
-        ),
-      );
-
-  // ---------------- 3 aqlli tugma ----------------
-  Widget _smartButtons(Map<String, dynamic> v, Pal p) {
+  // ---------------- Pastki panel: Qarz berish · Qarzni yopish · eslatma ----------------
+  Widget _bottomPanel(Map<String, dynamic> v, Pal p) {
     final btns = (v['ledBtns'] as List).cast<Map<String, dynamic>>();
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(color: p.bg, border: Border(top: BorderSide(color: p.hair))),
-      child: SafeArea(
-        top: false,
-        child: Row(children: [
-          for (var i = 0; i < btns.length; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            Expanded(
-              child: Tap(
-                onTap: () => v['ledBtnTap'](btns[i]['key'], btns[i]['on'] == true, btns[i]['off']),
-                child: Container(
-                  height: 48,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: btns[i]['on'] == true ? p.ink : p.field,
-                    borderRadius: BorderRadius.circular(12),
+    // Eslatma — Moliya/profil "reminders" ro'yxatidagi shu hamkor yozuvi
+    // (faqat menga qarzi bor, Trust'dagi hamkor uchun mavjud).
+    final cid = store.S['clientId'];
+    Map<String, dynamic>? rem;
+    for (final r in ((v['reminders'] as List?) ?? const []).cast<Map<String, dynamic>>()) {
+      if (r['key'] == cid) {
+        rem = r;
+        break;
+      }
+    }
+    final remOn = rem != null && rem['canRemind'] == true;
+    final remCool = rem != null && rem['cooling'] == true;
+    final remCoolText = rem != null ? (rem['coolText'] as String? ?? '') : '';
+    final remTap = rem != null ? rem['remind'] : null;
+    return BottomPanel(
+      h: 72,
+      child: Row(children: [
+        for (var i = 0; i < btns.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(
+            child: i == 0
+                ? (btns[i]['on'] == true
+                    ? SolidBtn.mint(
+                        btns[i]['label'] as String,
+                        () => v['ledBtnTap'](btns[i]['key'], true, btns[i]['off']),
+                        icon: Icons.north_east_rounded,
+                        h: 52,
+                        fs: 14,
+                      )
+                    : GlassBtn(
+                        label: btns[i]['label'] as String,
+                        onTap: () => v['ledBtnTap'](btns[i]['key'], false, btns[i]['off']),
+                        icon: Icons.north_east_rounded,
+                        fg: p.t5,
+                        h: 52,
+                        fs: 14,
+                      ))
+                : GlassBtn(
+                    label: btns[i]['label'] as String,
+                    onTap: () => v['ledBtnTap'](btns[i]['key'], btns[i]['on'] == true, btns[i]['off']),
+                    icon: Icons.refresh_rounded,
+                    fg: btns[i]['on'] == true ? p.ink : p.t5,
+                    h: 52,
+                    fs: 14,
                   ),
-                  child: Tx(
-                    btns[i]['label'] as String,
-                    size: 13,
-                    w: FontWeight.w600,
-                    color: btns[i]['on'] == true ? p.bg : p.t4,
-                    align: TextAlign.center,
-                    maxLines: 1,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ]),
-      ),
+          ),
+        ],
+        const SizedBox(width: 8),
+        // Eslatma — 52px gradient doira (bell)
+        GlassIconBtn(
+          icon: Icons.notifications_none_rounded,
+          gradient: remOn,
+          size: 52,
+          color: p.t5,
+          onTap: () {
+            if (remOn) {
+              remTap();
+            } else if (remCool) {
+              store.toast_(remCoolText);
+            } else {
+              store.toast_(_t('ledgerNoActive', "Faol qarz yo'q"));
+            }
+          },
+        ),
+      ]),
     );
   }
 
-  // ---------------- Yozuv tarixi / tahrir dialogi ----------------
-  Widget _historyDialog(Map<String, dynamic> v, Pal p) {
+  // ---------------- Menyu sheet (rename/archive|disconnect/profile) ----------------
+  Widget _menuSheet(Map<String, dynamic> v, Pal p) {
+    final L0 = v['L'] as Map<String, dynamic>;
+    return SheetShell(
+      onClose: () => v['menuClose'](),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Tx(v['cName'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 2),
+        const SizedBox(height: 16),
+        GlassCard(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListRow(icon: Icons.edit_outlined, iconColor: p.cyan, title: L0['menuRename'] as String, onTap: () => v['menuRename']()),
+            if (v['incoming'] == true)
+              ListRow(icon: Icons.close_rounded, iconColor: p.coral, title: L0['menuDisconnect'] as String, onTap: () => v['menuDisconnect']())
+            else
+              ListRow(icon: Icons.archive_outlined, iconColor: p.t1, title: L0['menuArchive'] as String, onTap: () => v['menuArchive']()),
+            ListRow(icon: Icons.person_outline_rounded, iconColor: p.t1, title: L0['menuProfile'] as String, onTap: () => v['menuProfile'](), last: true),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  // ---------------- Hamkor profili sheet ----------------
+  Widget _profileSheet(Map<String, dynamic> v, Pal p) {
+    final L0 = v['L'] as Map<String, dynamic>;
+    return SheetShell(
+      onClose: () => v['pProfClose'](),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Center(
+          child: RingAvatar(
+            initials: v['cInitials'] as String,
+            size: 72,
+            ring: 3,
+            seed: v['cName'] as String,
+            dot: v['cInTrust'] == true ? p.cyan : null,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Tx(v['cName'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head, align: TextAlign.center),
+        const SizedBox(height: 4),
+        Tx(v['pPhone'] as String, size: 15, color: p.t2, tab: true, align: TextAlign.center),
+        const SizedBox(height: 6),
+        Tx(v['pStatus'] as String, size: 13, color: v['cInTrust'] == true ? p.mint : p.t3, align: TextAlign.center),
+        const SizedBox(height: 20),
+        GlassBtn(label: L0['btnClose'] as String, onTap: () => v['pProfClose'](), h: 48),
+      ]),
+    );
+  }
+
+  // ---------------- "Barchasini tasdiqlash" sheet ----------------
+  Widget _revAllSheet(Map<String, dynamic> v, Pal p) {
+    final L0 = v['L'] as Map<String, dynamic>;
+    return SheetShell(
+      onClose: () => v['revAllNo'](),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Tx(L0['confirmAllTitle'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+        const SizedBox(height: 8),
+        Tx(v['revAllText'] as String, size: 14, color: p.t2, lh: 20),
+        const SizedBox(height: 20),
+        Row(children: [
+          Expanded(child: GlassBtn(label: L0['btnCancelShort'] as String, onTap: () => v['revAllNo'](), h: 48)),
+          const SizedBox(width: 8),
+          Expanded(child: GradientBtn(label: L0['btnConfirm'] as String, onTap: () => v['revAllOk'](), icon: Icons.check_rounded, h: 48, fs: 15)),
+        ]),
+      ]),
+    );
+  }
+
+  // ---------------- Yozuv tarixi / tahrir sheet'i ----------------
+  Widget _historySheet(Map<String, dynamic> v, Pal p) {
     final L0 = v['L'] as Map<String, dynamic>;
     final d = v['histData'] as Map<String, dynamic>?;
     if (d == null) return const SizedBox.shrink();
     final editing = v['histEditing'] == true;
     final versions = (d['versions'] as List).cast<Map<String, dynamic>>();
-    return Positioned.fill(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => v['histClose'](),
-        child: Container(
-          color: const Color(0x66000000),
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(maxHeight: 560),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(18)),
-                child: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(child: Tx(d['title'] as String, size: 16, w: FontWeight.w700, color: p.ink)),
-                      Tap(
-                        onTap: () => v['histClose'](),
-                        child: Icon(Icons.close_rounded, size: 20, color: p.t3),
-                      ),
-                    ]),
-                    const SizedBox(height: 4),
-                    Tx(d['stLabel'] as String, size: 11.5, w: FontWeight.w600, color: p.t2),
-                    const SizedBox(height: 14),
-                    if (!editing) ...[
-                      _kv(p, L0['lblAmount'] as String, d['amount'] as String),
-                      _kv(p, L0['date'] as String, d['date'] as String),
-                      if ((d['due'] as String).isNotEmpty) _kv(p, L0['lblDue'] as String, d['due'] as String),
-                      if ((d['note'] as String).isNotEmpty) _kv(p, L0['lblNote'] as String, d['note'] as String),
-                      if (versions.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        Tx(L0['capHistory'] as String, size: 10.5, w: FontWeight.w700, color: p.t3, ls: 1),
-                        const SizedBox(height: 8),
-                        for (final ver in versions)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                            decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(8)),
-                            child: Row(children: [
-                              Expanded(
-                                // Versiya qatori (summa · muddat · izoh) — moliyaviy
-                                // qiymat "..." bilan kesilmaydi, o'raladi.
-                                child: Tx(
-                                  [ver['amount'], if ((ver['due'] as String).isNotEmpty) ver['due'], if ((ver['note'] as String).isNotEmpty) ver['note']].join(' · '),
-                                  size: 12, color: p.t2, tab: true,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Tx(ver['time'] as String, size: 10.5, color: p.t4, tab: true),
-                            ]),
-                          ),
-                      ],
-                      if (d['canEdit'] == true) ...[
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: GhostBtn(label: L0['btnEdit'] as String, onTap: () => v['histEditStart'](), h: 44, fs: 13.5),
-                        ),
-                      ],
-                    ] else ...[
-                      _panelField(p, L0['lblAmount'] as String, v['eA'] as String, (t) => v['eSetA'](t), hint: '0', number: true),
-                      const SizedBox(height: 12),
-                      _panelField(p, L0['dueOptional'] as String, v['eDue'] as String, (t) => v['eSetDue'](t), hint: L0['dueDateHint'] as String),
-                      const SizedBox(height: 12),
-                      _panelField(p, L0['lblNote'] as String, v['eNote'] as String, (t) => v['eSetNote'](t), hint: L0['noteWhy'] as String),
-                      const SizedBox(height: 8),
-                      Tx(L0['editActiveNote'] as String,
-                          size: 11.5, color: p.t3, lh: 16),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: InkBtn(label: L0['sendChange'] as String, onTap: () => v['histEditSave'](), h: 48),
-                      ),
-                    ],
-                  ]),
-                ),
-              ),
-            ),
+    return SheetShell(
+      onClose: () => v['histClose'](),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Tx(d['title'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+              const SizedBox(height: 2),
+              Tx(d['stLabel'] as String, size: 13, w: FontWeight.w600, color: p.t2),
+            ]),
           ),
-        ),
-      ),
+          GlassIconBtn(icon: Icons.close_rounded, onTap: () => v['histClose']()),
+        ]),
+        const SizedBox(height: 16),
+        if (!editing) ...[
+          GlassCard(
+            r: Tb.rRow,
+            pad: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              _kv(p, L0['lblAmount'] as String, d['amount'] as String),
+              _kv(p, L0['date'] as String, d['date'] as String),
+              if ((d['due'] as String).isNotEmpty) _kv(p, L0['lblDue'] as String, d['due'] as String),
+              if ((d['note'] as String).isNotEmpty) _kv(p, L0['lblNote'] as String, d['note'] as String),
+            ]),
+          ),
+          if (versions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Cap(L0['capHistory'] as String),
+            const SizedBox(height: 8),
+            for (final ver in versions)
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: p.glass,
+                  border: Border.all(color: p.glassBd),
+                  borderRadius: BorderRadius.circular(Tb.rIcon),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    // Versiya qatori (summa · muddat · izoh) — moliyaviy
+                    // qiymat "..." bilan kesilmaydi, o'raladi.
+                    child: Tx(
+                      [ver['amount'], if ((ver['due'] as String).isNotEmpty) ver['due'], if ((ver['note'] as String).isNotEmpty) ver['note']].join(' · '),
+                      size: 13, color: p.t1, tab: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tx(ver['time'] as String, size: 11, color: p.t4, tab: true),
+                ]),
+              ),
+          ],
+          if (d['canEdit'] == true) ...[
+            const SizedBox(height: 16),
+            GlassBtn(label: L0['btnEdit'] as String, onTap: () => v['histEditStart'](), icon: Icons.edit_outlined, h: 48),
+          ],
+        ] else ...[
+          _sheetField(p, L0['lblAmount'] as String, v['eA'] as String, (t) => v['eSetA'](t), hint: '0', number: true),
+          const SizedBox(height: 12),
+          _sheetField(p, L0['dueOptional'] as String, v['eDue'] as String, (t) => v['eSetDue'](t), hint: L0['dueDateHint'] as String),
+          const SizedBox(height: 12),
+          _sheetField(p, L0['lblNote'] as String, v['eNote'] as String, (t) => v['eSetNote'](t), hint: L0['noteWhy'] as String),
+          const SizedBox(height: 10),
+          Tx(L0['editActiveNote'] as String, size: 13, color: p.t4, lh: 18),
+          const SizedBox(height: 16),
+          GradientBtn(label: L0['sendChange'] as String, onTap: () => v['histEditSave'](), icon: Icons.send_rounded),
+        ],
+      ]),
     );
   }
 
   Widget _kv(Pal p, String k, String val) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 70, child: Tx(k, size: 12.5, color: p.t3)),
-          Expanded(child: Tx(val, size: 13.5, w: FontWeight.w600, color: p.ink, tab: true)),
+          SizedBox(width: 78, child: Tx(k, size: 13, color: p.t3)),
+          Expanded(child: Tx(val, size: 14, w: FontWeight.w600, color: p.ink, tab: true)),
         ]),
       );
+
+  // Sheet maydoni: Cap + GlassField(h48)
+  Widget _sheetField(Pal p, String label, String value, ValueChanged<String> onCh, {String? hint, bool number = false}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Cap(label),
+      const SizedBox(height: 8),
+      GlassField(
+        h: 48,
+        child: StoreField(
+          value: value,
+          onChanged: onCh,
+          hint: hint,
+          keyboardType: number ? const TextInputType.numberWithOptions(decimal: false) : null,
+          style: tbStyle(size: 15, w: number ? FontWeight.w600 : FontWeight.w400, color: p.ink, tab: number),
+        ),
+      ),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -805,17 +998,14 @@ class _ClientScreenState extends State<ClientScreen> {
 
     // Yuklanish/xato holati — HECH QACHON o'lik ekran bo'lmasin: orqaga tugma doim bo'lsin.
     if (v['hasLedger'] != true) {
-      return Container(
-        color: p.bg,
-        child: SafeArea(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Align(alignment: Alignment.centerLeft, child: BackBtn(onTap: () => v['back']())),
-            ),
-            const Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-          ]),
-        ),
+      return SafeArea(
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 12),
+            child: Align(alignment: Alignment.centerLeft, child: BackBtn(onTap: () => v['back']())),
+          ),
+          Expanded(child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: p.cyan))),
+        ]),
       );
     }
 
@@ -824,278 +1014,160 @@ class _ClientScreenState extends State<ClientScreen> {
     final review = (v['ledReview'] as List).cast<Map<String, dynamic>>();
     final feed = (v['ledFeed'] as List).cast<Map<String, dynamic>>();
     final panelOpen = v['chAct'] != null;
+    final inTrust = v['cInTrust'] == true;
 
-    // -------- Header --------
-    final header = Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+    // -------- Header: BackBtn · RingAvatar(40) · ism 17/600 + holat · ⋯ --------
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 8),
       child: Row(children: [
         BackBtn(onTap: () => v['back']()),
         const SizedBox(width: 12),
-        TrustAvatar(initials: v['cInitials'] as String, size: 40, onTrust: v['cInTrust'] == true),
+        RingAvatar(initials: v['cInitials'] as String, size: 40, seed: v['cName'] as String, dot: inTrust ? p.cyan : null),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            if (v['renaming'] == true)
-              Row(children: [
-                Expanded(
-                  child: Container(
-                    height: 30,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    alignment: Alignment.centerLeft,
-                    decoration: BoxDecoration(border: Border.all(color: p.bd), borderRadius: BorderRadius.circular(8)),
-                    child: StoreField(
-                      value: v['renVal'] as String,
-                      onChanged: (t) => v['onRen'](t),
-                      style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.ink),
-                      onSubmit: () => v['renSave'](),
+          child: v['renaming'] == true
+              ? Row(children: [
+                  Expanded(
+                    child: GlassField(
+                      h: 40,
+                      focused: true,
+                      child: StoreField(
+                        value: v['renVal'] as String,
+                        onChanged: (t) => v['onRen'](t),
+                        style: tbStyle(size: 15, w: FontWeight.w600, color: p.ink),
+                        onSubmit: () => v['renSave'](),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Tap(
-                  onTap: () => v['renSave'](),
-                  child: Container(
-                    height: 30,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(15)),
-                    child: Tx(L0['btnOk'] as String, size: 11.5, w: FontWeight.w600, color: p.bg),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 64,
+                    child: GradientBtn(label: L0['btnOk'] as String, onTap: () => v['renSave'](), h: 40, fs: 13, glow: false),
                   ),
+                ])
+              : Tap(
+                  onTap: () => v['menuTap'](),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    // Hamkor nomi — "..." bilan kesilmaydi (moliyaviy ilova qoidasi)
+                    Tx(v['cName'] as String, size: 17, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 2),
+                    const SizedBox(height: 1),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Flexible(
+                        child: Tx(
+                          inTrust
+                              ? _t('inTrustBadge', "Trustbook'da") // TODO l10n
+                              : _t('viaSms', 'SMS orqali'), // TODO l10n
+                          size: 13, color: inTrust ? p.cyan : p.t3, maxLines: 1, ellipsis: true,
+                        ),
+                      ),
+                      if (inTrust) ...[
+                        const SizedBox(width: 3),
+                        Icon(Icons.check_rounded, size: 14, color: p.cyan),
+                      ],
+                    ]),
+                  ]),
                 ),
-              ]),
-            if (v['notRenaming'] == true)
-              Tap(
-                onTap: () => v['menuTap'](),
-                // Hamkor nomi — "..." bilan kesilmaydi (moliyaviy ilova qoidasi)
-                child: Tx(v['cName'] as String, size: 15.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
-              ),
-            const SizedBox(height: 2),
-            // Balans qatorlari — moliyaviy qiymat HECH QACHON qisqartirilmaydi:
-            // sig'masa FittedBox butun matnni kichraytirib to'liq ko'rsatadi.
-            for (final b in balLines)
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Tx(b['text'] as String, size: 11.5, w: FontWeight.w500, color: b['color'] as Color, tab: true),
-                ),
-              ),
-          ]),
         ),
-        const SizedBox(width: 10),
-        // "Ko'proq" tugmasi — kontekst menyu ochadi (rename/archive/profil);
-        // avvalgi "+" belgisi chalg'itardi (hech narsa qo'shmaydi).
-        // Prototip bilan 1:1: uchta 3px nuqta, 2.5px oraliq (Material glif emas).
-        Tap(
-          onTap: () => v['menuTap'](),
-          child: Container(
-            width: 34, height: 34,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd2)),
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var i = 0; i < 3; i++) ...[
-                    if (i > 0) const SizedBox(width: 2.5),
-                    Container(
-                      width: 3, height: 3,
-                      decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
+        const SizedBox(width: 8),
+        // "Ko'proq" — kontekst menyu (rename/archive/profil); nom bosilganda ham shu menyu.
+        GlassIconBtn(icon: Icons.more_horiz_rounded, onTap: () => v['menuTap']()),
       ]),
     );
 
     // -------- Off-Trust / kutilayotgan bog'lanish banneri --------
     // offTrust: hamkor Trust'da YO'Q (ro'yxatdan o'tmagan). pendingLink: Trust'da BOR,
     // lekin bog'lanish hali qabul qilinmagan — bularni ARALASHTIRMA (badge bilan ziddiyat).
-    final _bannerText = v['pendingLink'] == true
+    final bannerText = v['pendingLink'] == true
         ? store.Lf('pendingLinkBanner', {'name': v['pendingLinkName'] as String? ?? ''})
         : (v['offTrust'] == true ? L0['offTrustBanner'] as String : null);
-    final offTrustBanner = _bannerText != null
-        ? Container(
-            padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
-            decoration: BoxDecoration(color: _amber.withValues(alpha: .1), border: Border(bottom: BorderSide(color: p.hair2))),
-            child: Row(children: [
-              Icon(Icons.info_outline_rounded, size: 15, color: _amber),
-              const SizedBox(width: 8),
-              Expanded(child: Tx(_bannerText, size: 11.5, color: p.t1, lh: 16)),
-            ]),
+    final offTrustBanner = bannerText != null
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              decoration: BoxDecoration(
+                color: p.amber.withValues(alpha: .10),
+                border: Border.all(color: p.amber.withValues(alpha: .30)),
+                borderRadius: BorderRadius.circular(Tb.rIcon),
+              ),
+              child: Row(children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: p.amber),
+                const SizedBox(width: 8),
+                Expanded(child: Tx(bannerText, size: 13, color: p.t1, lh: 18)),
+              ]),
+            ),
           )
         : const SizedBox.shrink();
 
-    // -------- Body list --------
-    final bodyChildren = <Widget>[];
-    // Tasdiqlash kartochkalari (tepada)
-    for (final c in cards) {
-      bodyChildren.add(_confirmCard(c, p));
-    }
-    // Eski yozuvlar (join review)
+    // -------- Lenta (teskari ListView: [0] — eng pastda) --------
+    // Yuqoridan pastga: balans kartasi → eski yozuvlar → pufaklar (eski → yangi)
+    // → tasdiq kartalari (eng pastda). reverse:true uchun tartib teskari tuziladi.
+    final top = <Widget>[];
+    top.add(_balanceCard(v, p, balLines));
     if (review.isNotEmpty) {
-      bodyChildren.add(Padding(
+      top.add(Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Row(children: [
-          Expanded(child: Tx(store.Lf('oldRecordsCap', {'n': '${v['ledReviewCount']}'}), size: 10.5, w: FontWeight.w700, color: p.t3, ls: 1)),
+          Expanded(child: Cap(store.Lf('oldRecordsCap', {'n': '${v['ledReviewCount']}'}), ls: 1.2)),
           if (review.length > 1)
             Tap(
               onTap: () => v['revAllAsk'](),
-              child: Tx(L0['confirmAll'] as String, size: 12, w: FontWeight.w600, color: p.ink),
+              child: Tx(L0['confirmAll'] as String, size: 13, w: FontWeight.w600, color: p.cyan),
             ),
         ]),
       ));
       for (final r in review) {
-        bodyChildren.add(_reviewCard(r, p));
+        top.add(_reviewCard(r, p));
       }
     }
-    // Lenta
     if (feed.isNotEmpty && cards.isNotEmpty) {
-      bodyChildren.add(Padding(
+      top.add(Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Tx(L0['capRecords'] as String, size: 10.5, w: FontWeight.w700, color: p.t3, ls: 1),
+        child: Cap(L0['capRecords'] as String, ls: 1.2),
       ));
     }
-    for (final f in feed) {
-      bodyChildren.add(_feedCard(f, p));
+    // feed newest-first → lentada eski yuqorida, yangi pastda
+    for (final f in feed.reversed) {
+      top.add(_feedCard(f, p));
     }
-    bodyChildren.add(const SizedBox(height: 16));
+    for (final c in cards) {
+      top.add(_confirmCard(c, p));
+    }
+    final bodyChildren = <Widget>[
+      const SizedBox(height: 124), // pastki panel uchun bo'shliq
+      ...top.reversed,
+      const SizedBox(height: 8),
+    ];
 
     final body = v['ledgerLoading'] == true
-        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+        ? Center(child: CircularProgressIndicator(strokeWidth: 2, color: p.cyan))
         : (feed.isEmpty && cards.isEmpty && review.isEmpty)
             ? _empty(p)
-            : ListView(children: bodyChildren);
+            : ListView(reverse: true, children: bodyChildren);
 
     return Stack(children: [
       Column(children: [
         header,
         offTrustBanner,
         Expanded(child: body),
-        // Pastki qism: input panel (ochiq bo'lsa) yoki 3 tugma — pastga YOPISHADI (Telegram kabi).
-        // Panel ichida SingleChildScrollView + maxHeight bor: klaviatura siqsa ichki skroll bo'ladi,
-        // body (Expanded) esa 0 gacha kichrayadi — shu bois tashqi overflow bo'lmaydi.
-        if (panelOpen) _inputPanel(context, v, p) else _smartButtons(v, p),
       ]),
+      // Pastki suzuvchi panel (Telegram kabi pastga yopishadi)
+      Positioned(left: 16, right: 16, bottom: 16, child: _bottomPanel(v, p)),
+
+      // Yangi yozuv sheet'i (lend/borrow/close) — SheetShell, klaviatura bilan skroll
+      if (panelOpen) _txSheet(context, v, p),
 
       // Menyu (rename/archive/disconnect/profile)
-      if (v['menuOpen'] == true) ...[
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => v['menuClose'](),
-            child: const SizedBox.expand(),
-          ),
-        ),
-        // Menyu "ko'proq" tugmasi ostida ochiladi (o'ng tomonda) — foydalanuvchi
-        // dropdown aynan shu ikonkaga tegishli ekanini ko'radi; nom bosilganda ham shu menyu.
-        Positioned(
-          top: 56,
-          right: 16,
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 186),
-            decoration: BoxDecoration(
-              color: p.bg,
-              border: Border.all(color: p.bd2),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [BoxShadow(offset: Offset(0, 10), blurRadius: 28, color: Color(0x29000000))],
-            ),
-            // IntrinsicWidth — Positioned+minWidth cheksiz kenglik beradi; stretch Column
-            // uchun chegaralangan kenglik kerak (aks holda RenderBox was not laid out).
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: IntrinsicWidth(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-                  _menuItem(p, L0['menuRename'] as String, () => v['menuRename']()),
-                  if (v['incoming'] == true)
-                    _menuItem(p, L0['menuDisconnect'] as String, () => v['menuDisconnect'](), top: true)
-                  else
-                    _menuItem(p, L0['menuArchive'] as String, () => v['menuArchive'](), top: true),
-                  _menuItem(p, L0['menuProfile'] as String, () => v['menuProfile'](), top: true),
-                ]),
-              ),
-            ),
-          ),
-        ),
-      ],
+      if (v['menuOpen'] == true) _menuSheet(v, p),
 
-      // Hamkor profili popup
-      if (v['pProfOpen'] == true)
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => v['pProfClose'](),
-            child: Container(
-              color: const Color(0x66000000),
-              padding: const EdgeInsets.all(34),
-              child: Center(
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(18)),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      TrustAvatar(initials: v['cInitials'] as String, size: 60, onTrust: v['cInTrust'] == true),
-                      const SizedBox(height: 12),
-                      Tx(v['cName'] as String, size: 17, w: FontWeight.w700, color: p.ink),
-                      const SizedBox(height: 3),
-                      Tx(v['pPhone'] as String, size: 13, color: p.t2, tab: true),
-                      const SizedBox(height: 5),
-                      Tx(v['pStatus'] as String, size: 11.5, color: p.t3),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: GhostBtn(label: L0['btnClose'] as String, onTap: () => v['pProfClose'](), h: 44, fs: 13.5),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      // Hamkor profili
+      if (v['pProfOpen'] == true) _profileSheet(v, p),
 
       // "Barchasini tasdiqlash" tasdiq oynasi
-      if (v['revAllOpen'] == true)
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => v['revAllNo'](),
-            child: Container(
-              color: const Color(0x66000000),
-              padding: const EdgeInsets.all(28),
-              child: Center(
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(18)),
-                    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Tx(L0['confirmAllTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
-                      const SizedBox(height: 8),
-                      Tx(v['revAllText'] as String, size: 13, color: p.t2, lh: 18),
-                      const SizedBox(height: 18),
-                      Row(children: [
-                        Expanded(child: GhostBtn(label: L0['btnCancelShort'] as String, onTap: () => v['revAllNo'](), h: 44, fs: 13.5)),
-                        const SizedBox(width: 10),
-                        Expanded(child: InkBtn(label: L0['btnConfirm'] as String, onTap: () => v['revAllOk'](), h: 44, fs: 13.5)),
-                      ]),
-                    ]),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      if (v['revAllOpen'] == true) _revAllSheet(v, p),
 
-      // Yozuv tarixi / tahrir dialogi
-      if (v['histOpen'] == true) _historyDialog(v, p),
+      // Yozuv tarixi / tahrir
+      if (v['histOpen'] == true) _historySheet(v, p),
     ]);
   }
 }

@@ -1,7 +1,13 @@
 // Yordam chati — foydalanuvchi <-> Trustbook jamoasi (server -> Telegram ko'prigi).
 // Xabarlar 4s polling bilan yangilanadi (chat naqshi). Yozish har doim bepul.
+// Dizayn: prototype/redesign/DESIGN_SPEC.md §5.18 (AI chati bilan bir xil pufaklar;
+// header: 44px gradient doira headset + nom + sub 13 t2; pastki BottomPanel h56).
+//
+// Store shartnomasi o'zgarmadi: closeSupport, supportItems (mine/body/time),
+// supportInput, supportSetInput, supportSend.
 import 'package:flutter/material.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 
 class SupportChatScreen extends StatelessWidget {
@@ -18,15 +24,16 @@ class SupportChatScreen extends StatelessWidget {
     final L0 = store.L();
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              BackBtn(onTap: () => v['closeSupport']()),
-              const SizedBox(width: 10),
-              Tx('${L0['supportTitle'] ?? "Yordam chati"}', size: 18, w: FontWeight.w700, color: p.ink),
-              const Spacer(),
-            ],
+        ScreenHeader(
+          title: '${L0['supportTitle'] ?? "Yordam chati"}',
+          // TODO l10n: "Trustbook jamoasi · odatda 1 soatda javob beradi"
+          subtitle: 'Trustbook jamoasi · odatda 1 soatda javob beradi',
+          onBack: () => v['closeSupport'](),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tb.brandDiag, boxShadow: Tb.glow),
+            child: const Icon(Icons.headset_mic_rounded, size: 22, color: Colors.white),
           ),
         ),
         Expanded(
@@ -36,13 +43,13 @@ class SupportChatScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(28),
                     child: Tx(
                       '${L0['supportEmpty'] ?? "Savol, muammo yoki taklifingizni yozing."}',
-                      size: 13.5, color: p.t3, lh: 20, align: TextAlign.center,
+                      size: 15, color: p.t2, lh: 22, align: TextAlign.center,
                     ),
                   ),
                 )
               : ListView.builder(
                   reverse: true,
-                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+                  padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 12),
                   itemCount: items.length,
                   itemBuilder: (_, i) {
                     final m = items[items.length - 1 - i];
@@ -50,21 +57,28 @@ class SupportChatScreen extends StatelessWidget {
                     return Align(
                       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        margin: const EdgeInsets.symmetric(vertical: 5),
+                        padding: const EdgeInsets.fromLTRB(16, 11, 16, 10),
                         constraints: const BoxConstraints(maxWidth: 300),
                         decoration: BoxDecoration(
-                          color: mine ? p.ink : p.field,
-                          borderRadius: BorderRadius.circular(14),
+                          gradient: mine ? Tb.userBubble : null,
+                          color: mine ? null : p.glass,
+                          border: mine ? null : Border.all(color: p.glassBd),
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft: Radius.circular(mine ? 20 : 8),
+                            bottomRight: Radius.circular(mine ? 8 : 20),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Tx('${m['body']}', size: 13.5, color: mine ? p.bg : p.ink),
-                            const SizedBox(height: 3),
-                            Tx('${m['time']}', size: 10,
-                                color: mine ? p.bg.withValues(alpha: .6) : p.t4, tab: true),
+                            Tx('${m['body']}', size: 15, color: mine ? Colors.white : p.ink, lh: 21),
+                            const SizedBox(height: 4),
+                            Tx('${m['time']}', size: 11,
+                                color: mine ? Colors.white.withValues(alpha: .7) : p.t5, tab: true),
                           ],
                         ),
                       ),
@@ -72,37 +86,30 @@ class SupportChatScreen extends StatelessWidget {
                   },
                 ),
         ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hair))),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: p.field,
-                    borderRadius: BorderRadius.circular(22),
-                  ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+          child: BottomPanel(
+            h: 56,
+            padding: const EdgeInsets.only(left: 18, right: 6),
+            child: Row(
+              children: [
+                Expanded(
                   child: StoreField(
                     value: '${v['supportInput']}',
                     onChanged: (t) => v['supportSetInput'](t),
                     hint: '${L0['supportHint'] ?? "Xabar yozing..."}',
+                    onSubmit: () => v['supportSend'](),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Tap(
-                onTap: () => v['supportSend'](),
-                child: Container(
-                  width: 44, height: 44, alignment: Alignment.center,
-                  decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                  child: Icon(Icons.arrow_upward, size: 20, color: p.bg),
+                const SizedBox(width: 8),
+                GlassIconBtn(
+                  icon: Icons.send_rounded,
+                  gradient: true,
+                  iconSize: 20,
+                  onTap: () => v['supportSend'](),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

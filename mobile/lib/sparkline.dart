@@ -1,13 +1,14 @@
 // Sparkline — prototype/bosh-ekran.dc.html «4-tur» freymlaridagi SVG'ning aynan porti.
 //
 // Prototip uni uch qatlamda chizadi:
-//   1) to'ldirilgan path (`... L{last},46 L0,46 Z`) — rang 12% dan 0% gacha so'nadi;
+//   1) to'ldirilgan path (`... L{last},46 L0,46 Z`) — rang 15% dan 0% gacha so'nadi;
 //   2) ustidan stroke path (`C` — kubik bezier, round cap/join, 2.0–2.2px);
 //   3) oxirgi nuqtada to'la doira (hero r=3.5, kichik karta r=3).
 // Misol (4a hero): M0,33 C22,32 44,31 66,31.5 … C262,15.5 288,11 310,8
 //
-// Rang qoidasi: kirim -> Pal.green, chiqim -> Pal.red. Boshqa rang ishlatilmaydi
-// (rangni chaqiruvchi beradi — bu fayl theme'ga bog'lanmaydi).
+// Rang qoidasi (DESIGN_SPEC 2026-09-07): xarajat/chiqim -> Pal.cyan, kirim -> Pal.mint;
+// to'ldirish — chiziq rangining 15% i, pastga 0% gacha so'nadi. Rangni chaqiruvchi
+// beradi — bu fayl theme'ga bog'lanmaydi.
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -94,7 +95,7 @@ class SparkPainter extends CustomPainter {
         line.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
       }
 
-      // 1) Ostidagi to'ldirish — prototipdagidek pastki qirg'oqqacha yopiladi
+      // 1) Ostidagi to'ldirish — pastki qirg'oqqacha yopiladi (rang 15% -> 0%)
       final area = Path.from(line)
         ..lineTo(last.dx, h)
         ..lineTo(pts.first.dx, h)
@@ -105,7 +106,7 @@ class SparkPainter extends CustomPainter {
           ..shader = LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [color.withValues(alpha: .12), color.withValues(alpha: 0)],
+            colors: [color.withValues(alpha: .15), color.withValues(alpha: 0)],
           ).createShader(Rect.fromLTWH(0, 0, w, h)),
       );
 

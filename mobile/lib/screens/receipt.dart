@@ -1,7 +1,13 @@
-// Dalil (receipt) ekrani — prototype/template.html 1132–1193 bilan 1:1
+// Dalil (receipt) ekrani — DESIGN_SPEC §5.10 ("dark glass + gradient").
+// ScreenHeader("Dalil") · GlassCard r24 (gradient blur dog' bilan): QULFLANGAN YOZUV ·
+// yozuv kodi 22/600 · summa 36/600 mint · 2 ustunli grid · izoh ·
+// GradientBtn(ios_share) "Ulashish (PDF)" · GlassBtn "O'zgartirish so'rovi" · "Arxivlash".
+// Callback'lar: receipt['close'/'share'/'change'/'archive'] — o'zgarmagan.
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
+import '../theme.dart';
 
 class ReceiptScreen extends StatelessWidget {
   const ReceiptScreen({super.key});
@@ -13,194 +19,139 @@ class ReceiptScreen extends StatelessWidget {
     final p = curPal();
     final receipt = (v['receipt'] as Map).cast<String, dynamic>();
 
-    Widget detailRow(String label, Widget value, {bool border = true}) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: border
-            ? BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2)))
-            : null,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Tx(label, size: 13, color: p.t2),
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: Align(alignment: Alignment.centerRight, child: value),
-              ),
-            ),
-          ],
-        ),
+    Widget cell(String label, String value, {Color? valueColor, IconData? icon}) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tx(label, size: 13, color: p.t3),
+          const SizedBox(height: 3),
+          Row(children: [
+            if (icon != null) ...[Icon(icon, size: 15, color: valueColor ?? p.ink), const SizedBox(width: 4)],
+            // Ism/sana — sig'masa 2 qatorga o'raladi ("..." bilan kesilmaydi)
+            Expanded(child: Tx(value, size: 14, w: FontWeight.w600, color: valueColor ?? p.ink, maxLines: 2)),
+          ]),
+        ],
       );
     }
 
+    final divider = Container(height: 1, color: p.hairline, margin: const EdgeInsets.symmetric(vertical: 16));
+
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 20, 12),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
-          child: Row(
-            children: [
-              BackBtn(onTap: () => receipt['close']()),
-              const SizedBox(width: 10),
-              Tx(L0['receiptTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
-              const Spacer(),
-              Tx(receipt['id'] as String, size: 12, color: p.t3, tab: true),
-            ],
-          ),
+        ScreenHeader(
+          title: L0['receiptTitle'] as String,
+          onBack: () => receipt['close'](),
+          trailing: [Tx(receipt['id'] as String, size: 12, color: p.t3, tab: true)],
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 20, Tb.padX, 32),
             children: [
-              Column(
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: p.ink, width: 1.6),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(6),
-                            topRight: Radius.circular(6),
-                          ),
-                        ),
-                      ),
-                      Transform.translate(
-                        offset: const Offset(0, -1),
-                        child: Container(
-                          width: 18,
-                          height: 13,
-                          decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(3)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Tx(L0['lockedCap'] as String, size: 10.5, w: FontWeight.w600, color: p.t2, ls: 1.8),
-                        if (receipt['corrected'] == true) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: p.bd),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            child: Tx(L0['correctedBadge'] as String, size: 9.5, w: FontWeight.w700, color: p.ink, ls: 1.2),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: Tx(receipt['amount'] as String, size: 32, w: FontWeight.w700, color: p.ink, ls: -0.6, tab: true),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Tx(receipt['type'] as String, size: 14, color: p.t1),
-                  ),
-                  if (receipt['editPending'] == true)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 14),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: p.bd),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
-                        child: Tx(store.Lf('editPending', {'info': '${receipt['editLine']}'}), size: 12, color: p.t1),
-                      ),
-                    ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 6),
-                child: CustomPaint(size: const Size(double.infinity, 1), painter: _DashedLinePainter(color: p.bd)),
-              ),
-              detailRow(L0['from'] as String, Tx(receipt['from'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow(L0['to'] as String, Tx(receipt['to'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow(L0['date'] as String, Tx(receipt['date'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              detailRow(L0['lblStatus'] as String, Tx(L0['ledgerEntryKept'] as String, size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 1), border: false),
-              if (receipt['corrected'] == true) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: CustomPaint(size: const Size(double.infinity, 1), painter: _DashedLinePainter(color: p.bd)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Cap(L0['capHistory'] as String, ls: 1.6),
-                      for (final h in (receipt['histRows'] as List).cast<Map<String, dynamic>>())
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Tx(h['txt'] as String, size: 12.5, color: p.t1),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Tx(
-                  L0['receiptNote'] as String,
-                  size: 11.5,
-                  color: p.t4,
-                  lh: 18.4,
-                  align: TextAlign.center,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 22),
-                child: Column(
+              GlassCard(
+                r: Tb.rCard,
+                child: Stack(
                   children: [
-                    InkBtn(label: L0['share'] as String, onTap: () => receipt['share'](), h: 48, fs: 14.5),
-                    const SizedBox(height: 10),
-                    GhostBtn(label: L0['changeReq'] as String, onTap: () => receipt['change'](), h: 48, fs: 14.5),
-                    const SizedBox(height: 10),
-                    Tap(
-                      onTap: () => receipt['archive'](),
-                      child: Container(
-                        height: 44,
-                        alignment: Alignment.center,
-                        child: Tx(L0['archive'] as String, size: 13.5, w: FontWeight.w500, color: p.t2),
+                    // O'ng-yuqorida 160px gradient blur dog' (25%)
+                    Positioned(
+                      top: -50,
+                      right: -50,
+                      child: IgnorePointer(
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                          child: Opacity(
+                            opacity: .25,
+                            child: Container(
+                              width: 160,
+                              height: 160,
+                              decoration: const BoxDecoration(gradient: Tb.brandDiag, shape: BoxShape.circle),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Icon(Icons.lock_outline_rounded, size: 16, color: p.cyan),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Tx(L0['lockedCap'] as String, size: 13, w: FontWeight.w700, color: p.cyan, ls: 1, font: TbFont.body, maxLines: 1, ellipsis: true),
+                            ),
+                            if (receipt['corrected'] == true) ...[
+                              const SizedBox(width: 8),
+                              PillBadge.amber(L0['correctedBadge'] as String, h: 20),
+                            ],
+                          ]),
+                          const SizedBox(height: 14),
+                          Tx(receipt['id'] as String, size: 22, w: FontWeight.w600, color: p.ink, tab: true, ls: 1),
+                          const SizedBox(height: 10),
+                          // Summa hech qachon kesilmaydi — sig'masa kichrayadi
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Tx(receipt['amount'] as String, size: 36, w: FontWeight.w600, color: p.mint, ls: -0.5, tab: true),
+                          ),
+                          const SizedBox(height: 4),
+                          Tx(receipt['type'] as String, size: 14, color: p.t1),
+                          if (receipt['editPending'] == true) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: p.amber.withValues(alpha: .10),
+                                border: Border.all(color: p.amber.withValues(alpha: .30)),
+                                borderRadius: BorderRadius.circular(Tb.rIcon),
+                              ),
+                              child: Tx(store.Lf('editPending', {'info': '${receipt['editLine']}'}), size: 13, color: p.t1),
+                            ),
+                          ],
+                          divider,
+                          // 2 ustunli grid: Kimdan / Kimga · Sana / Holat
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(child: cell(L0['from'] as String, receipt['from'] as String)),
+                            const SizedBox(width: 12),
+                            Expanded(child: cell(L0['to'] as String, receipt['to'] as String)),
+                          ]),
+                          const SizedBox(height: 14),
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(child: cell(L0['date'] as String, receipt['date'] as String)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: cell(L0['lblStatus'] as String, L0['ledgerEntryKept'] as String,
+                                  valueColor: p.mint, icon: Icons.verified_user_outlined),
+                            ),
+                          ]),
+                          if (receipt['corrected'] == true) ...[
+                            divider,
+                            Cap(L0['capHistory'] as String),
+                            for (final h in (receipt['histRows'] as List).cast<Map<String, dynamic>>())
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Tx(h['txt'] as String, size: 13, color: p.t1),
+                              ),
+                          ],
+                          divider,
+                          Tx(L0['receiptNote'] as String, size: 13, color: p.t3, lh: 18),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+              GradientBtn(label: L0['share'] as String, icon: Icons.ios_share_rounded, onTap: () => receipt['share']()),
+              const SizedBox(height: 10),
+              GlassBtn(label: L0['changeReq'] as String, icon: Icons.edit_outlined, onTap: () => receipt['change'](), h: 52),
+              const SizedBox(height: 6),
+              TextBtn(label: L0['archive'] as String, onTap: () => receipt['archive'](), color: p.t2),
             ],
           ),
         ),
       ],
     );
   }
-}
-
-class _DashedLinePainter extends CustomPainter {
-  final Color color;
-  _DashedLinePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color..strokeWidth = 1;
-    double x = 0;
-    const dash = 4.0, gap = 3.0;
-    while (x < size.width) {
-      canvas.drawLine(Offset(x, 0), Offset(x + dash, 0), paint);
-      x += dash + gap;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) => oldDelegate.color != color;
 }

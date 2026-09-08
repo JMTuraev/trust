@@ -1,16 +1,18 @@
 // Trust AI — moliyaviy hamroh chati (docs/ai-character.md).
 // Circles tabi o'rniga keladi (flags.dart: kCirclesEnabled=false, kAiEnabled=true).
 //
-// Dizayn: ilovaning mavjud tili — 46px pill input (xarajat.dart bilan bir xil),
-// r14 pufaklar, r16 blok kartalari, brend qizil/yashil (theme.dart).
+// Dizayn: prototype/redesign/DESIGN_SPEC.md §5.14 — header (BackBtn · 40px gradient
+// doira auto_awesome · "Trust AI" + "● onlayn"), AI pufagi chapda (shisha, r20,
+// pastki-chap 8), mening pufagim o'ngda (Tb.userBubble, pastki-o'ng 8), pastki
+// suzuvchi shisha panel (input + gradient send).
 //
 // FAQAT MATN — mikrofon/ovoz UI yo'q (mahsulot qarori 2026-07-17, §11).
 //
 // Har AI javobi ostida "noto'g'ri javob" flag tugmasi — Google Play 2026 talabi.
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../ai_blocks.dart';
 import '../store.dart';
@@ -98,37 +100,55 @@ class _AiChatScreenState extends State<AiChatScreen> {
       }
     }
 
-    return Column(
-      children: [
-        _header(p, L0),
-        Expanded(child: _body(p, L0, msgs, sending)),
-        _bottom(p, L0, expired, sending),
-      ],
+    // Ekran main.dart'da ScreenBg'siz keladi — fon + aurora shu yerda.
+    return ScreenBg(
+      child: Column(
+        children: [
+          _header(p, L0),
+          Expanded(child: _body(p, L0, msgs, sending)),
+          _bottom(p, L0, expired, sending),
+        ],
+      ),
     );
   }
 
   // ================= SARLAVHA =================
   Widget _header(Pal p, Map<String, dynamic> L0) {
+    // ScreenHeader'ning subtitle rangi t2 — bu yerda "● onlayn" mint bo'lishi
+    // kerak, shuning uchun qator qo'lda yig'iladi (o'lchamlar ScreenHeader bilan bir xil).
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 16, 20, 10),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 0),
       child: Row(
         children: [
           // Orqaga — kelib chiqqan tabga qaytadi (bottom nav AI'da yashirin, shuning
           // uchun bu yagona chiqish yo'li). store.goAi() saqlagan 'aiFrom'ga boradi.
-          Tap(
-            onTap: () => store.vals()['goAiBack'](),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 6, 8, 6),
-              child: Icon(Icons.arrow_back_ios_new, size: 20, color: p.ink),
-            ),
+          BackBtn(onTap: () => store.vals()['goAiBack']()),
+          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tb.brandDiag, boxShadow: Tb.glow),
+            child: const Icon(Icons.auto_awesome_rounded, size: 20, color: Colors.white),
           ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Tx(L0['aiTitle'] as String, size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
-                const SizedBox(height: 3),
-                Tx(L0['aiSubtitle'] as String, size: 12.5, color: p.t2),
+                Tx(L0['aiTitle'] as String, size: 18, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 1, ellipsis: true),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: p.mint),
+                    ),
+                    const SizedBox(width: 5),
+                    // TODO l10n: "onlayn"
+                    Tx('onlayn', size: 13, color: p.mint),
+                  ],
+                ),
               ],
             ),
           ),
@@ -153,14 +173,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
       // AI disclosure (Play 2026) — suhbat boshida, ohista
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
-        child: Center(child: Tx(L0['aiDisclosure'] as String, size: 11, color: p.t4, align: TextAlign.center, lh: 15)),
+        child: Center(child: Tx(L0['aiDisclosure'] as String, size: 12, color: p.t4, align: TextAlign.center, lh: 16)),
       ),
     ];
     for (final m in msgs) {
       final id = '${m['id']}';
       final isUser = m['role'] == 'user';
       items.add(Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.only(bottom: 12),
         child: isUser
             ? _userBubble('${m['text']}', p)
             : _AiAnswer(
@@ -177,19 +197,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       ));
     }
     if (sending) {
-      items.add(Padding(padding: const EdgeInsets.only(bottom: 14), child: _typing(p)));
+      items.add(Padding(padding: const EdgeInsets.only(bottom: 12), child: _typing(p)));
     } else if (store.S['aiLimited'] == true) {
-      items.add(Padding(padding: const EdgeInsets.only(bottom: 14), child: _limitCard(p, L0)));
+      items.add(Padding(padding: const EdgeInsets.only(bottom: 12), child: _limitCard(p, L0)));
     } else if (store.S['aiSendErr'] != null) {
       items.add(Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.only(bottom: 12),
         child: _errStrip('${store.S['aiSendErr']}', p, L0),
       ));
     }
 
     return ListView(
       controller: _sc,
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 8, Tb.padX, 12),
       children: items,
     );
   }
@@ -197,15 +217,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // ================= BO'SH HOLAT (xush kelibsiz + boshlang'ich chiplar) =================
   Widget _empty(Pal p, Map<String, dynamic> L0) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Tx(L0['aiWelcomeTitle'] as String, size: 18, w: FontWeight.w700, color: p.ink, ls: -0.2),
-          const SizedBox(height: 7),
-          Tx(L0['aiWelcomeBody'] as String, size: 13.5, color: p.t1, lh: 20),
-          const SizedBox(height: 18),
-          Tx(L0['aiStartCap'] as String, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4),
+          Tx(L0['aiWelcomeTitle'] as String, size: 22, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+          const SizedBox(height: 8),
+          Tx(L0['aiWelcomeBody'] as String, size: 15, color: p.t2, lh: 22),
+          const SizedBox(height: 20),
+          Cap(L0['aiStartCap'] as String),
           const SizedBox(height: 10),
           AiChips(
             items: [
@@ -216,7 +236,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             onTap: (t) => _send(t),
           ),
           const SizedBox(height: 20),
-          Tx(L0['aiDisclosure'] as String, size: 11, color: p.t4, lh: 15),
+          Tx(L0['aiDisclosure'] as String, size: 12, color: p.t4, lh: 16),
         ],
       ),
     );
@@ -224,7 +244,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _skeleton(Pal p) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
@@ -240,20 +260,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _loadError(Pal p, Map<String, dynamic> L0, String err) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Tx(L0['aiLoadErr'] as String, size: 14, w: FontWeight.w600, color: p.ink),
-          const SizedBox(height: 5),
-          Tx(err, size: 12.5, color: p.t2, lh: 18),
-          const SizedBox(height: 14),
-          GhostBtn(
-            label: L0['aiRetry'] as String,
-            h: 44,
-            onTap: () => store.loadAiMsgs(force: true),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 0),
+      child: GlassCard(
+        r: 20,
+        pad: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline_rounded, size: 18, color: p.coral),
+                const SizedBox(width: 8),
+                Expanded(child: Tx(L0['aiLoadErr'] as String, size: 15, w: FontWeight.w600, color: p.ink)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Tx(err, size: 13, color: p.t2, lh: 18),
+            const SizedBox(height: 14),
+            GlassBtn(
+              label: L0['aiRetry'] as String,
+              h: 44,
+              icon: Icons.refresh_rounded,
+              onTap: () => store.loadAiMsgs(force: true),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -266,41 +297,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 11),
-            decoration: BoxDecoration(
-              color: p.ink,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(14),
-                topRight: Radius.circular(14),
-                bottomLeft: Radius.circular(14),
-                bottomRight: Radius.circular(4),
+            padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+            decoration: const BoxDecoration(
+              gradient: Tb.userBubble,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(8),
               ),
             ),
-            child: Tx(text, size: 14, color: p.bg, lh: 20),
+            child: Tx(text, size: 15, color: Colors.white, lh: 21),
           ),
         ),
       ],
     );
   }
 
+  /// "yozmoqda" — shisha pufakda 3 nuqta.
   Widget _typing(Pal p) {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
-            color: p.field,
-            border: Border.all(color: p.hair),
+            color: p.glass,
+            border: Border.all(color: p.glassBd),
             borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(14),
-              topRight: Radius.circular(14),
-              bottomRight: Radius.circular(14),
-              bottomLeft: Radius.circular(4),
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+              bottomLeft: Radius.circular(8),
             ),
           ),
-          // "yozmoqda" MATNI o'rniga brend loader: Trust logotipi ohista puls bilan
-          // (mahsulot qarori 2026-07-17). Spinner emas; l10n['aiTyping'] kaliti saqlanadi.
-          child: const _BrandLoader(size: 20),
+          // l10n['aiTyping'] kaliti saqlanadi (matn o'rniga brend nuqtalar).
+          child: _TypingDots(color: p.t1, size: 6),
         ),
       ],
     );
@@ -314,57 +345,38 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final kind = '${store.S['aiLimitKind'] ?? 'day'}';
     final slow = kind == 'slow';
     final key = slow ? 'aiLimitSlow' : (kind == 'month' ? 'aiLimitMonth' : 'aiLimitHit');
-    return Container(
-      padding: EdgeInsets.fromLTRB(13, slow ? 6 : 12, slow ? 6 : 13, slow ? 6 : 12),
-      decoration: BoxDecoration(
-        color: p.field,
-        border: Border.all(color: p.bd2),
-        borderRadius: BorderRadius.circular(13),
-      ),
+    return GlassCard(
+      r: 20,
+      pad: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      color: p.amber.withValues(alpha: .10),
+      border: p.amber.withValues(alpha: .30),
       child: Row(
         children: [
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: slow ? 6 : 0),
-            child: Icon(Icons.schedule, size: 16, color: p.t2),
-          ),
-          const SizedBox(width: 9),
-          Expanded(child: Tx(L0[key] as String, size: 12.5, color: p.ink, lh: 18)),
+          Icon(Icons.schedule_rounded, size: 18, color: p.amber),
+          const SizedBox(width: 10),
+          Expanded(child: Tx(L0[key] as String, size: 14, color: p.ink, lh: 19)),
           if (slow)
-            Tap(
-              onTap: () => store.aiRetry_(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-                child: Tx(L0['aiRetry'] as String, size: 12.5, w: FontWeight.w700, color: p.ink),
-              ),
-            ),
+            TextBtn(label: L0['aiRetry'] as String, h: 36, fs: 14, color: p.cyan, onTap: () => store.aiRetry_()),
         ],
       ),
     );
   }
 
   Widget _errStrip(String text, Pal p, Map<String, dynamic> L0) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(13, 6, 6, 6),
-      decoration: BoxDecoration(
-        color: p.red.withValues(alpha: .08),
-        border: Border.all(color: p.red.withValues(alpha: .28)),
-        borderRadius: BorderRadius.circular(13),
-      ),
+    return GlassCard(
+      r: 20,
+      pad: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      color: p.coral.withValues(alpha: .08),
+      border: p.coral.withValues(alpha: .28),
       child: Row(
         children: [
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Tx(text, size: 12.5, color: p.ink, lh: 17),
+              child: Tx(text, size: 14, color: p.ink, lh: 18),
             ),
           ),
-          Tap(
-            onTap: () => store.aiRetry_(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-              child: Tx(L0['aiRetry'] as String, size: 12.5, w: FontWeight.w700, color: p.red),
-            ),
-          ),
+          TextBtn(label: L0['aiRetry'] as String, h: 36, fs: 14, color: p.coral, onTap: () => store.aiRetry_()),
         ],
       ),
     );
@@ -375,23 +387,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
     // 402 — obuna tugagan: tarix ko'rinadi, yangi savol yozilmaydi (read-only)
     if (expired) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
         child: Tap(
           onTap: () => store.set({'screen': 'profil', 'clientId': null, 'receiptId': null, 'inLinkId': null}),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            decoration: BoxDecoration(
-              color: p.field,
-              border: Border.all(color: p.bd2),
-              borderRadius: BorderRadius.circular(14),
-            ),
+          child: GlassCard(
+            r: 20,
+            pad: const EdgeInsets.fromLTRB(16, 12, 12, 12),
             child: Row(
               children: [
-                Icon(Icons.lock_outline, size: 17, color: p.t2),
+                Icon(Icons.lock_outline_rounded, size: 18, color: p.t2),
                 const SizedBox(width: 10),
-                Expanded(child: Tx(L0['aiReadOnly'] as String, size: 12.5, color: p.ink, lh: 17)),
+                Expanded(child: Tx(L0['aiReadOnly'] as String, size: 14, color: p.ink, lh: 18)),
                 const SizedBox(width: 6),
-                ChevRight(color: p.t3),
+                Icon(Icons.chevron_right_rounded, size: 20, color: p.t6),
               ],
             ),
           ),
@@ -401,25 +409,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     final val = '${store.S['aiInput'] ?? ''}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-      child: Container(
-        // 46px pill'ning o'suvchan varianti (PO 2026-07-17): 1 qator = 46
-        // (20px satr + 12+12 padding + 1+1 border), matn ko'paygach 3 qatorgacha
-        // kengayadi, undan keyin TextField o'z ichida scroll (maxLines:3).
-        constraints: const BoxConstraints(minHeight: 46),
-        decoration: BoxDecoration(
-          color: p.field.withValues(alpha: .95),
-          border: Border.all(color: p.bd),
-          borderRadius: BorderRadius.circular(23),
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+      child: _ChatPanel(
         child: Row(
           // Yuborish tugmasi pastki-o'ngda qoladi (ko'p qatorda ham)
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                // 1 qator = 56 (21px satr + 17.5+17.5); matn ko'paygach 3 qatorgacha
+                // kengayadi (PO 2026-07-17), undan keyin TextField o'z ichida scroll.
+                padding: const EdgeInsets.symmetric(vertical: 17.5),
                 child: StoreField(
                   value: val,
                   onChanged: (t) => store.set({'aiInput': t}),
@@ -427,31 +428,54 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   onSubmit: () => _send(),
                   minLines: 1,
                   maxLines: 3,
-                  // Satr balandligi qat'iy 20px — konteyner o'sishi bashoratli
-                  style: GoogleFonts.inter(fontSize: 14, color: p.ink, height: 20 / 14),
+                  // Satr balandligi qat'iy 21px — konteyner o'sishi bashoratli
+                  style: tbStyle(size: 15, color: p.ink, lh: 21),
                 ),
               ),
             ),
-            const SizedBox(width: 6), // matn bilan tugma orasi avvalgidek 12px
+            const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.all(6),
-              child: Tap(
-                onTap: () => _send(),
-                child: Opacity(
-                  opacity: val.trim().isEmpty && !sending ? .4 : 1,
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                    child: sending
-                        ? _TypingDots(color: p.bg)
-                        : Tx('↑', size: 16, w: FontWeight.w700, color: p.bg),
-                  ),
+              child: Opacity(
+                opacity: val.trim().isEmpty && !sending ? .55 : 1,
+                child: GlassIconBtn(
+                  icon: Icons.send_rounded,
+                  gradient: true,
+                  iconSize: 20,
+                  onTap: () => _send(),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pastki suzuvchi shisha panel — ui.dart `BottomPanel` bilan bir xil ko'rinish,
+/// lekin balandligi QAT'IY EMAS (minHeight 56): AI input 3 qatorgacha o'sadi
+/// (PO 2026-07-17), BottomPanel esa qat'iy `h` oladi.
+class _ChatPanel extends StatelessWidget {
+  final Widget child;
+  const _ChatPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          decoration: BoxDecoration(
+            color: p.panel,
+            border: Border.all(color: p.glassBd),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: Tb.panelShadow,
+          ),
+          child: child,
         ),
       ),
     );
@@ -588,13 +612,13 @@ class _AiAnswerState extends State<_AiAnswer> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(flagged ? Icons.flag : Icons.outlined_flag,
-                      size: 13, color: flagged ? p.red : p.t4),
+                      size: 13, color: flagged ? p.coral : p.t4),
                   const SizedBox(width: 5),
                   Tx(
                     (flagged ? L0['aiFlagged'] : L0['aiFlag']) as String,
-                    size: 11,
+                    size: 12,
                     w: FontWeight.w500,
-                    color: flagged ? p.red : p.t4,
+                    color: flagged ? p.coral : p.t4,
                   ),
                 ],
               ),
@@ -625,48 +649,11 @@ class _Land extends StatelessWidget {
   }
 }
 
-/// Brend "yozmoqda" indikatori — Trust logotipi (TrustMark) ohista nafas oladi
-/// (opaklik + engil masshtab pulsi). Spinner emas: brend uslubi. Doimiy takrorlanadi,
-/// shuning uchun javob necha soniya kutilsa ham "ishlayapman" hissi yo'qolmaydi.
-class _BrandLoader extends StatefulWidget {
-  final double size;
-  const _BrandLoader({required this.size});
-
-  @override
-  State<_BrandLoader> createState() => _BrandLoaderState();
-}
-
-class _BrandLoaderState extends State<_BrandLoader> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
-        ..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, child) {
-        final t = Curves.easeInOut.transform(_c.value);
-        return Opacity(
-          opacity: 0.45 + 0.55 * t,
-          child: Transform.scale(scale: 0.92 + 0.08 * t, child: child),
-        );
-      },
-      child: TrustMark(size: widget.size),
-    );
-  }
-}
-
 /// "yozmoqda…" nuqtalari (xarajat.dart _PulseDots bilan bir xil ritm).
 class _TypingDots extends StatefulWidget {
   final Color color;
-  const _TypingDots({required this.color});
+  final double size;
+  const _TypingDots({required this.color, this.size = 4});
 
   @override
   State<_TypingDots> createState() => _TypingDotsState();
@@ -692,13 +679,13 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var i = 0; i < 3; i++) ...[
-              if (i > 0) const SizedBox(width: 3),
+              if (i > 0) SizedBox(width: widget.size),
               Opacity(
                 opacity: (0.35 + 0.65 * ((t * 3 - i).clamp(0.0, 1.0) - ((t * 3 - i - 1).clamp(0.0, 1.0))))
                     .clamp(0.2, 1.0),
                 child: Container(
-                  width: 4,
-                  height: 4,
+                  width: widget.size,
+                  height: widget.size,
                   decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
                 ),
               ),

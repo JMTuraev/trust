@@ -1,4 +1,5 @@
-// Xarajatlar — papka (folder) UI, dizayn "Xarajatlar Trust.html" bilan 1:1.
+// Xarajatlar — papka (folder) UI. Vizual qatlam: prototype/redesign/DESIGN_SPEC.md §5.11
+// ("dark glass + gradient", 2026-09-07); mantiq — avvalgi "Xarajatlar Trust.html" oqimi 1:1.
 // TO'LIQ EKRAN: bottom navsiz, header'da orqaga. Matn-birinchi: input -> AI -> papka.
 // Dinamika (dizayn kabi): input ichida rangli belgilash (summa qizil, toifa/buyruq/sana
 // fonli), yozuv papkaga "uchadi" (fly chip + papka pulsi), sparkline jonli (oxirgi 8 yozuv,
@@ -11,18 +12,24 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show TextInputFormatter, TextEditingValue, HapticFeedback, SystemSound, SystemSoundType;
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../api.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
 
-// RANG QOIDASI (dizayn: Xarajatlar Trust / Trust_STT-off — redC/greenC):
-// INPUT'dagi summa HAR DOIM p.red — bu input FAQAT xarajat yozadi (store
+// RANG QOIDASI (DESIGN_SPEC §1): kirim -> p.mint, chiqim -> p.coral, AI/havola -> p.cyan.
+// INPUT'dagi summa HAR DOIM p.coral — bu input FAQAT xarajat yozadi (store
 // xarPick_ 'daromad'ni ham 'xarajat'ga o'giradi), kirim esa Daromad paneli
-// ichidan kiritiladi. p.green boshqa joylarda ishlaydi (papkalar, yozuvlar,
-// kirim paneli). Hech qayerda p.ink yoki Colors.red/green ishlatilmaydi.
+// ichidan kiritiladi. Papka kartasidagi chiqim summasi neytral (p.t1) — dizayn §5.11.
+
+/// Diagonal gradientlar (ikonka qutilari) — DESIGN_SPEC §5.11 papka ranglari
+const LinearGradient _gMintCyan = LinearGradient(
+    begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [kMint, kCyan]);
+const LinearGradient _gPinkViolet = LinearGradient(
+    begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF472B6), kViolet]);
+const LinearGradient _gAmberCoral = LinearGradient(
+    begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [kAmber, kCoral]);
 
 class XarajatScreen extends StatefulWidget {
   const XarajatScreen({super.key});
@@ -86,6 +93,83 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     vars.forEach((k, val) => s = s.replaceAll('{$k}', val));
     return s;
   }
+
+  // ---- Modul obunasi (xarajat) — home_hub._modOf bilan bir xil HIMOYALI o'qish:
+  // kalitlar yo'q bo'lsa "bepul" deb qaraladi, ilova buzilmaydi ----
+  Map<String, dynamic>? _modXar(Map<String, dynamic> v) {
+    final raw = v['modSubs'];
+    if (raw is! List) return null;
+    for (final e in raw) {
+      if (e is Map && e['module'] == 'xarajat') return e.cast<String, dynamic>();
+    }
+    return null;
+  }
+
+  bool _isPro(Map<String, dynamic> v) =>
+      v['modSubsLegacy'] == true || _modXar(v)?['active'] == true;
+
+  void _openPaywall(Map<String, dynamic> v) {
+    final f = v['openPaywall'];
+    if (f is Function) f('xarajat');
+  }
+
+  /// Papka ikonka qutisi gradienti (DESIGN_SPEC §5.11): transport → brend,
+  /// oziq-ovqat → mint→cyan, uy → pink→violet, boshqa → amber→coral,
+  /// kirim → mint→cyan, qolganlari — nomdan barqaror halqa rangi.
+  static LinearGradient _folderGrad(String name, bool inc) {
+    if (inc) return _gMintCyan;
+    switch (CatIcon.glyphFor(name)) {
+      case 'bus':
+      case 'taxi':
+        return Tb.brandDiag;
+      case 'bowl':
+      case 'coffee':
+        return _gMintCyan;
+      case 'home':
+        return _gPinkViolet;
+      case 'box':
+        return _gAmberCoral;
+      default:
+        return Tb.ringFor(name);
+    }
+  }
+
+  /// Papka ikonkasi: 4 asosiy toifa — Material ikonka (spec), qolganlari —
+  /// mavjud mazmunli CatIcon glifi (oq, gradient quti ustida).
+  static Widget _folderIcon(String name, double size) {
+    IconData? ic;
+    switch (CatIcon.glyphFor(name)) {
+      case 'bus':
+      case 'taxi':
+        ic = Icons.directions_car_outlined;
+        break;
+      case 'bowl':
+      case 'coffee':
+        ic = Icons.restaurant_outlined;
+        break;
+      case 'home':
+        ic = Icons.home_outlined;
+        break;
+      case 'box':
+      case 'bag':
+        ic = Icons.shopping_bag_outlined;
+        break;
+      case 'folder':
+        ic = Icons.folder_outlined;
+        break;
+    }
+    if (ic != null) return Icon(ic, size: size, color: Colors.white);
+    return CatIcon(cat: name, size: size * 0.95, color: Colors.white);
+  }
+
+  /// Suzuvchi kartalar (confirm / papka tahriri / ko'chirish / modal) — kontent
+  /// ustida turadi, shuning uchun shaffofsiz surface + shisha chegara + soya.
+  BoxDecoration _floatDeco(Pal p) => BoxDecoration(
+        color: p.surface,
+        border: Border.all(color: p.glassBd),
+        borderRadius: BorderRadius.circular(Tb.rCard),
+        boxShadow: Tb.panelShadow,
+      );
 
   // 1234567 -> "1 234 567" (store._fx bilan bir xil format)
   static String _fx(num v) {
@@ -332,7 +416,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             _balance(v, p),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 210),
+                padding: const EdgeInsets.fromLTRB(Tb.padX, 20, Tb.padX, 210),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -342,12 +426,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     if ((v['xfInFolders'] as List).isNotEmpty ||
                         (v['xfOutFolders'] as List).isNotEmpty) ...[
                       _cap(store.L()['capFolders'] as String, p),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       _grid([
                         ...(v['xfInFolders'] as List).cast<Map<String, dynamic>>(),
                         ...(v['xfOutFolders'] as List).cast<Map<String, dynamic>>(),
                       ], p),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 24),
                     ],
                     if (v['xfShowTray'] == true) _tray(v, p),
                   ],
@@ -394,12 +478,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  BoxDecoration _modalDeco(Pal p) => BoxDecoration(
-        color: p.bg,
-        border: Border.all(color: p.bd2),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16))],
-      );
+  BoxDecoration _modalDeco(Pal p) => _floatDeco(p);
 
   /// Davr filtri — header trigger ostidagi ANCHORED dropdown (home.dart
   /// idiomi 1:1: shaffof tap-away to'siq + karta; dim YO'Q). Joriy davr —
@@ -417,20 +496,20 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             child: const SizedBox.expand(),
           ),
           Positioned(
-            // Header: top 10 + qator 38 (jurnal) = 48; trigger pasti 46 → +6px
-            top: 52,
-            // Trigger o'ng cheti: 20 (header o'ng pad) + 38 (jurnal) + 8 (oraliq)
-            right: 66,
+            // Header: top 12 + qator 44 (BackBtn balandligi) + 4 = trigger (subtitle) pasti
+            top: 60,
+            // Trigger chap cheti: 20 (header pad) + 44 (BackBtn) + 12 (oraliq)
+            left: 76,
             child: Container(
               constraints: const BoxConstraints(minWidth: 186),
               decoration: BoxDecoration(
-                color: p.bg,
-                border: Border.all(color: p.bd2),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [BoxShadow(offset: Offset(0, 10), blurRadius: 28, color: Color(0x29000000))],
+                color: p.surface,
+                border: Border.all(color: p.glassBd),
+                borderRadius: BorderRadius.circular(Tb.rRow),
+                boxShadow: Tb.panelShadow,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(Tb.rRow),
                 child: IntrinsicWidth(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -450,26 +529,27 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  /// Davr varianti qatori — home._fltItem bilan bir uslub: 13.5px yorliq,
-  /// tanlanganida w600 + o'ngda 6px nuqta, qatorlar orasida hairline.
+  /// Davr varianti qatori: 14px yorliq, tanlanganida w600 + o'ngda 6px cyan
+  /// nuqta, qatorlar orasida hairline.
   Widget _perItem(Pal p, String label, bool on, bool first, VoidCallback onTap) {
     return Tap(
       onTap: onTap,
+      scale: 0.99,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
         decoration: first
             ? null
-            : BoxDecoration(border: Border(top: BorderSide(color: p.hair2))),
+            : BoxDecoration(border: Border(top: BorderSide(color: p.hairline))),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Tx(label, size: 13.5, w: on ? FontWeight.w600 : FontWeight.w500, color: p.ink),
+            Tx(label, size: 14, w: on ? FontWeight.w600 : FontWeight.w500, color: on ? p.ink : p.t1),
             if (on) ...[
               const SizedBox(width: 12),
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: p.cyan, shape: BoxShape.circle),
               ),
             ],
           ],
@@ -503,41 +583,49 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     final m = _rowMenu!;
     final hasEdit = m['edit'] != null;
     final hasMove = m['move'] != null;
-    Widget row(String label, Color c, VoidCallback onTap) => Tap(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-            child: Row(children: [Expanded(child: Tx(label, size: 14.5, w: FontWeight.w600, color: c))]),
-          ),
-        );
     return _scrimCard(
       p,
       () => setState(() => _rowMenu = null),
       Container(
-        width: 240,
+        width: 260,
+        clipBehavior: Clip.antiAlias,
         decoration: _modalDeco(p),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (hasEdit) ...[
-              row(_t('btnEdit', 'Tahrirlash'), p.ink, () {
-                final f = m['edit'] as Function;
-                setState(() => _rowMenu = null);
-                f();
-              }),
-              Container(height: 1, color: p.hair2),
-            ],
-            if (hasMove) ...[
-              row(_t('btnMove', "Ko'chirish"), p.ink, () {
-                final f = m['move'] as Function;
-                setState(() => _rowMenu = null);
-                f();
-              }),
-              Container(height: 1, color: p.hair2),
-            ],
-            row(_t('btnDelete', "O'chirish"), p.red, () {
-              (m['del'] as Function)();
-            }),
+            if (hasEdit)
+              ListRow(
+                icon: Icons.edit_outlined,
+                title: _t('btnEdit', 'Tahrirlash'),
+                chevron: false,
+                onTap: () {
+                  final f = m['edit'] as Function;
+                  setState(() => _rowMenu = null);
+                  f();
+                },
+              ),
+            if (hasMove)
+              ListRow(
+                icon: Icons.folder_outlined,
+                title: _t('btnMove', "Ko'chirish"),
+                chevron: false,
+                onTap: () {
+                  final f = m['move'] as Function;
+                  setState(() => _rowMenu = null);
+                  f();
+                },
+              ),
+            ListRow(
+              icon: Icons.delete_outline_rounded,
+              iconColor: p.coral,
+              title: _t('btnDelete', "O'chirish"),
+              titleColor: p.coral,
+              chevron: false,
+              last: true,
+              onTap: () {
+                (m['del'] as Function)();
+              },
+            ),
           ],
         ),
       ),
@@ -551,36 +639,39 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       p,
       () => setState(() => _delAsk = null),
       Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: _modalDeco(p),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Tx(_t('xfDelAskTitle', "Yozuv o'chirilsinmi?"), size: 16, w: FontWeight.w700, color: p.ink),
-            const SizedBox(height: 6),
+            Tx(_t('xfDelAskTitle', "Yozuv o'chirilsinmi?"), size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+            const SizedBox(height: 8),
             // Yozuv nomi to'liq ko'rinsin — "..." bilan kesilmaydi
-            Tx('${d['title']}', size: 13, color: p.t1, lh: 18),
+            Tx('${d['title']}', size: 15, color: p.t1, lh: 20),
             const SizedBox(height: 4),
-            Tx(_t('xfDelAskSub', "Tasdiqlasangiz yozuv o'chiriladi."), size: 12, color: p.t3),
-            const SizedBox(height: 16),
+            Tx(_t('xfDelAskSub', "Tasdiqlasangiz yozuv o'chiriladi."), size: 13, color: p.t3),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
-                  child: GhostBtn(
-                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                  child: GlassBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 48, fs: 15,
                     onTap: () => setState(() => _delAsk = null),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: InkBtn(
-                    label: _t('btnDelete', "O'chirish"), h: 42, fs: 13.5,
-                    onTap: () {
+                  child: SolidBtn.coral(
+                    _t('btnDelete', "O'chirish"),
+                    () {
                       final run = d['run'] as Function;
                       setState(() => _delAsk = null);
                       run(); // karta "o'chirilmoqda" spinneriga o'tadi (store xfDeleting)
                     },
+                    h: 48,
+                    fs: 15,
+                    icon: Icons.delete_outline_rounded,
                   ),
                 ),
               ],
@@ -593,12 +684,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   InputDecoration _mFieldDeco(Pal p, String hint) => InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: p.t5, fontSize: 13.5),
+        hintStyle: tbStyle(size: 15, color: p.t5),
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.ink)),
+        filled: true,
+        fillColor: p.glass,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(Tb.rKey), borderSide: BorderSide(color: p.glassBd)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Tb.rKey), borderSide: BorderSide(color: p.glassBd)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(Tb.rKey), borderSide: BorderSide(color: p.violet.withValues(alpha: .6))),
       );
 
   /// #15v2: kirim yozuvini tahrirlash (summa + izoh)
@@ -607,42 +701,42 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       p,
       () => setState(() => _incEdit = null),
       Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: _modalDeco(p),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Tx(_t('xfIncEditTitle', 'Kirimni tahrirlash'), size: 16, w: FontWeight.w700, color: p.ink),
-            const SizedBox(height: 14),
+            Tx(_t('xfIncEditTitle', 'Kirimni tahrirlash'), size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+            const SizedBox(height: 16),
             TextField(
               controller: _ieAmt,
               keyboardType: TextInputType.number,
               inputFormatters: [_ThousandsFmt()], // 1 234 567 guruhlash (add-bar bilan bir xil)
-              style: GoogleFonts.inter(
-                  color: p.ink, fontSize: 18, fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()]),
+              style: tbStyle(size: 20, w: FontWeight.w600, color: p.ink, tab: true),
+              cursorColor: p.cyan,
               decoration: _mFieldDeco(p, _t('xfIncAmtHint', 'Summa')),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _ieNote,
-              style: TextStyle(color: p.ink, fontSize: 14),
+              style: tbStyle(size: 15, color: p.ink),
+              cursorColor: p.cyan,
               decoration: _mFieldDeco(p, _t('xfIncNoteHint', 'Izoh (ixtiyoriy)')),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
-                  child: GhostBtn(
-                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                  child: GlassBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 48, fs: 15,
                     onTap: () { if (!_mBusy) setState(() => _incEdit = null); },
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: InkBtn(
-                    label: _t('btnSave', 'Saqlash'), h: 42, fs: 13.5, loading: _mBusy,
+                  child: GradientBtn(
+                    label: _t('btnSave', 'Saqlash'), h: 48, fs: 15, loading: _mBusy, glow: false,
                     onTap: () async {
                       if (_mBusy) return;
                       setState(() => _mBusy = true);
@@ -670,37 +764,38 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       p,
       () => setState(() => _incNew = false),
       Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: _modalDeco(p),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Tx(_t('xfIncNewTitle', 'Yangi daromad manbasi'), size: 16, w: FontWeight.w700, color: p.ink),
+            Tx(_t('xfIncNewTitle', 'Yangi daromad manbasi'), size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
             const SizedBox(height: 6),
             Tx(_t('xfIncNewSub', "Masalan: dokon, oylik, ijara — '@' o'zi qo'shiladi"),
-                size: 12, color: p.t3, lh: 16),
-            const SizedBox(height: 14),
+                size: 14, color: p.t2, lh: 19),
+            const SizedBox(height: 16),
             TextField(
               controller: _inName,
               autofocus: true,
-              style: TextStyle(color: p.ink, fontSize: 14.5, fontWeight: FontWeight.w600),
+              style: tbStyle(size: 15, w: FontWeight.w600, color: p.ink),
+              cursorColor: p.cyan,
               decoration: _mFieldDeco(p, _t('xfIncNewHint', '@nomi')),
               onSubmitted: (_) => _incCreateGo(v),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
-                  child: GhostBtn(
-                    label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                  child: GlassBtn(
+                    label: _t('btnCancel', 'Bekor qilish'), h: 48, fs: 15,
                     onTap: () { if (!_mBusy) setState(() => _incNew = false); },
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: InkBtn(
-                    label: _t('btnCreate', 'Yaratish'), h: 42, fs: 13.5, loading: _mBusy,
+                  child: GradientBtn(
+                    label: _t('btnCreate', 'Yaratish'), h: 48, fs: 15, loading: _mBusy, glow: false,
                     onTap: () => _incCreateGo(v),
                   ),
                 ),
@@ -796,7 +891,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     // M3 emphasized easing — shiddat bilan ko'tarilib, nishonga yumshoq qo'nadi
     final curve = CurvedAnimation(parent: ctrl, curve: Curves.easeInOutCubicEmphasized);
     final inc = e['inc'] == true;
-    final glow = inc ? p.green : p.red;
+    // Iz va nafas-glow: kirim — mint, chiqim — brend (violet) — chip o'zi gradient pill
+    final glow = inc ? p.mint : p.violet;
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => AnimatedBuilder(
@@ -837,16 +933,17 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                         child: Transform.scale(
                           scale: sc,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
-                              color: p.card2,
-                              border: Border.all(color: p.bd2),
-                              borderRadius: BorderRadius.circular(13),
+                              // Dizayn §5.11: chip — brend gradient pill (kirim: mint→cyan)
+                              gradient: inc ? _gMintCyan : Tb.brand,
+                              borderRadius: BorderRadius.circular(Tb.rPill),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 32, offset: const Offset(0, 14)),
+                                ...Tb.glow,
                                 // Parvoz cho'qqisida glow kuchayadi, qo'nishga so'nadi
                                 BoxShadow(
-                                  color: glow.withValues(alpha: (inc ? .42 : .30) * breathe + .10),
+                                  color: glow.withValues(alpha: .35 * breathe + .10),
                                   blurRadius: 22 + 12 * breathe,
                                 ),
                               ],
@@ -854,9 +951,9 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Tx('${e['emoji']} ${e['cat']}', size: 13, w: FontWeight.w500, color: p.ink),
+                                Tx('${e['emoji']} ${e['cat']}', size: 14, w: FontWeight.w600, color: Colors.white, font: TbFont.body),
                                 const SizedBox(width: 8),
-                                Tx('${e['amtTxt']}', size: 13, w: FontWeight.w600, color: inc ? p.green : p.red),
+                                Tx('${e['amtTxt']}', size: 14, w: FontWeight.w600, color: Colors.white, tab: true),
                               ],
                             ),
                           ),
@@ -877,141 +974,258 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     ctrl.dispose();
   }
 
-  // ================= SARLAVHA (dizayn: back + title + jurnal) =================
+  // ================= SARLAVHA (DESIGN_SPEC §5.11: back + title/davr + jurnal + PRO) =================
+  // ScreenHeader tuzilmasi 1:1 (BackBtn · 20/600 head · 13 t2 subtitle · trailing), lekin
+  // subtitle BOSILADI — u davr filtri (dropdown) triggeri; shu sabab qo'lda yig'ilgan.
   Widget _header(Map<String, dynamic> v, Pal p) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 20, 0),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 0),
       child: Row(
         children: [
-          Tap(
-            onTap: v['xfBack'],
-            child: SizedBox(width: 34, height: 34, child: Center(child: BackChevron(color: p.ink))),
-          ),
-          const SizedBox(width: 8),
+          BackBtn(onTap: () => (v['xfBack'] as Function)()),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Tx(store.L()['xarTitle'] as String, size: 17, w: FontWeight.w700, color: p.ink, ls: -0.2),
-                const SizedBox(height: 1),
-                Tx('${v['xfMonth']}', size: 11.5, color: p.t3),
-              ],
-            ),
-          ),
-          // Davr filtri (dropdown) — jurnal tugmasidan OLDIN
-          Tap(
-            onTap: () => setState(() => _perMenu = true),
-            child: Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: p.bd),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 110),
-                    // Davr nomi to'liq ko'rinsin — torlik qilsa kichraytiriladi
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Tx('${v['xfPerLabel']}', size: 11.5, w: FontWeight.w600,
-                          color: p.ink, maxLines: 1),
-                    ),
+                Tx(store.L()['xarTitle'] as String, size: 20, w: FontWeight.w600, color: p.ink,
+                    font: TbFont.head, maxLines: 1, ellipsis: true),
+                // Davr filtri (dropdown) — subtitle: "Sentabr 2026 ▾" (xfMonth == xfPerLabel)
+                Tap(
+                  onTap: () => setState(() => _perMenu = true),
+                  scale: 0.98,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Tx('${v['xfMonth']}', size: 13, color: p.t2, maxLines: 1, ellipsis: true),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: p.t2),
+                    ],
                   ),
-                  const SizedBox(width: 5),
-                  Tx('▾', size: 9, color: p.t3),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
           // Jurnal tugmasi (soat + yangilik nuqtasi)
-          Tap(
-            onTap: v['xfLogToggle'],
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
-              child: Stack(
-                children: [
-                  Center(child: Icon(Icons.history, size: 18, color: p.ink)),
-                  if (v['xfLogDot'] == true)
-                    Positioned(
-                      top: 4, right: 4,
-                      child: Container(
-                        width: 7, height: 7,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle, color: p.green,
-                          border: Border.all(color: p.bg, width: 1.5),
-                        ),
-                      ),
-                    ),
-                ],
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              GlassIconBtn(
+                icon: Icons.schedule_rounded,
+                onTap: () => (v['xfLogToggle'] as Function)(),
+                size: 40,
+                iconSize: 20,
               ),
-            ),
+              if (v['xfLogDot'] == true)
+                Positioned(
+                  top: 1, right: 1,
+                  child: Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: p.cyan,
+                      border: Border.all(color: p.bg, width: 2),
+                    ),
+                  ),
+                ),
+            ],
           ),
+          const SizedBox(width: 8),
+          _proPill(v, p),
         ],
       ),
     );
   }
 
-  // ================= OY BALANSI =================
-  Widget _balance(Map<String, dynamic> v, Pal p) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  /// h36 gradient pill: obuna faol — "PRO" (bosilmaydi); aks holda "PRO oling" →
+  /// modul paywall'i (v['openPaywall']('xarajat') — hub kartasi bilan bir xil callback).
+  Widget _proPill(Map<String, dynamic> v, Pal p) {
+    final pro = _isPro(v);
+    final pill = Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        gradient: Tb.brand,
+        borderRadius: BorderRadius.circular(Tb.rPill),
+        boxShadow: pro ? null : Tb.glow,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Tx('${v['xfBalCap']}', size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Flexible — FittedBox chegaralangan slotda ishlasin (aks holda Row
-              // cheksiz kenglik beradi va uzun summa baribir overflow bo'ladi)
-              Flexible(
-                child: _AnimNum(
-                  value: v['xfBalVal'] as int? ?? 0,
-                  prefix: v['xfBalPos'] == true ? '+' : '−',
-                  size: 30, weight: FontWeight.w700,
-                  color: v['xfBalPos'] == true ? p.green : p.red, ls: -0.6,
-                ),
-              ),
-              const SizedBox(width: 7),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Tx(store.L()['som'] as String, size: 13, color: p.t3),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Tx(store.L()['income'] as String, size: 12, color: p.t2),
-              Flexible(
-                child: _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
-                    size: 12, weight: FontWeight.w600, color: p.green),
-              ),
-              const SizedBox(width: 18),
-              Tx(store.L()['expense'] as String, size: 12, color: p.t2),
-              Flexible(
-                child: _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
-                    size: 12, weight: FontWeight.w600, color: p.red),
-              ),
-            ],
-          ),
+          const Icon(Icons.workspace_premium_rounded, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
+          Tx(pro ? 'PRO' : 'PRO oling', // TODO l10n ("PRO oling" — dizayn §5.11 matni)
+              size: 13, w: FontWeight.w700, color: Colors.white, font: TbFont.body, maxLines: 1),
         ],
+      ),
+    );
+    if (pro) return pill;
+    return Tap(onTap: () => _openPaywall(v), child: pill);
+  }
+
+  // ================= JAMI KARTASI (DESIGN_SPEC §5.11) =================
+  // Chap: davr balansi (count-up), kirim/chiqim, oylik limit + qoldiq.
+  // O'ng: 110px halqa (limitdan foiz) yoki limit yo'q bo'lsa "Chegarani qo'yish" CTA.
+  // Limit mantig'i — store: xarLimit / limEdit (limEditToggle, limEditSet, limSave).
+  Widget _balance(Map<String, dynamic> v, Pal p) {
+    final L0 = store.L();
+    final lim = store.S['xarLimit'] as int? ?? 0;
+    final hasLim = lim > 0;
+    final editing = v['limEditOpen'] == true;
+    final pctInt = (v['limPct'] as int? ?? 0).clamp(0, 100);
+    final over = hasLim && pctInt >= 100;
+    final limColor = over ? p.coral : p.mint;
+    void toggleEdit() {
+      final f = v['limEditToggle'];
+      if (f is Function) f();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 0),
+      child: GlassCard(
+        r: Tb.rCard,
+        pad: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Tx('${v['xfBalCap']}', size: 14, color: p.t2, maxLines: 1, ellipsis: true),
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Flexible — FittedBox chegaralangan slotda ishlasin (aks holda Row
+                          // cheksiz kenglik beradi va uzun summa baribir overflow bo'ladi)
+                          Flexible(
+                            child: _AnimNum(
+                              value: v['xfBalVal'] as int? ?? 0,
+                              prefix: v['xfBalPos'] == true ? '+' : '−',
+                              size: 32, weight: FontWeight.w600,
+                              color: v['xfBalPos'] == true ? p.mint : p.coral, ls: -0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
+                            child: Tx(L0['som'] as String, size: 14, color: p.t2),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Tx(L0['income'] as String, size: 13, color: p.t3),
+                          Flexible(
+                            child: _AnimNum(value: v['xfInVal'] as int? ?? 0, prefix: '+',
+                                size: 13, weight: FontWeight.w600, color: p.mint),
+                          ),
+                          const SizedBox(width: 14),
+                          Tx(L0['expense'] as String, size: 13, color: p.t3),
+                          Flexible(
+                            child: _AnimNum(value: v['xfOutVal'] as int? ?? 0, prefix: '−',
+                                size: 13, weight: FontWeight.w600, color: p.coral),
+                          ),
+                        ],
+                      ),
+                      if (hasLim) ...[
+                        const SizedBox(height: 12),
+                        Tap(
+                          onTap: toggleEdit,
+                          scale: 0.98,
+                          child: Tx('Limit ${v['limTotTxt'] ?? ''}', // TODO l10n ("Limit" — barcha tillarda o'xshash)
+                              size: 14, color: p.t2, maxLines: 1, ellipsis: true),
+                        ),
+                        const SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Tx('${v['limRemainTxt'] ?? ''}', size: 15, w: FontWeight.w600,
+                              color: limColor, maxLines: 1),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                if (hasLim)
+                  Tap(
+                    onTap: toggleEdit,
+                    child: _LimitRing(
+                      pct: pctInt / 100,
+                      color: over ? p.coral : p.cyan,
+                      track: p.ink.withValues(alpha: .08),
+                      label: '${v['limPctTxt'] ?? '$pctInt%'}',
+                      sub: 'limitdan', // TODO l10n
+                    ),
+                  )
+                else
+                  // Limit yo'q — "Chegarani qo'yish" CTA (GlassBtn'ga aniq kenglik: Row ichida
+                  // Container shrink-wrap bo'lib, matn chetga yopishib qolmasin)
+                  SizedBox(
+                    width: 132,
+                    child: GlassBtn(
+                      label: editing
+                          ? (L0['btnCancelShort'] as String? ?? 'Bekor')
+                          : (L0['aiBudgetSet'] as String? ?? "Chegarani qo'yish"),
+                      onTap: toggleEdit,
+                      h: 44,
+                      fs: 13,
+                    ),
+                  ),
+              ],
+            ),
+            // Limit tahriri (inline): summa maydoni + Saqlash
+            if (editing) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: GlassField(
+                      h: 48,
+                      icon: Icons.account_balance_wallet_outlined,
+                      focused: true,
+                      child: StoreField(
+                        value: '${v['limEditVal'] ?? ''}',
+                        onChanged: (t) => (v['limEditSet'] as Function)(t),
+                        hint: L0['xfIncAmtHint'] as String? ?? 'Summa',
+                        keyboardType: TextInputType.number,
+                        autofocus: true,
+                        style: tbStyle(size: 16, w: FontWeight.w600, color: p.ink, tab: true),
+                        onSubmit: () => (v['limSave'] as Function)(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 112,
+                    child: GradientBtn(
+                      label: L0['btnSave'] as String? ?? 'Saqlash',
+                      onTap: () => (v['limSave'] as Function)(),
+                      h: 48,
+                      fs: 14,
+                      glow: false,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   // ================= PAPKALAR =================
-  Widget _cap(String t, Pal p) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Tx(t, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
-      );
+  Widget _cap(String t, Pal p) => Cap(t);
 
   /// Eski/yangi indekslardan px siljish: grid 2 ustunli, kartalar bir xil
   /// o'lchamda — qadam AVVALGI kadrda chizilgan real karta RenderBox'idan
@@ -1026,8 +1240,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       }
     }
     if (sample == null) return {};
-    final stepX = sample.size.width + 10; // ustunlar orasi (SizedBox width: 10)
-    final stepY = sample.size.height + 10; // qatorlar orasi (SizedBox height: 10)
+    final stepX = sample.size.width + 12; // ustunlar orasi (SizedBox width: 12)
+    final stepY = sample.size.height + 12; // qatorlar orasi (SizedBox height: 12)
     final res = <String, Offset>{};
     for (var ni = 0; ni < to.length; ni++) {
       final oi = from.indexOf(to[ni]);
@@ -1046,21 +1260,92 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: _folderCard(fs[i], p)),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(child: i + 1 < fs.length ? _folderCard(fs[i + 1], p) : const SizedBox()),
         ],
       ));
-      if (i + 2 < fs.length) rows.add(const SizedBox(height: 10));
+      if (i + 2 < fs.length) rows.add(const SizedBox(height: 12));
     }
     return Column(children: rows);
   }
 
   Widget _folderCard(Map<String, dynamic> f, Pal p) {
     final inc = f['inc'] == true;
-    final accent = inc ? p.green : p.red;
     final name = '${f['name']}';
     // Ghost: chip hali uchmoqda — karta nishon sifatida xira turadi, summa o'rnida "···"
     final ghost = f['ghost'] == true;
+    final pc = _pulse[name] ?? 0;
+
+    // Karta ichi (DESIGN_SPEC §5.11): 44px r14 gradient ikonka qutisi · nom 15/600 ·
+    // summa 15 num (kirim mint, chiqim neytral t1) · jonli sparkline (cyan).
+    // border — qo'nish paytida cyan halqa (pastda TweenAnimationBuilder bilan so'nadi).
+    Widget inner(Color border) => GlassCard(
+          key: _keyFor(name),
+          r: Tb.rRow,
+          pad: const EdgeInsets.all(16),
+          border: border,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44, height: 44, alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: _folderGrad(name, inc),
+                      borderRadius: BorderRadius.circular(Tb.rIcon),
+                    ),
+                    child: _folderIcon(name, 22),
+                  ),
+                  if (f['isNew'] == true) PillBadge.cyan(store.L()['newBadge'] as String),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Tx(name, size: 15, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Flexible(
+                    child: ghost
+                        ? Tx('· · ·', size: 15, w: FontWeight.w600, color: p.t4, tab: true)
+                        : _AnimNum(
+                            value: f['totalVal'] as int? ?? 0,
+                            prefix: inc ? '+' : '−',
+                            size: 15, weight: FontWeight.w600,
+                            color: inc ? p.mint : p.t1,
+                            fromZero: true, // yangi papka 0 dan sanab chiqadi
+                          ),
+                  ),
+                  if (inc) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.north_east_rounded, size: 14, color: p.mint),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity, height: 22,
+                child: _AnimSpark(
+                  pts: (f['spark'] as List).cast<double>(),
+                  color: inc ? p.mint : p.cyan,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    // Qo'nish halqasi: chip qo'ngach chegara cyan yonadi va 0.9s ichida so'nadi
+    final body = pc > 0
+        ? TweenAnimationBuilder<double>(
+            key: ValueKey('ring-$name-$pc'),
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeIn,
+            builder: (_, t, __) => inner(Color.lerp(p.cyan, p.glassBd, t) ?? p.glassBd),
+          )
+        : inner(p.glassBd);
 
     // Uzoq bosish — papkani TAHRIRLASH (nomlash/arxivlash, XOTIRA §4 CRUD).
     // Ghost karta hali serverda yo'q; kirim papkasi ('Daromad') tizim boshqaruvida.
@@ -1068,96 +1353,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       behavior: HitTestBehavior.opaque,
       onTap: f['open'] as VoidCallback?,
       onLongPress: ghost ? null : () => _openFolderEdit(f),
-      child: Container(
-        key: _keyFor(name),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: inc ? Color.alphaBlend(p.green.withValues(alpha: .05), p.hov2) : p.hov2,
-          border: Border.all(color: p.hair2),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Stack(
-          children: [
-            // Mazmunga mos KATTA fon-glif — kartaning o'ng qismida, suv belgisi kabi
-            Positioned(
-              right: -18, top: -8,
-              child: Transform.rotate(
-                angle: -0.18,
-                child: CatIcon(cat: name, size: 92, color: accent.withValues(alpha: .09)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(13, 13, 13, 11),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Vektor ikonka-chip (emoji o'rniga)
-                      Container(
-                        width: 31, height: 31, alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: CatIcon(cat: name, size: 17.5, color: accent),
-                      ),
-                      if (f['isNew'] == true)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: p.card2,
-                            border: Border.all(color: p.bd2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Tx(store.L()['newBadge'] as String, size: 10, w: FontWeight.w600, color: p.t1),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Tx(name, size: 12.5, w: FontWeight.w500, color: p.t2, maxLines: 1),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: ghost
-                            ? Tx('· · ·', size: 15, w: FontWeight.w600, color: p.t4)
-                            : _AnimNum(
-                                value: f['totalVal'] as int? ?? 0,
-                                prefix: inc ? '+' : '−',
-                                size: 15, weight: FontWeight.w600,
-                                color: inc ? p.green : p.red,
-                                fromZero: true, // yangi papka 0 dan sanab chiqadi
-                              ),
-                      ),
-                      if (inc) ...[
-                        const SizedBox(width: 5),
-                        Container(
-                          width: 14, height: 14, alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.green.withValues(alpha: .18),
-                          ),
-                          child: Tx('↑', size: 9, color: p.green),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: double.infinity, height: 22,
-                    child: _AnimSpark(
-                      pts: (f['spark'] as List).cast<double>(),
-                      color: accent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: body,
     );
 
     // Ghost — xira nishon (chip qo'nganda AnimatedOpacity bilan to'liq yonadi)
@@ -1181,7 +1377,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
     // Fly qo'nganda "YUTISH" squash-stretch: karta eniga cho'zilib, bo'yiga
     // bosiladi, so'ng prujinali (elasticOut) holiga qaytadi — chip singib ketgan his
-    final pc = _pulse[name] ?? 0;
+    // pc — yuqorida (_folderCard boshida) hisoblangan
     if (pc > 0) {
       card = TweenAnimationBuilder<double>(
         key: ValueKey('pulse-$name-$pc'),
@@ -1221,236 +1417,252 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   }
 
   Widget _emptyAll(Pal p) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.symmetric(vertical: 46, horizontal: 30),
-      decoration: BoxDecoration(
-        color: p.hov2,
-        border: Border.all(color: p.hair2),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Tx(store.L()['xarEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
-              align: TextAlign.center),
-          const SizedBox(height: 6),
-          Tx(store.L()['xarEmptySub'] as String, size: 12,
-              color: p.t4, align: TextAlign.center),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: GlassCard(
+        r: Tb.rCard,
+        pad: const EdgeInsets.symmetric(vertical: 40, horizontal: 28),
+        child: Column(
+          children: [
+            Container(
+              width: 56, height: 56, alignment: Alignment.center,
+              decoration: BoxDecoration(gradient: Tb.brandDiag, borderRadius: BorderRadius.circular(18), boxShadow: Tb.glow),
+              child: const Icon(Icons.auto_awesome_rounded, size: 26, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            Tx(store.L()['xarEmptyTitle'] as String, size: 17, w: FontWeight.w600, color: p.ink,
+                font: TbFont.head, align: TextAlign.center),
+            const SizedBox(height: 6),
+            Tx(store.L()['xarEmptySub'] as String, size: 14,
+                color: p.t2, align: TextAlign.center, lh: 19),
+          ],
+        ),
       ),
     );
   }
 
   // ================= ANIQLANMAGAN (tray) =================
+  // DESIGN_SPEC §5.11: Cap + son → punktir chegarali (white15, r20) tray, ichida h40
+  // pill chiplar "Nom · summa". Chip bosilsa (toggle) ostida papka tanlash paneli
+  // ochiladi — oqim avvalgidek (xfTrayToggle / xfTrayPick / qo'lda nom).
   Widget _tray(Map<String, dynamic> v, Pal p) {
+    final L0 = store.L();
+    final rows = (v['xfTrayRows'] as List).cast<Map<String, dynamic>>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Row(
-            children: [
-              Tx(store.L()['unidentifiedCap'] as String, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: p.red.withValues(alpha: .14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Tx('${v['xfTrayCount']}', size: 10, w: FontWeight.w600, color: p.red),
-              ),
-            ],
-          ),
+        Row(
+          children: [
+            Cap(L0['unidentifiedCap'] as String),
+            const SizedBox(width: 8),
+            PillBadge.coral('${v['xfTrayCount']}', h: 20),
+          ],
         ),
-        const SizedBox(height: 10),
-        for (final t in (v['xfTrayRows'] as List).cast<Map<String, dynamic>>()) ...[
-          _Shake(
-            key: ValueKey('shake-${t['id']}'),
-            child: Tap(
-              onTap: t['toggle'],
-              child: _Dashed(
-                color: p.red.withValues(alpha: .45),
-                radius: 14,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: p.field,
-                    borderRadius: BorderRadius.circular(14),
+        const SizedBox(height: 12),
+        _Dashed(
+          color: p.ink.withValues(alpha: .15),
+          radius: Tb.rRow,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: p.ink.withValues(alpha: .02),
+              borderRadius: BorderRadius.circular(Tb.rRow),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Tx(_t('xfTrayEmpty', 'AI tanimagan xarajatlar shu yerga tushadi'),
+                        size: 14, color: p.t5, align: TextAlign.center),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: [
+                    for (final t in rows)
+                      _Shake(
+                        key: ValueKey('shake-${t['id']}'),
+                        child: Tap(
+                          onTap: t['toggle'],
+                          child: Container(
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: t['open'] == true ? p.ink : p.glass2,
+                              border: Border.all(color: t['open'] == true ? p.ink : p.glassBd),
+                              borderRadius: BorderRadius.circular(Tb.rPill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 170),
+                                  child: Tx('${t['text']}', size: 14, w: FontWeight.w600,
+                                      color: t['open'] == true ? p.bg : p.ink, maxLines: 1, ellipsis: true, font: TbFont.body),
+                                ),
+                                const SizedBox(width: 6),
+                                Tx('${t['amtTxt']}', size: 13, w: FontWeight.w600,
+                                    color: t['open'] == true ? p.bg.withValues(alpha: .7) : p.t4, tab: true),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Ochiq chip(lar) uchun papka tanlash paneli
+                for (final t in rows)
+                  if (t['open'] == true) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Tx('${t['text']} · ${t['amtTxt']} ${L0['som'] as String}',
+                              size: 13, w: FontWeight.w600, color: p.coral, maxLines: 1, ellipsis: true),
+                        ),
+                        const SizedBox(width: 8),
+                        Tx(L0['pickFolderRow'] as String, size: 12, color: p.t4),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (t['naming'] == true)
+                      // Qo'lda yangi papka nomi
                       Row(
                         children: [
                           Expanded(
-                            child: Tx('${t['text']}', size: 13, color: p.t1, maxLines: 1),
+                            child: GlassField(
+                              h: 44,
+                              focused: true,
+                              child: TextField(
+                                autofocus: true,
+                                onChanged: t['nameSet'],
+                                onSubmitted: (_) => (t['nameOk'] as Function)(),
+                                style: tbStyle(size: 14, color: p.ink),
+                                cursorColor: p.cyan,
+                                decoration: InputDecoration(
+                                  isDense: true, isCollapsed: true, border: InputBorder.none,
+                                  hintText: L0['newFolderHint'] as String,
+                                  hintStyle: tbStyle(size: 14, color: p.t5),
+                                ),
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
-                          Tx(store.L()['pickFolderRow'] as String, size: 11, color: p.t4),
+                          SizedBox(
+                            width: 76,
+                            child: GradientBtn(
+                              label: L0['btnOk'] as String,
+                              onTap: () => (t['nameOk'] as Function)(),
+                              h: 44, fs: 14, glow: false,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Wrap(
+                        spacing: 8, runSpacing: 8,
+                        children: [
+                          for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
+                            // AI taklifi (✨ yangi) — tanlangan (oq) chip ko'rinishida ajralib turadi
+                            PillChip(
+                              label: '${c['label']}',
+                              selected: c['isNew'] == true,
+                              onTap: c['pick'],
+                              h: 36,
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Tx('${t['amtTxt']} ${store.L()['som'] as String}', size: 13, w: FontWeight.w600, color: p.red),
-                      if (t['open'] == true) ...[
-                        const SizedBox(height: 10),
-                        if (t['naming'] == true)
-                          // Qo'lda yangi papka nomi
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: p.card2,
-                                    border: Border.all(color: p.bd),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Center(
-                                    child: TextField(
-                                      autofocus: true,
-                                      onChanged: t['nameSet'],
-                                      onSubmitted: (_) => (t['nameOk'] as Function)(),
-                                      style: GoogleFonts.inter(fontSize: 13, color: p.ink),
-                                      cursorColor: p.ink,
-                                      decoration: InputDecoration(
-                                        isDense: true, isCollapsed: true, border: InputBorder.none,
-                                        hintText: store.L()['newFolderHint'] as String,
-                                        hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Tap(
-                                onTap: t['nameOk'],
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
-                                  child: Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Wrap(
-                            spacing: 6, runSpacing: 6,
-                            children: [
-                              for (final c in (t['chips'] as List).cast<Map<String, dynamic>>())
-                                Tap(
-                                  onTap: c['pick'],
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                                    decoration: BoxDecoration(
-                                      // AI taklifi (✨ yangi) — ajralib turadigan urg'u
-                                      color: c['isNew'] == true ? p.ink.withValues(alpha: .08) : p.card2,
-                                      border: Border.all(color: c['isNew'] == true ? p.ink : p.bd),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Tx('${c['label']}', size: 12,
-                                        w: c['isNew'] == true ? FontWeight.w600 : FontWeight.w500, color: p.ink),
-                                  ),
-                                ),
-                            ],
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+                  ],
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-        ],
+        ),
       ],
     );
   }
 
   // ================= PAPKA TAFSILOTI =================
   Widget _detail(Map<String, dynamic> v, Pal p) {
-    return Container(
-      color: p.bg,
+    final inc = v['xfDInc'] == true;
+    final name = '${v['xfDName']}';
+    return ScreenBg(
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 20, 12),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+          // Sarlavha: BackBtn · 40px gradient ikonka qutisi · nom 17/600 + son 13 t2 · sparkline
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 0),
             child: Row(
               children: [
-                Tap(
-                  onTap: v['xfDetailClose'],
-                  child: SizedBox(width: 34, height: 34, child: Center(child: BackChevron(color: p.ink))),
-                ),
+                BackBtn(onTap: () => (v['xfDetailClose'] as Function)()),
+                const SizedBox(width: 12),
                 Container(
-                  width: 36, height: 36, alignment: Alignment.center,
+                  width: 40, height: 40, alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: (v['xfDInc'] == true ? p.green : p.red).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: _folderGrad(name, inc),
+                    borderRadius: BorderRadius.circular(Tb.rIcon),
                   ),
-                  child: CatIcon(cat: '${v['xfDName']}', size: 20,
-                      color: v['xfDInc'] == true ? p.green : p.red),
+                  child: _folderIcon(name, 20),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Tx('${v['xfDName']}', size: 16, w: FontWeight.w700, color: p.ink, maxLines: 1),
-                      const SizedBox(height: 1),
-                      Tx('${v['xfDCount']}', size: 11.5, color: p.t3),
+                      Tx(name, size: 17, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 1, ellipsis: true),
+                      Tx('${v['xfDCount']}', size: 13, color: p.t2, maxLines: 1, ellipsis: true),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 60, height: 20,
+                  width: 60, height: 22,
                   child: _AnimSpark(
                     pts: (v['xfDSpark'] as List).cast<double>(),
-                    color: v['xfDInc'] == true ? p.green : p.red,
+                    color: inc ? p.mint : p.cyan,
                   ),
                 ),
               ],
             ),
           ),
+          // Jami kartasi
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: _AnimNum(
-                        // 2026-08-03: har papka/manba O'Z animatsiya holatini oladi (key) —
-                        // ilgari Daromad -> manba (yoki papka -> papka) o'tishda widget holati
-                        // qayta ishlatilib, raqam OLDINGI sahifa summasidan PASTGA "sanab"
-                        // tushardi. Endi sahifaga kirilganda doim 0 dan n ga O'SIB chiqadi;
-                        // shu sahifada yangi kirim qo'shilsa — eski qiymatdan silliq davom etadi.
-                        key: ValueKey('xfDSum|${v['xfDName']}|${v['xfIncMain']}'),
-                        value: v['xfDTotalVal'] as int? ?? 0,
-                        fromZero: true,
-                        // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
-                        prefix: '${v['xfDPrefix'] ?? (v['xfDInc'] == true ? '+' : '−')}',
-                        size: 28, weight: FontWeight.w700,
-                        // RANG BUGI TUZATILDI: chiqim jami p.ink emas — brend qizil
-                        color: v['xfDInc'] == true
-                            ? (('${v['xfDPrefix'] ?? '+'}' == '−') ? p.red : p.green)
-                            : p.red,
-                        ls: -0.5,
-                      ),
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 4),
+            child: GlassCard(
+              r: Tb.rCard,
+              pad: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: _AnimNum(
+                      // 2026-08-03: har papka/manba O'Z animatsiya holatini oladi (key) —
+                      // ilgari Daromad -> manba (yoki papka -> papka) o'tishda widget holati
+                      // qayta ishlatilib, raqam OLDINGI sahifa summasidan PASTGA "sanab"
+                      // tushardi. Endi sahifaga kirilganda doim 0 dan n ga O'SIB chiqadi;
+                      // shu sahifada yangi kirim qo'shilsa — eski qiymatdan silliq davom etadi.
+                      key: ValueKey('xfDSum|${v['xfDName']}|${v['xfIncMain']}'),
+                      value: v['xfDTotalVal'] as int? ?? 0,
+                      fromZero: true,
+                      // #15v2: sub-daromadda QOLDIQ manfiy bo'lishi mumkin — prefiks store'dan
+                      prefix: '${v['xfDPrefix'] ?? (inc ? '+' : '−')}',
+                      size: 32, weight: FontWeight.w600,
+                      // Kirim — mint (manfiy qoldiq coral), chiqim jami — coral
+                      color: inc
+                          ? (('${v['xfDPrefix'] ?? '+'}' == '−') ? p.coral : p.mint)
+                          : p.coral,
+                      ls: -0.5,
                     ),
-                    const SizedBox(width: 7),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Tx(store.L()['som'] as String, size: 13, color: p.t3),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(width: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Tx(store.L()['som'] as String, size: 14, color: p.t2),
+                  ),
+                ],
+              ),
             ),
           ),
           // #15v2: Daromad — sub-papkalar + kirim-chiqim oqimi (alohida body)
@@ -1463,22 +1675,21 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
                       children: [
-                        Tx(store.L()['xarEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
+                        Tx(store.L()['xarEmptyTitle'] as String, size: 15, w: FontWeight.w600, color: p.ink,
                             align: TextAlign.center),
                         const SizedBox(height: 6),
-                        Tx(store.L()['folderEmptySub'] as String, size: 12,
-                            color: p.t4, align: TextAlign.center),
+                        Tx(store.L()['folderEmptySub'] as String, size: 14,
+                            color: p.t3, align: TextAlign.center, lh: 19),
                       ],
                     ),
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 210),
+                    padding: const EdgeInsets.fromLTRB(Tb.padX, 8, Tb.padX, 210),
                     children: [
                       for (final g in (v['xfDGroups'] as List).cast<Map<String, dynamic>>()) ...[
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
-                          child: Tx('${g['label']}'.toUpperCase(), size: 11, w: FontWeight.w600,
-                              color: p.t2, ls: 1.6),
+                          padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+                          child: Cap('${g['label']}'),
                         ),
                         for (final r in (g['rows'] as List).cast<Map<String, dynamic>>())
                           Padding(
@@ -1506,7 +1717,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       return Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 8, Tb.padX, 12),
             child: _IncomeAddBar(
               busy: v['xfIncBusy'] == true,
               onAdd: (a, n) => (v['xfAddIncome'] as Future<bool> Function(String, String))(a, n),
@@ -1517,10 +1728,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 ? Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
                     child: Tx(_t('xfIncSubEmpty', "Hali yozuv yo'q — yuqorida summa kiritib qo'shing"),
-                        size: 12.5, color: p.t4, align: TextAlign.center, lh: 17),
+                        size: 14, color: p.t3, align: TextAlign.center, lh: 19),
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(Tb.padX, 0, Tb.padX, 40),
                     children: [
                       for (final r in flow)
                         Padding(padding: const EdgeInsets.only(bottom: 8), child: _incFlowRow(r, p)),
@@ -1543,30 +1754,30 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: cards[i]),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(child: i + 1 < cards.length ? cards[i + 1] : const SizedBox()),
         ],
       ));
-      if (i + 2 < cards.length) rows.add(const SizedBox(height: 10));
+      if (i + 2 < cards.length) rows.add(const SizedBox(height: 12));
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+      padding: const EdgeInsets.fromLTRB(Tb.padX, 8, Tb.padX, 40),
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Tx(_t('xfIncSrcCap', 'MANBALAR'), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Cap(_t('xfIncSrcCap', 'MANBALAR')),
         ),
         ...rows,
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Tx(_t('xfIncFlowCap', 'HARAKATLAR'), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Cap(_t('xfIncFlowCap', 'HARAKATLAR')),
         ),
         if (flow.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             child: Tx(_t('xfIncEmpty', "Hali harakat yo'q — manba ochib kirim qo'shing"),
-                size: 12.5, color: p.t4, align: TextAlign.center, lh: 17),
+                size: 14, color: p.t3, align: TextAlign.center, lh: 19),
           )
         else
           for (final r in flow)
@@ -1575,32 +1786,43 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  /// Sub-daromad kartasi: nomi + QOLDIQ (katta) + kirimlar soni
+  /// Sub-daromad kartasi (GlassCard r20 pad16): @ ikonka qutisi · nomi ·
+  /// QOLDIQ (katta, mint/coral) · kirimlar soni
   Widget _incSubCard(Map<String, dynamic> f, Pal p) {
+    final name = '${f['name']}';
     return Tap(
       onTap: f['open'] as VoidCallback,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: p.hov2,
-          border: Border.all(color: p.hair2),
-          borderRadius: BorderRadius.circular(14),
-        ),
+      child: GlassCard(
+        r: Tb.rRow,
+        pad: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: 40, height: 40, alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: Tb.ringFor(name),
+                borderRadius: BorderRadius.circular(Tb.rIcon),
+              ),
+              child: const Icon(Icons.account_balance_wallet_outlined, size: 20, color: Colors.white),
+            ),
+            const SizedBox(height: 12),
             // Manba nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
-            Tx('${f['name']}', size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
-            const SizedBox(height: 6),
-            Tx('${f['leftTxt']}', size: 16, w: FontWeight.w700,
-                color: f['neg'] == true ? p.red : p.green, tab: true),
-            const SizedBox(height: 2),
+            Tx(name, size: 15, w: FontWeight.w600, color: p.ink, maxLines: 2),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Tx('${f['leftTxt']}', size: 16, w: FontWeight.w600,
+                  color: f['neg'] == true ? p.coral : p.mint, tab: true, maxLines: 1),
+            ),
+            const SizedBox(height: 4),
             // Summali qator "..." bilan kesilmasin — torlik qilsa kichraytiriladi
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Tx('${f['n']} ${_t('xfIncCardN', 'ta kirim')} · ${f['inTxt']}',
-                  size: 10.5, color: p.t4, maxLines: 1),
+                  size: 13, color: p.t3, maxLines: 1),
             ),
           ],
         ),
@@ -1613,18 +1835,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     return Tap(
       onTap: () => setState(() { _incNew = true; _inName.clear(); }),
       child: _Dashed(
-        color: p.t5,
-        radius: 14,
+        color: p.ink.withValues(alpha: .15),
+        radius: Tb.rRow,
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           alignment: Alignment.center,
-          constraints: const BoxConstraints(minHeight: 78),
+          constraints: const BoxConstraints(minHeight: 140),
+          decoration: BoxDecoration(
+            color: p.ink.withValues(alpha: .02),
+            borderRadius: BorderRadius.circular(Tb.rRow),
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Tx('+', size: 20, w: FontWeight.w600, color: p.t3),
-              const SizedBox(height: 2),
-              Tx(_t('xfIncNewCard', 'Yangi manba'), size: 12, w: FontWeight.w600, color: p.t3),
+              Container(
+                width: 40, height: 40, alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: p.glass2,
+                  border: Border.all(color: p.glassBd),
+                  borderRadius: BorderRadius.circular(Tb.rIcon),
+                ),
+                child: Icon(Icons.add_rounded, size: 22, color: p.t1),
+              ),
+              const SizedBox(height: 10),
+              Tx(_t('xfIncNewCard', 'Yangi manba'), size: 14, w: FontWeight.w600, color: p.t2,
+                  align: TextAlign.center),
             ],
           ),
         ),
@@ -1632,40 +1867,40 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  /// Oqim qatori: kirim (yashil, ⋮ bilan) yoki @chiqim (qizil).
+  /// Oqim qatori: kirim (mint, ⋮ bilan) yoki @chiqim (coral).
   /// Chiqim bu yerda faqat ko'rinadi (tahriri o'z xarajat papkasida); ⋮da faqat o'chirish.
   Widget _incFlowRow(Map<String, dynamic> r, Pal p) {
     final inc = r['inc'] == true;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: p.hov2,
-        border: Border.all(color: p.hair2),
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return GlassCard(
+      r: Tb.rRow,
+      pad: const EdgeInsets.fromLTRB(16, 12, 10, 12),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tx('${r['title']}', size: 13.5, w: FontWeight.w500, color: p.ink),
+                Tx('${r['title']}', size: 15, w: FontWeight.w500, color: p.ink),
                 const SizedBox(height: 2),
                 // Sana + papka nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
                 Tx(
                   '${r['when']}${(r['chip'] as String? ?? '').isNotEmpty ? ' · ${r['chip']}' : ''}',
-                  size: 11, color: p.t4, maxLines: 2,
+                  size: 13, color: p.t4, maxLines: 2,
                 ),
               ],
             ),
           ),
-          Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600, color: inc ? p.green : p.red, tab: true),
+          const SizedBox(width: 8),
+          Tx('${r['amtTxt']}', size: 15, w: FontWeight.w600, color: inc ? p.mint : p.coral, tab: true),
           const SizedBox(width: 6),
           if (r['deleting'] == true)
-            const SizedBox(
-              width: 28, height: 28,
+            SizedBox(
+              width: 32, height: 32,
               child: Center(
-                child: SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2)),
+                child: SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(p.cyan)),
+                ),
               ),
             )
           else
@@ -1690,13 +1925,10 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
       // Qator bosilsa — yozuvni boshqa papkaga KO'CHIRISH kartasi (XOTIRA §4:
       // saqlangan yozuv toifasini qo'lda o'zgartirish). Kirim yozuvlari ko'chmaydi.
       onTap: r['inc'] == true ? null : () => _openMove(r, folderName),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: p.hov2,
-          border: Border.all(color: p.hair2),
-          borderRadius: BorderRadius.circular(14),
-        ),
+      scale: 0.99,
+      child: GlassCard(
+        r: Tb.rRow,
+        pad: const EdgeInsets.fromLTRB(16, 12, 10, 12),
         child: Row(
           children: [
             Expanded(
@@ -1704,24 +1936,25 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // PO 2026-07-28: izoh TO'LIQ ko'rinsin — maxLines olib tashlandi (o'rab yozadi)
-                  Tx('${r['desc']}', size: 13.5, w: FontWeight.w500, color: p.ink),
+                  Tx('${r['desc']}', size: 15, w: FontWeight.w500, color: p.ink),
                   const SizedBox(height: 2),
-                  Tx('${r['time']}', size: 11, color: p.t4),
+                  Tx('${r['time']}', size: 13, color: p.t4),
                 ],
               ),
             ),
-            Tx('${r['amtTxt']}', size: 13.5, w: FontWeight.w600,
-                // RANG BUGI TUZATILDI: chiqim raqamlari brend qizil (p.ink emas)
-                color: r['inc'] == true ? p.green : p.red),
+            const SizedBox(width: 8),
+            Tx('${r['amtTxt']}', size: 15, w: FontWeight.w600, tab: true,
+                // Kirim — mint, chiqim — coral (DESIGN_SPEC §1)
+                color: r['inc'] == true ? p.mint : p.coral),
             const SizedBox(width: 6),
             // #35/#36: o'chirilayotganda spinner; aks holda 3-nuqta menyu (edit/delete)
             if (r['deleting'] == true)
-              const SizedBox(
-                width: 28, height: 28,
+              SizedBox(
+                width: 32, height: 32,
                 child: Center(
                   child: SizedBox(
-                    width: 15, height: 15,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(p.cyan)),
                   ),
                 ),
               )
@@ -1744,13 +1977,12 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   /// #36: 3-nuqta (⋮) tugmasi — bosilsa yonida kichik menyu
   /// (Tahrirlash / Ko'chirish / O'chirish). null bo'lgan amal menyuda ko'rinmaydi.
   Widget _dotsBtn(Pal p, {Function? onEdit, Function? onMove, required Function onDelete}) {
-    return Tap(
+    return GlassIconBtn(
+      icon: Icons.more_horiz_rounded,
       onTap: () => setState(() => _rowMenu = {'edit': onEdit, 'move': onMove, 'del': onDelete}),
-      child: Container(
-        width: 28, height: 28, alignment: Alignment.center,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
-        child: Tx('⋮', size: 14, w: FontWeight.w700, color: p.t2),
-      ),
+      size: 32,
+      iconSize: 18,
+      color: p.t2,
     );
   }
 
@@ -1762,41 +1994,29 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     });
   }
 
-  Widget _roundBtn(String glyph, dynamic onTap, Pal p) {
-    return Tap(
-      onTap: onTap,
-      child: Container(
-        width: 28, height: 28, alignment: Alignment.center,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: p.bd)),
-        child: Tx(glyph, size: 11, color: p.t2),
-      ),
+  /// Dumaloq shisha ikonka tugmasi (eski imzo: glif '✕' / '✎' → Material ikonka)
+  Widget _roundBtn(String glyph, dynamic onTap, Pal p, {double size = 32}) {
+    final icon = glyph == '✎' ? Icons.edit_outlined : Icons.close_rounded;
+    return GlassIconBtn(
+      icon: icon,
+      onTap: onTap is Function ? () => onTap() : null,
+      size: size,
+      iconSize: size * 0.55,
+      color: p.t1,
     );
   }
 
   // ================= JURNAL =================
   Widget _logPanel(Map<String, dynamic> v, Pal p) {
-    return Container(
-      color: p.bg,
+    return ScreenBg(
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 14, 16, 12),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Tx(store.L()['logTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
-                      const SizedBox(height: 1),
-                      Tx(store.L()['logSub'] as String, size: 11.5, color: p.t3),
-                    ],
-                  ),
-                ),
-                _roundBtn('✕', v['xfLogToggle'], p),
-              ],
-            ),
+          ScreenHeader(
+            title: store.L()['logTitle'] as String,
+            subtitle: store.L()['logSub'] as String,
+            trailing: [
+              GlassIconBtn(icon: Icons.close_rounded, onTap: () => (v['xfLogToggle'] as Function)()),
+            ],
           ),
           Expanded(
             child: v['xfLogEmpty'] == true
@@ -1804,16 +2024,16 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
                     child: Column(
                       children: [
-                        Tx(store.L()['logEmptyTitle'] as String, size: 14, w: FontWeight.w600, color: p.t1,
+                        Tx(store.L()['logEmptyTitle'] as String, size: 15, w: FontWeight.w600, color: p.ink,
                             align: TextAlign.center),
                         const SizedBox(height: 6),
                         Tx(store.L()['logEmptySub'] as String,
-                            size: 12, color: p.t4, align: TextAlign.center),
+                            size: 14, color: p.t3, align: TextAlign.center, lh: 19),
                       ],
                     ),
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 210),
+                    padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 210),
                     children: [
                       for (final o in (v['xfLogRows'] as List).cast<Map<String, dynamic>>())
                         Padding(
@@ -1831,21 +2051,22 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   Widget _logRow(Map<String, dynamic> o, Pal p) {
     final isDel = o['isDel'] == true;
     final type = '${o['type']}';
-    final badgeColor = type == 'add' ? p.green : type == 'del' ? p.red : p.t1;
-    final badgeBg = type == 'add'
-        ? p.green.withValues(alpha: .14)
-        : type == 'del' ? p.red.withValues(alpha: .14) : p.card2;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: p.hov2,
-        border: Border.all(color: p.hair2),
-        borderRadius: BorderRadius.circular(14),
-      ),
+    final badge = type == 'add'
+        ? PillBadge.mint('${o['badge']}', h: 20)
+        : type == 'del'
+            ? PillBadge.coral('${o['badge']}', h: 20)
+            : PillBadge.muted('${o['badge']}', h: 20);
+    return GlassCard(
+      r: Tb.rRow,
+      pad: const EdgeInsets.fromLTRB(14, 12, 10, 12),
       child: Row(
         children: [
-          Tx('${o['emoji']}', size: 16, color: p.ink),
-          const SizedBox(width: 10),
+          Container(
+            width: 36, height: 36, alignment: Alignment.center,
+            decoration: BoxDecoration(color: p.glass2, borderRadius: BorderRadius.circular(12)),
+            child: Tx('${o['emoji']}', size: 16, color: p.ink),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1855,38 +2076,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                     Flexible(
                       child: Text(
                         '${o['desc']}',
+                        textScaler: TextScaler.noScaling,
                         // PO 2026-07-28: jurnal qatorida ham izoh to'liq o'raladi (kesilmaydi)
-                        style: GoogleFonts.inter(
-                          fontSize: 13.5, fontWeight: FontWeight.w500,
-                          color: isDel ? p.t3 : p.ink,
+                        style: tbStyle(size: 15, w: FontWeight.w500, color: isDel ? p.t3 : p.ink).copyWith(
                           decoration: isDel ? TextDecoration.lineThrough : TextDecoration.none,
                         ),
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeBg, borderRadius: BorderRadius.circular(999)),
-                      child: Tx('${o['badge']}', size: 9.5, w: FontWeight.w600, color: badgeColor),
-                    ),
+                    badge,
                   ],
                 ),
                 const SizedBox(height: 2),
-                Tx('${o['sub']}', size: 11, color: p.t4, maxLines: 1),
+                Tx('${o['sub']}', size: 13, color: p.t4, maxLines: 1, ellipsis: true),
               ],
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '${o['amtTxt']}',
-            style: GoogleFonts.inter(
-              fontSize: 13.5, fontWeight: FontWeight.w600,
-              // RANG BUGI TUZATILDI: jurnalda ham chiqim brend qizil (p.ink emas);
-              // o'chirilgan qator xira (t3) qoladi — dizayndagi lineThrough holati
-              color: isDel ? p.t3 : (o['inc'] == true ? p.green : p.red),
-              decoration: isDel ? TextDecoration.lineThrough : TextDecoration.none,
-            ),
+            textScaler: TextScaler.noScaling,
+            style: tbStyle(
+              size: 15, w: FontWeight.w600, tab: true,
+              // Kirim mint, chiqim coral; o'chirilgan qator xira (t3) — lineThrough holati
+              color: isDel ? p.t3 : (o['inc'] == true ? p.mint : p.coral),
+            ).copyWith(decoration: isDel ? TextDecoration.lineThrough : TextDecoration.none),
           ),
           if (o['canAct'] == true) ...[
             const SizedBox(width: 8),
@@ -1900,14 +2114,35 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
   }
 
   // ================= PASTKI QATLAM =================
+  /// Input ustidagi yo'riqnoma (DESIGN_SPEC §5.11): bepul hisoblagich "3/5 bepul
+  /// yozuv ishlatildi"; PRO — "PRO · Cheksiz xarajat yozuvi"; limit noma'lum yoki
+  /// sinov qiymati (> kSubLimitDisplayMax, hub chipi bilan bir xil qoida) — avvalgi
+  /// AI yo'riqnomasi. Qaytadi: [matn, rang].
+  List<dynamic> _inputHint(Map<String, dynamic> v, Pal p) {
+    final L0 = store.L();
+    if (_isPro(v)) return ['PRO · ${L0['pwBenXar1'] as String? ?? 'Cheksiz xarajat yozuvi'}', p.cyan];
+    final e = _modXar(v);
+    final used = (e?['used'] as int?) ?? 0;
+    final limit = (e?['limit'] as int?) ?? 0;
+    if (e != null && limit > 0 && limit <= kSubLimitDisplayMax) {
+      final txt = _tf('pwUsed', {'used': '$used', 'limit': '$limit'}, '$used/$limit bepul yozuv ishlatildi');
+      return [txt, used >= limit ? p.amber : p.t4];
+    }
+    return [L0['xarInputHint'] as String, p.t4];
+  }
+
   Widget _bottomOverlay(Map<String, dynamic> v, Pal p) {
+    final hint = _inputHint(v, p);
+    final empty = '${v['xarTextVal'] ?? ''}'.trim().isEmpty && v['xfBusy'] != true;
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 60, 14, 12),
+      // Pastki 16 (spec: left/right/bottom 16); SafeArea main.dart'da
+      padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
       decoration: BoxDecoration(
+        // Kontent ostida yumshoq so'nish — panel suzuvchi, matn o'qiladigan bo'lsin
         gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [p.bg.withValues(alpha: 0), p.bg.withValues(alpha: .88), p.bg],
-          stops: const [0, .46, .82],
+          colors: [p.bg.withValues(alpha: 0), p.bg.withValues(alpha: .85), p.bg.withValues(alpha: .95)],
+          stops: const [0, .5, .85],
         ),
       ),
       child: Column(
@@ -1918,29 +2153,30 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             _SlideIn(
               key: const ValueKey('editchip'),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 5, 6, 5),
+                height: 40,
+                padding: const EdgeInsets.fromLTRB(16, 0, 6, 0),
                 decoration: BoxDecoration(
-                  color: p.card2,
-                  border: Border.all(color: p.bd2),
-                  borderRadius: BorderRadius.circular(999),
+                  color: p.surface,
+                  border: Border.all(color: p.glassBd),
+                  borderRadius: BorderRadius.circular(Tb.rPill),
+                  boxShadow: Tb.panelShadow,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Tx(store.L()['editingLabel'] as String, size: 12, color: p.t2),
+                    Icon(Icons.edit_outlined, size: 14, color: p.cyan),
+                    const SizedBox(width: 6),
+                    Tx(store.L()['editingLabel'] as String, size: 13, color: p.t2),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 150),
-                      child: Tx('${v['xfEditLabel']}', size: 12, w: FontWeight.w600,
-                          color: p.ink, maxLines: 1),
+                      child: Tx('${v['xfEditLabel']}', size: 13, w: FontWeight.w600,
+                          color: p.ink, maxLines: 1, ellipsis: true),
                     ),
-                    const SizedBox(width: 8),
-                    Tap(
-                      onTap: v['xfEditCancel'],
-                      child: Container(
-                        width: 22, height: 22, alignment: Alignment.center,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: p.hair2),
-                        child: Tx('✕', size: 10, color: p.t1),
-                      ),
+                    const SizedBox(width: 6),
+                    GlassIconBtn(
+                      icon: Icons.close_rounded,
+                      onTap: () => (v['xfEditCancel'] as Function)(),
+                      size: 28, iconSize: 16, color: p.t1,
                     ),
                   ],
                 ),
@@ -1954,26 +2190,27 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               key: ValueKey('toast-${v['xfToastText']}'),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
                 decoration: BoxDecoration(
-                  color: p.card2,
-                  border: Border.all(color: p.bd2),
-                  borderRadius: BorderRadius.circular(13),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .45), blurRadius: 30, offset: const Offset(0, 12))],
+                  color: p.isDark ? const Color(0xF21A1D28) : const Color(0xF2FFFFFF),
+                  border: Border.all(color: p.ink.withValues(alpha: .15)),
+                  borderRadius: BorderRadius.circular(Tb.rRow),
+                  boxShadow: Tb.panelShadow,
                 ),
                 child: Row(
                   children: [
-                    Expanded(child: Tx('${v['xfToastText']}', size: 13, color: p.ink)),
-                    Tap(
-                      onTap: v['xfUndo'],
-                      child: Text(
-                        '${v['xfToastBtn'] ?? (store.L()['btnCancelFull'] as String)}',
-                        style: GoogleFonts.inter(
-                          fontSize: 13, fontWeight: FontWeight.w600, color: p.ink,
-                          decoration: TextDecoration.underline,
-                        ),
+                    Icon(Icons.check_circle_outline_rounded, size: 18, color: p.mint),
+                    const SizedBox(width: 8),
+                    Expanded(child: Tx('${v['xfToastText']}', size: 14, w: FontWeight.w600, color: p.ink, maxLines: 2)),
+                    if ('${v['xfToastBtn'] ?? (store.L()['btnCancelFull'] as String)}'.isNotEmpty)
+                      TextBtn(
+                        label: '${v['xfToastBtn'] ?? (store.L()['btnCancelFull'] as String)}',
+                        onTap: () => (v['xfUndo'] as Function)(),
+                        color: p.cyan,
+                        h: 32,
+                        fs: 14,
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -2001,47 +2238,45 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           if (v['xfHideInput'] != true) ...[
           // @ tanlov popupi — '@...' yozilganda manbalar ro'yxati (nomi + qoldiq)
           if (_atList(v).isNotEmpty) _atOverlay(v, p),
-          // Yo'riqnoma — inputdan yuqorida
+          // Yo'riqnoma / bepul limit hisoblagichi — inputdan yuqorida
           Center(
-            child: Tx(store.L()['xarInputHint'] as String, size: 11, color: p.t4),
+            child: Tx('${hint[0]}', size: 13, color: hint[1] as Color, maxLines: 1, ellipsis: true),
           ),
           const SizedBox(height: 8),
-          // Matn input (rangli highlight bilan) + yuborish
-          Container(
+          // Matn input (rangli highlight bilan) + yuborish — BottomPanel h56
+          // _inputKey — fly-chip start nuqtasi (avvalgidek shu qutidan hisoblanadi)
+          BottomPanel(
             key: _inputKey,
-            height: 46,
-            decoration: BoxDecoration(
-              color: p.field.withValues(alpha: .95),
-              border: Border.all(color: p.bd),
-              borderRadius: BorderRadius.circular(23),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 28, offset: const Offset(0, 10))],
-            ),
-            child: Stack(
+            h: 56,
+            padding: const EdgeInsets.only(left: 16, right: 6),
+            child: Row(
               children: [
-                Positioned.fill(
-                  left: 16, right: 52,
-                  child: Center(
-                    child: _HlField(
-                      value: '${v['xarTextVal'] ?? ''}',
-                      onChanged: (t) => v['xarTextSet'](t),
-                      hint: store.L()['xarInputHintEx'] as String,
-                      onSubmit: v['xfSend'],
-                    ),
+                Icon(Icons.auto_awesome_rounded, size: 20, color: p.cyan),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HlField(
+                    value: '${v['xarTextVal'] ?? ''}',
+                    onChanged: (t) => v['xarTextSet'](t),
+                    hint: store.L()['xarInputHintEx'] as String,
+                    onSubmit: v['xfSend'],
                   ),
                 ),
-                Positioned(
-                  right: 6, top: 6,
-                  child: Tap(
-                    onTap: v['xfSend'],
-                    child: Opacity(
-                      opacity: '${v['xarTextVal'] ?? ''}'.trim().isEmpty && v['xfBusy'] != true ? .4 : 1,
-                      child: Container(
-                        width: 34, height: 34, alignment: Alignment.center,
-                        decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                        child: v['xfBusy'] == true
-                            ? _PulseDots(color: p.bg)
-                            : Tx('↑', size: 16, w: FontWeight.w700, color: p.bg),
+                const SizedBox(width: 8),
+                Tap(
+                  onTap: v['xfSend'],
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    opacity: empty ? .45 : 1,
+                    child: Container(
+                      width: 44, height: 44, alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: Tb.brandDiag,
+                        boxShadow: empty ? null : Tb.glow,
                       ),
+                      child: v['xfBusy'] == true
+                          ? const _PulseDots(color: Colors.white)
+                          : const Icon(Icons.send_rounded, size: 20, color: Colors.white),
                     ),
                   ),
                 ),
@@ -2075,36 +2310,23 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     final list = _atList(v);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: p.field.withValues(alpha: .97),
-        border: Border.all(color: p.bd),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 8))],
-      ),
+      clipBehavior: Clip.antiAlias,
+      decoration: _floatDeco(p).copyWith(borderRadius: BorderRadius.circular(Tb.rRow)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < list.length; i++) ...[
-            if (i > 0) Container(height: 1, color: p.hair2),
-            Tap(
+          for (var i = 0; i < list.length; i++)
+            ListRow(
+              icon: Icons.account_balance_wallet_outlined,
+              iconColor: p.cyan,
+              title: '${list[i]['name']}',
+              chevron: false,
+              last: i == list.length - 1,
+              h: 52,
+              trailing: Tx('${list[i]['leftTxt']}', size: 14, w: FontWeight.w600,
+                  color: list[i]['neg'] == true ? p.coral : p.mint, tab: true),
               onTap: () => _atPick(v, '${list[i]['name']}'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                child: Row(
-                  children: [
-                    Expanded(
-                      // Papka/manba nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
-                      child: Tx('${list[i]['name']}', size: 13.5, w: FontWeight.w600, color: p.ink,
-                          maxLines: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Tx('${list[i]['leftTxt']}', size: 12.5, w: FontWeight.w600,
-                        color: list[i]['neg'] == true ? p.red : p.green, tab: true),
-                  ],
-                ),
-              ),
             ),
-          ],
         ],
       ),
     );
@@ -2112,36 +2334,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 
   Widget _confirmCard(Map<String, dynamic> v, Pal p) {
     final isMerge = v['xfCfMerge'] == true;
+    final L0 = store.L();
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: p.field,
-        border: Border.all(color: p.bd2),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 40, offset: const Offset(0, 16))],
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDeco(p),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Tx(isMerge ? (store.L()['confirmMergeCap'] as String) : (store.L()['confirmDeleteCap'] as String),
-              size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+          Cap(isMerge ? (L0['confirmMergeCap'] as String) : (L0['confirmDeleteCap'] as String)),
           const SizedBox(height: 12),
           if (isMerge)
             Row(
               children: [
                 Expanded(
                   child: Opacity(
-                    opacity: .55,
+                    opacity: .6,
                     child: _Dashed(
-                      color: p.t5, radius: 12,
+                      color: p.ink.withValues(alpha: .2), radius: Tb.rIcon,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Tx('${v['xfCfFromTxt']}', size: 13, w: FontWeight.w500, color: p.ink, maxLines: 1),
+                            Tx('${v['xfCfFromTxt']}', size: 14, w: FontWeight.w500, color: p.ink, maxLines: 1, ellipsis: true),
                             const SizedBox(height: 4),
-                            Tx('${v['xfCfFromSum']}', size: 12.5, color: p.t2),
+                            Tx('${v['xfCfFromSum']}', size: 13, color: p.t2, tab: true),
                           ],
                         ),
                       ),
@@ -2149,22 +2366,23 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Tx('→', size: 16, color: p.t3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_forward_rounded, size: 18, color: p.t3),
                 ),
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      border: Border.all(color: p.ink, width: 1.5),
-                      borderRadius: BorderRadius.circular(12),
+                      color: p.cyan.withValues(alpha: .08),
+                      border: Border.all(color: p.cyan, width: 1.5),
+                      borderRadius: BorderRadius.circular(Tb.rIcon),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Tx('${v['xfCfToTxt']}', size: 13, w: FontWeight.w500, color: p.ink, maxLines: 1),
+                        Tx('${v['xfCfToTxt']}', size: 14, w: FontWeight.w500, color: p.ink, maxLines: 1, ellipsis: true),
                         const SizedBox(height: 4),
-                        Tx('${v['xfCfToSum']}', size: 12.5, color: p.t2),
+                        Tx('${v['xfCfToSum']}', size: 13, color: p.t2, tab: true),
                       ],
                     ),
                   ),
@@ -2172,53 +2390,46 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
               ],
             )
           else
-            Opacity(
-              opacity: .8,
-              child: _Dashed(
-                color: p.red.withValues(alpha: .55), radius: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Tx('${v['xfCfFromTxt']}', size: 13, w: FontWeight.w500, color: p.ink),
-                      Tx(store.L()['willDelete'] as String, size: 11, color: p.red),
-                    ],
-                  ),
+            _Dashed(
+              color: p.coral.withValues(alpha: .55), radius: Tb.rIcon,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: p.coral.withValues(alpha: .06),
+                  borderRadius: BorderRadius.circular(Tb.rIcon),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(child: Tx('${v['xfCfFromTxt']}', size: 14, w: FontWeight.w500, color: p.ink)),
+                    const SizedBox(width: 8),
+                    Tx(L0['willDelete'] as String, size: 12, w: FontWeight.w600, color: p.coral),
+                  ],
                 ),
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: Tap(
-                  onTap: v['xfCfOk'],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isMerge ? p.ink : p.red,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Tx(store.L()['btnConfirm'] as String, size: 13, w: FontWeight.w700,
-                        color: isMerge ? p.bg : const Color(0xFF140807)),
-                  ),
-                ),
+                child: isMerge
+                    ? GradientBtn(
+                        label: L0['btnConfirm'] as String,
+                        onTap: () => (v['xfCfOk'] as Function)(),
+                        h: 48, fs: 15, glow: false,
+                      )
+                    : SolidBtn.coral(
+                        L0['btnConfirm'] as String,
+                        () => (v['xfCfOk'] as Function)(),
+                        h: 48, fs: 15,
+                      ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Tap(
-                  onTap: v['xfCfNo'],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: p.bd),
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Tx(store.L()['btnCancelShort'] as String, size: 13, w: FontWeight.w600, color: p.t1),
-                  ),
+                child: GlassBtn(
+                  label: L0['btnCancelShort'] as String,
+                  onTap: () => (v['xfCfNo'] as Function)(),
+                  h: 48, fs: 15,
                 ),
               ),
             ],
@@ -2228,15 +2439,8 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     );
   }
 
-  // Kartalar uchun umumiy qobiq (confirm karta bilan bir xil ko'rinish)
-  BoxDecoration _cardDeco(Pal p) => BoxDecoration(
-        color: p.field,
-        border: Border.all(color: p.bd2),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: .5), blurRadius: 40, offset: const Offset(0, 16)),
-        ],
-      );
+  // Suzuvchi kartalar uchun umumiy qobiq (confirm / papka tahriri / ko'chirish)
+  BoxDecoration _cardDeco(Pal p) => _floatDeco(p);
 
   // ============ PAPKA TAHRIRI KARTASI (uzoq bosish: rename / arxiv) ============
   Widget _folderEditCard(Pal p) {
@@ -2250,35 +2454,15 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
     // 'Boshqa' — zaxira papka (parser fallback'i): nomi va arxiv holati qat'iy
     final isBoshqa = _norm(name) == 'boshqa';
 
-    Widget btn(String label, VoidCallback? onTap, {bool primary = false}) => Expanded(
-          child: Tap(
-            onTap: _fBusy ? null : onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: primary ? p.ink : null,
-                border: primary ? null : Border.all(color: p.bd),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Tx(label, size: 13, w: primary ? FontWeight.w700 : FontWeight.w600,
-                  color: primary ? p.bg : p.t1, maxLines: 1),
-            ),
-          ),
-        );
-
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: _cardDeco(p),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Tx(_t('xfEditFolderCap', 'PAPKANI TAHRIRLASH'),
-                    size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
-              ),
+              Expanded(child: Cap(_t('xfEditFolderCap', 'PAPKANI TAHRIRLASH'))),
               _roundBtn('✕', () => setState(() => _fEdit = null), p),
             ],
           ),
@@ -2286,28 +2470,22 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           Row(
             children: [
               Container(
-                width: 31, height: 31, alignment: Alignment.center,
+                width: 40, height: 40, alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: p.red.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(10),
+                  gradient: _folderGrad(name, false),
+                  borderRadius: BorderRadius.circular(Tb.rIcon),
                 ),
-                child: CatIcon(cat: name, size: 17.5, color: p.red),
+                child: _folderIcon(name, 20),
               ),
-              const SizedBox(width: 10),
-              Expanded(child: Tx(name, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1)),
-              if (archived)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: p.card2,
-                    border: Border.all(color: p.bd2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Tx(_t('xfArchivedBadge', 'Arxivda'), size: 10, w: FontWeight.w600, color: p.t1),
-                ),
+              const SizedBox(width: 12),
+              Expanded(child: Tx(name, size: 16, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true)),
+              if (archived) ...[
+                const SizedBox(width: 8),
+                PillBadge.muted(_t('xfArchivedBadge', 'Arxivda'), icon: Icons.archive_outlined),
+              ],
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           if (loading)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -2315,48 +2493,40 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             )
           else if (isBoshqa)
             Tx(_t('xfBoshqaFixedHint', "«Boshqa» — zaxira papka: aniqlanmagan yozuvlar shu yerga tushadi, tahrirlanmaydi"),
-                size: 12, color: p.t3)
+                size: 13, color: p.t3, lh: 18)
           else if (missing)
             Tx(_t('xfFolderNoCatHint', "Bu papka toifalar ro'yxatida topilmadi — tahrirlash uchun internetni tekshiring"),
-                size: 12, color: p.t3)
+                size: 13, color: p.t3, lh: 18)
           else if (renaming)
             Row(
               children: [
                 Expanded(
-                  child: Container(
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: p.card2,
-                      border: Border.all(color: p.bd),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Center(
-                      child: TextField(
-                        autofocus: true,
-                        controller: _fCtl,
-                        onChanged: (t) => _fName = t,
-                        onSubmitted: (_) => _renameFolder(name),
-                        style: GoogleFonts.inter(fontSize: 13, color: p.ink),
-                        cursorColor: p.ink,
-                        decoration: InputDecoration(
-                          isDense: true, isCollapsed: true, border: InputBorder.none,
-                          hintText: _t('newFolderHint', 'Yangi papka nomi…'),
-                          hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
-                        ),
+                  child: GlassField(
+                    h: 44,
+                    focused: true,
+                    icon: Icons.edit_outlined,
+                    child: TextField(
+                      autofocus: true,
+                      controller: _fCtl,
+                      onChanged: (t) => _fName = t,
+                      onSubmitted: (_) => _renameFolder(name),
+                      style: tbStyle(size: 14, color: p.ink),
+                      cursorColor: p.cyan,
+                      decoration: InputDecoration(
+                        isDense: true, isCollapsed: true, border: InputBorder.none,
+                        hintText: _t('newFolderHint', 'Yangi papka nomi…'),
+                        hintStyle: tbStyle(size: 14, color: p.t5),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Tap(
-                  onTap: _fBusy ? null : () => _renameFolder(name),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
-                    child: _fBusy
-                        ? _PulseDots(color: p.bg)
-                        : Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
+                SizedBox(
+                  width: 76,
+                  child: GradientBtn(
+                    label: store.L()['btnOk'] as String,
+                    onTap: _fBusy ? null : () => _renameFolder(name),
+                    h: 44, fs: 14, glow: false, loading: _fBusy,
                   ),
                 ),
               ],
@@ -2364,26 +2534,39 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           else ...[
             Row(
               children: [
-                btn(_t('xfRename', "Nomini o'zgartirish"), () {
-                  setState(() {
-                    _fEdit = {...f, 'renaming': true};
-                    _fCtl.text = _fName;
-                    _fCtl.selection = TextSelection.collapsed(offset: _fName.length);
-                  });
-                }, primary: true),
+                Expanded(
+                  child: GradientBtn(
+                    label: _t('xfRename', "Nomini o'zgartirish"),
+                    icon: Icons.edit_outlined,
+                    h: 44, fs: 14, glow: false,
+                    onTap: _fBusy
+                        ? null
+                        : () {
+                            setState(() {
+                              _fEdit = {...f, 'renaming': true};
+                              _fCtl.text = _fName;
+                              _fCtl.selection = TextSelection.collapsed(offset: _fName.length);
+                            });
+                          },
+                  ),
+                ),
                 const SizedBox(width: 8),
-                btn(
-                  archived ? _t('xfUnarchive', 'Arxivdan qaytarish') : _t('xfArchive', 'Arxivlash'),
-                  () => _archiveFolder(name, !archived),
+                Expanded(
+                  child: GlassBtn(
+                    label: archived ? _t('xfUnarchive', 'Arxivdan qaytarish') : _t('xfArchive', 'Arxivlash'),
+                    icon: Icons.archive_outlined,
+                    h: 44, fs: 14,
+                    onTap: _fBusy ? null : () => _archiveFolder(name, !archived),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Tx(
               archived
                   ? _t('xfArchivedHint', 'Arxivda: AI taklif qilmaydi, eski yozuvlar saqlanadi')
                   : _t('xfArchiveHint', "Arxivlash — o'chirish emas: tarix saqlanadi, AI taklif qilmaydi"),
-              size: 11, color: p.t4,
+              size: 12, color: p.t4, lh: 16,
             ),
           ],
         ],
@@ -2432,37 +2615,34 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
         .toList();
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: _cardDeco(p),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Tx(_t('xfMoveCap', "PAPKAGA KO'CHIRISH"),
-                    size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
-              ),
+              Expanded(child: Cap(_t('xfMoveCap', "PAPKAGA KO'CHIRISH"))),
               _roundBtn('✕', () => setState(() => _mv = null), p),
             ],
           ),
           const SizedBox(height: 12),
           _Dashed(
-            color: p.t5, radius: 12,
+            color: p.ink.withValues(alpha: .2), radius: Tb.rIcon,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  Expanded(child: Tx('${mv['desc']}', size: 13, w: FontWeight.w500, color: p.ink, maxLines: 1)),
+                  Expanded(child: Tx('${mv['desc']}', size: 14, w: FontWeight.w500, color: p.ink, maxLines: 1, ellipsis: true)),
                   const SizedBox(width: 8),
-                  Tx('${mv['amtTxt']}', size: 13, w: FontWeight.w600, color: p.red),
+                  Tx('${mv['amtTxt']}', size: 14, w: FontWeight.w600, color: p.coral, tab: true),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 8),
           Tx(_tf('xfMoveFrom', {'cat': cur}, "Hozir: {cat} — qaysi papkaga o'tsin?".replaceAll('{cat}', cur)),
-              size: 11, color: p.t4),
+              size: 13, color: p.t4),
           const SizedBox(height: 10),
           if (loading)
             Padding(
@@ -2474,39 +2654,31 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
             Row(
               children: [
                 Expanded(
-                  child: Container(
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: p.card2,
-                      border: Border.all(color: p.bd),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Center(
-                      child: TextField(
-                        autofocus: true,
-                        controller: _mvCtl,
-                        onSubmitted: (_) => _mvNameOk(),
-                        style: GoogleFonts.inter(fontSize: 13, color: p.ink),
-                        cursorColor: p.ink,
-                        decoration: InputDecoration(
-                          isDense: true, isCollapsed: true, border: InputBorder.none,
-                          hintText: _t('newFolderHint', 'Yangi papka nomi…'),
-                          hintStyle: GoogleFonts.inter(fontSize: 13, color: p.t5),
-                        ),
+                  child: GlassField(
+                    h: 44,
+                    focused: true,
+                    icon: Icons.folder_outlined,
+                    child: TextField(
+                      autofocus: true,
+                      controller: _mvCtl,
+                      onSubmitted: (_) => _mvNameOk(),
+                      style: tbStyle(size: 14, color: p.ink),
+                      cursorColor: p.cyan,
+                      decoration: InputDecoration(
+                        isDense: true, isCollapsed: true, border: InputBorder.none,
+                        hintText: _t('newFolderHint', 'Yangi papka nomi…'),
+                        hintStyle: tbStyle(size: 14, color: p.t5),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Tap(
-                  onTap: _fBusy ? null : _mvNameOk,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(999)),
-                    child: _fBusy
-                        ? _PulseDots(color: p.bg)
-                        : Tx(store.L()['btnOk'] as String, size: 12, w: FontWeight.w600, color: p.bg),
+                SizedBox(
+                  width: 76,
+                  child: GradientBtn(
+                    label: store.L()['btnOk'] as String,
+                    onTap: _fBusy ? null : _mvNameOk,
+                    h: 44, fs: 14, glow: false, loading: _fBusy,
                   ),
                 ),
               ],
@@ -2514,44 +2686,30 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
           else ...[
             if (chips.isEmpty) ...[
               Tx(_t('xfMoveNoCats', "Boshqa faol papka yo'q — internetni tekshiring yoki yangi toifa oching"),
-                  size: 12, color: p.t3),
+                  size: 13, color: p.t3, lh: 18),
               const SizedBox(height: 8),
             ],
             Wrap(
-              spacing: 6, runSpacing: 6,
+              spacing: 8, runSpacing: 8,
               children: [
                 for (final c in chips)
-                  Tap(
+                  PillChip(
+                    label: '${store.xfEmoji('${c['name']}')} ${c['name']}',
+                    selected: false,
+                    h: 36,
                     onTap: _fBusy ? null : () => _moveTo('${c['name']}'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: p.card2,
-                        border: Border.all(color: p.bd),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Tx('${store.xfEmoji('${c['name']}')} ${c['name']}',
-                          size: 12, w: FontWeight.w500, color: p.ink),
-                    ),
                   ),
                 // Yangi papka nomi — tray'dagi "➕ Boshqa nom" bilan bir xil chip
-                Tap(
+                PillChip(
+                  label: store.L()['otherName'] as String,
+                  selected: false,
+                  h: 36,
                   onTap: _fBusy
                       ? null
                       : () => setState(() {
                             _mv!['naming'] = true;
                             _mvCtl.text = '';
                           }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: p.card2,
-                      border: Border.all(color: p.bd),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Tx(store.L()['otherName'] as String,
-                        size: 12, w: FontWeight.w500, color: p.ink),
-                  ),
                 ),
               ],
             ),
@@ -2563,7 +2721,7 @@ class _XarajatScreenState extends State<XarajatScreen> with TickerProviderStateM
 }
 
 // ================= RANGLI INPUT (dizayn: highlight) =================
-// Summa — HAR DOIM qizil (+13% fon), toifa so'zi — card2 fon, buyruq/sana — hair2 fon.
+// Summa — HAR DOIM coral (+13% fon), toifa so'zi — glass2 fon, buyruq/sana — hairline fon.
 // Bu input FAQAT xarajat yozadi (store xarPick_ 'daromad' amalini ham
 // 'xarajat'ga o'giradi), kirim Daromad paneli ichidan kiritiladi — shuning
 // uchun yashil (kirim) taxmin bu yerda chalg'itardi va olib tashlandi:
@@ -2626,18 +2784,18 @@ class _HlController extends TextEditingController {
       Color c;
       Color bg;
       if (type == 'amt') {
-        // Summa doim qizil — bu input faqat xarajat yozadi (RANG QOIDASI, fayl boshida)
-        c = p.red;
-        bg = p.red.withValues(alpha: .13);
+        // Summa doim coral — bu input faqat xarajat yozadi (RANG QOIDASI, fayl boshida)
+        c = p.coral;
+        bg = p.coral.withValues(alpha: .13);
       } else if (type == 'cat') {
         c = p.ink;
-        bg = p.card2;
+        bg = p.glass2;
       } else if (type == 'cmd') {
         c = p.t1;
-        bg = p.hair2;
+        bg = p.hairline;
       } else {
         c = p.t2;
-        bg = p.hair2;
+        bg = p.hairline;
       }
       spans.add(TextSpan(
         text: t.substring(s, e),
@@ -2685,14 +2843,14 @@ class _HlFieldState extends State<_HlField> {
   @override
   Widget build(BuildContext context) {
     final p = curPal();
-    final st = GoogleFonts.inter(fontSize: 14, color: p.ink);
+    final st = tbStyle(size: 15, color: p.ink);
     return TextField(
       controller: _c,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmit != null ? (_) => widget.onSubmit!() : null,
       inputFormatters: [_NumGroupFmt()], // raqamlar jonli 0 000 000 ko'rinishida
       style: st,
-      cursorColor: p.ink,
+      cursorColor: p.cyan,
       decoration: InputDecoration(
         isDense: true,
         isCollapsed: true,
@@ -2858,13 +3016,9 @@ class _AnimNumState extends State<_AnimNum> with SingleTickerProviderStateMixin 
         child: Text(
           '${widget.prefix}${_fmt(_now())}',
           maxLines: 1,
-          style: GoogleFonts.inter(
-            fontSize: widget.size,
-            fontWeight: widget.weight,
-            color: widget.color,
-            letterSpacing: widget.ls,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+          textScaler: TextScaler.noScaling,
+          // Summalar — Space Grotesk, tabular (DESIGN_SPEC §2)
+          style: tbStyle(size: widget.size, w: widget.weight, color: widget.color, ls: widget.ls, tab: true),
         ),
       ),
     );
@@ -2965,7 +3119,7 @@ class _Spark extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [color.withValues(alpha: .20), color.withValues(alpha: .0)],
+          colors: [color.withValues(alpha: .15), color.withValues(alpha: .0)],
         ).createShader(Rect.fromLTWH(0, 0, w, h)),
     );
 
@@ -3015,6 +3169,90 @@ class _TrailPaint extends CustomPainter {
 
   @override
   bool shouldRepaint(_TrailPaint old) => true;
+}
+
+/// Limit halqasi (DESIGN_SPEC §5.11): 110px, stroke 10, fon ink 8%, progress cyan
+/// (limit oshsa coral), round cap, -90° dan boshlanadi; ichida "41%" 22/600 num +
+/// "limitdan" 12 t3. Foiz o'zgarganda silliq to'ladi.
+class _LimitRing extends StatelessWidget {
+  final double pct; // 0..1
+  final Color color;
+  final Color track;
+  final String label;
+  final String sub;
+  final double size;
+  const _LimitRing({
+    required this.pct,
+    required this.color,
+    required this.track,
+    required this.label,
+    required this.sub,
+    this.size = 110,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = curPal();
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: pct.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (_, t, child) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _RingPainter(pct: t, color: color, track: track, stroke: 10),
+          child: child,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Tx(label, size: 22, w: FontWeight.w600, color: p.ink, tab: true, maxLines: 1),
+            Tx(sub, size: 12, color: p.t3, maxLines: 1),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double pct;
+  final Color color;
+  final Color track;
+  final double stroke;
+  _RingPainter({required this.pct, required this.color, required this.track, required this.stroke});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = (math.min(size.width, size.height) - stroke) / 2;
+    canvas.drawCircle(
+      c, r,
+      Paint()
+        ..color = track
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+    if (pct <= 0) return;
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r),
+      -math.pi / 2,
+      2 * math.pi * pct.clamp(0.0, 1.0),
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.pct != pct || old.color != color || old.track != track || old.stroke != stroke;
 }
 
 /// Shtrixli (dashed) ramka — dizayndagi 1.5px dashed
@@ -3495,96 +3733,73 @@ class _IncomeAddBarState extends State<_IncomeAddBar> {
     final p = curPal();
     final busy = _sending || widget.busy;
     final hasAmt = _amt.text.trim().isNotEmpty;
-    OutlineInputBorder ob(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: c, width: w),
-        );
-    InputDecoration deco(String hint, {Widget? suffix}) => InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: p.t5, fontSize: 14),
-          isDense: true,
-          filled: true,
-          fillColor: p.bg,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          border: ob(p.bd),
-          enabledBorder: ob(p.bd),
-          focusedBorder: ob(p.green, 1.4),
-          suffixIcon: suffix,
-          suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        );
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: p.hov2,
-        border: Border.all(color: p.hair2),
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return GlassCard(
+      r: Tb.rCard,
+      pad: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _amt,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.next,
-            inputFormatters: [_ThousandsFmt()],
-            style: GoogleFonts.inter(
-              color: p.ink, fontSize: 21, fontWeight: FontWeight.w700,
-              fontFeatures: const [FontFeature.tabularFigures()],
+          // Summa — katta (20 num), «so'm» suffiks, avto 1 234 567 guruhlash
+          GlassField(
+            h: 56,
+            icon: Icons.payments_outlined,
+            iconColor: p.mint,
+            trailing: Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Tx(store.L()['som'] as String? ?? "so'm", size: 14, color: p.t3),
             ),
-            decoration: deco(
-              store.L()['xfIncAmtHint'] as String? ?? 'Summa',
-              suffix: Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: Tx(store.L()['som'] as String? ?? "so'm", size: 13.5, color: p.t3),
+            child: TextField(
+              controller: _amt,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              inputFormatters: [_ThousandsFmt()],
+              style: tbStyle(size: 20, w: FontWeight.w600, color: p.ink, tab: true),
+              cursorColor: p.cyan,
+              decoration: InputDecoration(
+                isDense: true, isCollapsed: true, border: InputBorder.none,
+                hintText: store.L()['xfIncAmtHint'] as String? ?? 'Summa',
+                hintStyle: tbStyle(size: 20, w: FontWeight.w600, color: p.t5, tab: true),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _note,
-            style: TextStyle(color: p.ink, fontSize: 14.5),
-            textInputAction: TextInputAction.done,
-            decoration: deco(store.L()['xfIncNoteHint'] as String? ?? 'Izoh (ixtiyoriy)'),
-            onSubmitted: (_) => _submit(),
-          ),
-          const SizedBox(height: 12),
-          Tap(
-            onTap: (busy || !hasAmt) ? null : _submit,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              height: 50,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: p.green.withValues(alpha: busy ? .55 : (hasAmt ? 1 : .35)),
-                borderRadius: BorderRadius.circular(14),
+          GlassField(
+            h: 48,
+            icon: Icons.description_outlined,
+            child: TextField(
+              controller: _note,
+              style: tbStyle(size: 15, color: p.ink),
+              cursorColor: p.cyan,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                isDense: true, isCollapsed: true, border: InputBorder.none,
+                hintText: store.L()['xfIncNoteHint'] as String? ?? 'Izoh (ixtiyoriy)',
+                hintStyle: tbStyle(size: 15, color: p.t5),
               ),
-              child: busy
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.add_rounded, color: Colors.white, size: 21),
-                        const SizedBox(width: 7),
-                        Tx(store.L()['xfIncAddBtn'] as String? ?? "Qo'shish",
-                            size: 15, w: FontWeight.w700, color: Colors.white),
-                      ],
-                    ),
+              onSubmitted: (_) => _submit(),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          // Summa bo'sh — xira (bosilmaydi); band — spinner
+          Opacity(
+            opacity: (busy || hasAmt) ? 1 : .45,
+            child: SolidBtn.mint(
+              store.L()['xfIncAddBtn'] as String? ?? "Qo'shish",
+              (busy || !hasAmt) ? null : _submit,
+              h: 52,
+              fs: 15,
+              icon: Icons.add_rounded,
+              loading: busy,
+              glow: hasAmt && !busy,
+            ),
+          ),
+          const SizedBox(height: 10),
           Tx(
             store.L()['xfIncHint'] as String? ??
                 "Shu manbaga kirim qo'shish — summa yozib «Qo'shish»ni bosing",
-            size: 11.5,
+            size: 12,
             color: p.t4,
-            lh: 15,
+            lh: 16,
           ),
         ],
       ),

@@ -1,6 +1,8 @@
-// Yangi operatsiya bottom sheet — prototype/template.html 1195–1248 bilan 1:1
+// Yangi operatsiya bottom sheet — DESIGN_SPEC §5.9 ("dark glass + gradient").
+// Sarlavha 20/600 + ✕ · hamkor chiplari (RingAvatar 24) · turi (PillChip 2×2) ·
+// summa 46/600 (berdim mint / oldim coral / to'lov oq) + valyuta segmenti ·
+// izoh GlassField · GradientBtn(send) · hint 13 t4. Callback'lar o'zgarmagan.
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
@@ -15,6 +17,16 @@ class NewTxSheet extends StatelessWidget {
     final Pal p = curPal();
     final types = (v['types'] as List).cast<Map<String, dynamic>>();
     final curs = (v['curs'] as List).cast<Map<String, dynamic>>();
+    final clients = (v['sheetClients'] as List).cast<Map<String, dynamic>>();
+    // Tanlangan tur: store 'bg' ni ink qiladi (tanlangan) — rang bo'yicha aniqlanadi
+    bool sel(Map<String, dynamic> m) => m['bg'] == p.ink;
+    final selType = types.indexWhere(sel);
+    final amtColor = selType == 0
+        ? p.mint
+        : selType == 1
+            ? p.coral
+            : p.ink;
+    final amountText = (v['formAmountText'] as String?) ?? '';
 
     return SheetShell(
       onClose: () => v['closeSheet'](),
@@ -22,31 +34,22 @@ class NewTxSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Tx(v['sheetTitle'], size: 18, w: FontWeight.w700, color: p.ink),
-          if (v['sheetFixed'] == true)
-            Container(
-              margin: const EdgeInsets.only(top: 14),
-              padding: const EdgeInsets.fromLTRB(7, 5, 12, 5),
-              decoration: BoxDecoration(
-                border: Border.all(color: p.bd2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle),
-                    child: Center(
-                      child: Tx(v['sheetFixedInitials'], size: 9.5, w: FontWeight.w700, color: p.bg),
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  Tx(store.Lf('forX', {'name': '${v['sheetFixedName']}'}), size: 12.5, w: FontWeight.w600, color: p.ink),
-                ],
+          Row(children: [
+            Expanded(child: Tx(v['sheetTitle'], size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head)),
+            GlassIconBtn(icon: Icons.close_rounded, onTap: () => v['closeSheet']()),
+          ]),
+          if (v['sheetFixed'] == true) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PillChip(
+                label: store.Lf('forX', {'name': '${v['sheetFixedName']}'}),
+                selected: false,
+                onTap: null,
+                leading: RingAvatar(initials: v['sheetFixedInitials'], size: 24, ring: 1.5, seed: '${v['sheetFixedName']}'),
               ),
             ),
+          ],
           if (v['sheetClientMode'] == true) ...[
             const SizedBox(height: 20),
             Cap(L0['capPartner'] as String),
@@ -55,9 +58,19 @@ class NewTxSheet extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (var i = 0; i < (v['sheetClients'] as List).length; i++) ...[
+                  for (var i = 0; i < clients.length; i++) ...[
                     if (i > 0) const SizedBox(width: 8),
-                    _chip((v['sheetClients'] as List)[i] as Map<String, dynamic>),
+                    PillChip(
+                      label: clients[i]['name'] as String,
+                      selected: sel(clients[i]),
+                      onTap: () => clients[i]['pick'](),
+                      leading: RingAvatar(
+                        initials: _ini(clients[i]['name'] as String),
+                        size: 24,
+                        ring: 1.5,
+                        seed: clients[i]['name'] as String,
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -67,89 +80,75 @@ class NewTxSheet extends StatelessWidget {
           Cap(L0['capType'] as String),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _typeBtn(types[0])),
+            Expanded(child: _typeChip(types[0], sel(types[0]))),
             const SizedBox(width: 8),
-            Expanded(child: _typeBtn(types[1])),
+            Expanded(child: _typeChip(types[1], sel(types[1]))),
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _typeBtn(types[2])),
+            Expanded(child: _typeChip(types[2], sel(types[2]))),
             const SizedBox(width: 8),
-            Expanded(child: _typeBtn(types[3])),
+            Expanded(child: _typeChip(types[3], sel(types[3]))),
           ]),
           const SizedBox(height: 20),
           Cap(L0['capAmount'] as String),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
+          // Summa 46/600 (bo'sh: t6) + o'ngda valyuta segmenti (h40 shisha pill)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Container(
-                  height: 52,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: p.bd),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: StoreField(
-                    value: v['formAmountText'],
-                    onChanged: (t) => v['onAmount'](t),
-                    hint: '0',
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: p.ink,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
+                child: StoreField(
+                  value: amountText,
+                  onChanged: (t) => v['onAmount'](t),
+                  hint: '0',
+                  hintColor: p.t6,
+                  keyboardType: TextInputType.number,
+                  style: tbStyle(size: 46, w: FontWeight.w600, color: amtColor, tab: true, ls: -1),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Container(
-                height: 52,
+                height: 40,
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  border: Border.all(color: p.bd),
-                  borderRadius: BorderRadius.circular(12),
+                  color: p.glass,
+                  border: Border.all(color: p.glassBd),
+                  borderRadius: BorderRadius.circular(Tb.rPill),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final cu in curs)
-                        Tap(
-                          onTap: () => cu['pick'](),
-                          child: Container(
-                            width: 56,
-                            height: double.infinity,
-                            alignment: Alignment.center,
-                            color: cu['bg'],
-                            child: Tx(cu['label'], size: 13, w: FontWeight.w600, color: cu['fg']),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final cu in curs)
+                      Tap(
+                        onTap: () => cu['pick'](),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          height: 34,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: sel(cu) ? p.ink : Colors.transparent,
+                            borderRadius: BorderRadius.circular(Tb.rPill),
                           ),
+                          child: Tx(cu['label'], size: 13, w: FontWeight.w700, color: sel(cu) ? p.bg : p.t2, font: TbFont.num),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Cap(L0['capNote'] as String),
           const SizedBox(height: 10),
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border.all(color: p.bd),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          GlassField(
+            h: 48,
             child: StoreField(
               value: v['formNote'],
               onChanged: (t) => v['onNote'](t),
               hint: L0['notePh'] as String,
-              style: GoogleFonts.inter(fontSize: 14, color: p.ink),
+              style: tbStyle(size: 15, color: p.ink),
             ),
           ),
           if (v['shTwoSided'] == true) ...[
@@ -157,68 +156,37 @@ class NewTxSheet extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 10,
-                  height: 7,
-                  margin: const EdgeInsets.only(top: 1),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: p.t3, width: 1.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                Icon(Icons.info_outline_rounded, size: 15, color: p.t4),
                 const SizedBox(width: 7),
-                Expanded(
-                  child: Tx(
-                    L0['twoSidedCur'] as String,
-                    size: 11,
-                    color: p.t3,
-                    lh: 15.4,
-                  ),
-                ),
+                Expanded(child: Tx(L0['twoSidedCur'] as String, size: 13, color: p.t4, lh: 18)),
               ],
             ),
           ],
           const SizedBox(height: 24),
-          InkBtn(label: v['sheetBtnLabel'], onTap: () => v['createTx'](), loading: v['busy'] == 'createTx'),
+          GradientBtn(
+            label: v['sheetBtnLabel'],
+            icon: Icons.send_rounded,
+            onTap: () => v['createTx'](),
+            loading: v['busy'] == 'createTx',
+            enabled: amountText.trim().isNotEmpty,
+          ),
           const SizedBox(height: 12),
           Center(
-            child: Tx(v['sheetHint'], size: 11.5, color: p.t4, lh: 17.25, align: TextAlign.center),
+            child: Tx(v['sheetHint'], size: 13, color: p.t4, lh: 18, align: TextAlign.center),
           ),
         ],
       ),
     );
   }
 
-  Widget _chip(Map<String, dynamic> sc) {
-    return Tap(
-      onTap: () => sc['pick'](),
-      child: Container(
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: sc['bg'],
-          border: Border.all(color: sc['bd']),
-          borderRadius: BorderRadius.circular(17),
-        ),
-        child: Tx(sc['name'], size: 13, w: FontWeight.w600, color: sc['fg']),
-      ),
-    );
+  static String _ini(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
+    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
   }
 
-  Widget _typeBtn(Map<String, dynamic> tp) {
-    return Tap(
-      onTap: () => tp['pick'](),
-      child: Container(
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: tp['bg'],
-          border: Border.all(color: tp['bd']),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Tx(tp['label'], size: 13, w: FontWeight.w600, color: tp['fg']),
-      ),
-    );
+  Widget _typeChip(Map<String, dynamic> tp, bool on) {
+    return PillChip(label: tp['label'] as String, selected: on, onTap: () => tp['pick'](), h: 44);
   }
 }

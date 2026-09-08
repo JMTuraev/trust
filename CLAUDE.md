@@ -5,7 +5,7 @@ Ikki tomonlama tasdiqli hisob-kitob ilovasi. The user communicates in **Uzbek �
 ## Layout
 
 - `src/` — Node.js + Express backend (ESM, Node >= 18). Deploy: Render (`render.yaml`), Docker.
-- `mobile/` — Flutter app (Android + iOS). UI must stay **1:1 with `mobile/prototype/template.html`**.
+- `mobile/` — Flutter app (Android + iOS). UI must stay **1:1 with `mobile/prototype/redesign/DESIGN_SPEC.md`** (v2 dark-glass design, 2026-09-08; the old `prototype/template.html` is superseded). Shared primitives live in `lib/ui.dart` + tokens in `lib/theme.dart` — build screens from them, never ad-hoc colors.
 - `supabase/` — PostgreSQL migrations (Supabase: DB + Auth). OTP: devsms.uz for +998, Supabase for others. JWT.
 - `docs/` — `play-store-checklist.md`, privacy policy. `store-screenshots/` — release assets.
 

@@ -164,7 +164,7 @@ class _CircleJoinByCodeSheetState extends State<CircleJoinByCodeSheet> {
           autofocus: true,
           keyboardType: TextInputType.visiblePassword, // hex kod — avtokorreksiyasiz
           onSubmit: _check,
-          style: GoogleFonts.inter(fontSize: 14, color: p.ink, letterSpacing: 1.2),
+          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: p.ink, letterSpacing: 1.2),
         ),
       ),
       if (_error != null) ...[

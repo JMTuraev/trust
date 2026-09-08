@@ -1,6 +1,6 @@
-// Yangi hamkor bottom sheet — prototype/template.html 1250–1282 bilan 1:1
+// Yangi hamkor bottom sheet — DESIGN_SPEC §5.9 uslubi ("dark glass + gradient").
+// Callback'lar: npClose / onNpName / ccOpenNp / onNpPhone / npCreate — o'zgarmagan.
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
 import '../ui.dart';
 import '../theme.dart';
@@ -13,6 +13,8 @@ class NewPartnerSheet extends StatelessWidget {
     final v = store.vals();
     final Pal p = curPal();
     final L0 = v['L'] as Map<String, dynamic>;
+    final name = (v['npName'] as String?) ?? '';
+    final phone = (v['npPhoneText'] as String?) ?? '';
 
     return SheetShell(
       onClose: () => v['npClose'](),
@@ -20,88 +22,77 @@ class NewPartnerSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Tx(L0['newPartnerTitle'] as String, size: 18, w: FontWeight.w700, color: p.ink),
+          Row(children: [
+            Expanded(child: Tx(L0['newPartnerTitle'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head)),
+            GlassIconBtn(icon: Icons.close_rounded, onTap: () => v['npClose']()),
+          ]),
           const SizedBox(height: 20),
           Cap(L0['capName'] as String),
           const SizedBox(height: 10),
-          Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border.all(color: p.bd),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          GlassField(
+            h: 52,
+            icon: Icons.person_outline_rounded,
+            focused: name.isNotEmpty,
             child: StoreField(
-              value: v['npName'],
+              value: name,
               onChanged: (t) => v['onNpName'](t),
               hint: L0['namePh'] as String,
-              style: GoogleFonts.inter(fontSize: 14.5, color: p.ink),
+              style: tbStyle(size: 15, color: p.ink),
             ),
           ),
           const SizedBox(height: 20),
           Cap(L0['capPhone'] as String),
           const SizedBox(height: 10),
-          Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              border: Border.all(color: p.bd),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          GlassField(
+            h: 52,
+            focused: phone.isNotEmpty,
             child: Row(
               children: [
+                // Davlat kodi — bosilsa CcSheet ochiladi
                 Tap(
                   onTap: () => v['ccOpenNp'](),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Tx(v['npCcFlag'], size: 17, color: p.ink, lh: 17),
+                      Tx(v['npCcFlag'], size: 18, color: p.ink, lh: 18),
                       const SizedBox(width: 6),
-                      Tx(v['npCcDial'], size: 14.5, w: FontWeight.w600, color: p.ink, tab: true),
-                      const SizedBox(width: 6),
-                      Transform.translate(
-                        offset: const Offset(0, -3),
-                        child: Transform.rotate(
-                          angle: 0.785398,
-                          child: Container(
-                            width: 5.5,
-                            height: 5.5,
-                            decoration: BoxDecoration(
-                              border: Border(
-                                right: BorderSide(color: p.t3, width: 1.6),
-                                bottom: BorderSide(color: p.t3, width: 1.6),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                      Tx(v['npCcDial'], size: 15, w: FontWeight.w600, color: p.ink, tab: true),
+                      const SizedBox(width: 2),
+                      Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: p.t3),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(width: 1, height: 20, color: p.bd),
-                const SizedBox(width: 8),
+                Container(width: 1, height: 22, color: p.glassBd),
+                const SizedBox(width: 10),
                 Expanded(
                   child: StoreField(
-                    value: v['npPhoneText'],
+                    value: phone,
                     onChanged: (t) => v['onNpPhone'](t),
                     hint: v['npPh'],
                     keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(
-                      fontSize: 14.5,
-                      color: p.ink,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
+                    style: tbStyle(size: 15, color: p.ink, tab: true),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          Tx(v['npHint'], size: 11, color: p.t3, lh: 16.5),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 15, color: p.t4),
+              const SizedBox(width: 7),
+              Expanded(child: Tx(v['npHint'], size: 13, color: p.t4, lh: 18)),
+            ],
+          ),
           const SizedBox(height: 24),
-          InkBtn(label: L0['btnAdd'] as String, onTap: () => v['npCreate'](), loading: v['busy'] == 'npCreate'),
+          GradientBtn(
+            label: L0['btnAdd'] as String,
+            icon: Icons.add_rounded,
+            onTap: () => v['npCreate'](),
+            loading: v['busy'] == 'npCreate',
+          ),
         ],
       ),
     );

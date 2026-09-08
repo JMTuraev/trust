@@ -1,6 +1,9 @@
-// Til tanlash sheet'i — 6 til (uz, en, ru, es, fr, zh)
+// Til tanlash sheet'i — 6 til (uz, en, ru, es, fr, zh).
+// Dizayn: SheetShell ichida GlassCard ro'yxat, tanlangan → cyan check.
+// Store shartnomasi o'zgarmadi: closeLang, langRows (flag/name/sel/pick).
 import 'package:flutter/material.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 
 class LangSheet extends StatelessWidget {
@@ -11,6 +14,7 @@ class LangSheet extends StatelessWidget {
     final v = store.vals();
     final p = curPal();
     final L0 = v['L'] as Map<String, dynamic>;
+    final rows = (v['langRows'] as List).cast<Map<String, dynamic>>();
     return SheetShell(
       onClose: () => v['closeLang'](),
       scroll: false,
@@ -19,50 +23,32 @@ class LangSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Tx(L0['langTitle'] as String, size: 18, w: FontWeight.w700, color: p.ink),
+            padding: const EdgeInsets.symmetric(horizontal: Tb.padX),
+            child: Tx(L0['langTitle'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 14),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.fromLTRB(Tb.padX, 0, Tb.padX, 24),
               children: [
-                for (final lg in (v['langRows'] as List))
-                  Tap(
-                    onTap: () => lg['pick'](),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 24),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: p.hair2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Tx(lg['flag'], size: 20, color: p.ink, lh: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Tx(lg['name'], size: 14.5, w: FontWeight.w500, color: p.ink),
-                          ),
-                          if (lg['sel'] == true)
-                            Transform.translate(
-                              offset: const Offset(0, -2),
-                              child: Transform.rotate(
-                                angle: -0.785398,
-                                child: Container(
-                                  width: 7,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      left: BorderSide(color: p.ink, width: 1.8),
-                                      bottom: BorderSide(color: p.ink, width: 1.8),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                GlassCard(
+                  r: 24,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < rows.length; i++)
+                        ListRow(
+                          leading: Tx('${rows[i]['flag'] ?? ''}', size: 22, color: p.ink, lh: 22),
+                          title: '${rows[i]['name'] ?? ''}',
+                          chevron: false,
+                          last: i == rows.length - 1,
+                          trailing: rows[i]['sel'] == true
+                              ? Icon(Icons.check_rounded, size: 20, color: p.cyan)
+                              : null,
+                          onTap: () => rows[i]['pick'](),
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),

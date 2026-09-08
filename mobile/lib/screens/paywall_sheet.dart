@@ -1,8 +1,9 @@
-// MODUL OBUNASI — paywall sheet'i.
+// MODUL OBUNASI — paywall sheet'i. Dizayn: prototype/redesign/DESIGN_SPEC.md §5.17
+// (gradient qutida crown · "{Modul} PRO" sarlavha · bepul limit kartasi ·
+// 4 foyda · GradientBtn CTA · "Xaridni tiklash" · Apple 3.1.2 bloki).
 //
 // Ochilish: bosh hub kartasi qulflangan bo'lsa (bepul limit tugagan) yoki
 // «Tez kunda» teaser qatori bosilsa — store: openPaywall(module).
-// Ko'rinish tili: cc_sheet.dart / lang_sheet.dart (SheetShell + 24px yon padding).
 //
 // Store shartnomasi (hammasi HIMOYALI o'qiladi — kalit yo'q bo'lsa zaxira qiymat):
 //   v['paywall']      -> {'module','price','soon','used','limit'} yoki null
@@ -17,6 +18,7 @@ import '../api.dart' show apiUrl;
 import '../iap.dart';
 import '../l10n.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 
 /// Modul narxi (oyiga, $) — server qiymat bermaganda ishlatiladigan zaxira.
@@ -140,12 +142,7 @@ class _ApplePaywallTerms extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = curPal();
     final busy = store.S['iapBusy'] == true;
-    final linkStyle = TextStyle(
-      fontSize: 11,
-      fontWeight: FontWeight.w600,
-      color: p.t2,
-      decoration: TextDecoration.underline,
-    );
+    final linkStyle = tbStyle(size: 12, w: FontWeight.w600, color: p.t2).copyWith(decoration: TextDecoration.underline);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -153,29 +150,26 @@ class _ApplePaywallTerms extends StatelessWidget {
         // «Xaridni tiklash» — Apple talabi (qurilma almashsa obuna qaytadi).
         // Xarid ketayotganda bosilmaydi: ikki oqim bir vaqtda ishlamasin.
         Center(
-          child: Tap(
+          child: TextBtn(
+            label: modStr('subRestore'),
+            h: 44, fs: 15, color: p.t1,
             onTap: busy ? () {} : () => store.restorePremium(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              child: Tx(modStr('subRestore'),
-                  size: 12.5, w: FontWeight.w600, color: p.t2),
-            ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Tx(modStrF('pwAutoRenew', {'price': price}),
-            size: 11, color: p.t4, lh: 15, maxLines: 5),
-        const SizedBox(height: 7),
+            size: 12, color: p.t4, lh: 16, maxLines: 5),
+        const SizedBox(height: 8),
         Row(
           children: [
             Tap(
               onTap: () => _openUrl(_kEulaUrl),
-              child: Text(modStr('subTerms'), style: linkStyle),
+              child: Text(modStr('subTerms'), style: linkStyle, textScaler: TextScaler.noScaling),
             ),
-            Tx('   ·   ', size: 11, color: p.t6),
+            Tx('   ·   ', size: 12, color: p.t6),
             Tap(
               onTap: () => _openUrl('$apiUrl/privacy'),
-              child: Text(modStr('subPrivacy'), style: linkStyle),
+              child: Text(modStr('subPrivacy'), style: linkStyle, textScaler: TextScaler.noScaling),
             ),
           ],
         ),
@@ -230,88 +224,95 @@ class PaywallSheet extends StatelessWidget {
         if (f is Function) f();
       },
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                // Sarlavha «...» bilan kesilmasin — uzun tarjima ikkinchi qatorga o'raladi
-                child: Tx(title,
-                    size: 18, w: FontWeight.w700, color: p.ink, lh: 24, maxLines: 2),
+          // 64px r22 gradient qutida crown (soya Tb.glow)
+          Center(
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                gradient: Tb.brandDiag,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: Tb.glow,
               ),
-              const SizedBox(width: 12),
-              // Narx — moliyaviy qiymat: hech qachon qisqarmaydi, sig'masa kichrayadi
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 11),
-                decoration: BoxDecoration(
-                  color: p.field,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Tx(priceTxt,
-                      size: 12.5, w: FontWeight.w700, color: p.t1, tab: true, maxLines: 1),
-                ),
-              ),
-            ],
+              child: const Icon(Icons.workspace_premium_rounded, size: 30, color: Colors.white),
+            ),
           ),
-          // Modul nomi — tarjimasi bo'lmasa qator umuman chizilmaydi
-          // (bo'sh matn o'rniga bo'shliq: xato ko'rinib tursin).
-          if (name.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Tx(name, size: 12.5, color: p.t2, maxLines: 2),
-          ],
-          // Bepul limit qatori — faqat ochilgan (soon bo'lmagan) modullarda
+          const SizedBox(height: 16),
+          // Modul nomi + PRO (tarjimasi bo'lmasa modul kodi — bo'shliq ko'rinib tursin)
+          Tx('${name.isNotEmpty ? name : module} PRO',
+              size: 24, w: FontWeight.w600, color: p.ink, font: TbFont.head, align: TextAlign.center, maxLines: 2),
+          const SizedBox(height: 6),
+          // Sarlavha (l10n «Xarajatlar — cheksiz yozuv») — tavsif sifatida
+          Tx(title, size: 15, color: p.t2, align: TextAlign.center, lh: 21, maxLines: 3),
+          const SizedBox(height: 6),
+          // Narx yorlig'i — moliyaviy qiymat: hech qachon qisqarmaydi, sig'masa kichrayadi
+          Center(child: PillBadge.cyan(priceTxt, h: 28)),
+          // Bepul limit kartasi — faqat ochilgan (soon bo'lmagan) modullarda
           if (!soon && limit > 0) ...[
             const SizedBox(height: 16),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Tx(
-                modStrF('pwUsed', {'used': '$used', 'limit': '$limit'}),
-                size: 12.5,
-                color: locked ? p.red : p.t1,
-                tab: true,
-                maxLines: 1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 6,
-              decoration: BoxDecoration(
-                color: p.barbg,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: limit > 0 ? (used / limit).clamp(0.0, 1.0) : 0.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: locked ? p.red : p.ink,
-                    borderRadius: BorderRadius.circular(3),
+            GlassCard(
+              r: 20,
+              pad: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Tx(
+                          modStrF('pwUsed', {'used': '$used', 'limit': '$limit'}),
+                          size: 14, color: locked ? p.coral : p.t1, maxLines: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Tx('$used/$limit', size: 15, w: FontWeight.w600, color: locked ? p.coral : p.ink, tab: true),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: p.ink.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: limit > 0 ? (used / limit).clamp(0.0, 1.0) : 0.0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: Tb.amberCoral,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
           const SizedBox(height: 20),
+          // 4 foyda: 32px mint15 doira check + 15 matn
           for (final k in benefits)
             Padding(
-              padding: const EdgeInsets.only(bottom: 11),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 5,
-                    height: 5,
-                    margin: const EdgeInsets.only(top: 7),
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: p.t4),
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: p.mint.withValues(alpha: .15)),
+                    child: Icon(Icons.check_rounded, size: 18, color: p.mint),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Tx(modStr(k), size: 13.5, color: p.ink, lh: 19, maxLines: 3),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Tx(modStr(k), size: 15, color: p.ink, lh: 21, maxLines: 3),
+                    ),
                   ),
                 ],
               ),
@@ -320,31 +321,20 @@ class PaywallSheet extends StatelessWidget {
           // ko'rgach «nechta obyekt kiradi?» deb so'raydi, javob shu yerda.
           // Tarjimasi yo'q bo'lsa blok umuman chizilmaydi (bo'sh quti chiqmasin).
           if (capTxt.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
-              decoration: BoxDecoration(
-                color: p.field,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Tx(capTxt, size: 12, color: p.t2, lh: 17.5, maxLines: 4),
+            GlassCard(
+              r: 16,
+              pad: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              child: Tx(capTxt, size: 13, color: p.t2, lh: 18, maxLines: 4),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           if (soon) ...[
             // «Tez kunda» — bosilmaydigan pill (CTA o'rniga)
-            Container(
-              height: 50,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: p.field,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Tx(modStr('modSoon'), size: 15, w: FontWeight.w600, color: p.t2),
-            ),
+            GradientBtn(label: modStr('modSoon'), onTap: null, enabled: false),
             const SizedBox(height: 10),
             Tx(modStrF('pwSoonNote', {'price': '$price'}),
-                size: 11.5, color: p.t3, lh: 17, maxLines: 3),
+                size: 12, color: p.t3, lh: 17, maxLines: 3, align: TextAlign.center),
           ] else
-            InkBtn(
+            GradientBtn(
               label: modCtaLabel(module, price),
               // Xarid ketayotganda spinner + qayta bosish bloklanadi
               // (profil.dart bilan bir xil manba: store.S['iapBusy']).
@@ -357,7 +347,7 @@ class PaywallSheet extends StatelessWidget {
           // Apple 3.1.2 majburiy oshkorligi — FAQAT iOS'da va faqat sotuvdagi
           // modullarda ("tez kunda" holatida xarid tugmasining o'zi yo'q).
           if (Platform.isIOS && !soon) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _ApplePaywallTerms(price: rawPrice),
           ],
         ],

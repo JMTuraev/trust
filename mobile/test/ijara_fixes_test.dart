@@ -101,7 +101,8 @@ Future<void> _tapText(WidgetTester t, String text) async {
 Future<void> _openIjara(WidgetTester t) async {
   final lang = store.S['lang'] as String? ?? 'uz';
   final name = (kLangs[lang] ?? lUz)['modIjarachi'] as String;
-  await _tapText(t, name.toUpperCase());
+  // v2 dizayn: karta nomi UPPERCASE emas (17/600 Inter Tight)
+  await _tapText(t, name);
 }
 
 void main() {

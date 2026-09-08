@@ -1,7 +1,9 @@
-// Davlat kodi tanlash sheet'i (template 1284–1308)
+// Davlat kodi tanlash sheet'i.
+// Dizayn: SheetShell ichida qidiruv (GlassField) + GlassCard ro'yxat, tanlangan → cyan check.
+// Store shartnomasi o'zgarmadi: ccClose, ccSearch/onCcSearch, ccRows (flag/name/dial/sel/pick).
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 
 class CcSheet extends StatelessWidget {
@@ -12,6 +14,7 @@ class CcSheet extends StatelessWidget {
     final v = store.vals();
     final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
+    final rows = (v['ccRows'] as List).cast<Map<String, dynamic>>();
     return SheetShell(
       onClose: () => v['ccClose'](),
       scroll: false,
@@ -20,76 +23,51 @@ class CcSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Tx(L0['countryCode'] as String, size: 18, w: FontWeight.w700, color: p.ink),
+            padding: const EdgeInsets.symmetric(horizontal: Tb.padX),
+            child: Tx(L0['countryCode'] as String, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              alignment: Alignment.centerLeft,
-              decoration: BoxDecoration(
-                color: p.field,
-                borderRadius: BorderRadius.circular(10),
-              ),
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 14, Tb.padX, 0),
+            child: GlassField(
+              h: 48,
+              icon: Icons.search_rounded,
               child: StoreField(
                 value: v['ccSearch'],
                 onChanged: (t) => v['onCcSearch'](t),
                 hint: L0['searchPh'] as String,
-                style: GoogleFonts.inter(fontSize: 14, color: p.ink),
               ),
             ),
           ),
+          const SizedBox(height: 14),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.fromLTRB(Tb.padX, 0, Tb.padX, 24),
               children: [
-                for (final cc in (v['ccRows'] as List))
-                  Tap(
-                    onTap: () => cc['pick'](),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 24),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: p.hair2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Tx(cc['flag'], size: 20, color: p.ink, lh: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            // Davlat nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
-                            child: Tx(
-                              cc['name'],
-                              size: 14.5,
-                              w: FontWeight.w500,
-                              color: p.ink,
-                              maxLines: 2,
+                if (rows.isNotEmpty)
+                  GlassCard(
+                    r: 24,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < rows.length; i++)
+                          ListRow(
+                            leading: Tx('${rows[i]['flag'] ?? ''}', size: 22, color: p.ink, lh: 22),
+                            // Davlat nomi to'liq ko'rinsin — ListRow 2 qatorgacha o'raydi
+                            title: '${rows[i]['name'] ?? ''}',
+                            chevron: false,
+                            last: i == rows.length - 1,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Tx('${rows[i]['dial'] ?? ''}', size: 14, w: FontWeight.w600, color: p.t1, tab: true),
+                                if (rows[i]['sel'] == true) ...[
+                                  const SizedBox(width: 12),
+                                  Icon(Icons.check_rounded, size: 20, color: p.cyan),
+                                ],
+                              ],
                             ),
+                            onTap: () => rows[i]['pick'](),
                           ),
-                          const SizedBox(width: 12),
-                          Tx(cc['dial'], size: 13.5, w: FontWeight.w600, color: p.t1, tab: true),
-                          if (cc['sel'] == true) ...[
-                            const SizedBox(width: 14),
-                            Transform.translate(
-                              offset: const Offset(0, -2),
-                              child: Transform.rotate(
-                                angle: -0.785398,
-                                child: Container(
-                                  width: 7,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      left: BorderSide(color: p.ink, width: 1.8),
-                                      bottom: BorderSide(color: p.ink, width: 1.8),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                      ],
                     ),
                   ),
               ],

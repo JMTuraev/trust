@@ -11,7 +11,7 @@
 //   3) Apparat "orqaga" — modul ekranidan hub'ga qaytishi kerak, ILOVADAN
 //      CHIQIB KETMASLIGI. Bu bugun ikki marta tishlagan xato sinfi
 //      (main.dart Root PopScope + store.hubBackable()).
-import 'package:flutter/widgets.dart' show Size, SizedBox;
+import 'package:flutter/widgets.dart' show Size, ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trust_mobile/l10n.dart';
 import 'package:trust_mobile/main.dart';
@@ -45,8 +45,8 @@ void _atHub({List<Map<String, dynamic>> mods = const [], bool empty = false}) {
   store.S['xarEntries'] = empty ? <Map<String, dynamic>>[] : [_xarEntry()];
 }
 
-/// Karta sarlavhasi = modul nomi BOSH HARFLARDA (home_hub `_menuCard`).
-String _cap(String nameKey) => (lUz[nameKey] as String).toUpperCase();
+/// Karta nomi = modul nomi (home_hub `_card`: modStr(kModNameKey[module])).
+String _cap(String nameKey) => lUz[nameKey] as String;
 
 /// Kartani ko'rinadigan joyga surib, bosadi (kartalar ekran ostida qoladi).
 Future<void> _tapCard(WidgetTester t, String text) async {
@@ -64,10 +64,10 @@ void main() {
     await t.pump();
 
     for (final cap in [
-      lUz['hubXarSec'] as String, // XARAJATLAR
-      lUz['hubDebtSec'] as String, // QARZ DAFTAR
-      _cap('modIjarachi'), // IJARADAGI UYLAR
-      _cap('modToyxona'), // TO'YXONA
+      _cap('modXarajat'), // Xarajatlar
+      _cap('modQarz'), // Qarz daftar
+      _cap('modIjarachi'), // Ijaradagi uylar
+      _cap('modToyxona'), // To'yxona
     ]) {
       expect(find.text(cap), findsOneWidget, reason: '$cap kartasi yo\'q');
     }
@@ -124,9 +124,8 @@ void main() {
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
-    // 1) Qulf CHIPI (11x11 qulf glifi — _modChip) -> paywall, navigatsiya YO'Q
-    final chip = find.byWidgetPredicate(
-        (w) => w is SizedBox && w.width == 11 && w.height == 11);
+    // 1) Qulf CHIPI (_modChip, ValueKey hubLock_<modul>) -> paywall, navigatsiya YO'Q
+    final chip = find.byKey(const ValueKey('hubLock_toyxona'));
     await t.ensureVisible(chip);
     await t.pumpAndSettle();
     await t.tap(chip);
@@ -188,8 +187,8 @@ void main() {
   });
 
   // Tor ekran (320pt) + eng uzun tarjimalar: karta ichidagi hech narsa toshib
-  // ketmasin. Loyiha qoidasi — nom/tavsif «...» bilan KESILMAYDI (maxLines 2),
-  // sarlavha esa sig'masa FittedBox bilan kichrayadi.
+  // ketmasin. Nom sig'masa FittedBox bilan kichrayadi, tavsif 2 qatorga
+  // o'raladi (Text widgeti mavjud — find.text topadi).
   // HAR TIL ALOHIDA test: `const TrustApp()` kanonik instance, shu sabab bitta
   // test ichida qayta pumpWidget qilinsa Element rebuild'ni O'TKAZIB YUBORADI
   // (main.dart'dagi «const EMAS» izohi bilan bir xil tuzoq) — til almashmasdi.
@@ -221,7 +220,7 @@ void main() {
       await t.pump();
 
       expect(t.takeException(), isNull, reason: '$lang: overflow/xato');
-      final name = (kLangs[lang]!['modToyxona'] as String).toUpperCase();
+      final name = kLangs[lang]!['modToyxona'] as String;
       expect(find.text(name), findsOneWidget, reason: '$lang: To\'yxona kartasi yo\'q');
       expect(find.text(kLangs[lang]!['modToyxonaDesc'] as String), findsOneWidget,
           reason: '$lang: tavsif yo\'q');

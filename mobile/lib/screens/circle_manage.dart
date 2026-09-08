@@ -27,7 +27,7 @@ class CircleManageScreen extends StatelessWidget {
           autofocus: true,
           maxLength: 60,
           cursorColor: p.ink,
-          style: GoogleFonts.inter(fontSize: 15, color: p.ink),
+          style: GoogleFonts.plusJakartaSans(fontSize: 15, color: p.ink),
           decoration: const InputDecoration(counterText: ''),
         ),
         actions: [

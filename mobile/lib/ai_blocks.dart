@@ -11,7 +11,8 @@
 //   budget_set    -> PUT   /api/limits
 //   category_move -> PATCH /api/expenses/:id
 //
-// Ranglar FAQAT brend palitrasidan (theme.dart p.red / p.green) — Colors.red YO'Q.
+// Ranglar FAQAT brend palitrasidan (theme.dart p.mint / p.coral / p.cyan) — Colors.red YO'Q.
+// Dizayn: prototype/redesign/DESIGN_SPEC.md §5.14 — kartalar shisha (GlassCard uslubi, r20).
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -143,13 +144,13 @@ Color? aiTone(dynamic tone, Pal p) {
     case 'up':
     case 'positive':
     case 'success':
-      return p.green;
+      return p.mint;
     case 'warn':
     case 'bad':
     case 'down':
     case 'negative':
     case 'danger':
-      return p.red;
+      return p.coral;
   }
   return null;
 }
@@ -227,12 +228,12 @@ int aiTextRevealMs(String text) {
 // UMUMIY QISMLAR
 // ---------------------------------------------------------------------------
 
-/// Blok kartasi — ilovadagi karta uslubi (xarajat.dart bilan bir xil r16/field/bd2),
-/// lekin ro'yxat ichida turgani uchun og'ir soyasiz.
+/// Blok kartasi — shisha karta (GlassCard bilan bir xil: glass + glassBd, r20),
+/// ro'yxat ichida turgani uchun soyasiz.
 BoxDecoration aiCardDeco(Pal p) => BoxDecoration(
-      color: p.field,
-      border: Border.all(color: p.bd2),
-      borderRadius: BorderRadius.circular(16),
+      color: p.glass,
+      border: Border.all(color: p.glassBd),
+      borderRadius: BorderRadius.circular(Tb.rRow),
     );
 
 /// Tasdiq dialogi (§11: har amal `confirm: true`). link_decision_sheet.dart uslubi.
@@ -246,10 +247,13 @@ Future<bool> aiConfirm(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: p.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Tx(title, size: 16, w: FontWeight.w700, color: p.ink),
-      content: Tx(body, size: 13.5, color: p.t1, lh: 19),
+      backgroundColor: p.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Tb.rCard),
+        side: BorderSide(color: p.glassBd),
+      ),
+      title: Tx(title, size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+      content: Tx(body, size: 14, color: p.t1, lh: 20),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
@@ -257,7 +261,7 @@ Future<bool> aiConfirm(
         ),
         TextButton(
           onPressed: () => Navigator.pop(ctx, true),
-          child: Tx(okLabel, size: 14, w: FontWeight.w700, color: p.ink),
+          child: Tx(okLabel, size: 14, w: FontWeight.w700, color: p.cyan),
         ),
       ],
     ),
@@ -346,7 +350,8 @@ class _AiCountUpState extends State<AiCountUp> with SingleTickerProviderStateMix
           '${widget.prefix}${_fmt(_now())}$tail',
           maxLines: 1,
           textScaler: TextScaler.noScaling,
-          style: GoogleFonts.inter(
+          // Raqamlar — Space Grotesk (dizayn §2)
+          style: GoogleFonts.spaceGrotesk(
             fontSize: widget.size,
             fontWeight: widget.weight,
             color: widget.color,
@@ -452,10 +457,10 @@ class _AiTextBubbleState extends State<AiTextBubble> with SingleTickerProviderSt
   Widget _text(Pal p) {
     final c = _c;
     // Tarix yoki bir so'zli matn: darhol to'liq (mavjud Tx uslubi).
-    if (c == null) return Tx(widget.text, size: 14, color: p.ink, lh: 20);
-    // Tx bilan AYNAN bir xil uslub (Inter 14/20) — reveal tugagach ham shu
+    if (c == null) return Tx(widget.text, size: 15, color: p.ink, lh: 21);
+    // Tx bilan AYNAN bir xil uslub (15/21) — reveal tugagach ham shu
     // Text.rich qoladi, almashtirish/sakrash yo'q.
-    final style = GoogleFonts.inter(fontSize: 14, color: p.ink, height: 20 / 14);
+    final style = tbStyle(size: 15, color: p.ink, lh: 21);
     return AnimatedBuilder(
       animation: c,
       builder: (_, __) {
@@ -482,16 +487,17 @@ class _AiTextBubbleState extends State<AiTextBubble> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final p = curPal();
+    // AI pufagi — shisha, r20, pastki-chap 8 (dizayn §5.14)
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
       decoration: BoxDecoration(
-        color: p.field,
-        border: Border.all(color: p.hair),
+        color: p.glass,
+        border: Border.all(color: p.glassBd),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(14),
-          topRight: Radius.circular(14),
-          bottomRight: Radius.circular(14),
-          bottomLeft: Radius.circular(4),
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(8),
         ),
       ),
       child: _text(p),
@@ -515,14 +521,17 @@ class AiChips extends StatelessWidget {
         for (final s in items)
           Tap(
             onTap: () => onTap(s),
+            // h44 pill: violet50 chegara + violet10 fon (dizayn §5.14)
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: p.bg,
-                border: Border.all(color: p.bd),
-                borderRadius: BorderRadius.circular(20),
+                color: p.violet.withValues(alpha: .10),
+                border: Border.all(color: p.violet.withValues(alpha: .50)),
+                borderRadius: BorderRadius.circular(Tb.rPill),
               ),
-              child: Tx(s, size: 12.5, w: FontWeight.w500, color: p.ink),
+              child: Tx(s, size: 14, w: FontWeight.w500, color: p.ink),
             ),
           ),
       ],
@@ -550,7 +559,7 @@ class _StatBlock extends StatelessWidget {
         children: [
           if (label.isNotEmpty) ...[
             // Yorliq to'liq ko'rinsin — 2 qatorgacha o'raladi
-            Tx(label.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 2),
+            Tx(label.toUpperCase(), size: 11, w: FontWeight.w700, color: p.t4, ls: 1.4, maxLines: 2),
             const SizedBox(height: 7),
           ],
           Row(
@@ -562,8 +571,8 @@ class _StatBlock extends StatelessWidget {
                     ? FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
-                        child: Tx('${b['value']}', size: 24, w: FontWeight.w700, color: tone ?? p.ink,
-                            ls: -0.5, maxLines: 1),
+                        child: Tx('${b['value']}', size: 24, w: FontWeight.w600, color: tone ?? p.ink,
+                            ls: -0.5, maxLines: 1, tab: true),
                       )
                     : AiCountUp(
                         value: parts['n'] as num,
@@ -571,7 +580,7 @@ class _StatBlock extends StatelessWidget {
                         suffix: parts['suffix'] as String,
                         decimals: parts['dec'] as int,
                         size: 24,
-                        weight: FontWeight.w700,
+                        weight: FontWeight.w600,
                         color: tone ?? p.ink,
                         ls: -0.5,
                       ),
@@ -598,10 +607,10 @@ class _DeltaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: tone.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(8),
+        color: tone.withValues(alpha: .15),
+        borderRadius: BorderRadius.circular(Tb.rPill),
       ),
-      child: Tx(text, size: 11.5, w: FontWeight.w700, color: tone),
+      child: Tx(text, size: 11, w: FontWeight.w700, color: tone, font: TbFont.body),
     );
   }
 }
@@ -615,7 +624,7 @@ class _ChartBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = curPal();
     final rows = aiChartRows(b['data']);
-    final color = aiTone(b['tone'], p) ?? p.ink; // neytral: brend siyoh rangi
+    final color = aiTone(b['tone'], p) ?? p.cyan; // neytral: cyan (dizayn §5.14 grafik)
     final title = '${b['title'] ?? ''}'.trim();
     var maxV = 0.0;
     for (final r in rows) {
@@ -631,7 +640,7 @@ class _ChartBlock extends StatelessWidget {
         children: [
           if (title.isNotEmpty) ...[
             // Sarlavha to'liq ko'rinsin — 2 qatorgacha o'raladi
-            Tx(title.toUpperCase(), size: 11, w: FontWeight.w600, color: p.t2, ls: 1.4, maxLines: 2),
+            Tx(title.toUpperCase(), size: 11, w: FontWeight.w700, color: p.t4, ls: 1.4, maxLines: 2),
             const SizedBox(height: 11),
           ],
           for (final r in rows)
@@ -675,7 +684,7 @@ class _ChartBar extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (_, t, __) => Container(
         height: 8,
-        decoration: BoxDecoration(color: p.barbg, borderRadius: BorderRadius.circular(4)),
+        decoration: BoxDecoration(color: p.ink.withValues(alpha: .10), borderRadius: BorderRadius.circular(4)),
         child: FractionallySizedBox(
           alignment: Alignment.centerLeft,
           widthFactor: t.clamp(0.0, 1.0),
@@ -781,7 +790,7 @@ class _DebtCardBlockState extends State<_DebtCardBlock> {
                   suffix: '${store.L()['som']}',
                   size: 15,
                   weight: FontWeight.w700,
-                  color: iOwe ? p.red : p.green,
+                  color: iOwe ? p.coral : p.mint,
                 ),
               ),
             ],
@@ -790,7 +799,7 @@ class _DebtCardBlockState extends State<_DebtCardBlock> {
           if (_done)
             _AiDoneStrip(text: store.L()['aiRemindDone'] as String)
           else
-            InkBtn(label: _label(), h: 42, fs: 13.5, loading: _busy, onTap: _remind),
+            GradientBtn(label: _label(), h: 44, fs: 14, loading: _busy, onTap: _remind),
         ],
       ),
     );
@@ -860,7 +869,7 @@ class _BudgetSetBlockState extends State<_BudgetSetBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Tx(store.L()['aiBudgetCap'] as String, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+          Tx(store.L()['aiBudgetCap'] as String, size: 11, w: FontWeight.w700, color: p.t4, ls: 1.6),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -868,9 +877,9 @@ class _BudgetSetBlockState extends State<_BudgetSetBlock> {
               Text(
                 aiGroup(_v),
                 textScaler: TextScaler.noScaling,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.spaceGrotesk(
                   fontSize: 24,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   color: p.ink,
                   letterSpacing: -0.5,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -886,10 +895,10 @@ class _BudgetSetBlockState extends State<_BudgetSetBlock> {
           SliderTheme(
             data: SliderThemeData(
               trackHeight: 4,
-              activeTrackColor: p.ink,
-              inactiveTrackColor: p.barbg,
-              thumbColor: p.ink,
-              overlayColor: p.ink.withValues(alpha: .10),
+              activeTrackColor: p.cyan,
+              inactiveTrackColor: p.ink.withValues(alpha: .10),
+              thumbColor: p.cyan,
+              overlayColor: p.cyan.withValues(alpha: .15),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
             ),
@@ -909,7 +918,7 @@ class _BudgetSetBlockState extends State<_BudgetSetBlock> {
           if (_done)
             _AiDoneStrip(text: store.L()['aiBudgetDone'] as String)
           else
-            InkBtn(label: store.L()['aiBudgetSet'] as String, h: 42, fs: 13.5, loading: _busy, onTap: _save),
+            GradientBtn(label: store.L()['aiBudgetSet'] as String, h: 44, fs: 14, loading: _busy, onTap: _save),
         ],
       ),
     );
@@ -970,7 +979,7 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Tx(store.L()['aiMoveCap'] as String, size: 11, w: FontWeight.w600, color: p.t2, ls: 1.6),
+          Tx(store.L()['aiMoveCap'] as String, size: 11, w: FontWeight.w700, color: p.t4, ls: 1.6),
           const SizedBox(height: 10),
           if (note.isNotEmpty || amount != null)
             Padding(
@@ -1003,11 +1012,12 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
-                    border: Border.all(color: p.ink, width: 1.5),
-                    borderRadius: BorderRadius.circular(11),
+                    color: p.cyan.withValues(alpha: .12),
+                    border: Border.all(color: p.cyan.withValues(alpha: .30)),
+                    borderRadius: BorderRadius.circular(Tb.rPill),
                   ),
                   // Maqsad toifa nomi to'liq ko'rinsin — 2 qatorgacha o'raladi
-                  child: Tx(cat, size: 13, w: FontWeight.w600, color: p.ink, maxLines: 2),
+                  child: Tx(cat, size: 13, w: FontWeight.w600, color: p.cyan, maxLines: 2),
                 ),
               ),
             ],
@@ -1016,7 +1026,7 @@ class _CategoryMoveBlockState extends State<_CategoryMoveBlock> {
           if (_done)
             _AiDoneStrip(text: store.Lf('tMovedTo', {'cat': cat}))
           else
-            InkBtn(label: store.L()['btnConfirm'] as String, h: 42, fs: 13.5, loading: _busy, onTap: _move),
+            GradientBtn(label: store.L()['btnConfirm'] as String, h: 44, fs: 14, loading: _busy, onTap: _move),
         ],
       ),
     );
@@ -1034,7 +1044,7 @@ class _ProgressBlock extends StatelessWidget {
     final raw = aiNum(b['value'] ?? b['percent']) ?? 0;
     final maxV = (aiNum(b['max']) ?? (raw > 1 ? 100 : 1)).toDouble();
     final frac = maxV > 0 ? (raw / maxV).clamp(0.0, 1.0).toDouble() : 0.0;
-    final tone = aiTone(b['tone'], p) ?? p.green; // odatda g'alaba — brend yashil
+    final tone = aiTone(b['tone'], p) ?? p.mint; // odatda g'alaba — mint
     final label = '${b['label'] ?? ''}'.trim();
     final caption = '${b['caption'] ?? b['text'] ?? ''}'.trim();
     return Container(
@@ -1050,7 +1060,7 @@ class _ProgressBlock extends StatelessWidget {
               duration: const Duration(milliseconds: 800),
               curve: Curves.easeOutCubic,
               builder: (_, t, __) => CustomPaint(
-                painter: _AiRing(t, tone, p.barbg),
+                painter: _AiRing(t, tone, p.ink.withValues(alpha: .10)),
                 child: Center(
                   child: Tx('${(t * 100).round()}%', size: 11, w: FontWeight.w700, color: p.ink, tab: true),
                 ),
@@ -1116,24 +1126,24 @@ class _AiDoneStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = curPal();
     return Container(
-      height: 42,
+      height: 44,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: p.green.withValues(alpha: .10),
-        border: Border.all(color: p.green.withValues(alpha: .30)),
-        borderRadius: BorderRadius.circular(12),
+        color: p.mint.withValues(alpha: .12),
+        border: Border.all(color: p.mint.withValues(alpha: .30)),
+        borderRadius: BorderRadius.circular(Tb.rPill),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_rounded, size: 16, color: p.green),
+          Icon(Icons.check_rounded, size: 16, color: p.mint),
           const SizedBox(width: 7),
           // Matn (toifa nomi bilan) to'liq ko'rinsin — balandlik qat'iy (42),
           // shuning uchun o'rash o'rniga torlik qilsa kichraytiriladi
           Flexible(
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Tx(text, size: 13, w: FontWeight.w600, color: p.green, maxLines: 1),
+              child: Tx(text, size: 13, w: FontWeight.w600, color: p.mint, maxLines: 1),
             ),
           ),
         ],

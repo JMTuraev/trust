@@ -1,7 +1,9 @@
 // PDF dalil (hujjat) — prototip 1402–1480 qatorlar bilan 1:1.
 // Hujjat ranglari qat'iy (temaga bog'liq emas) — qog'oz doim oq.
+// Redizayn (2026-09): faqat header (ScreenHeader) va pastki tugmalar (GradientBtn/GlassBtn).
 import 'package:flutter/material.dart';
 import '../store.dart';
+import '../theme.dart';
 import '../ui.dart';
 
 // Qat'iy hujjat ranglari
@@ -60,38 +62,27 @@ class PdfPreviewScreen extends StatelessWidget {
     return Column(
       children: [
         // Sarlavha
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 20, 12),
-          decoration: BoxDecoration(
-            color: p.bg,
-            border: Border(bottom: BorderSide(color: p.hair2)),
-          ),
-          child: Row(
-            children: [
-              BackBtn(onTap: () => v['closePdf']()),
-              const SizedBox(width: 10),
-              Tx(L0['pdfProofTitle'] as String, size: 16, w: FontWeight.w700, color: p.ink),
-              const Spacer(),
-              Tx((pdf['docId'] ?? '') as String, size: 11, color: p.t3, tab: true, maxLines: 1),
-            ],
-          ),
+        ScreenHeader(
+          title: L0['pdfProofTitle'] as String,
+          onBack: () => v['closePdf'](),
+          trailing: [
+            Tx((pdf['docId'] ?? '') as String, size: 12, color: p.t3, tab: true, maxLines: 1),
+          ],
         ),
-        // Hujjat
+        // Hujjat (qog'oz oq qoladi)
         Expanded(
           child: Container(
-            color: p.field,
+            color: Colors.transparent,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 14),
               children: [
                 Container(
                   padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
                   decoration: BoxDecoration(
                     color: _paper,
                     border: Border.all(color: _cardBd),
-                    borderRadius: BorderRadius.circular(6),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x14000000), offset: Offset(0, 1), blurRadius: 6),
-                    ],
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: Tb.imgShadow,
                   ),
                   child: Stack(
                     clipBehavior: Clip.none,
@@ -233,17 +224,21 @@ class PdfPreviewScreen extends StatelessWidget {
           ),
         ),
         // Pastki tugmalar
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-          decoration: BoxDecoration(
-            color: p.bg,
-            border: Border(top: BorderSide(color: p.hair2)),
-          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Tb.padX, 12, Tb.padX, 24),
           child: Column(
             children: [
-              InkBtn(label: L0['pdfDownloadBtn'] as String, onTap: () => v['pdfDownload']()),
+              GradientBtn(
+                label: L0['pdfDownloadBtn'] as String,
+                icon: Icons.picture_as_pdf_outlined,
+                onTap: () => v['pdfDownload'](),
+              ),
               const SizedBox(height: 10),
-              GhostBtn(label: L0['share'] as String, onTap: () => v['pdfShare'](), h: 46, fs: 14),
+              GlassBtn(
+                label: L0['share'] as String,
+                icon: Icons.ios_share_rounded,
+                onTap: () => v['pdfShare'](),
+              ),
             ],
           ),
         ),

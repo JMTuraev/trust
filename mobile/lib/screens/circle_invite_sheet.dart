@@ -55,7 +55,7 @@ class _CircleInviteSheetState extends State<CircleInviteSheet> {
             onChanged: onCh,
             hint: hint,
             keyboardType: kb,
-            style: GoogleFonts.inter(fontSize: 14, color: p.ink),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14, color: p.ink),
           ),
         );
 

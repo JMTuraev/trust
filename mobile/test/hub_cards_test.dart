@@ -1,13 +1,12 @@
-// BOSH HUB — kartalar OILASI (PO 2026-08-04).
+// BOSH HUB — kartalar OILASI (PO 2026-08-04; redizayn 2026-09-07 §5.6).
 //
 // NEGA BU TEST:
-//   1) «Ijaradagi uylar» va «To'yxona» kartalari ilgari ikkinchi navli edi:
-//      urg'u rangi yo'q, watermark yo'q va eng muhimi RAQAM yo'q edi (yuqoridagi
-//      ikkita kartada katta summa, bularda faqat tavsif + chevron). PO talabi —
-//      to'rttasi ham AYNAN bir xil ko'rinsin.
-//   2) O'LCHAM ham bir xil: kartalar menyular ro'yxati va ro'yxat o'sib boradi.
-//      Har biri o'z mazmuniga qarab bo'y olsa stack tirqishli bo'lardi.
-//   3) TARIF har kartaning pastki-o'ng burchagida va FAQAT ma'lumotdan
+//   1) «Ijaradagi uylar» va «To'yxona» kartalari ilgari ikkinchi navli edi.
+//      PO talabi — to'rttasi ham AYNAN bir xil ko'rinsin: bitta qobiq (_card),
+//      2×2 grid, bir xil o'lcham.
+//   2) O'LCHAM ham bir xil: grid rejimida Expanded qatorlar, ixcham rejimda
+//      kHubCardH — har ikkisida to'rttala karta teng bo'yda.
+//   3) TARIF har kartaning sub qatori O'NG chetida va FAQAT ma'lumotdan
 //      (server modSubs[].price, oflaynda kSubModuleDefaults) — widget ichida
 //      qotirilgan narx satri bir marta tarif o'zgargach 6 tilda chiqib ketgan.
 //   4) 404 HOLATI — bugungi production'da /api/ijara/summary va
@@ -20,7 +19,6 @@ import 'package:trust_mobile/l10n.dart';
 import 'package:trust_mobile/main.dart';
 import 'package:trust_mobile/screens/home_hub.dart';
 import 'package:trust_mobile/screens/paywall_sheet.dart';
-import 'package:trust_mobile/sparkline.dart';
 import 'package:trust_mobile/store.dart';
 
 /// Bitta xarajat yozuvi — hub'ni "bo'sh holat"dan YUKLANGAN holatga o'tkazadi.
@@ -56,27 +54,38 @@ void _atHub({
   store.S['hubToySum'] = toy;
 }
 
-/// Karta sarlavhasi = modul nomi BOSH HARFLARDA (_menuCard).
-String _cap(String nameKey) => (lUz[nameKey] as String).toUpperCase();
+/// Karta nomi = modul nomi (home_hub `_card`: modStr(kModNameKey[module])).
+String _name(String nameKey) => lUz[nameKey] as String;
 
-/// Hub kartalari — _hubShell qat'iy balandlik beradi, shu bo'yicha topamiz.
-Finder _cards() => find.byWidgetPredicate((w) =>
-    w is Container && w.constraints == BoxConstraints.tightFor(height: kHubCardH));
+/// Kartalar tartibi (2×2 grid): Xarajatlar, Qarz daftar, Ijara, To'yxona.
+const _modules = ['xarajat', 'qarz', 'ijarachi', 'toyxona'];
+
+/// Hub kartalari — _card har biriga ValueKey('hubCard_<modul>') beradi.
+Finder _card(String module) => find.byKey(ValueKey('hubCard_$module'));
+Finder _cards() => find.byWidgetPredicate((w) {
+      final k = w.key;
+      return k is ValueKey<String> && k.value.startsWith('hubCard_');
+    });
 
 void main() {
   // ─────────────────── 1. Bir xil ANATOMIYA ───────────────────
   group('to\'rttala karta bitta oila', () {
-    testWidgets('4 ta karta, hammasi bir xil qobiqdan (kHubCardH)', (t) async {
+    testWidgets('4 ta karta, hammasi bir xil qobiqdan (ValueKey hubCard_*)', (t) async {
       _atHub();
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
       // Xarajat, Qarz daftar, Ijaradagi uylar, To'yxona
       expect(_cards(), findsNWidgets(4));
+      for (final m in _modules) {
+        expect(_card(m), findsOneWidget, reason: '$m kartasi yo\'q');
+      }
       expect(t.takeException(), isNull);
     });
 
-    testWidgets('BALANDLIK aynan bir xil — stack tirqishsiz', (t) async {
+    testWidgets('IXCHAM rejim (tana < kHubGridMinH): BALANDLIK aynan kHubCardH', (t) async {
+      // Test yuzasi 800×600 — tana balandligi kHubGridMinH dan kichik,
+      // shuning uchun skroll rejimi va qat'iy karta bo'yi.
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -86,38 +95,19 @@ void main() {
 
       final hs = t.renderObjectList<RenderBox>(_cards()).map((r) => r.size.height).toList();
       expect(hs.length, 4);
-      // Xarajat kartasi (sparkline bilan) ham, eng kambag'ali ham bir xil
       for (final h in hs) {
         expect(h, kHubCardH, reason: 'karta bo\'yi farq qilyapti: $hs');
       }
+      expect(t.takeException(), isNull);
     });
 
-    // kHubCardH «eng boy karta sig'adigan» qilib tanlangan. Agar u kichrayib
-    // ketsa, _hubShell ichidagi FittedBox mazmunni JIMGINA kichraytiradi —
-    // Xarajat kartasi dizayndan mayda bo'lib qolardi va buni ko'z bilan
-    // payqash qiyin. Shu sabab: sparkline'ning EKRANDAGI (transform bilan)
-    // bo'yi tuzilishdagi 46px ga TENG bo'lishi shart — ya'ni siqilish yo'q.
-    testWidgets('eng boy karta SIQILMAYDI (kHubCardH yetarli)', (t) async {
-      // Xarajat kartasining ENG TO'LIQ ko'rinishi: sarlavha + summa + CHEGARA
-      // qatori + sparkline. Chegarasiz fikstura bu qatorni chizmaydi va test
-      // eng og'ir holatni umuman sinamay qolardi.
-      _atHub();
-      store.S['xarLimit'] = 3000000; // -> hubHasLimit: «Qoldi: +2 850 000»
-      // 0 ga qaytariladi, null EMAS: _xarVals uni `as int` bilan o'qiydi.
-      addTearDown(() => store.S['xarLimit'] = 0);
-      await t.pumpWidget(const TrustApp());
-      await t.pump();
-
-      expect(store.vals()['hubHasLimit'], isTrue, reason: 'chegara qatori chizilmadi');
-      expect(find.text(lUz['hubLeft'] as String), findsOneWidget);
-
-      // FittedBox siqsa, EKRANDAGI (transform bilan) bo'y 46 dan kichik bo'lardi
-      final spark = find.byType(Sparkline).first;
-      expect(t.getRect(spark).height, closeTo(46, 0.01),
-          reason: 'Xarajat sparkline\'i siqilgan — kHubCardH kichik');
-    });
-
-    testWidgets('har kartada: bo\'lim nomi + sarlavha + SUMMA + tarif', (t) async {
+    testWidgets('GRID rejim (844pt): kartalar ekranni to\'ldiradi, to\'rttasi teng', (t) async {
+      addTearDown(() {
+        t.view.resetPhysicalSize();
+        t.view.resetDevicePixelRatio();
+      });
+      t.view.devicePixelRatio = 1.0;
+      t.view.physicalSize = const Size(390, 844);
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -125,22 +115,46 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      // Bo'lim nomlari
-      for (final cap in [
-        lUz['hubXarSec'] as String,
-        lUz['hubDebtSec'] as String,
-        _cap('modIjarachi'),
-        _cap('modToyxona'),
-      ]) {
-        expect(find.text(cap), findsOneWidget, reason: '$cap kartasi yo\'q');
+      expect(t.takeException(), isNull, reason: 'grid rejimida overflow');
+      final rects = t
+          .renderObjectList<RenderBox>(_cards())
+          .map((r) => r.localToGlobal(Offset.zero) & r.size)
+          .toList();
+      expect(rects.length, 4);
+      // Grid: kartalar kHubCardH dan baland (ekranni to'ldiradi) va teng
+      for (final r in rects) {
+        expect(r.height, greaterThan(kHubCardH), reason: 'grid rejimi emas: $rects');
+        expect(r.height, closeTo(rects.first.height, 0.5), reason: 'kartalar teng emas: $rects');
+        expect(r.width, closeTo(rects.first.width, 0.5));
       }
-      // Sarlavha qatorlari (summa ustidagi) — to'rttasida ham bor
-      expect(find.text(lUz['hubToMe'] as String), findsOneWidget);
-      expect(find.text(lUz['hubIjaraCap'] as String), findsOneWidget);
-      expect(find.text(lUz['hubToyCap'] as String), findsOneWidget);
-      // Birlik («so'm») — endi to'rttala kartada ham summadan keyin turadi
-      expect(find.text(lUz['som'] as String), findsNWidgets(4));
-      // Tarif — har kartaning pastki-o'ng burchagida (oflayn zaxira narxlari)
+      // Ikki ustun: 0 va 2 chapda, 1 va 3 o'ngda; ikki qator
+      expect(rects[0].left, closeTo(rects[2].left, 0.5));
+      expect(rects[1].left, closeTo(rects[3].left, 0.5));
+      expect(rects[0].top, closeTo(rects[1].top, 0.5));
+      expect(rects[2].top, closeTo(rects[3].top, 0.5));
+      expect(rects[1].left, greaterThan(rects[0].right));
+      expect(rects[2].top, greaterThan(rects[0].bottom));
+    });
+
+    testWidgets('har kartada: NOM + sub + tarif', (t) async {
+      _atHub(
+        ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
+        toy: const {'left': 18500000, 'count': 4, 'pending': 1},
+      );
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      // Nomlar (17/600) — to'rttasi ham
+      for (final key in ['modXarajat', 'modQarz', 'modIjarachi', 'modToyxona']) {
+        expect(find.text(_name(key)), findsOneWidget, reason: '${_name(key)} kartasi yo\'q');
+      }
+      // Sub qatorlar — real ma'lumot
+      expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsOneWidget);
+      expect(find.text('Bu oyda 4 to\'y'), findsOneWidget);
+      // Xarajat: shu oy jami («−150 000 so'm») — store qiymati bilan aynan
+      final hv = store.vals();
+      expect(find.text('${hv['hubXarTxt']} ${hv['hubXarUnit']}'), findsOneWidget);
+      // Tarif — har kartaning sub qatori o'ng chetida (oflayn zaxira narxlari)
       for (final price in [5, 8, 13, 24]) {
         expect(find.text('\$$price/oy'), findsOneWidget, reason: '\$$price/oy yo\'q');
       }
@@ -169,48 +183,59 @@ void main() {
         final card = cardRects.firstWhere((c) => c.contains(pr.center),
             orElse: () => Rect.zero);
         expect(card, isNot(Rect.zero), reason: '\$$price/oy hech bir kartada emas');
-        // O'ng chetga taqalgan (padding 14) va pastda (padding 12)
-        expect(card.right - pr.right, closeTo(14, 1.5),
+        // O'ng chetga taqalgan (pad 16) va pastda (pad 16)
+        expect(card.right - pr.right, closeTo(16, 1.5),
             reason: '\$$price/oy o\'ng chetda emas');
-        expect(card.bottom - pr.bottom, lessThan(20),
+        expect(card.bottom - pr.bottom, lessThan(24),
             reason: '\$$price/oy pastki burchakda emas');
+      }
+    });
+
+    testWidgets('PRO badge — Qarz/Ijara/To\'yxona da bor, Xarajatda YO\'Q', (t) async {
+      _atHub(); // modSubs bo'sh -> chip yo'q, PRO badge ko'rinadi
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.text('PRO'), findsNWidgets(3));
+      final xar = t.getRect(_card('xarajat'));
+      for (final pro in t.widgetList(find.text('PRO'))) {
+        final r = t.getRect(find.byWidget(pro));
+        expect(xar.contains(r.center), isFalse, reason: 'Xarajat kartasida PRO chiqdi');
       }
     });
   });
 
-  // ─────────────────── 2. YANGI KARTALARDAGI RAQAM ───────────────────
-  group('ma\'lumot bor — karta summani ko\'rsatadi', () {
-    testWidgets('Ijara: yig\'ilishi kerak + hisob-kitob/kutilmoqda', (t) async {
+  // ─────────────────── 2. YANGI KARTALARDAGI SUB ───────────────────
+  group('ma\'lumot bor — karta faktlarni ko\'rsatadi', () {
+    testWidgets('Ijara: hisob-kitob/kutilmoqda', (t) async {
       _atHub(ijara: const {'left': 4200000, 'count': 3, 'pending': 2});
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('+4 200 000'), findsOneWidget);
-      expect(find.text(lUz['hubIjaraCap'] as String), findsOneWidget);
       expect(find.text('3 hisob-kitob · 2 kutilmoqda'), findsOneWidget);
       // Faktlar bor ekan, tavsif sub-qatordan chiqib ketadi
       expect(find.text(lUz['modIjarachiDesc'] as String), findsNothing);
     });
 
-    testWidgets('To\'yxona: to\'lanmagan qoldiq + bandlar soni', (t) async {
+    testWidgets('To\'yxona: bandlar soni', (t) async {
       _atHub(toy: const {'left': 18500000, 'count': 4, 'pending': 1});
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('+18 500 000'), findsOneWidget);
-      expect(find.text(lUz['hubToyCap'] as String), findsOneWidget);
       expect(find.text('Bu oyda 4 to\'y'), findsOneWidget);
       expect(find.text(lUz['modToyxonaDesc'] as String), findsNothing);
     });
 
-    testWidgets('MANFIY qoldiq (avans olingan) — qizil ishora bilan', (t) async {
+    testWidgets('MANFIY qoldiq (avans olingan) — crash yo\'q', (t) async {
       _atHub(ijara: const {'left': -350000, 'count': 1, 'pending': 0});
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      // hubLeftTxt bilan bir xil qoida: ishora + mutlaq qiymat
-      expect(find.text('−350 000'), findsOneWidget);
+      // hubLeftTxt bilan bir xil qoida store'da saqlanadi (ekran endi summani
+      // ko'rsatmaydi — bo'lim ekrani ko'rsatadi)
+      expect(store.vals()['hubIjaraTxt'], '−350 000');
       expect(store.vals()['hubIjaraPos'], isFalse);
+      expect(find.text('1 hisob-kitob · 0 kutilmoqda'), findsOneWidget);
       expect(t.takeException(), isNull);
     });
   });
@@ -218,21 +243,15 @@ void main() {
   // ─────────────────── 3. 404 / BO'SH — TINCH NOL HOLATI ───────────────────
   // Bugungi production'da endpointlar YO'Q. Bu — PO qurilmada ko'radigan holat.
   group('404 / ma\'lumot yo\'q — karta tinch nol holatida', () {
-    testWidgets('summa 0, sub-qatorda modul TAVSIFI, xato/spinner YO\'Q', (t) async {
+    testWidgets('sub-qatorda modul TAVSIFI, xato/spinner YO\'Q', (t) async {
       _atHub(); // ijara/toy null — aynan 404 dan keyingi holat
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
       // Karta o'z joyida, to'liq oila bilan
       expect(_cards(), findsNWidgets(4));
-      expect(find.text(_cap('modIjarachi')), findsOneWidget);
-      expect(find.text(_cap('modToyxona')), findsOneWidget);
-      // Nol summa — «0 so'm», ishorasi musbat (hubDebtTxt bilan bir xil idioma).
-      // Uchta: Ijara + To'yxona (404) va Qarz daftar (bu fikstura'da qarz yo'q).
-      expect(find.text('+0'), findsNWidgets(3));
-      // Sarlavha qatori qoladi — karta "yarim qurilgan" bo'lib ko'rinmasin
-      expect(find.text(lUz['hubIjaraCap'] as String), findsOneWidget);
-      expect(find.text(lUz['hubToyCap'] as String), findsOneWidget);
+      expect(find.text(_name('modIjarachi')), findsOneWidget);
+      expect(find.text(_name('modToyxona')), findsOneWidget);
       // Faktlar yo'q ekan, sub-qatorda modul tavsifi turadi
       expect(find.text(lUz['modIjarachiDesc'] as String), findsOneWidget);
       expect(find.text(lUz['modToyxonaDesc'] as String), findsOneWidget);
@@ -254,6 +273,41 @@ void main() {
       for (final h in hs) {
         expect(h, kHubCardH, reason: 'bo\'sh holatda stack tirqishli: $hs');
       }
+      // Bo'sh holat matni/CTA saqlangan (eski _emptyBody)
+      expect(find.text(lUz['hubEmptyExpTitle'] as String), findsOneWidget);
+      expect(find.text(lUz['hubEmptyDebtBtn'] as String), findsOneWidget);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets('BO\'SH hub: Qarz kartasi «Qarz qo\'shish» oqimini ochadi', (t) async {
+      _atHub(empty: true);
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      final f = find.text(_name('modQarz'));
+      await t.ensureVisible(f);
+      await t.pumpAndSettle();
+      await t.tap(f);
+      await t.pumpAndSettle();
+      // hubAddDebt: home + yangi hamkor sheet'i
+      expect(store.S['screen'], 'home');
+      expect(store.S['npOpen'], isTrue);
+      store.S['npOpen'] = false;
+      store.goHub_();
+      await t.pumpAndSettle();
+    });
+
+    testWidgets('SKELET: 4 ta shisha blok, crash yo\'q', (t) async {
+      _atHub();
+      store.S['skelHome'] = true;
+      addTearDown(() => store.S['skelHome'] = false);
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(ValueKey('hubSkel_$i')), findsOneWidget);
+      }
+      expect(_cards(), findsNothing);
       expect(t.takeException(), isNull);
     });
 
@@ -287,7 +341,7 @@ void main() {
     });
   });
 
-  // ─────────────────── 4. TARIF (pastki-o'ng burchak) ───────────────────
+  // ─────────────────── 4. TARIF (sub qatori o'ng cheti) ───────────────────
   group('narx — faqat ma\'lumotdan', () {
     testWidgets('SERVER narxi lokal zaxirani almashtiradi', (t) async {
       _atHub(
@@ -319,8 +373,40 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      // Tarif faqat BITTA joyda — pastki-o'ng burchakda
+      // Tarif faqat BITTA joyda — sub qatori o'ng chetida
       expect(find.text('\$24/oy'), findsOneWidget);
+      // Qulf chipi PRO badge O'RNIDA: To'yxona kartasida PRO yo'q, boshqa ikkisida bor
+      expect(find.byKey(const ValueKey('hubLock_toyxona')), findsOneWidget);
+      expect(find.text('PRO'), findsNWidgets(2));
+    });
+
+    testWidgets('«3/5» hisoblagich — PRO badge o\'rnida', (t) async {
+      _atHub(
+        mods: mapSubsModules({
+          'modules': [
+            {'module': 'ijarachi', 'active': false, 'soon': false,
+              'used': 3, 'free_limit': 5, 'price_usd': 13},
+          ],
+        }),
+      );
+      await t.pumpWidget(const TrustApp());
+      await t.pump();
+
+      expect(find.text('3/5'), findsOneWidget);
+      expect(find.text('PRO'), findsNWidgets(2));
+      // «7/300» — sinov limiti hisoblagichda KO'RINMAYDI (kModChipMaxLimit)
+      _atHub(
+        mods: mapSubsModules({
+          'modules': [
+            {'module': 'ijarachi', 'active': false, 'soon': false,
+              'used': 7, 'free_limit': 300, 'price_usd': 13},
+          ],
+        }),
+      );
+      store.set({});
+      await t.pump();
+      expect(find.text('7/300'), findsNothing);
+      expect(find.text('PRO'), findsNWidgets(3));
     });
 
     testWidgets('OBUNA FAOL bo\'lsa ham tarif ko\'rinadi (bir xillik)', (t) async {
@@ -356,9 +442,8 @@ void main() {
     await t.pumpWidget(const TrustApp());
     await t.pump();
 
-    // Qulf CHIPI (11x11 qulf glifi — _modChip) -> paywall, screen hub'da qoladi
-    final chip = find.byWidgetPredicate(
-        (w) => w is SizedBox && w.width == 11 && w.height == 11);
+    // Qulf CHIPI (_modChip, ValueKey hubLock_<modul>) -> paywall, screen hub'da qoladi
+    final chip = find.byKey(const ValueKey('hubLock_ijarachi'));
     await t.ensureVisible(chip);
     await t.pumpAndSettle();
     await t.tap(chip);
@@ -368,8 +453,8 @@ void main() {
     store.paywallClose_();
     await t.pump();
 
-    // KARTA bosilsa — bo'lim ochiladi, paywall YO'Q (raqam qo'shilgach ham)
-    final f = find.text(_cap('modIjarachi'));
+    // KARTA bosilsa — bo'lim ochiladi, paywall YO'Q
+    final f = find.text(_name('modIjarachi'));
     await t.ensureVisible(f);
     await t.pumpAndSettle();
     await t.tap(f);
@@ -380,9 +465,34 @@ void main() {
     await t.pumpAndSettle();
   });
 
-  // ─────────────────── 6. Tor ekran × 6 til — toshib ketmasin ───────────────
-  // ru/fr eng uzun tarjimalar; 320pt eng tor qurilma. Karta QAT'IY balandlikda,
-  // shuning uchun mazmun ichkarida kichrayishi kerak — karta o'smasligi SHART.
+  // ─────────────────── 6. Header: profil / AI / bildirishnomalar ───────────
+  testWidgets('header: avatar -> profil, qo\'ng\'iroq -> bildirishnomalar', (t) async {
+    _atHub();
+    await t.pumpWidget(const TrustApp());
+    await t.pump();
+
+    await t.tap(find.byKey(const ValueKey('hubBellBtn')));
+    await t.pump();
+    expect(store.S['notifOpen'], isTrue);
+    store.S['notifOpen'] = false;
+    store.set({});
+    await t.pump();
+
+    // Yordam FAB'i o'ng-pastda (bosilsa store.openSupport_ — tarmoq + polling,
+    // shu sabab bu yerda faqat mavjudligi va joyi tekshiriladi)
+    final fab = find.byKey(const ValueKey('hubSupportFab'));
+    expect(fab, findsOneWidget);
+    final fr = t.getRect(fab);
+    final screen = t.getRect(find.byType(HomeHubScreen));
+    expect(screen.right - fr.right, closeTo(20, 1));
+    expect(screen.bottom - fr.bottom, closeTo(24, 1));
+    expect(fr.width, 60);
+  });
+
+  // ─────────────────── 7. Tor ekran × 6 til — toshib ketmasin ───────────────
+  // ru/fr eng uzun tarjimalar; 320pt eng tor qurilma. Karta QAT'IY balandlikda
+  // (ixcham rejim), shuning uchun mazmun ichkarida sig'ishi kerak — karta
+  // o'smasligi va overflow bo'lmasligi SHART.
   for (final lang in kLangs.keys) {
     testWidgets('$lang — 320pt: 4 karta, bir xil bo\'y, toshish yo\'q', (t) async {
       addTearDown(() {
@@ -411,8 +521,12 @@ void main() {
       expect(t.takeException(), isNull, reason: '$lang: overflow/xato');
       final hs = t.renderObjectList<RenderBox>(_cards()).map((r) => r.size.height).toList();
       expect(hs.length, 4, reason: '$lang: 4 ta karta emas');
+      // Tana balandligi kHubGridMinH dan katta bo'lsa grid rejimi (kartalar
+      // teng bo'lib to'ldiradi), aks holda ixcham (kHubCardH). Ikkalasida ham:
+      // to'rttala karta BIR XIL bo'yda va ixcham qiymatdan kichik emas.
       for (final h in hs) {
-        expect(h, kHubCardH, reason: '$lang: karta bo\'yi o\'zgardi ($hs)');
+        expect(h, hs.first, reason: '$lang: kartalar bo\'yi har xil ($hs)');
+        expect(h >= kHubCardH, isTrue, reason: '$lang: karta juda past ($hs)');
       }
     });
   }

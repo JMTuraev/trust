@@ -1,6 +1,13 @@
 name: trust_mobile
 description: "Trust — ishonchli hisob-kitob. UI prototip bilan 1:1 (prototype/template.html)."
 publish_to: "none"
+# 3.13.0 (2026-09-08): v2 REDIZAYN — "dark glass + gradient" (Claude Design):
+#          yangi dizayn tizimi (theme.dart/ui.dart: aurora fon, shisha kartalar,
+#          violet→cyan gradient, mint/coral/amber pul ranglari, Plus Jakarta Sans /
+#          Inter Tight / Space Grotesk), barcha ekranlar qayta chizildi (Bosh 2×2
+#          modul kartalar, Daftar, Hamkor chati, Onboarding 3 slayd, Profil,
+#          Bildirishnoma, Paywall, Xarajat, Ijara, To'yxona, Trust AI). Mantiq/
+#          backend o'zgarmagan. Spec: prototype/redesign/DESIGN_SPEC.md
 # 3.12.1 (2026-08-13): Apple 2.1(a) reject (iPad oq ekran) tuzatildi — runApp
 #          endi DARHOL chaqiriladi (birinchi kadr har doim chiziladi), store/push
 #          init fonda timeout+try/catch bilan, keychain o'qish/yozish himoyalangan
@@ -28,7 +35,7 @@ publish_to: "none"
 # 3.6.0+4 (2026-07-28): Apple IAP (StoreKit $9/oy premium) + iOS App Store tayyorgarlik.
 # 3.5.0+3: FCM push, Trustbook rebrand + bloknot ikonka, yordam chati, 8 xonali user ID,
 #          yangi tarif (server-side), klaviatura haptic, to'liq izohlar
-version: 3.12.1+9
+version: 3.13.0+10
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

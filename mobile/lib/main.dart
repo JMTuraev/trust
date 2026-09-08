@@ -256,17 +256,17 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                           child: Stack(
                             children: [
                               // BOSH HUB — ildiz ekran (dizayn: prototype/bosh-ekran.dc.html)
-                              if (v['isHub'] == true) Positioned.fill(child: HomeHubScreen()),
+                              if (v['isHub'] == true) Positioned.fill(child: ScreenBg(child: HomeHubScreen())),
                               // Hamkorlar — hub'dan ochiladigan TO'LIQ EKRAN bo'lim.
                               // Orqaga (<) endi home.dart'ning O'Z headerida (PO 2026-07-17:
                               // ikkita header o'rniga bitta) — HubSection kerak emas.
                               if (v['isHome'] == true)
                                 Positioned.fill(
-                                  child: Container(color: p.bg, child: HomeScreen()),
+                                  child: ScreenBg(child: HomeScreen()),
                                 ),
                               // Xarajat — o'z header'ida orqaga bor (xfBack -> hub)
                               if (v['isXarajat'] == true)
-                                Positioned.fill(child: Container(color: p.bg, child: XarajatScreen())),
+                                Positioned.fill(child: ScreenBg(child: XarajatScreen())),
                               // Ijaradagi uylar / To'yxona — hub kartasidan ochiladigan
                               // TO'LIQ EKRAN modullar. `handleSystemBack` UZATILMAYDI
                               // (false bo'lib qoladi): apparat "orqaga" tugmasini FAQAT
@@ -276,15 +276,13 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                               // orqali yopiladi (yuqoridagi `moduleBack` chaqiruvi).
                               if (v['isIjara'] == true)
                                 Positioned.fill(
-                                  child: Container(
-                                    color: p.bg,
+                                  child: ScreenBg(
                                     child: IjaraScreen(onBack: () => v['goHub']()),
                                   ),
                                 ),
                               if (v['isToyxona'] == true)
                                 Positioned.fill(
-                                  child: Container(
-                                    color: p.bg,
+                                  child: ScreenBg(
                                     child: ToyxonaScreen(onBack: () => v['goHub']()),
                                   ),
                                 ),
@@ -297,7 +295,7 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                               // Profil — avatar orqali ochiladi; orqaga HubSection'da
                               if (v['isProfil'] == true)
                                 Positioned.fill(
-                                  child: Container(color: p.bg, child: HubSection(child: ProfilScreen())),
+                                  child: ScreenBg(child: HubSection(child: ProfilScreen())),
                                 ),
                             ],
                           ),
@@ -312,36 +310,36 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                   // Circle to'liq-ekran overlaylar (z:9). Manage/History
                   // detaildan ochilsa uning ustida ko'rinishi uchun detaildan KEYIN keladi.
                   if (v['circleOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: CircleDetailScreen())),
+                    Positioned.fill(child: ScreenBg(child: CircleDetailScreen())),
                   if (v['circleHistoryOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: CircleHistoryScreen())),
+                    Positioned.fill(child: ScreenBg(child: CircleHistoryScreen())),
                   if (v['circleManageOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: CircleManageScreen())),
+                    Positioned.fill(child: ScreenBg(child: CircleManageScreen())),
                   if (v['circleCreateOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: CircleCreateScreen())),
+                    Positioned.fill(child: ScreenBg(child: CircleCreateScreen())),
                   if (v['circleJoinOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: CircleJoinScreen())),
+                    Positioned.fill(child: ScreenBg(child: CircleJoinScreen())),
                   // Hamkor sahifasi (z:10)
                   if (v['clientOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: ClientScreen())),
+                    Positioned.fill(child: ScreenBg(child: ClientScreen())),
                   // Bildirishnomalar (z:12)
                   if (v['notifOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: NotifsScreen())),
+                    Positioned.fill(child: ScreenBg(child: NotifsScreen())),
                   // Yordam chati (z:13) — Telegram'ga ulangan support (PO #10)
                   if (v['supportOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: SupportChatScreen())),
+                    Positioned.fill(child: ScreenBg(child: SupportChatScreen())),
                   // Rad etilgan bog'lanishlar (z:14)
                   if (v['rejOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: RejectedLinksScreen())),
+                    Positioned.fill(child: ScreenBg(child: RejectedLinksScreen())),
                   // Arxiv (z:16)
                   if (v['archOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: ArchiveScreen())),
+                    Positioned.fill(child: ScreenBg(child: ArchiveScreen())),
                   // Dalil (z:20)
                   if (v['receiptOpen'] == true)
-                    Positioned.fill(child: Container(color: p.bg, child: ReceiptScreen())),
+                    Positioned.fill(child: ScreenBg(child: ReceiptScreen())),
                   // PDF dalil (z:22)
                   if (v['pdfOpen'] == true)
-                    Positioned.fill(child: Container(color: p.field, child: PdfPreviewScreen())),
+                    Positioned.fill(child: Container(color: p.bg, child: PdfPreviewScreen())),
                   // Bottom sheetlar (z:30/34)
                   if (v['sheetOpen'] == true) NewTxSheet(),
                   if (v['npOpen'] == true) NewPartnerSheet(),
@@ -353,7 +351,7 @@ class _RootState extends State<Root> with WidgetsBindingObserver {
                   // Bog'lanish qarori (z:50) — minimal preview bilan qabul/rad
                   if (v['linkDecisionOpen'] == true) LinkDecisionSheet(),
                 ] else
-                  Positioned.fill(child: OnboardingScreen()),
+                  Positioned.fill(child: ScreenBg(child: OnboardingScreen())),
                 // Davlat kodi sheet (z:60)
                 if (v['ccOpen'] == true) CcSheet(),
                 // Til tanlash sheet (z:62)

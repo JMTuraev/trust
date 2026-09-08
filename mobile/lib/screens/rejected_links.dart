@@ -1,8 +1,10 @@
 // Rad etilgan bog'lanishlar — mijoz istalgan payt "Tiklash" bosadi:
 // status accepted'ga qaytadi, yozuvlar va balans ochiladi (ma'lumot hech qachon o'chmaydi).
+// Dizayn: DESIGN_SPEC "dark glass + gradient" (ScreenHeader · surface qatorlar · RingAvatar · PillChip).
 import 'package:flutter/material.dart';
 import '../store.dart';
 import '../ui.dart';
+import '../theme.dart';
 
 class RejectedLinksScreen extends StatelessWidget {
   const RejectedLinksScreen({super.key});
@@ -17,62 +19,51 @@ class RejectedLinksScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: BackBtn(onTap: () => v['closeRejected']()),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
-          child: Tx(L0['rejLinksTitle'] as String, size: 22, w: FontWeight.w700, color: p.ink, ls: -0.3),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-          child: Tx(L0['rejLinksSub'] as String, size: 12.5, color: p.t3),
+        ScreenHeader(
+          title: L0['rejLinksTitle'] as String,
+          subtitle: L0['rejLinksSub'] as String,
+          onBack: () => v['closeRejected'](),
         ),
         Expanded(
           child: rows.isEmpty
-              ? Center(child: Tx(L0['rejLinksEmpty'] as String, size: 13.5, color: p.t3))
+              ? Center(child: Tx(L0['rejLinksEmpty'] as String, size: 15, color: p.t3))
               : ListView(
-                  padding: const EdgeInsets.only(top: 6, bottom: 24),
+                  padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 120),
                   children: [
                     for (final r in rows)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+                        constraints: const BoxConstraints(minHeight: 76),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: p.surface,
+                          borderRadius: BorderRadius.circular(Tb.rRow),
+                          border: Border.all(color: p.glassBd),
+                        ),
                         child: Row(
                           children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: p.card2, shape: BoxShape.circle),
-                              child: Tx(r['initials'], size: 14, w: FontWeight.w600, color: p.ink),
-                            ),
+                            RingAvatar(initials: r['initials'], size: 48, seed: '${r['name']}', dot: p.coral),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Tx(r['name'], size: 14.5, w: FontWeight.w600, color: p.ink),
+                                  Tx(r['name'], size: 16, w: FontWeight.w600, color: p.ink, maxLines: 2),
                                   const SizedBox(height: 3),
                                   // Balans/holat matni to'liq ko'rinsin — 2 qatorgacha o'raladi
-                                  Tx(r['sub'], size: 12, color: p.t3, maxLines: 2),
+                                  Tx(r['sub'], size: 13, color: p.t3, maxLines: 2),
                                 ],
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Tap(
+                            // Ichki padding'li shisha pill (PillChip) — qatorda ixcham tugma
+                            PillChip(
+                              label: L0['btnRestore'] as String,
+                              selected: false,
                               onTap: r['restore'],
-                              child: Container(
-                                height: 32,
-                                padding: const EdgeInsets.symmetric(horizontal: 14),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: p.ink,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Tx(L0['btnRestore'] as String, size: 12.5, w: FontWeight.w600, color: p.bg),
-                              ),
+                              h: 36,
+                              leading: Icon(Icons.refresh_rounded, size: 16, color: p.t1),
                             ),
                           ],
                         ),

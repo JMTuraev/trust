@@ -1,10 +1,13 @@
-// Profil ekrani — prototype/template.html «isProfil» bloki bilan 1:1
-// (avatar + ism + telefon sarlavhasi, profRows qatorlari, «Chiqish», versiya).
-// Qo'shimcha (prototipdan keyingi mahsulot qarori): obuna bo'limi — 2026-08-04
-// dan HAR BO'LIM uchun alohida qator (_SubCard izohiga qarang).
+// Profil ekrani — dizayn: prototype/redesign/DESIGN_SPEC.md §5.16
+// (RingAvatar + ism + telefon, SOZLAMALAR shisha kartasi (profRows),
+// OBUNA kartasi (_SubCard), Chiqish / Profilni o'chirish kartasi, versiya).
+// Obuna bo'limi — 2026-08-04 dan HAR BO'LIM uchun alohida qator (_SubCard izohiga qarang).
+//
+// Store shartnomasi o'zgarmadi: profRows (label/value/isSwitch/isPlain/danger/tap),
+// meName/meInitials/meAvatar/pickAvatar/mePhoneFmt/meNoFmt, meEditing/meEditVal/
+// onMeName/meNameSave/meEditToggle, logout, delOtp*, modSubs/modSubsLegacy/openPaywall.
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -27,6 +30,25 @@ Future<void> _openUrl(String url) async {
   } catch (_) {/* havola ochilmadi — jim o'tamiz */}
 }
 
+/// profRows qatori uchun ikonka — store qatorida ikonka kaliti yo'q, shuning
+/// uchun yorliq L() kalitlari bilan solishtiriladi (tarjimadan mustaqil).
+IconData _rowIcon(Map<String, dynamic> pr, Map<String, dynamic> L0) {
+  final l = '${pr['label'] ?? ''}';
+  if (l.isEmpty) return Icons.chevron_right_rounded;
+  if (l == L0['profTil']) return Icons.language_rounded;
+  if (l == L0['profCur']) return Icons.payments_outlined;
+  if (l == L0['darkMode']) return Icons.dark_mode_outlined;
+  if (l == L0['profPin']) return Icons.key_rounded;
+  if (l == L0['profPinChange']) return Icons.lock_outline_rounded;
+  if (l == L0['profNotif']) return Icons.notifications_none_rounded;
+  if (l == L0['profSupport']) return Icons.help_outline_rounded;
+  if (l == L0['rejLinks']) return Icons.people_outline_rounded;
+  if (l == L0['profArch']) return Icons.archive_outlined;
+  if (l == L0['profSub']) return Icons.workspace_premium_rounded;
+  if (l == L0['profDelete']) return Icons.delete_outline_rounded;
+  return Icons.info_outline_rounded;
+}
+
 class ProfilScreen extends StatelessWidget {
   const ProfilScreen({super.key});
 
@@ -36,6 +58,9 @@ class ProfilScreen extends StatelessWidget {
     final L0 = v['L'] as Map<String, dynamic>;
     final p = curPal();
     final rows = (v['profRows'] as List).cast<Map<String, dynamic>>();
+    // Sozlamalar kartasi — oddiy qatorlar; xavfli (o'chirish) qatori oxirgi kartada
+    final settingRows = rows.where((r) => r['danger'] != true).toList();
+    final dangerRows = rows.where((r) => r['danger'] == true).toList();
     // Avatar picker keshida saqlanadi — OS keshni tozalasa fayl yo'qoladi;
     // yo'q faylni FileImage'ga bersak render xatosi bo'ladi, shuning uchun tekshiramiz.
     final avatarPath = v['meAvatar'] as String?;
@@ -44,188 +69,207 @@ class ProfilScreen extends StatelessWidget {
 
     return Stack(
       children: [
-        ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(24, 36, 24, 28),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+        // SingleChildScrollView (lazy ListView EMAS): butun profil bir vaqtda quriladi —
+        // OBUNA kartasi qisqa ekranda ham daraxtda (profil_subs_test find.text bilan qaraydi).
+        SingleChildScrollView(
+          padding: EdgeInsets.zero,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Avatar — bosilsa galereyadan rasm tanlanadi (edit photo)
-              Tap(
-                onTap: () => v['pickAvatar'](),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: p.card2,
-                        shape: BoxShape.circle,
-                        image: avatarFile != null
-                            ? DecorationImage(image: FileImage(avatarFile), fit: BoxFit.cover)
-                            : null,
-                      ),
-                      child: avatarFile == null
-                          ? Tx(v['meInitials'], size: 22, w: FontWeight.w600, color: p.ink)
-                          : null,
-                    ),
-                    Positioned(
-                      right: -2, bottom: -2,
-                      child: Container(
-                        width: 24, height: 24, alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: p.ink, shape: BoxShape.circle,
-                          border: Border.all(color: p.bg, width: 2),
-                        ),
-                        child: Icon(Icons.photo_camera_outlined, size: 12, color: p.bg),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (v['meEditing'] == true)
-                Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 200,
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: p.bd),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: StoreField(
-                            value: v['meEditVal'],
-                            onChanged: (t) => v['onMeName'](t),
-                            hint: L0['yourNameHint'] as String,
-                            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: p.ink),
-                            onSubmit: () => v['meNameSave'](),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Tap(
-                        onTap: () => v['meNameSave'](),
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(18)),
-                          child: Tx(L0['btnOk'] as String, size: 12.5, w: FontWeight.w600, color: p.bg),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  // Ism — mijozlarga shu ko'rinadi; bosib tahrirlash mumkin
-                  child: Tap(
-                    onTap: () => v['meEditToggle'](),
-                    child: Tx(v['meName'], size: 18, w: FontWeight.w700, color: p.ink),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Tx(v['mePhoneFmt'], size: 13, color: p.t2),
-              ),
-              // 8 xonali unikal ID (PO 2026-07-28) — kengayish uchun; nusxalash oson format
-              if ('${v['meNoFmt'] ?? ''}'.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Tx('${v['meNoFmt']}', size: 12, w: FontWeight.w600, color: p.t4, tab: true),
-                ),
-            ],
-          ),
-        ),
-        // Obuna bo'limi — har bo'lim uchun alohida qator (_SubCard).
-        // DIQQAT: const EMAS — store o'zgarganda qayta qurilishi kerak.
-        _SubCard(v: v),
-        for (final pr in rows)
-          Tap(
-            onTap: pr['tap'],
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 56),
-              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 24),
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
-              child: Row(
+            // Sarlavha. Orqaga tugmasi main.dart'dagi HubSection o'ramida (goHub) —
+            // shu sababli bu yerda onBack berilmaydi (ikkita "<" bo'lmasin).
+            ScreenHeader(title: (L0['navProfile'] as String?) ?? 'Profil'),
+            // ── Avatar + ism + telefon ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Tb.padX, 20, Tb.padX, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // danger (profil o'chirish) — qizil rangda
-                  Expanded(child: Tx(pr['label'], size: 14.5, color: pr['danger'] == true ? p.red : p.ink)),
-                  const SizedBox(width: 12),
-                  if (pr['isSwitch'] == true)
-                    Container(
-                      width: 44,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: pr['trk'],
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      child: Stack(
-                        children: [
-                          AnimatedPositioned(
-                            duration: const Duration(milliseconds: 200),
-                            top: 3,
-                            left: pr['knobLeft'],
+                  // Avatar — bosilsa galereyadan rasm tanlanadi (edit photo)
+                  Tap(
+                    onTap: () => v['pickAvatar'](),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (avatarFile != null)
+                          Container(
+                            width: 72,
+                            height: 72,
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tb.brandDiag),
                             child: Container(
-                              width: 20,
-                              height: 20,
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                color: pr['knob'],
                                 shape: BoxShape.circle,
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x40000000),
-                                    offset: Offset(0, 1),
-                                    blurRadius: 3,
-                                  ),
-                                ],
+                                color: p.surface2,
+                                image: DecorationImage(image: FileImage(avatarFile), fit: BoxFit.cover),
+                              ),
+                            ),
+                          )
+                        else
+                          RingAvatar(initials: '${v['meInitials'] ?? ''}', size: 72, ring: 3, gradient: Tb.brandDiag),
+                        Positioned(
+                          right: -2,
+                          bottom: -2,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: p.glassBd),
+                            ),
+                            child: Icon(Icons.edit_outlined, size: 13, color: p.ink),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (v['meEditing'] == true)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 220,
+                            child: GlassField(
+                              h: 44,
+                              child: StoreField(
+                                value: v['meEditVal'],
+                                onChanged: (t) => v['onMeName'](t),
+                                hint: L0['yourNameHint'] as String,
+                                style: tbStyle(size: 15, w: FontWeight.w600, color: p.ink),
+                                onSubmit: () => v['meNameSave'](),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          GlassIconBtn(icon: Icons.check_rounded, gradient: true, onTap: () => v['meNameSave']()),
                         ],
                       ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      // Ism — mijozlarga shu ko'rinadi; bosib tahrirlash mumkin
+                      child: Tap(
+                        onTap: () => v['meEditToggle'](),
+                        child: Tx('${v['meName'] ?? ''}', size: 20, w: FontWeight.w600, color: p.ink, font: TbFont.head),
+                      ),
                     ),
-                  if (pr['isPlain'] == true) ...[
-                    Tx(pr['value'], size: 13, color: p.t3),
-                    const SizedBox(width: 12),
-                    ChevRight(color: p.t6),
-                  ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Tx('${v['mePhoneFmt'] ?? ''}', size: 15, color: p.t2, tab: true),
+                  ),
+                  // 8 xonali unikal ID (PO 2026-07-28) — kengayish uchun; nusxalash oson format
+                  if ('${v['meNoFmt'] ?? ''}'.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Tx('${v['meNoFmt']}', size: 12, w: FontWeight.w600, color: p.t4, tab: true),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified_user_outlined, size: 14, color: p.mint),
+                        const SizedBox(width: 5),
+                        // TODO l10n: "Tasdiqlangan hisob"
+                        Tx('Tasdiqlangan hisob', size: 13, w: FontWeight.w500, color: p.mint),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        Tap(
-          onTap: v['logout'],
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 24),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Tx((v['L'] as Map)['logout'] as String, size: 14.5, w: FontWeight.w600, color: p.ink),
+            // ── SOZLAMALAR ──
+            if (settingRows.isNotEmpty) ...[
+              // TODO l10n: "Sozlamalar"
+              const Padding(padding: EdgeInsets.fromLTRB(Tb.padX, 0, Tb.padX, 10), child: Cap('Sozlamalar')),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Tb.padX),
+                child: GlassCard(
+                  r: 24,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < settingRows.length; i++)
+                        _settingRow(settingRows[i], L0, p, last: i == settingRows.length - 1),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            // ── OBUNA — har bo'lim uchun alohida qator (_SubCard).
+            // DIQQAT: const EMAS — store o'zgarganda qayta qurilishi kerak.
+            _SubCard(v: v),
+            const SizedBox(height: 20),
+            // ── Chiqish / Profilni o'chirish ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Tb.padX),
+              child: GlassCard(
+                r: 24,
+                child: Column(
+                  children: [
+                    ListRow(
+                      icon: Icons.logout_rounded,
+                      iconColor: p.coral,
+                      title: (v['L'] as Map)['logout'] as String,
+                      titleColor: p.coral,
+                      chevron: false,
+                      last: dangerRows.isEmpty,
+                      onTap: v['logout'],
+                    ),
+                    for (var i = 0; i < dangerRows.length; i++)
+                      ListRow(
+                        icon: _rowIcon(dangerRows[i], L0),
+                        iconColor: p.coral,
+                        title: '${dangerRows[i]['label'] ?? ''}',
+                        titleColor: p.coral,
+                        chevron: false,
+                        last: i == dangerRows.length - 1,
+                        onTap: dangerRows[i]['tap'],
+                      ),
+                  ],
+                ),
+              ),
             ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(child: Tx(L0['versionFooter'] as String, size: 13, color: p.t6)),
+            ),
+            ],
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(child: Tx(L0['versionFooter'] as String, size: 11, color: p.t6)),
-        ),
-      ],
         ),
         // #34: profil o'chirish — SMS kod bilan tasdiqlash modali
         if (v['delOtpOpen'] == true) _DelOtpModal(v: v),
       ],
+    );
+  }
+
+  /// Sozlamalar qatori: ikonka · nom · qiymat/toggle · chevron. Bosish — store 'tap'.
+  Widget _settingRow(Map<String, dynamic> pr, Map<String, dynamic> L0, Pal p, {required bool last}) {
+    final value = '${pr['value'] ?? ''}';
+    if (pr['isSwitch'] == true) {
+      // Store toggle holatini 'knobLeft' (21 = yoqilgan, 3 = o'chiq) bilan beradi
+      final on = ((pr['knobLeft'] as num?) ?? 0) > 10;
+      return ListRow(
+        icon: _rowIcon(pr, L0),
+        title: '${pr['label'] ?? ''}',
+        chevron: false,
+        last: last,
+        trailing: TbToggle(value: on, onChanged: (_) => pr['tap']()),
+        onTap: pr['tap'],
+      );
+    }
+    return ListRow(
+      icon: _rowIcon(pr, L0),
+      title: '${pr['label'] ?? ''}',
+      value: value.isEmpty ? null : value,
+      last: last,
+      onTap: pr['tap'],
     );
   }
 }
@@ -265,74 +309,71 @@ class _DelOtpModalState extends State<_DelOtpModal> {
         child: Container(
           color: p.dim,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: GestureDetector(
             onTap: () {},
             child: Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: p.bg,
-                border: Border.all(color: p.bd2),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: 40, offset: const Offset(0, 16)),
-                ],
+                color: p.surface,
+                border: Border.all(color: p.glassBd),
+                borderRadius: BorderRadius.circular(Tb.rCard),
+                boxShadow: Tb.panelShadow,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Tx(_t('delOtpTitle', "Profil o'chirilsinmi?"), size: 16, w: FontWeight.w700, color: p.red),
-                  const SizedBox(height: 6),
+                  Tx(_t('delOtpTitle', "Profil o'chirilsinmi?"), size: 20, w: FontWeight.w600, color: p.coral, font: TbFont.head),
+                  const SizedBox(height: 8),
                   Tx(
                     _t('delOtpWarn',
                         "Diqqat: profilingiz o'chiriladi va barcha yozuvlaringizga kirish yopiladi."),
-                    size: 12.5, color: p.t1, lh: 17,
+                    size: 14, color: p.t1, lh: 20,
                   ),
                   const SizedBox(height: 4),
                   Tx(
                     phone.isEmpty
                         ? _t('delOtpSentTo', 'Raqamingizga yuborilgan SMS kodni kiriting:')
                         : '${_t('delOtpSentTo2', 'SMS kod yuborildi:')} $phone',
-                    size: 12.5, color: p.t3, lh: 17,
+                    size: 13, color: p.t3, lh: 18,
                   ),
                   const SizedBox(height: 14),
-                  TextField(
-                    controller: _code,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    style: TextStyle(
-                        color: p.ink, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 6),
-                    textAlign: TextAlign.center,
-                    decoration: InputDecoration(
-                      counterText: '',
-                      hintText: '•••••',
-                      hintStyle: TextStyle(color: p.t5, letterSpacing: 6),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.bd)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: p.red)),
+                  GlassField(
+                    h: 52,
+                    child: TextField(
+                      controller: _code,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      style: tbStyle(size: 22, w: FontWeight.w600, color: p.ink, tab: true, ls: 6),
+                      textAlign: TextAlign.center,
+                      cursorColor: p.cyan,
+                      decoration: InputDecoration(
+                        counterText: '',
+                        hintText: '•••••',
+                        hintStyle: tbStyle(size: 22, color: p.t5, tab: true, ls: 6),
+                        isDense: true,
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
-                        child: GhostBtn(
-                          label: _t('btnCancel', 'Bekor qilish'), h: 42, fs: 13.5,
+                        child: GlassBtn(
+                          label: _t('btnCancel', 'Bekor qilish'), h: 48, fs: 14,
                           onTap: () { if (!busy) (v['delOtpCancel'] as Function)(); },
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: InkBtn(
-                          label: _t('delOtpBtn', "O'chirish"), h: 42, fs: 13.5, loading: busy,
-                          onTap: () => (v['delOtpConfirm'] as Function)(_code.text),
+                        child: SolidBtn.coral(
+                          _t('delOtpBtn', "O'chirish"),
+                          () => (v['delOtpConfirm'] as Function)(_code.text),
+                          h: 48, fs: 14, loading: busy,
                         ),
                       ),
                     ],
@@ -395,6 +436,21 @@ class _SubCard extends StatelessWidget {
     return s is String && s.isNotEmpty ? s : module;
   }
 
+  /// Modul ikonkasi (dizayn §5.16: wallet / daftar / apartment / heart).
+  IconData _modIcon(String module) {
+    switch (module) {
+      case 'xarajat':
+        return Icons.account_balance_wallet_outlined;
+      case 'qarz':
+        return Icons.description_outlined;
+      case 'ijarachi':
+        return Icons.apartment_rounded;
+      case 'toyxona':
+        return Icons.favorite_border_rounded;
+    }
+    return Icons.workspace_premium_rounded;
+  }
+
   void _renewTap() {
     // To'lov kanali yo'q — halol xabar. Matnda narx YO'Q: obuna endi
     // per-modul, aniq summa modul paywall'ida ko'rsatiladi.
@@ -443,7 +499,7 @@ class _SubCard extends StatelessWidget {
     return out;
   }
 
-  /// Bitta modul qatori: nom + holat + CTA.
+  /// Bitta modul qatori: ikonka + nom + holat + o'ngda PRO / «Obuna bo'lish» pill'i.
   /// `legacy` — eski butun-ilova premiumi faol: hamma modul qamrab olingan.
   Widget _modRow(Pal p, Map<String, dynamic> e,
       {required bool legacy, required bool last, required bool dark}) {
@@ -461,16 +517,16 @@ class _SubCard extends StatelessWidget {
         !active && !soon && !locked && limit > 0 && limit <= kSubLimitDisplayMax;
 
     String state;
-    Color stateColor = p.t1;
+    Color stateColor = p.t2;
     if (legacy) {
       state = subTr('subModLegacy', 'Premium obunangizga kiritilgan');
-      stateColor = p.green;
+      stateColor = p.mint;
     } else if (active) {
       final d = _fmtDate(e['until']);
       state = d.isEmpty
           ? subTr('subModActive', 'Faol')
           : subTr('subModActiveUntil', 'Faol · {d} gacha', {'d': d});
-      stateColor = p.green;
+      stateColor = p.mint;
     } else if (soon) {
       state = subTr('modSoon', 'Tez kunda');
     } else if (locked) {
@@ -483,57 +539,62 @@ class _SubCard extends StatelessWidget {
       state = subTr('subFreeTitle', 'Bepul reja');
     }
 
+    // O'ngdagi pill: faol → PRO (gradient); sotuvda → «Obuna bo'lish» (gradient,
+    // limit tugagan bo'lsa glow bilan); tez kunda → hech narsa.
+    Widget? trailing;
+    if (active) {
+      trailing = PillBadge.pro(h: 28);
+    } else if (!soon) {
+      trailing = ConstrainedBox(
+        // Tugma kengligi cheklangan: ism uchun joy qolsin
+        constraints: const BoxConstraints(maxWidth: 140),
+        child: Container(
+          height: 32,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            gradient: locked ? Tb.brand : null,
+            color: locked ? null : p.glass2,
+            border: locked ? null : Border.all(color: p.glassBd),
+            borderRadius: BorderRadius.circular(Tb.rPill),
+          ),
+          // Uzun tarjimada («S'abonner») «...» yo'q — sig'masa kichrayadi
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Tx(subTr('subModSubscribe', "Obuna bo'lish"),
+                size: 13, w: FontWeight.w700,
+                color: locked ? Colors.white : p.ink, maxLines: 1, font: TbFont.body),
+          ),
+        ),
+      );
+    }
+
     final row = Container(
-      padding: const EdgeInsets.symmetric(vertical: 11),
-      decoration: last
-          ? null
-          : BoxDecoration(border: Border(bottom: BorderSide(color: p.hair2))),
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: last ? null : BoxDecoration(border: Border(bottom: BorderSide(color: p.hairline))),
       child: Row(
         children: [
+          Icon(_modIcon(module), size: 20, color: p.t1),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Uzun tarjima («Propiedades en alquiler») kesilmasin — o'raladi
-                Tx(_modName(module), size: 13.5, w: FontWeight.w600, color: p.ink, maxLines: 2),
+                Tx(_modName(module), size: 15, w: FontWeight.w500, color: p.ink, maxLines: 2),
                 const SizedBox(height: 2),
-                Tx(state, size: 11.5, color: stateColor, lh: 15, maxLines: 2),
+                Tx(state, size: 12, color: stateColor, lh: 16, maxLines: 2),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          if (active)
-            // Faol obuna — CTA kerak emas (paywall "sotib olish" degan bo'lardi)
-            Icon(Icons.check_circle_outline, size: 18, color: p.green)
-          else
-            ConstrainedBox(
-              // Tugma kengligi cheklangan: ism uchun joy qolsin
-              constraints: const BoxConstraints(maxWidth: 128),
-              child: Container(
-                height: 32,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 13),
-                decoration: BoxDecoration(
-                  // Limit tugagan bo'lsa — asosiy (to'ldirilgan) tugma
-                  color: locked ? p.ink : null,
-                  border: locked ? null : Border.all(color: p.bd),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                // Uzun tarjimada («S'abonner») «...» yo'q — sig'masa kichrayadi
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Tx(subTr('subModSubscribe', "Obuna bo'lish"),
-                      size: 12.5, w: FontWeight.w600,
-                      color: locked ? p.bg : p.ink, maxLines: 1),
-                ),
-              ),
-            ),
+          if (trailing != null) ...[const SizedBox(width: 10), trailing],
         ],
       ),
     );
 
     // Faol modulda bosish yo'q; qolganida butun qator paywall'ni ochadi.
-    return active ? row : Tap(onTap: () => _openPaywall(module), child: row);
+    return active ? row : Tap(onTap: () => _openPaywall(module), scale: 0.99, child: row);
   }
 
   @override
@@ -561,19 +622,7 @@ class _SubCard extends StatelessWidget {
     final String priceMonthly =
         hasPrice ? subTr('subPerMonth', '{price}/oy', {'price': storePrice}) : '';
 
-    final children = <Widget>[
-      Row(
-        children: [
-          Expanded(child: Cap((L0['profSub'] as String? ?? 'Obuna').toUpperCase())),
-          // Narx — FAQAT do'kon (StoreKit) summasi va FAQAT eski premium
-          // ko'rinishida. Modul ro'yxatida bitta summa bo'lishi mumkin emas
-          // (har bo'lim har xil), shuning uchun u yerda umuman chizilmaydi.
-          if (hasPrice && !perModule)
-            Tx(priceMonthly, size: 12.5, w: FontWeight.w700, color: p.ink, tab: true),
-        ],
-      ),
-      const SizedBox(height: 10),
-    ];
+    final children = <Widget>[];
 
     if (perModule) {
       // Bir qatorli izoh — modelni tushuntiradi, narx ATAMAYDI.
@@ -581,7 +630,7 @@ class _SubCard extends StatelessWidget {
         subTr('subInfo',
             "Har bo'lim alohida obuna — bepul limitdan keyin faqat kerakli "
             "bo'limni ochasiz. To'lov tez orada ulanadi"),
-        size: 12.5, color: p.t1, lh: 17,
+        size: 13, color: p.t2, lh: 18,
       ));
     } else {
       // ---- Eski (legacy / zaxira) ko'rinish: holat sarlavhasi + matn ----
@@ -595,7 +644,7 @@ class _SubCard extends StatelessWidget {
                 {'d': '${_d2(u.day)}.${_d2(u.month)}.${u.year}'});
       } else if (sub.expired) {
         title = subTr('subExpiredTitle', "To'lov muddati tugagan");
-        titleColor = p.red;
+        titleColor = p.coral;
       } else {
         title = subTr('subFreeTitle', 'Bepul reja');
       }
@@ -615,9 +664,20 @@ class _SubCard extends StatelessWidget {
                       "bo'limni ochasiz. To'lov tez orada ulanadi");
 
       children.addAll([
-        Tx(title, size: 16, w: FontWeight.w700, color: titleColor),
+        Row(
+          children: [
+            Expanded(child: Tx(title, size: 17, w: FontWeight.w600, color: titleColor)),
+            // Narx — FAQAT do'kon (StoreKit) summasi va FAQAT eski premium
+            // ko'rinishida. Modul ro'yxatida bitta summa bo'lishi mumkin emas
+            // (har bo'lim har xil), shuning uchun u yerda umuman chizilmaydi.
+            if (hasPrice && !perModule) ...[
+              const SizedBox(width: 8),
+              Tx(priceMonthly, size: 13, w: FontWeight.w700, color: p.ink, tab: true),
+            ],
+          ],
+        ),
         const SizedBox(height: 4),
-        Tx(body, size: 12.5, color: p.t1, lh: 17),
+        Tx(body, size: 13, color: p.t2, lh: 18),
       ]);
 
       // ≤3 kun qolgan bo'lsa — kartada ham ogohlantirish (banner bilan bir ohangda)
@@ -626,7 +686,7 @@ class _SubCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.schedule, size: 15, color: w),
+              Icon(Icons.schedule_rounded, size: 15, color: w),
               const SizedBox(width: 6),
               Expanded(
                 child: Tx(
@@ -663,11 +723,11 @@ class _SubCard extends StatelessWidget {
               : subTr('subModSubscribe', "Obuna bo'lish");
       children.addAll([
         const SizedBox(height: 14),
-        // busy bo'lsa spinnerli (bosish bloklangan). Tugaganda asosiy (qora),
-        // aks holda kontur — loading param InkBtn/GhostBtn'da o'zi ishlaydi.
+        // busy bo'lsa spinnerli (bosish bloklangan). Tugaganda asosiy (gradient),
+        // aks holda shisha.
         sub.expired
-            ? InkBtn(label: ctaLabel, h: 44, fs: 14, onTap: cta, loading: busy)
-            : GhostBtn(label: ctaLabel, h: 42, fs: 13.5, onTap: cta, loading: busy),
+            ? GradientBtn(label: ctaLabel, h: 48, fs: 15, onTap: cta, loading: busy)
+            : GlassBtn(label: ctaLabel, h: 48, fs: 15, onTap: cta, loading: busy),
       ]);
     } else if (ios && rows.any((e) => e['active'] == true)) {
       // Faol modul obunasi bor — Apple'da bekor qilish/almashtirish faqat
@@ -675,9 +735,9 @@ class _SubCard extends StatelessWidget {
       // sotib olardi — modul obunalari uchun noto'g'ri).
       children.addAll([
         const SizedBox(height: 14),
-        GhostBtn(
+        GlassBtn(
           label: subTr('subManage', 'Obunani boshqarish'),
-          h: 42, fs: 13.5,
+          h: 48, fs: 15,
           onTap: () => _openUrl(_kAppleSubsUrl),
         ),
       ]);
@@ -686,19 +746,16 @@ class _SubCard extends StatelessWidget {
     // ---- iOS: Apple 3.1.2 majburiy ma'lumotlari + Restore + havolalar ----
     if (ios) {
       children.addAll([
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         // "Xaridni tiklash" — Apple talabi (qurilma almashsa obuna qaytadi)
         Center(
-          child: Tap(
+          child: TextBtn(
+            label: subTr('subRestore', 'Xaridni tiklash'),
+            h: 40, fs: 14, color: p.t1,
             onTap: busy ? () {} : () => store.restorePremium(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              child: Tx(subTr('subRestore', 'Xaridni tiklash'),
-                  size: 12.5, w: FontWeight.w600, color: p.t2),
-            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
       ]);
       // Avtomatik yangilanish sharti + bekor qilish yo'li (Apple 3.1.2).
       // Modul ro'yxatida NARXSIZ variant: bo'limlar summasi har xil, bitta
@@ -712,7 +769,7 @@ class _SubCard extends StatelessWidget {
                 "Har bo'lim obunasi avtomatik yangilanadi. Aniq summa o'sha "
                 "bo'limning obuna oynasida ko'rsatiladi. Istalgan vaqtda bekor "
                 "qilish: App Store → Apple ID → Obunalar."),
-            size: 11, color: p.t4, lh: 15,
+            size: 12, color: p.t4, lh: 16,
           ),
           const SizedBox(height: 7),
         ]);
@@ -726,33 +783,24 @@ class _SubCard extends StatelessWidget {
                   'App Store → Apple ID → Obunalar.',
               {'price': priceMonthly},
             ),
-            size: 11, color: p.t4, lh: 15,
+            size: 12, color: p.t4, lh: 16,
           ),
           const SizedBox(height: 7),
         ]);
       }
       // Foydalanish shartlari (Apple standart EULA) + Maxfiylik siyosati — tappable
+      final linkStyle = tbStyle(size: 12, w: FontWeight.w600, color: p.t2).copyWith(decoration: TextDecoration.underline);
       children.add(Row(
         children: [
           Tap(
             onTap: () => _openUrl(
                 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
-            child: Text(
-              subTr('subTerms', 'Foydalanish shartlari'),
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
-                  decoration: TextDecoration.underline),
-            ),
+            child: Text(subTr('subTerms', 'Foydalanish shartlari'), style: linkStyle, textScaler: TextScaler.noScaling),
           ),
-          Tx('   ·   ', size: 11, color: p.t6),
+          Tx('   ·   ', size: 12, color: p.t6),
           Tap(
             onTap: () => _openUrl('$apiUrl/privacy'),
-            child: Text(
-              subTr('subPrivacy', 'Maxfiylik siyosati'),
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: p.t2,
-                  decoration: TextDecoration.underline),
-            ),
+            child: Text(subTr('subPrivacy', 'Maxfiylik siyosati'), style: linkStyle, textScaler: TextScaler.noScaling),
           ),
         ],
       ));
@@ -761,15 +809,24 @@ class _SubCard extends StatelessWidget {
     // Qizil (tugagan) ko'rinish faqat ESKI kartaga tegishli — modul ro'yxatida
     // holat har qatorda alohida, butun kartani qizartirish yolg'on bo'lardi.
     final bool expiredLook = sub.expired && !perModule;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 18, 24, 6),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: expiredLook ? p.red.withValues(alpha: .07) : p.hov2,
-        border: Border.all(color: expiredLook ? p.red.withValues(alpha: .30) : p.bd2),
-        borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Tb.padX),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Cap((L0['profSub'] as String? ?? 'Obuna')),
+          ),
+          GlassCard(
+            r: 24,
+            pad: const EdgeInsets.all(16),
+            color: expiredLook ? p.coral.withValues(alpha: .08) : null,
+            border: expiredLook ? p.coral.withValues(alpha: .30) : null,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+          ),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 }
