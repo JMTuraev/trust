@@ -81,17 +81,22 @@ class Tx extends StatelessWidget {
     this.maxLines,
     this.ellipsis = false,
     this.font = TbFont.auto,
+    this.strike = false,
   });
+
+  /// Chizib tashlangan matn (masalan bonus servis narxi — 024 to'yxona).
+  final bool strike;
 
   @override
   Widget build(BuildContext context) {
+    final st = tbStyle(size: size, w: w, color: color, ls: ls, lh: lh, tab: tab, font: font);
     return Text(
       text,
       textAlign: align,
       maxLines: maxLines,
       overflow: ellipsis ? TextOverflow.ellipsis : null,
       textScaler: TextScaler.noScaling,
-      style: tbStyle(size: size, w: w, color: color, ls: ls, lh: lh, tab: tab, font: font),
+      style: strike ? st.copyWith(decoration: TextDecoration.lineThrough, decorationColor: color) : st,
     );
   }
 }
@@ -1543,7 +1548,11 @@ class ListRow extends StatelessWidget {
     this.last = false,
     this.onTap,
     this.h = 56,
+    this.subtitle,
   });
+
+  /// Ixtiyoriy ikkinchi qator (13/t4) — masalan stol turi sig'imi (024 to'yxona).
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -1556,7 +1565,19 @@ class ListRow extends StatelessWidget {
         children: [
           if (leading != null) ...[leading!, const SizedBox(width: 12)],
           if (icon != null) ...[Icon(icon, size: 20, color: iconColor ?? p.t1), const SizedBox(width: 12)],
-          Expanded(child: Tx(title, size: 15, w: FontWeight.w500, color: titleColor ?? p.ink, maxLines: 2)),
+          Expanded(
+            child: subtitle == null
+                ? Tx(title, size: 15, w: FontWeight.w500, color: titleColor ?? p.ink, maxLines: 2)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tx(title, size: 15, w: FontWeight.w500, color: titleColor ?? p.ink, maxLines: 2),
+                      const SizedBox(height: 2),
+                      Tx(subtitle!, size: 13, color: p.t4, maxLines: 1, ellipsis: true),
+                    ],
+                  ),
+          ),
           if (value != null) ...[const SizedBox(width: 8), Tx(value!, size: 14, color: p.t2, maxLines: 1)],
           if (trailing != null) ...[const SizedBox(width: 8), trailing!],
           if (chevron && onTap != null) ...[const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, size: 20, color: p.t6)],

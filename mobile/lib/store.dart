@@ -1451,6 +1451,25 @@ class TrustStore extends ChangeNotifier {
     set({'paywall': subsPaywallEntry(module, _modSubs())});
   }
 
+  /// 024 / PO 2026-09-08: to'yxona HAR ZAL $21 — paywall zal soni bilan ochiladi
+  /// (403 HALL_LIMIT'dan). Narx = zal × bir zal narxi; SKU serverda hal bo'ladi.
+  void openPaywallUnits_(String module, int units) {
+    if (module.isEmpty) return;
+    final e = subsPaywallEntry(module, _modSubs());
+    final unitPrice = _subInt(e['price']);
+    final n = units.clamp(1, 5).toInt();
+    set({'paywall': {...e, 'units': n, 'unit_price': unitPrice, 'price': unitPrice * n}});
+  }
+
+  /// Paywall'dagi zal soni stepper'i (faqat per-unit modul).
+  void paywallUnits_(int units) {
+    final pw = S['paywall'];
+    if (pw is! Map) return;
+    final unitPrice = _subInt(pw['unit_price'] ?? pw['price']);
+    final n = units.clamp(1, 5).toInt();
+    set({'paywall': {...Map<String, dynamic>.from(pw), 'units': n, 'unit_price': unitPrice, 'price': unitPrice * n}});
+  }
+
   void paywallClose_() => set({'paywall': null});
 
   /// «Xarajatlar obunasi yoqildi — rahmat!» — modul nomi joriy tilda
@@ -1466,7 +1485,8 @@ class TrustStore extends ChangeNotifier {
     if (pw is! Map) return;
     final module = '${pw['module'] ?? ''}';
     if (module.isEmpty) return;
-    final started = await IapService.buyModule(module);
+    final units = _subInt(pw['units']);
+    final started = await IapService.buyModule(module, units: units > 1 ? units : 1);
     if (!started) {
       toast_(L()['pwPayComingSoon'] as String? ?? "To'lov hali ulanmagan — obuna tez orada ishlaydi");
     }
@@ -4089,6 +4109,7 @@ class TrustStore extends ChangeNotifier {
       // Paywall: {module, price, soon, used, limit} yoki null
       'paywall': S['paywall'],
       'openPaywall': (String module) => openPaywall_(module),
+      'paywallUnits': (int n) => paywallUnits_(n),
       'paywallClose': () => paywallClose_(),
       'paywallBuy': () => unawaited(paywallBuy_()),
 

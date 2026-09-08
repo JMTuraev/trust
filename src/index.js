@@ -21,6 +21,7 @@ import ijaraRoutes from './routes/ijara.js';
 import aiRoutes from './routes/ai.js';
 import { startRejectSignalSweeper } from './services/rejectSignal.js';
 import { startDueReminderSweeper } from './services/dueReminder.js';
+import { startToyxonaSweeper } from './services/toyxonaSweeper.js';
 import supportRoutes from './routes/support.js';
 import subsRoutes from './routes/subs.js';
 import { tgSetWebhook } from './services/telegram.js';
@@ -105,6 +106,8 @@ startRejectSignalSweeper();
 
 // Qarz muddati (due) avto-eslatmalari — in-app + FCM push (015 migratsiya talab qilinadi)
 startDueReminderSweeper();
+// To'yxona (024): hold muddati o'tgan bandlarni bekor qilish + to'y arafasi qoldiq eslatmasi
+startToyxonaSweeper();
 
 // Yordam chati: Telegram webhook'ni o'rnatish (token bo'lsa; idempotent)
 tgSetWebhook();

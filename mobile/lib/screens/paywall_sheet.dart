@@ -52,7 +52,7 @@ const Map<String, String> kModTitleKey = {
 /// src/lib/subscription.js: MODULES.<module>.max_units (ijarachi 5, toyxona 1).
 /// Modul bu jadvalda bo'lmasa chegara umuman yo'q (xarajat/qarz — yozuv soni
 /// bepul limit bilan boshqariladi, obyekt tushunchasi yo'q).
-const Map<String, int> kModCapUnits = {'ijarachi': 5, 'toyxona': 1};
+const Map<String, int> kModCapUnits = {'ijarachi': 5, 'toyxona': 5};
 
 /// Chegara siyosati izohining l10n kaliti (faqat kModCapUnits'dagi modullarda).
 ///
@@ -193,7 +193,13 @@ class PaywallSheet extends StatelessWidget {
     final used = (pw['used'] as int?) ?? 0;
     final limit = (pw['limit'] as int?) ?? 0;
     final locked = limit > 0 && used >= limit;
-    final priceTxt = modPriceLabel(module, price);
+    // 024 / PO: to'yxona HAR ZAL $21 — zal soni stepper'i, narx = zal × $21
+    final units = (pw['units'] as int?) ?? 0;
+    final perUnit = module == 'toyxona';
+    final unitPrice = (pw['unit_price'] as int?) ?? modDefPrice(module);
+    final priceTxt = perUnit && units > 1
+        ? modStrF('pwUnitsPrice', {'n': '$units', 'price': '$price'})
+        : modPriceLabel(module, price);
     // Avtoyangilanish matnidagi summa — «/oy» qo'shimchasisiz xom narx:
     // «hisobingizdan $9.99/oy yechiladi» ikki marta davr aytgan bo'lardi.
     final storePrice = IapService.modulePrice(module);
@@ -215,7 +221,7 @@ class PaywallSheet extends StatelessWidget {
     final capKey = kModCapKey[module];
     final capTxt = capKey == null
         ? ''
-        : modStrF(capKey, {'n': '${kModCapUnits[module] ?? 0}'});
+        : modStrF(capKey, {'n': '${kModCapUnits[module] ?? 0}', 'price': '${modDefPrice(module)}'});
 
     return SheetShell(
       onClose: () {
@@ -250,6 +256,43 @@ class PaywallSheet extends StatelessWidget {
           const SizedBox(height: 6),
           // Narx yorlig'i — moliyaviy qiymat: hech qachon qisqarmaydi, sig'masa kichrayadi
           Center(child: PillBadge.cyan(priceTxt, h: 28)),
+          // 024: zal soni (to'yxona) — har zal alohida $21
+          if (perUnit && !soon) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GlassIconBtn(
+                  icon: Icons.remove_rounded,
+                  size: 40,
+                  iconSize: 20,
+                  onTap: (units > 1)
+                      ? () {
+                          final f = v['paywallUnits'];
+                          if (f is Function) f(units - 1);
+                        }
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Tx(modStrF('pwUnitsN', {'n': '${units < 1 ? 1 : units}'}),
+                    size: 15, w: FontWeight.w600, color: p.ink, tab: true),
+                const SizedBox(width: 12),
+                GlassIconBtn(
+                  icon: Icons.add_rounded,
+                  size: 40,
+                  iconSize: 20,
+                  onTap: (units < 1 ? 1 : units) < (kModCapUnits[module] ?? 5)
+                      ? () {
+                          final f = v['paywallUnits'];
+                          if (f is Function) f((units < 1 ? 1 : units) + 1);
+                        }
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Tx(modStrF('pwUnitsEach', {'price': '$unitPrice'}), size: 12, color: p.t4, align: TextAlign.center),
+          ],
           // Bepul limit kartasi — faqat ochilgan (soon bo'lmagan) modullarda
           if (!soon && limit > 0) ...[
             const SizedBox(height: 16),

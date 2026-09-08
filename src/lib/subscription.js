@@ -51,7 +51,21 @@ export const MODULES = {
   // "Ijaradagi uylar" (PO 2026-08-04 nomi) — kalit 'ijarachi' saqlanadi: u 020 dagi
   // check-constraint'da qatnashadi va ko'rinadigan nom l10n'dan keladi.
   ijarachi: { price_usd: 13, product_id: 'trust_ijarachi_monthly', max_units: 5 },
-  toyxona:  { price_usd: 21, product_id: 'trust_toyxona_monthly', max_units: 1 },
+  // TO'YXONA — HAR ZAL $21/oy (PO 2026-09-08). Do'konlar obunada miqdorni
+  // qo'llamaydi, shuning uchun POG'ONALI SKU: 1 zal / 2 zal / ... / 5 zal.
+  // `unit_products[n]` = n zal uchun SKU; klient `units` yuboradi, product_id serverda.
+  // max_units — obuna qoplay oladigan eng ko'p zal (5 SKU); faol obunaning REAL
+  // zal soni module_subs.units (024) da turadi — toyxona.js hallLimitError shuni o'qiydi.
+  toyxona:  {
+    price_usd: 21, product_id: 'trust_toyxona_monthly', per_unit: true, max_units: 5,
+    unit_products: {
+      1: 'trust_toyxona_monthly',
+      2: 'trust_toyxona_2_monthly',
+      3: 'trust_toyxona_3_monthly',
+      4: 'trust_toyxona_4_monthly',
+      5: 'trust_toyxona_5_monthly',
+    },
+  },
 };
 // ≤ WARN_DAYS kun qolganda mobil "To'lov muddati yaqinlashdi" bannerini ko'rsatadi (faqat premium)
 export const WARN_DAYS = 3;
@@ -205,8 +219,13 @@ let moduleSubsWarnedAt = 0;
 async function getModuleSubRows(userId) {
   const { data, error } = await db
     .from('module_subs')
-    .select('module, active_until')
+    .select('module, active_until, units')
     .eq('user_id', userId);
+  if (error && /units/.test(error.message || '') && /column|schema cache/i.test(error.message || '')) {
+    // 024 hali qo'llanmagan — units'siz qayta o'qiymiz (1 zal deb hisoblanadi)
+    const r2 = await db.from('module_subs').select('module, active_until').eq('user_id', userId);
+    if (!r2.error) return r2.data || [];
+  }
   if (error) {
     if (isMissingTableError(error, 'module_subs')) {
       // Klapan OCHIQ turgan har daqiqada bitta ERROR — Render loglarida ko'rinsin
@@ -252,9 +271,39 @@ export function __resetModuleSubsReady() {
  *  aynan shu product_id bo'yicha tekshiriladi).
  *  '' / null  -> eski $9 premium (orqaga moslik: `module` yubormaydigan mobil versiyalar)
  *  noma'lum   -> null (chaqiruvchi 400 qaytaradi) */
-export function productIdForModule(module) {
+export function productIdForModule(module, units = 1) {
   if (!module) return PREMIUM_PRODUCT_ID;
-  return MODULES[module]?.product_id ?? null;
+  const cfg = MODULES[module];
+  if (!cfg) return null;
+  if (cfg.per_unit) {
+    const n = Math.round(Number(units)) || 1;
+    return cfg.unit_products?.[n] ?? null;   // noma'lum miqdor -> null (400)
+  }
+  return cfg.product_id ?? null;
+}
+
+/** SKU -> zal soni (per_unit modullar). Oddiy modul yoki noma'lum SKU -> 1. */
+export function unitsForProduct(productId) {
+  for (const cfg of Object.values(MODULES)) {
+    if (!cfg.per_unit || !cfg.unit_products) continue;
+    for (const [n, pid] of Object.entries(cfg.unit_products)) {
+      if (pid === productId) return Number(n);
+    }
+  }
+  return 1;
+}
+
+/** Faol obuna qoplaydigan zal soni (per_unit modul). Legacy premium -> max_units;
+ *  faol modul obunasi -> module_subs.units (024; ustun bo'lmasa 1); faol emas -> 0. */
+export async function activeUnits(userId, module) {
+  const cfg = MODULES[module];
+  if (!cfg?.per_unit) return 0;
+  if (await isPremiumUser(userId)) return cfg.max_units || 1;
+  const rows = await getModuleSubRows(userId);
+  const row = rows.find((r) => r.module === module);
+  if (!row?.active_until || new Date(row.active_until) <= new Date()) return 0;
+  const u = Math.round(Number(row.units));
+  return Number.isInteger(u) && u > 0 ? u : 1;
 }
 
 /** Modul hamma uchun doim bepulmi (MODULES[].free)? Kvota va xarid unga qo'llanmaydi. */
@@ -359,6 +408,11 @@ export async function getModulesStatus(userId, now = new Date()) {
       product_id: cfg.product_id,
       used,
       free_limit: freeLimit,
+      // per_unit (to'yxona): units = faol obuna qoplagan zal soni; unit_price = bir zal narxi
+      per_unit: !!cfg.per_unit,
+      units: cfg.per_unit ? (legacyActive ? (cfg.max_units || 1) : (ownActive ? (Math.round(Number(own?.units)) || 1) : 0)) : null,
+      max_units: cfg.max_units ?? null,
+      unit_products: cfg.per_unit ? cfg.unit_products : undefined,
     };
   });
 }

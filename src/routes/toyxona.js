@@ -30,6 +30,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   isModuleActive, MODULES, FREE_TOYXONA_BOOKINGS, isQuotaEnforceable, requireActiveSub,
+  activeUnits,
 } from '../lib/subscription.js';
 
 const router = Router();
@@ -44,7 +45,15 @@ router.use(requireActiveSub);
 
 export const SLOTS = ['nahor', 'tushlik', 'kechki'];
 export const STATUSES = ['band', 'tasdiq', 'yakun', 'bekor'];
-const KINDS = ['avans', 'yakuniy'];
+// 'qaytarim' (024) — mijozga QAYTARILGAN pul: paid'dan AYIRILADI (manfiy summa yo'q).
+export const KINDS = ['avans', 'yakuniy', 'qaytarim'];
+// 024: 'guest' = kishi boshiga (mehmon × narx), 'total' = butun to'yxona "podklyuch"
+export const PRICE_MODES = ['guest', 'total'];
+const MAX_SERVICES = 200;        // egadagi servislar katalogi
+const MAX_MENU_ITEMS = 60;       // bir stol turidagi taom/mahsulot qatorlari
+const MAX_POLICY_ROWS = 10;      // bekor siyosati pog'onalari
+// Avans kelmasa sana shuncha soat ushlab turiladi (POST /bookings hold_hours override, 1..720)
+export const DEFAULT_HOLD_HOURS = 48;
 
 const MAX_MONEY = 1e13;      // UZS butun son shifti (expenses.js bilan bir xil)
 const MAX_GUESTS = 100_000;  // eng katta to'yxona ham bunchaga yaqinlashmaydi
@@ -209,12 +218,81 @@ function readRange(query) {
 export function computeTotals(booking, items = [], payments = []) {
   const guests = Number(booking?.guests) || 0;
   const ppg = Number(booking?.price_per_guest) || 0;
-  const food = guests > 0 && ppg > 0 ? guests * ppg : 0;
-  const extras = items.reduce(
-    (s, it) => s + (Number(it?.amount) || 0) * (Number(it?.qty) || 0), 0);
-  const paid = payments.reduce((s, p) => s + (Number(p?.amount) || 0), 0);
+  // 024: 'total' rejimida ovqat/zal puli = bitta kelishilgan summa (podklyuch),
+  // mehmon soni faqat sig'im/ko'rsatkich uchun.
+  const food = booking?.price_mode === 'total'
+    ? (Number(booking?.total_price) || 0)
+    : (guests > 0 && ppg > 0 ? guests * ppg : 0);
+  let extras = 0; let bonus = 0;
+  for (const it of items) {
+    const v = (Number(it?.amount) || 0) * (Number(it?.qty) || 0);
+    if (it?.is_bonus) bonus += v; else extras += v;   // bonus — ko'rinadi, jamiga kirmaydi
+  }
+  let paid = 0; let refunded = 0;
+  for (const p of payments) {
+    const v = Number(p?.amount) || 0;
+    if (p?.kind === 'qaytarim') refunded += v; else paid += v;
+  }
+  paid -= refunded;
   const total = food + extras;
-  return { food, extras, total, paid, left: total - paid };
+  const penalty = Number(booking?.cancel_penalty) || 0;
+  return {
+    food, extras, bonus, total, paid, refunded, left: total - paid, penalty,
+    // bekor qilingan bandda mijozga QAYTARILISHI KERAK bo'lgan pul (jarimadan keyin)
+    refundDue: booking?.status === 'bekor' ? Math.max(0, paid - penalty) : 0,
+  };
+}
+
+/** Minimal avans (024): jamining deposit_pct foizi, yuqoriga yaxlitlab. */
+export function depositMin(total, pct) {
+  const p = Number(pct) || 0;
+  if (p <= 0 || !(total > 0)) return 0;
+  return Math.ceil(total * p / 100);
+}
+
+/** Bekor siyosatini tekshirib normallashtiradi (024). Kirish: [{days, pct}].
+ *  Chiqish: days KAMAYISH tartibida, takror days yo'q. Bo'sh = jarima yo'q.
+ *  Xato bo'lsa { error }. */
+export function parseCancelPolicy(raw) {
+  if (raw == null) return { policy: [] };
+  if (!Array.isArray(raw)) return { error: "Bekor siyosati ro'yxat bo'lsin" };
+  if (raw.length > MAX_POLICY_ROWS) return { error: `Siyosat ${MAX_POLICY_ROWS} pog'onadan oshmasin` };
+  const out = [];
+  const seen = new Set();
+  for (const r of raw) {
+    const days = Math.round(Number(r?.days));
+    const pct = Math.round(Number(r?.pct));
+    if (!Number.isInteger(days) || days < 0 || days > 3650) return { error: "Siyosatda kun noto'g'ri (0–3650)" };
+    if (!Number.isInteger(pct) || pct < 0 || pct > 100) return { error: "Siyosatda foiz noto'g'ri (0–100)" };
+    if (seen.has(days)) return { error: 'Siyosatda bir xil kun ikki marta' };
+    seen.add(days);
+    out.push({ days, pct });
+  }
+  out.sort((a, b) => b.days - a.days);
+  return { policy: out };
+}
+
+/** Jarima summasi (024): siyosatdan to'ygacha qolgan kunga MOS pog'ona topiladi
+ *  (days <= daysLeft bo'lgan ENG KATTA days), foiz TUSHGAN pulga (paid) qo'llanadi.
+ *  Pog'ona topilmasa (daysLeft barcha pog'onalardan katta) — jarima yo'q.
+ *  O'tib ketgan to'y (daysLeft < 0) 0 kun pog'onasiga tushadi. */
+export function cancelPenalty(policy, paid, daysLeft) {
+  const p = Number(paid) || 0;
+  if (p <= 0 || !Array.isArray(policy) || !policy.length) return 0;
+  const d = Math.max(0, Number(daysLeft) || 0);
+  const rows = [...policy].sort((a, b) => b.days - a.days);
+  const row = rows.find((r) => Number(r.days) <= d);
+  if (!row) return 0;
+  return Math.min(p, Math.round(p * (Number(row.pct) || 0) / 100));
+}
+
+/** Telefonni FAQAT raqamlarga keltiradi (024): "+998 90 123-45-67" → "998901234567".
+ *  Mobil masqa bilan ko'rsatadi. 7–15 raqam; bo'sh/qisqa → null. */
+export function normPhone(v) {
+  const d = String(v ?? '').replace(/\D/g, '');
+  if (!d) return null;
+  if (d.length < 7 || d.length > 15) return false;   // false = noto'g'ri (400)
+  return d;
 }
 
 /** AQLLI STATUS QOIDALARI (deterministik, faqat TO'LOV QO'SHILGANDA ishlaydi):
@@ -250,25 +328,47 @@ export function autoStatusAfterPayment(current, left) {
 export function foldSummary(rows, itemsBy = new Map(), paysBy = new Map()) {
   const byStatus = { band: 0, tasdiq: 0, yakun: 0, bekor: 0 };
   let total = 0; let paid = 0; let cancelledPaid = 0;
+  let penalties = 0; let refunded = 0; let bonus = 0; let guests = 0;
+  const services = new Map();   // title -> { count, amount }
   for (const b of rows) {
     if (byStatus[b.status] !== undefined) byStatus[b.status] += 1;
-    const t = computeTotals(b, itemsBy.get(b.id) || [], paysBy.get(b.id) || []);
+    const items = itemsBy.get(b.id) || [];
+    const t = computeTotals(b, items, paysBy.get(b.id) || []);
+    refunded += t.refunded;
     if (b.status === 'bekor') {
       // Bekor qilingan band: faqat TUSHGAN pul sanaladi (uning `total`i daromad
       // emas — to'y bo'lmadi; lekin olingan avans real pul).
       cancelledPaid += t.paid;
+      penalties += t.penalty;
       continue;
     }
-    total += t.total; paid += t.paid;
+    total += t.total; paid += t.paid; bonus += t.bonus;
+    guests += Number(b.guests) || 0;
+    for (const it of items) {
+      const k = it.title || '?';
+      const cur = services.get(k) || { title: k, count: 0, amount: 0, bonus: 0 };
+      cur.count += Number(it.qty) || 0;
+      const v = (Number(it.amount) || 0) * (Number(it.qty) || 0);
+      if (it.is_bonus) cur.bonus += v; else cur.amount += v;
+      services.set(k, cur);
+    }
   }
+  const countActive = rows.length - byStatus.bekor;
   return {
     count: rows.length,
-    countActive: rows.length - byStatus.bekor,   // pul yig'indisi qamragan bandlar
+    countActive,                                 // pul yig'indisi qamragan bandlar
     total,
     paid,
     left: total - paid,
     cancelledPaid,                               // bekor qilinganlardan qolgan pul
     byStatus,
+    // 024 analitika
+    penalties,                                   // bekor jarimalari (ushlab qolingan)
+    refunded,                                    // mijozlarga qaytarilgan
+    bonus,                                       // bepul berilgan servislar qiymati
+    guests,                                      // faol bandlardagi jami mehmon
+    avgCheck: countActive ? Math.round(total / countActive) : 0,
+    topServices: [...services.values()].sort((a, b) => b.count - a.count).slice(0, 10),
   };
 }
 
@@ -369,19 +469,28 @@ async function ownedBooking(userId, id) {
  *  BO'LMAYDI — ega alohida akkaunt ochadi). Katalogda max_units yo'q/0 bo'lsa
  *  chegara qo'llanmaydi (kelajakda pog'onali SKU'ga o'tilsa shu yerda ishlaydi). */
 async function hallLimitError(userId) {
-  const max = MODULES?.toyxona?.max_units;
-  if (!Number.isInteger(max) || max <= 0) return null;
+  // 024 / PO 2026-09-08: HAR ZAL $21/oy. Chegara = faol obuna qoplagan zal soni
+  // (module_subs.units, SKU'dan). Obunasiz — 1 ta zal (bepul kvota 5 bron shu zalda).
+  // Eng ko'pi MODULES.toyxona.max_units (5 ta SKU). 403, 402 EMAS — mobil "yana zal"
+  // uchun paywall'ni O'ZI ochadi (code HALL_LIMIT + units/max_units bilan).
+  const max = MODULES?.toyxona?.max_units || 1;
+  const units = Math.max(1, await activeUnits(userId, 'toyxona'));
+  const allowed = Math.min(units, max);
   const { count, error } = await supabaseAdmin
     .from('halls').select('id', { count: 'exact', head: true })
     .eq('user_id', userId).eq('archived', false);
   if (error) throw new Error(error.message);   // sanoq yiqilsa chegara JIMGINA ochilib qolmasin
-  if ((count || 0) < max) return null;
+  if ((count || 0) < allowed) return null;
   return {
     success: false,
     code: 'HALL_LIMIT',
-    error: max === 1
-      ? "Bitta akkauntda bitta to'yxona yuritiladi. Yana to'yxona uchun boshqa raqamga alohida ro'yxatdan o'ting"
-      : `Obuna ${max} ta to'yxonani qoplaydi — ortiqchasi uchun alohida akkaunt kerak`,
+    module: 'toyxona',
+    units: allowed,
+    max_units: max,
+    price_usd: MODULES.toyxona.price_usd,
+    error: allowed >= max
+      ? `Bitta akkauntda ko'pi bilan ${max} ta to'yxona — ko'proq uchun alohida akkaunt`
+      : `Obuna ${allowed} ta to'yxonani qoplaydi — yana zal uchun obunani kengaytiring ($${MODULES.toyxona.price_usd}/oy har zal)`,
   };
 }
 
@@ -443,7 +552,7 @@ async function loadChildren(bookingIds) {
   }
   const results = await Promise.all(chunks.flatMap((ids) => [
     supabaseAdmin.from('booking_items')
-      .select('id, booking_id, title, amount, qty, created_at')
+      .select('id, booking_id, title, amount, qty, service_id, is_bonus, created_at')
       .in('booking_id', ids).order('created_at'),
     supabaseAdmin.from('booking_payments')
       .select('id, booking_id, amount, kind, paid_at, note, created_at')
@@ -480,21 +589,66 @@ function mapHall(h, menus = []) {
     sort: Number(h.sort) || 0,
     archived: !!h.archived,
     created_at: h.created_at,
+    // 024
+    price_mode: PRICE_MODES.includes(h.price_mode) ? h.price_mode : 'guest',
+    total_price: Number(h.total_price) || 0,
+    deposit_pct: Number(h.deposit_pct) || 0,
+    cancel_policy: Array.isArray(h.cancel_policy) ? h.cancel_policy : [],
     menus,
   };
 }
 
+/** Mobil KONTRAKTI — servis katalogi qatori (024). */
+function mapService(sv) {
+  return {
+    id: sv.id,
+    hall_id: sv.hall_id || null,
+    title: sv.title,
+    price: Number(sv.price) || 0,
+    note: sv.note || null,
+    sort: Number(sv.sort) || 0,
+    archived: !!sv.archived,
+    created_at: sv.created_at,
+  };
+}
+
 /** Mobil KONTRAKTI — bitta narx toifasi JSON'i. */
-function mapMenu(m) {
+function mapMenu(m, items = []) {
   return {
     id: m.id,
     hall_id: m.hall_id,
     title: m.title,
     price_per_guest: Number(m.price_per_guest) || 0,
+    seats: m.seats == null ? null : Number(m.seats),          // 024: bir stolda necha kishi
+    note: m.note || null,
     sort: Number(m.sort) || 0,
     archived: !!m.archived,
     created_at: m.created_at,
+    // 024: stol ustidagi taom/mahsulotlar — HAR DOIM massiv
+    items: items.map((it) => ({ id: it.id, title: it.title, qty: it.qty || null, sort: Number(it.sort) || 0 })),
   };
+}
+
+/** Stol turlari uchun taomlarni TO'PLAB yuklaydi (N+1 yo'q). menu_id -> rows[] */
+async function loadMenuItems(userId, menuIds = null) {
+  let q = supabaseAdmin.from('hall_menu_items').select('id, menu_id, title, qty, sort')
+    .eq('user_id', userId).order('sort').order('created_at').limit(MAX_MENUS_TOTAL);
+  if (menuIds) q = q.in('menu_id', menuIds);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const by = new Map();
+  for (const r of data || []) {
+    const arr = by.get(r.menu_id) || []; arr.push(r); by.set(r.menu_id, arr);
+  }
+  return by;
+}
+
+/** Bitta stol turini taomlari bilan. */
+async function loadOneMenu(userId, menuId) {
+  const m = await ownedMenu(userId, menuId);
+  if (!m) return null;
+  const by = await loadMenuItems(userId, [m.id]);
+  return mapMenu(m, by.get(m.id) || []);
 }
 
 /** Mobil KONTRAKTI — bitta band JSON'i. */
@@ -515,8 +669,17 @@ function mapBooking(b, hallName, items = [], payments = []) {
     status: b.status,
     created_at: b.created_at,
     updated_at: b.updated_at,
+    // 024
+    price_mode: PRICE_MODES.includes(b.price_mode) ? b.price_mode : 'guest',
+    total_price: Number(b.total_price) || 0,
+    hold_until: b.hold_until || null,
+    cancelled_at: b.cancelled_at || null,
+    cancel_reason: b.cancel_reason || null,
+    cancel_penalty: Number(b.cancel_penalty) || 0,
+    client_user_id: b.client_user_id || null,   // mijoz Trustbook'da bo'lsa
     items: items.map((it) => ({
       id: it.id, title: it.title, amount: Number(it.amount) || 0, qty: Number(it.qty) || 0,
+      service_id: it.service_id || null, is_bonus: !!it.is_bonus,
     })),
     payments: payments.map((p) => ({
       id: p.id, amount: Number(p.amount) || 0, kind: p.kind, paid_at: p.paid_at, note: p.note,
@@ -557,10 +720,11 @@ router.get('/halls', async (req, res, next) => {
     if (hallsRes.error) throw new Error(hallsRes.error.message);
     if (menusRes.error) throw new Error(menusRes.error.message);
 
+    const itemsBy = await loadMenuItems(req.user.id);
     const menusBy = new Map();
     for (const m of menusRes.data || []) {
       const arr = menusBy.get(m.hall_id) || [];
-      arr.push(mapMenu(m));
+      arr.push(mapMenu(m, itemsBy.get(m.id) || []));
       menusBy.set(m.hall_id, arr);
     }
     res.json({
@@ -570,11 +734,40 @@ router.get('/halls', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/toyxona/halls  { name, capacity?, price_per_guest? }
+/** 024 to'yxona maydonlari (POST/PATCH umumiy): price_mode, total_price, deposit_pct,
+ *  cancel_policy. `patch`ga yozadi; xato bo'lsa matn qaytaradi. */
+function readHallExtras(body, patch) {
+  if (body?.price_mode !== undefined) {
+    const m = String(body.price_mode || '');
+    if (!PRICE_MODES.includes(m)) return "Narx rejimi noto'g'ri (guest / total)";
+    patch.price_mode = m;
+  }
+  if (body?.total_price !== undefined) {
+    const t = money(body.total_price, { allowZero: true });
+    if (t == null) return "To'yxona narxi noto'g'ri";
+    patch.total_price = t;
+  }
+  if (body?.deposit_pct !== undefined) {
+    const d = Math.round(Number(body.deposit_pct));
+    if (!Number.isInteger(d) || d < 0 || d > 100) return "Minimal avans foizi 0–100 bo'lsin";
+    patch.deposit_pct = d;
+  }
+  if (body?.cancel_policy !== undefined) {
+    const r = parseCancelPolicy(body.cancel_policy);
+    if (r.error) return r.error;
+    patch.cancel_policy = r.policy;
+  }
+  return null;
+}
+
+// POST /api/toyxona/halls  { name, capacity?, price_per_guest?, price_mode?, total_price?, deposit_pct?, cancel_policy? }
 router.post('/halls', async (req, res, next) => {
   try {
     const name = clean(req.body?.name, 60);
     if (!name) return res.status(400).json({ success: false, error: 'Zal nomi kerak' });
+    const extras = {};
+    const exErr = readHallExtras(req.body, extras);
+    if (exErr) return res.status(400).json({ success: false, error: exErr });
 
     let capacity = null;
     if (req.body?.capacity != null && req.body.capacity !== '') {
@@ -605,7 +798,7 @@ router.post('/halls', async (req, res, next) => {
     if (limitErr) return res.status(403).json(limitErr);
 
     const { data, error } = await supabaseAdmin.from('halls').insert({
-      user_id: req.user.id, name, capacity, price_per_guest: ppg, sort: count || 0,
+      user_id: req.user.id, name, capacity, price_per_guest: ppg, sort: count || 0, ...extras,
     }).select().single();
     if (error) throw new Error(error.message);
     res.status(201).json({ success: true, data: mapHall(data, []) });   // yangi to'yxonada toifa yo'q
@@ -655,6 +848,8 @@ router.patch('/halls/:id', async (req, res, next) => {
       }
       patch.sort = s;
     }
+    const exErr = readHallExtras(req.body, patch);
+    if (exErr) return res.status(400).json({ success: false, error: exErr });
     if (!Object.keys(patch).length) {
       return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     }
@@ -667,7 +862,8 @@ router.patch('/halls/:id', async (req, res, next) => {
     const { data: menus, error: me } = await supabaseAdmin.from('hall_menus').select('*')
       .eq('user_id', req.user.id).eq('hall_id', hall.id).order('sort').order('created_at');
     if (me) throw new Error(me.message);
-    res.json({ success: true, data: mapHall(data, (menus || []).map(mapMenu)) });
+    const mi = await loadMenuItems(req.user.id, (menus || []).map((m) => m.id));
+    res.json({ success: true, data: mapHall(data, (menus || []).map((m) => mapMenu(m, mi.get(m.id) || []))) });
   } catch (e) { next(e); }
 });
 
@@ -683,11 +879,59 @@ router.get('/halls/:hallId/menus', async (req, res, next) => {
       .eq('user_id', req.user.id).eq('hall_id', hall.id)
       .order('sort').order('created_at').limit(100);
     if (error) throw new Error(error.message);
-    res.json({ success: true, data: (data || []).map(mapMenu) });
+    const mi = await loadMenuItems(req.user.id, (data || []).map((m) => m.id));
+    res.json({ success: true, data: (data || []).map((m) => mapMenu(m, mi.get(m.id) || [])) });
   } catch (e) { next(e); }
 });
 
-// POST /api/toyxona/halls/:hallId/menus  { title, price_per_guest }
+/** 024 stol turi maydonlari: seats (1..100 yoki null), note. */
+function readMenuExtras(body, patch) {
+  if (body?.seats !== undefined) {
+    if (body.seats === null || body.seats === '') patch.seats = null;
+    else {
+      const n = Math.round(Number(body.seats));
+      if (!Number.isInteger(n) || n <= 0 || n > 100) return "Stol sig'imi 1–100 bo'lsin";
+      patch.seats = n;
+    }
+  }
+  if (body?.note !== undefined) patch.note = clean(body.note, 200);
+  return null;
+}
+
+/** items[] ni tekshiradi: [{title, qty?}] → normallashgan massiv yoki { error }. */
+function readMenuItems(raw) {
+  if (raw === undefined) return { items: undefined };
+  if (!Array.isArray(raw)) return { error: "Taomlar ro'yxat bo'lsin" };
+  if (raw.length > MAX_MENU_ITEMS) return { error: `Bir stol turida ${MAX_MENU_ITEMS} tadan ortiq qator bo'lmasin` };
+  const items = [];
+  for (const r of raw) {
+    const title = clean(typeof r === 'string' ? r : r?.title, 60);
+    if (!title) continue;   // bo'sh qator — o'tkazib yuboriladi (mobil bo'sh input qoldirishi mumkin)
+    items.push({ title, qty: clean(r?.qty, 30) });
+  }
+  return { items };
+}
+
+/** Stol turi taomlarini TO'LIQ almashtiradi (PUT semantikasi). Tranzaksiya yo'q:
+ *  avval yangi qatorlar yoziladi, keyin eskilari o'chiriladi — yozish yiqilsa eski
+ *  ro'yxat buzilmay qoladi. */
+async function replaceMenuItems(userId, menuId, items) {
+  const { data: old, error: oe } = await supabaseAdmin.from('hall_menu_items')
+    .select('id').eq('menu_id', menuId);
+  if (oe) throw new Error(oe.message);
+  if (items.length) {
+    const { error } = await supabaseAdmin.from('hall_menu_items').insert(
+      items.map((it, i) => ({ user_id: userId, menu_id: menuId, title: it.title, qty: it.qty, sort: i })));
+    if (error) throw new Error(error.message);
+  }
+  if (old?.length) {
+    const { error } = await supabaseAdmin.from('hall_menu_items').delete()
+      .in('id', old.map((r) => r.id));
+    if (error) throw new Error(error.message);
+  }
+}
+
+// POST /api/toyxona/halls/:hallId/menus  { title, price_per_guest, seats?, note?, items?: [{title, qty?}] }
 router.post('/halls/:hallId/menus', async (req, res, next) => {
   try {
     const hall = await ownedHall(req.user.id, req.params.hallId);
@@ -697,6 +941,11 @@ router.post('/halls/:hallId/menus', async (req, res, next) => {
     if (!title) return res.status(400).json({ success: false, error: 'Toifa nomi kerak' });
     const price = money(req.body?.price_per_guest, { allowZero: true });
     if (price == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
+    const extras = {};
+    const exErr = readMenuExtras(req.body, extras);
+    if (exErr) return res.status(400).json({ success: false, error: exErr });
+    const ri = readMenuItems(req.body?.items);
+    if (ri.error) return res.status(400).json({ success: false, error: ri.error });
 
     const { count, error: ce } = await supabaseAdmin.from('hall_menus')
       .select('id', { count: 'exact', head: true })
@@ -708,14 +957,16 @@ router.post('/halls/:hallId/menus', async (req, res, next) => {
       });
     }
     const { data, error } = await supabaseAdmin.from('hall_menus').insert({
-      user_id: req.user.id, hall_id: hall.id, title, price_per_guest: price, sort: count || 0,
+      user_id: req.user.id, hall_id: hall.id, title, price_per_guest: price, sort: count || 0, ...extras,
     }).select().single();
     if (error) throw new Error(error.message);
-    res.status(201).json({ success: true, data: mapMenu(data) });
+    if (ri.items?.length) await replaceMenuItems(req.user.id, data.id, ri.items);
+    res.status(201).json({ success: true, data: await loadOneMenu(req.user.id, data.id) });
   } catch (e) { next(e); }
 });
 
-// PATCH /api/toyxona/menus/:id  { title?, price_per_guest?, archived?, sort? }
+// PATCH /api/toyxona/menus/:id  { title?, price_per_guest?, seats?, note?, items?, archived?, sort? }
+// items berilsa — ro'yxat TO'LIQ almashtiriladi (bo'sh [] = hammasini tozalash).
 // DIQQAT: narxni o'zgartirish FAQAT kelajakdagi bandlarga ta'sir qiladi —
 // mavjud bandlarda narx SNAPSHOT bo'lib saqlangan (021 dagi qoida).
 router.patch('/menus/:id', async (req, res, next) => {
@@ -742,13 +993,19 @@ router.patch('/menus/:id', async (req, res, next) => {
       }
       patch.sort = s;
     }
-    if (!Object.keys(patch).length) {
+    const exErr = readMenuExtras(req.body, patch);
+    if (exErr) return res.status(400).json({ success: false, error: exErr });
+    const ri = readMenuItems(req.body?.items);
+    if (ri.error) return res.status(400).json({ success: false, error: ri.error });
+    if (!Object.keys(patch).length && ri.items === undefined) {
       return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     }
-    const { data, error } = await supabaseAdmin
-      .from('hall_menus').update(patch).eq('id', menu.id).select().single();
-    if (error) throw new Error(error.message);
-    res.json({ success: true, data: mapMenu(data) });
+    if (Object.keys(patch).length) {
+      const { error } = await supabaseAdmin.from('hall_menus').update(patch).eq('id', menu.id);
+      if (error) throw new Error(error.message);
+    }
+    if (ri.items !== undefined) await replaceMenuItems(req.user.id, menu.id, ri.items);
+    res.json({ success: true, data: await loadOneMenu(req.user.id, menu.id) });
   } catch (e) { next(e); }
 });
 
@@ -765,6 +1022,214 @@ router.delete('/menus/:id', async (req, res, next) => {
     res.json({ success: true });
   } catch (e) { next(e); }
 });
+
+// ============================ SERVISLAR KATALOGI (024) ============================
+// Video, sahna bezagi, shou, tamada... — ega BIR MARTA kiritadi, bandga bosib qo'shadi.
+// hall_id NULL = barcha to'yxonalar uchun. Bandga qo'shilganda booking_items ga
+// SNAPSHOT (title/amount) — katalog narxi keyin o'zgarsa eski band o'zgarmaydi.
+
+/** Servis EGA'nikimi? */
+async function ownedService(userId, id) {
+  if (!isUuid(id)) return null;
+  const { data, error } = await supabaseAdmin
+    .from('hall_services').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data || data.user_id !== userId) return null;
+  return data;
+}
+
+// GET /api/toyxona/services?hall_id=<uuid>  — filtr berilsa: o'sha to'yxona + umumiy (NULL)
+router.get('/services', async (req, res, next) => {
+  try {
+    const f = readHallFilter(req.query);
+    if (f.error) return res.status(400).json({ success: false, error: f.error });
+    let q = supabaseAdmin.from('hall_services').select('*').eq('user_id', req.user.id);
+    if (f.hallId) q = q.or(`hall_id.eq.${f.hallId},hall_id.is.null`);
+    const { data, error } = await q.order('sort').order('created_at').limit(MAX_SERVICES);
+    if (error) throw new Error(error.message);
+    res.json({ success: true, data: (data || []).map(mapService) });
+  } catch (e) { next(e); }
+});
+
+// POST /api/toyxona/services  { title, price?, note?, hall_id? }
+router.post('/services', async (req, res, next) => {
+  try {
+    const title = clean(req.body?.title, 60);
+    if (!title) return res.status(400).json({ success: false, error: 'Servis nomi kerak' });
+    let price = 0;
+    if (req.body?.price != null && req.body.price !== '') {
+      price = money(req.body.price, { allowZero: true });
+      if (price == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
+    }
+    let hall_id = null;
+    if (req.body?.hall_id != null && req.body.hall_id !== '') {
+      const hall = await ownedHall(req.user.id, req.body.hall_id);
+      if (!hall) return res.status(400).json({ success: false, error: "To'yxona topilmadi" });
+      hall_id = hall.id;
+    }
+    const { count, error: ce } = await supabaseAdmin.from('hall_services')
+      .select('id', { count: 'exact', head: true }).eq('user_id', req.user.id);
+    if (ce) throw new Error(ce.message);
+    if ((count || 0) >= MAX_SERVICES) {
+      return res.status(400).json({ success: false, error: `Servislar ${MAX_SERVICES} tadan oshmasin` });
+    }
+    const { data, error } = await supabaseAdmin.from('hall_services').insert({
+      user_id: req.user.id, hall_id, title, price, note: clean(req.body?.note, 200), sort: count || 0,
+    }).select().single();
+    if (error) throw new Error(error.message);
+    res.status(201).json({ success: true, data: mapService(data) });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/toyxona/services/:id  { title?, price?, note?, archived?, sort? }
+router.patch('/services/:id', async (req, res, next) => {
+  try {
+    const sv = await ownedService(req.user.id, req.params.id);
+    if (!sv) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const patch = {};
+    if (req.body?.title !== undefined) {
+      const t = clean(req.body.title, 60);
+      if (!t) return res.status(400).json({ success: false, error: 'Servis nomi kerak' });
+      patch.title = t;
+    }
+    if (req.body?.price !== undefined) {
+      const p = money(req.body.price, { allowZero: true });
+      if (p == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
+      patch.price = p;
+    }
+    if (req.body?.note !== undefined) patch.note = clean(req.body.note, 200);
+    if (req.body?.archived !== undefined) patch.archived = !!req.body.archived;
+    if (req.body?.sort !== undefined) {
+      const s = Math.round(Number(req.body.sort));
+      if (!Number.isInteger(s) || s < 0 || s > 1000) return res.status(400).json({ success: false, error: "Tartib noto'g'ri" });
+      patch.sort = s;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
+    const { data, error } = await supabaseAdmin.from('hall_services').update(patch).eq('id', sv.id).select().single();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, data: mapService(data) });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/toyxona/services/:id — bandlardagi qatorlar QOLADI (service_id NULL, snapshot).
+router.delete('/services/:id', async (req, res, next) => {
+  try {
+    const sv = await ownedService(req.user.id, req.params.id);
+    if (!sv) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const { error } = await supabaseAdmin.from('hall_services').delete().eq('id', sv.id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// ============================ MIJOZ AUTOFILL (024) ============================
+// GET /api/toyxona/clients?phone=<raqam> — shu telefon bilan OXIRGI band: ism + soni.
+// Mobil: bron formasida avval telefon, keyin ism avto-to'ladi (tahrirlash mumkin).
+router.get('/clients', async (req, res, next) => {
+  try {
+    const digits = normPhone(req.query.phone);
+    if (!digits) return res.status(400).json({ success: false, error: 'Telefon kerak' });
+    const { data, error } = await supabaseAdmin.from('bookings')
+      .select('client_name, client_phone, event_date, client_user_id')
+      .eq('user_id', req.user.id).eq('client_phone', digits)
+      .order('event_date', { ascending: false }).limit(50);
+    if (error) throw new Error(error.message);
+    const rows = data || [];
+    if (!rows.length) return res.json({ success: true, data: null });
+    res.json({
+      success: true,
+      data: {
+        client_name: rows[0].client_name,
+        client_phone: digits,
+        bookings: rows.length,
+        last_event_date: rows[0].event_date,
+        in_trustbook: rows.some((r) => !!r.client_user_id),
+      },
+    });
+  } catch (e) { next(e); }
+});
+
+/** 024: band uchun servislar ro'yxatini tekshiradi. Har element:
+ *    { service_id } — katalogdan (title/amount SNAPSHOT), yoki
+ *    { title, amount } — erkin xizmat;
+ *    qty? (default 1), is_bonus? (bepul — jamiga kirmaydi).
+ *  Qaytadi { items: [{title, amount, qty, service_id, is_bonus}] } yoki { error }. */
+async function readBookingItems(userId, raw) {
+  if (raw == null) return { items: [] };
+  if (!Array.isArray(raw)) return { error: "Servislar ro'yxat bo'lsin" };
+  if (raw.length > 50) return { error: "Bitta bandga 50 tadan ortiq xizmat qo'shib bo'lmaydi" };
+  const items = [];
+  for (const r of raw) {
+    const is_bonus = !!r?.is_bonus;
+    let qty = 1;
+    if (r?.qty != null && r.qty !== '') {
+      qty = Math.round(Number(r.qty));
+      if (!Number.isInteger(qty) || qty <= 0 || qty > MAX_QTY) return { error: `Soni 1–${MAX_QTY} bo'lsin` };
+    }
+    let title; let amount; let service_id = null;
+    if (r?.service_id) {
+      const sv = await ownedService(userId, r.service_id);
+      if (!sv) return { error: 'Servis topilmadi' };
+      service_id = sv.id;
+      title = clean(r.title, 60) || sv.title;
+      // Narx: aniq berilsa o'sha, bo'lmasa katalog narxi
+      if (r.amount != null && r.amount !== '') {
+        amount = money(r.amount, { allowZero: true });
+        if (amount == null) return { error: `"${title}" narxi noto'g'ri` };
+      } else amount = Number(sv.price) || 0;
+    } else {
+      title = clean(r?.title, 60);
+      if (!title) return { error: 'Xizmat nomi kerak' };
+      amount = money(r?.amount, { allowZero: true });
+      if (amount == null) return { error: `"${title}" narxi noto'g'ri` };
+    }
+    // Pullik xizmat 0 so'm bo'lmasin (bonus 0 bo'lishi mumkin)
+    if (!is_bonus && amount <= 0) return { error: `"${title}" narxi kerak (yoki bonus deb belgilang)` };
+    if (overMax(amount, qty)) return { error: 'Xizmat summasi juda katta' };
+    items.push({ title, amount, qty, service_id, is_bonus });
+  }
+  return { items };
+}
+
+/** 024: telefon bo'yicha Trustbook profili (mijoz ilovada bo'lsa bog'lash). */
+async function profileIdByPhone(digits) {
+  const { data, error } = await supabaseAdmin.from('profiles').select('id')
+    .eq('phone', digits).is('deleted_at', null).maybeSingle();
+  if (error) return null;   // profil qidiruvi yiqilsa band yaratish to'xtamasin
+  return data?.id || null;
+}
+
+/** 024: bekor qilish hisob-kitobi. Jarima: aniq `penaltyOverride` (ega qo'lda),
+ *  aks holda to'yxona siyosati bo'yicha. Qaytadi { paid, penalty, refund, daysLeft, policy }. */
+async function cancelPreview(userId, cur, penaltyOverride = undefined) {
+  const [{ itemsBy, paysBy }, hall] = await Promise.all([
+    loadChildren([cur.id]),
+    cur.hall_id ? ownedHall(userId, cur.hall_id) : Promise.resolve(null),
+  ]);
+  const t = computeTotals({ ...cur, cancel_penalty: 0, status: 'band' },
+    itemsBy.get(cur.id) || [], paysBy.get(cur.id) || []);
+  const todayTk = new Date(Date.now() + TZ_OFFSET_MS).toISOString().slice(0, 10);
+  const daysLeft = daysBetween(todayTk, cur.event_date);
+  const policy = Array.isArray(hall?.cancel_policy) ? hall.cancel_policy : [];
+  let penalty = penaltyOverride !== undefined ? penaltyOverride : cancelPenalty(policy, t.paid, daysLeft);
+  penalty = Math.min(Math.max(0, penalty), Math.max(0, t.paid));
+  return { paid: t.paid, penalty, refund: Math.max(0, t.paid - penalty), daysLeft, policy, total: t.total };
+}
+
+/** 024: bandni BEKOR qiladi — jarima SNAPSHOT, sana bo'shaydi. */
+async function applyCancel(userId, cur, { reason, penaltyOverride } = {}) {
+  const pv = await cancelPreview(userId, cur, penaltyOverride);
+  const { error } = await supabaseAdmin.from('bookings').update({
+    status: 'bekor',
+    cancelled_at: new Date().toISOString(),
+    cancel_reason: reason || null,
+    cancel_penalty: pv.penalty,
+    hold_until: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', cur.id);
+  if (error) throw new Error(error.message);
+  return pv;
+}
 
 // ============================ BANDLAR (bookings) ============================
 
@@ -820,7 +1285,9 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
     }
     const client_name = clean(b.client_name, 80);
     if (!client_name) return res.status(400).json({ success: false, error: 'Mijoz ismi kerak' });
-    const client_phone = clean(b.client_phone, 20);
+    // 024: telefon FAQAT raqam holida saqlanadi (autofill va off-app bog'lash uchun)
+    const client_phone = normPhone(b.client_phone);
+    if (client_phone === false) return res.status(400).json({ success: false, error: "Telefon raqami noto'g'ri" });
 
     const guests = Math.round(Number(b.guests));
     if (!Number.isInteger(guests) || guests <= 0 || guests > MAX_GUESTS) {
@@ -859,11 +1326,49 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
     }
     const note = clean(b.note, 300);
 
+    // 024: narx rejimi — bandda aniq berilsa o'sha, bo'lmasa to'yxona defaulti, bo'lmasa 'guest'.
+    // 'total' rejimida total_price = butun to'yxona narxi (berilmasa to'yxona defaulti).
+    let price_mode = 'guest';
+    if (b.price_mode != null && b.price_mode !== '') {
+      price_mode = String(b.price_mode);
+      if (!PRICE_MODES.includes(price_mode)) return res.status(400).json({ success: false, error: "Narx rejimi noto'g'ri (guest / total)" });
+    } else if (hall && PRICE_MODES.includes(hall.price_mode)) {
+      price_mode = hall.price_mode;
+    }
+    let total_price = 0;
+    if (price_mode === 'total') {
+      if (b.total_price != null && b.total_price !== '') {
+        total_price = money(b.total_price, { allowZero: true });
+        if (total_price == null) return res.status(400).json({ success: false, error: "To'yxona narxi noto'g'ri" });
+      } else {
+        total_price = Number(hall?.total_price) || 0;
+      }
+    }
+
+    // 024: katalogdan servislar — [{service_id?, title?, amount?, qty?, is_bonus?}]
+    const ri = await readBookingItems(req.user.id, b.items);
+    if (ri.error) return res.status(400).json({ success: false, error: ri.error });
+
     let advance = 0;
     if (b.advance != null && b.advance !== '') {
       advance = money(b.advance, { allowZero: true });
       if (advance == null) return res.status(400).json({ success: false, error: "Avans noto'g'ri" });
     }
+
+    // 024: avans yo'q → sana HOLD (default 48 soat, hold_hours 1..720). Muddat o'tsa
+    // sweeper avto-bekor qiladi (toyxonaSweeper.js). Avans bor → hold yo'q.
+    let hold_until = null;
+    if (advance <= 0) {
+      let hours = DEFAULT_HOLD_HOURS;
+      if (b.hold_hours != null && b.hold_hours !== '') {
+        hours = Math.round(Number(b.hold_hours));
+        if (!Number.isInteger(hours) || hours < 0 || hours > 720) return res.status(400).json({ success: false, error: 'Hold 0–720 soat oralig\'ida bo\'lsin' });
+      }
+      if (hours > 0) hold_until = new Date(Date.now() + hours * 3600_000).toISOString();
+    }
+
+    // 024: mijoz Trustbook'da bormi? (telefon bo'yicha) — bog'lab qo'yamiz
+    const client_user_id = client_phone ? await profileIdByPhone(client_phone) : null;
 
     // 1-qatlam: oldindan tekshiruv (chiroyli xabar, mijoz nomi bilan)
     const clash = await findSlotConflict(req.user.id, { hallId: hall?.id || null, date: event_date, slot });
@@ -881,10 +1386,21 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
       menu_id: menu?.id || null,
       menu_title: menu?.title || null,   // SNAPSHOT
       event_date, slot, client_name, client_phone, guests, price_per_guest, note,
+      price_mode, total_price, hold_until, client_user_id,
     }).select().single();
     if (error) {
       if (isUniqueViolation(error)) return res.status(409).json(SLOT_TAKEN_BODY);
       throw new Error(error.message);
+    }
+
+    // 024: servislar (SNAPSHOT). Yiqilsa band o'chiriladi (avans bilan bir xil siyosat).
+    if (ri.items.length) {
+      const { error: ie } = await supabaseAdmin.from('booking_items')
+        .insert(ri.items.map((it) => ({ booking_id: created.id, ...it })));
+      if (ie) {
+        await supabaseAdmin.from('bookings').delete().eq('id', created.id).eq('user_id', req.user.id);
+        throw new Error(ie.message);
+      }
     }
 
     // Avans > 0 — birinchi to'lov + AQLLI STATUS ('band' -> 'tasdiq').
@@ -910,7 +1426,7 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
         }
         throw new Error(pe.message);
       }
-      const totals = computeTotals(created, [], [{ amount: advance }]);
+      const totals = computeTotals(created, ri.items, [{ amount: advance }]);
       const next = autoStatusAfterPayment(created.status, totals.left);
       if (next !== created.status) {
         const { error: ue } = await supabaseAdmin.from('bookings')
@@ -922,7 +1438,13 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
     }
 
     const full = await loadOneBooking(req.user.id, created.id);
-    res.status(201).json({ success: true, data: full });
+    // 024: minimal avans — BLOKLAMAYDI (avans keyin kelishi normal), faqat ko'rsatiladi
+    const depMin = depositMin(full.totals.total, hall?.deposit_pct);
+    res.status(201).json({
+      success: true, data: full,
+      deposit_min: depMin,
+      deposit_short: depMin > 0 && advance < depMin,
+    });
   } catch (e) { next(e); }
 });
 
@@ -1032,8 +1554,32 @@ router.patch('/bookings/:id', async (req, res, next) => {
       if (!n) return res.status(400).json({ success: false, error: 'Mijoz ismi kerak' });
       patch.client_name = n;
     }
-    if (b.client_phone !== undefined) patch.client_phone = clean(b.client_phone, 20);
+    if (b.client_phone !== undefined) {
+      const ph = normPhone(b.client_phone);
+      if (ph === false) return res.status(400).json({ success: false, error: "Telefon raqami noto'g'ri" });
+      patch.client_phone = ph;
+      patch.client_user_id = ph ? await profileIdByPhone(ph) : null;   // 024: qayta bog'lash
+    }
     if (b.note !== undefined) patch.note = clean(b.note, 300);
+    // 024: narx rejimi / podklyuch summasi
+    if (b.price_mode !== undefined) {
+      const m = String(b.price_mode || '');
+      if (!PRICE_MODES.includes(m)) return res.status(400).json({ success: false, error: "Narx rejimi noto'g'ri (guest / total)" });
+      patch.price_mode = m;
+    }
+    if (b.total_price !== undefined) {
+      const t = money(b.total_price, { allowZero: true });
+      if (t == null) return res.status(400).json({ success: false, error: "To'yxona narxi noto'g'ri" });
+      patch.total_price = t;
+    }
+    if (b.hold_until !== undefined) {
+      if (b.hold_until === null || b.hold_until === '') patch.hold_until = null;
+      else {
+        const ts = Date.parse(String(b.hold_until).slice(0, 40));
+        if (Number.isNaN(ts)) return res.status(400).json({ success: false, error: "Hold muddati noto'g'ri" });
+        patch.hold_until = new Date(ts).toISOString();
+      }
+    }
     if (b.guests !== undefined) {
       const g = Math.round(Number(b.guests));
       if (!Number.isInteger(g) || g <= 0 || g > MAX_GUESTS) {
@@ -1096,13 +1642,69 @@ router.patch('/bookings/:id', async (req, res, next) => {
       }
     }
 
+    // 024: 'bekor'ga o'tish — jarima hisobi (POST /cancel bilan bir xil yo'l);
+    // 'bekor'dan qaytish — bekor maydonlari tozalanadi.
+    let cancelInfo = null;
+    if (patch.status === 'bekor' && cur.status !== 'bekor') {
+      delete patch.status;
+      cancelInfo = await applyCancel(req.user.id, cur, { reason: clean(b.cancel_reason, 200) });
+    } else if (cur.status === 'bekor' && nextStatus !== 'bekor') {
+      patch.cancelled_at = null; patch.cancel_reason = null; patch.cancel_penalty = 0;
+    }
+    if (!Object.keys(patch).length && cancelInfo) {
+      return res.json({ success: true, data: await loadOneBooking(req.user.id, cur.id), cancel: cancelInfo });
+    }
     patch.updated_at = new Date().toISOString();
     const { error } = await supabaseAdmin.from('bookings').update(patch).eq('id', cur.id);
     if (error) {
       if (isUniqueViolation(error)) return res.status(409).json(SLOT_TAKEN_BODY);
       throw new Error(error.message);
     }
-    res.json({ success: true, data: await loadOneBooking(req.user.id, cur.id) });
+    const out = { success: true, data: await loadOneBooking(req.user.id, cur.id) };
+    if (cancelInfo) out.cancel = cancelInfo;
+    res.json(out);
+  } catch (e) { next(e); }
+});
+
+// GET /api/toyxona/bookings/:id/cancel-preview — bekor qilsak nima bo'ladi? (024)
+// { paid, penalty, refund, daysLeft, policy } — mobil "Bekor qilish" varag'ida ko'rsatadi.
+router.get('/bookings/:id/cancel-preview', async (req, res, next) => {
+  try {
+    const cur = await ownedBooking(req.user.id, req.params.id);
+    if (!cur) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    if (cur.status === 'bekor') {
+      return res.status(409).json({ success: false, code: 'ALREADY_CANCELLED', error: 'Band allaqachon bekor qilingan' });
+    }
+    res.json({ success: true, data: await cancelPreview(req.user.id, cur) });
+  } catch (e) { next(e); }
+});
+
+// POST /api/toyxona/bookings/:id/cancel  { reason?, penalty?, refund_now? } (024)
+//   penalty    — ega qo'lda o'zgartirgan jarima (siyosat o'rniga); tushgan puldan oshmaydi
+//   refund_now — true bo'lsa qaytariladigan summa DARHOL 'qaytarim' to'lovi sifatida yoziladi
+//                (ega mijozga pulni shu yerning o'zida qaytardi). Aks holda keyin
+//                POST /payments {kind:'qaytarim'} bilan yoziladi.
+router.post('/bookings/:id/cancel', async (req, res, next) => {
+  try {
+    const cur = await ownedBooking(req.user.id, req.params.id);
+    if (!cur) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    if (cur.status === 'bekor') {
+      return res.status(409).json({ success: false, code: 'ALREADY_CANCELLED', error: 'Band allaqachon bekor qilingan' });
+    }
+    let penaltyOverride;
+    if (req.body?.penalty != null && req.body.penalty !== '') {
+      penaltyOverride = money(req.body.penalty, { allowZero: true });
+      if (penaltyOverride == null) return res.status(400).json({ success: false, error: "Jarima summasi noto'g'ri" });
+    }
+    const info = await applyCancel(req.user.id, cur, {
+      reason: clean(req.body?.reason, 200), penaltyOverride,
+    });
+    if (req.body?.refund_now && info.refund > 0) {
+      const { error } = await supabaseAdmin.from('booking_payments')
+        .insert({ booking_id: cur.id, amount: info.refund, kind: 'qaytarim', note: 'Bekor — qaytarim' });
+      if (error) console.warn(`[toyxona] qaytarim yozilmadi (booking=${cur.id}):`, error.message);
+    }
+    res.json({ success: true, data: await loadOneBooking(req.user.id, cur.id), cancel: info });
   } catch (e) { next(e); }
 });
 
@@ -1135,28 +1737,16 @@ router.delete('/bookings/:id', async (req, res, next) => {
 
 // ============================ XIZMATLAR (items) ============================
 
-// POST /api/toyxona/bookings/:id/items  { title, amount, qty? }
+// POST /api/toyxona/bookings/:id/items  { service_id? | title, amount?, qty?, is_bonus? }
+// 024: service_id berilsa katalogdan SNAPSHOT (title/amount), is_bonus = bepul.
 router.post('/bookings/:id/items', async (req, res, next) => {
   try {
     const cur = await ownedBooking(req.user.id, req.params.id);
     if (!cur) return res.status(404).json({ success: false, error: 'Topilmadi' });
 
-    const title = clean(req.body?.title, 60);
-    if (!title) return res.status(400).json({ success: false, error: 'Xizmat nomi kerak' });
-    const amount = money(req.body?.amount);
-    if (amount == null) {
-      return res.status(400).json({ success: false, error: "Summa musbat butun son bo'lishi kerak" });
-    }
-    let qty = 1;
-    if (req.body?.qty != null && req.body.qty !== '') {
-      qty = Math.round(Number(req.body.qty));
-      if (!Number.isInteger(qty) || qty <= 0 || qty > MAX_QTY) {
-        return res.status(400).json({ success: false, error: `Soni 1–${MAX_QTY} bo'lsin` });
-      }
-    }
-    if (overMax(amount, qty)) {
-      return res.status(400).json({ success: false, error: 'Xizmat summasi juda katta' });
-    }
+    const ri = await readBookingItems(req.user.id, [req.body || {}]);
+    if (ri.error) return res.status(400).json({ success: false, error: ri.error });
+    const item = ri.items[0];
     const { count, error: ce } = await supabaseAdmin
       .from('booking_items').select('id', { count: 'exact', head: true }).eq('booking_id', cur.id);
     if (ce) throw new Error(ce.message);
@@ -1164,7 +1754,7 @@ router.post('/bookings/:id/items', async (req, res, next) => {
       return res.status(400).json({ success: false, error: "Bitta bandga 50 tadan ortiq xizmat qo'shib bo'lmaydi" });
     }
     const { error } = await supabaseAdmin.from('booking_items')
-      .insert({ booking_id: cur.id, title, amount, qty });
+      .insert({ booking_id: cur.id, ...item });
     if (error) throw new Error(error.message);
     // INVARIANT (ataylab tanlangan, mobil shunga qarab chizsin): status — EGA
     // boshqaradigan ish holati, `left` dan HOSIL QILINMAYDI. Xizmat qo'shish
@@ -1181,6 +1771,38 @@ router.post('/bookings/:id/items', async (req, res, next) => {
 });
 
 // DELETE /api/toyxona/items/:itemId — ota-band EGA tekshiriladi (cross-user yo'q)
+// PATCH /api/toyxona/items/:itemId  { is_bonus?, qty?, amount? } — 024 (bonusni yoqish/o'chirish)
+router.patch('/items/:itemId', async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.itemId)) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const { data: item, error: ie } = await supabaseAdmin
+      .from('booking_items').select('*').eq('id', req.params.itemId).maybeSingle();
+    if (ie) throw new Error(ie.message);
+    if (!item) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const cur = await ownedBooking(req.user.id, item.booking_id);
+    if (!cur) return res.status(404).json({ success: false, error: 'Topilmadi' });
+    const patch = {};
+    if (req.body?.is_bonus !== undefined) patch.is_bonus = !!req.body.is_bonus;
+    if (req.body?.qty !== undefined) {
+      const q = Math.round(Number(req.body.qty));
+      if (!Number.isInteger(q) || q <= 0 || q > MAX_QTY) return res.status(400).json({ success: false, error: `Soni 1–${MAX_QTY} bo'lsin` });
+      patch.qty = q;
+    }
+    if (req.body?.amount !== undefined) {
+      const a = money(req.body.amount, { allowZero: true });
+      if (a == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
+      patch.amount = a;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
+    const bonus = patch.is_bonus ?? item.is_bonus;
+    const amount = patch.amount ?? Number(item.amount);
+    if (!bonus && amount <= 0) return res.status(400).json({ success: false, error: 'Pullik xizmat narxi kerak' });
+    const { error } = await supabaseAdmin.from('booking_items').update(patch).eq('id', item.id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true, data: await loadOneBooking(req.user.id, cur.id) });
+  } catch (e) { next(e); }
+});
+
 router.delete('/items/:itemId', async (req, res, next) => {
   try {
     if (!isUuid(req.params.itemId)) return res.status(404).json({ success: false, error: 'Topilmadi' });
@@ -1212,7 +1834,17 @@ router.post('/bookings/:id/payments', async (req, res, next) => {
     }
     const kind = req.body?.kind == null || req.body.kind === '' ? 'avans' : String(req.body.kind);
     if (!KINDS.includes(kind)) {
-      return res.status(400).json({ success: false, error: "To'lov turi noto'g'ri (avans / yakuniy)" });
+      return res.status(400).json({ success: false, error: "To'lov turi noto'g'ri (avans / yakuniy / qaytarim)" });
+    }
+    // 024: qaytarim tushgan puldan oshmasin (manfiy kassa bo'lmasin)
+    if (kind === 'qaytarim') {
+      const before = await loadOneBooking(req.user.id, cur.id);
+      if (amount > before.totals.paid) {
+        return res.status(400).json({
+          success: false, code: 'REFUND_OVER',
+          error: `Qaytarim tushgan puldan (${before.totals.paid.toLocaleString('ru-RU')}) oshmasin`,
+        });
+      }
     }
     const note = clean(req.body?.note, 200);
     let paid_at = null;
@@ -1260,7 +1892,8 @@ router.post('/bookings/:id/payments', async (req, res, next) => {
 
     // Yangi yakun bo'yicha avtomatik status (faqat KO'TARILADI, hech qachon pasaymaydi)
     const full = await loadOneBooking(req.user.id, cur.id);
-    const next = autoStatusAfterPayment(cur.status, full.totals.left);
+    // Qaytarim statusni o'zgartirmaydi (pul chiqishi — tasdiq emas)
+    const next = kind === 'qaytarim' ? cur.status : autoStatusAfterPayment(cur.status, full.totals.left);
     if (next !== cur.status) {
       const { error: ue } = await supabaseAdmin.from('bookings')
         .update({ status: next, updated_at: new Date().toISOString() }).eq('id', cur.id);
@@ -1271,6 +1904,11 @@ router.post('/bookings/:id/payments', async (req, res, next) => {
       // 'band' bo'lib qoladi, egasi oddiy PATCH bilan tuzatadi.
       if (ue) console.warn(`[toyxona] status yangilanmadi (booking=${cur.id}):`, ue.message);
       else full.status = next;
+    }
+    // 024: pul keldi — hold endi kerak emas
+    if (kind !== 'qaytarim' && cur.hold_until) {
+      await supabaseAdmin.from('bookings').update({ hold_until: null }).eq('id', cur.id);
+      full.hold_until = null;
     }
     res.status(201).json({ success: true, data: full });
   } catch (e) { next(e); }
@@ -1314,7 +1952,7 @@ router.get('/summary', async (req, res, next) => {
     if (hallFilter.error) return res.status(400).json({ success: false, error: hallFilter.error });
 
     let q = supabaseAdmin
-      .from('bookings').select('id, guests, price_per_guest, status')
+      .from('bookings').select('id, guests, price_per_guest, status, price_mode, total_price, cancel_penalty')
       .eq('user_id', req.user.id)
       .gte('event_date', range.from).lte('event_date', range.to);
     q = applyHallFilter(q, hallFilter);
@@ -1346,6 +1984,15 @@ router.get('/summary', async (req, res, next) => {
     // count — oraliqdagi HAQIQIY band soni; countActive/total/paid esa faqat
     // o'qilgan qatorlar bo'yicha (truncated=true bo'lsa ular to'liq emas).
     if (realCount != null) summary.count = realCount;
+    // 024 analitika: bandlik % = faol bandlar / (kunlar × 3 slot × faol to'yxonalar)
+    let hallsN = 1;
+    if (!hallFilter.hallId) {
+      const { count: hc } = await supabaseAdmin.from('halls').select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id).eq('archived', false);
+      hallsN = Math.max(1, hc || 0);
+    }
+    const slots = (daysBetween(range.from, range.to) + 1) * SLOTS.length * hallsN;
+    summary.occupancyPct = slots > 0 ? Math.round(summary.countActive * 1000 / slots) / 10 : 0;
     res.json({
       success: true,
       data: summary,

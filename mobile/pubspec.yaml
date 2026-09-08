@@ -60,6 +60,10 @@ dependencies:
   in_app_purchase: ^3.2.0
   # Paywall'da Foydalanish shartlari / Maxfiylik havolalari (Apple 3.1.2)
   url_launcher: ^6.3.0
+  # To'yxona chek/PDF (024): bron cheki — stol, servislar, bonus, avans, qoldiq, jarima
+  # shartlari. printing — ulashish varag'i (share sheet) + PdfGoogleFonts (kirill uchun).
+  pdf: ^3.11.1
+  printing: ^5.13.3
 
 dev_dependencies:
   flutter_test:

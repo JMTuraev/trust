@@ -370,10 +370,12 @@ class Api {
   /// `product_id` faqat ESKI moslik uchun qoladi (server o'qimaydi, loglarda foydali).
   /// module == null — eski yagona premium oqimi: tana AYNAN avvalgidek qoladi.
   static Map<String, dynamic> verifyAppleBody(String receipt,
-          {String productId = kPremiumProductId, String? module}) =>
+          {String productId = kPremiumProductId, String? module, int units = 1}) =>
       <String, dynamic>{
         'platform': 'app_store',
         if (module != null) 'module': module,
+        // 024: per-unit modul (to'yxona) — server SKU'ni zal soni bilan tekshiradi
+        if (module != null && units > 1) 'units': units,
         'product_id': productId,
         'receipt_data': receipt,
       };

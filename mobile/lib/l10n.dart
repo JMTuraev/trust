@@ -551,8 +551,11 @@ const Map<String, dynamic> lUz = {
   // tepasida turadi. {n} — src/lib/subscription.js: MODULES.ijarachi.max_units.
   'pwCapIjara': 'Bitta obuna — {n} tagacha uy. Ko\'proq kerak bo\'lsa, boshqa '
       'telefon raqamiga alohida hisob oching.',
-  'pwCapToy': 'Bitta obuna — bitta to\'yxona. Yana to\'yxona kerak bo\'lsa, boshqa '
-      'telefon raqamiga alohida hisob oching.',
+  'pwCapToy': 'Har to\'yxona alohida obuna — har zal uchun \${price}/oy. Bitta akkauntda {n} tagacha to\'yxona.',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} ta to\'yxona — \${price}/oy',
+  'pwUnitsN': '{n} ta to\'yxona',
+  'pwUnitsEach': 'har zal \${price}/oy',
   // To'lov kanali (Play/App Store) hali ulanmagan — paywall CTA javobi.
   // DIQQAT: bu yerda NARX yozilmaydi (modulga qarab har xil).
   'pwPayComingSoon': 'To\'lov hali ulanmagan — obuna tez orada ishlaydi',
@@ -1063,8 +1066,11 @@ const Map<String, dynamic> lRu = {
   'pwSoonNote': 'Раздел откроется совсем скоро — цена: \${price}/мес',
   'pwCapIjara': 'Одна подписка — до {n} домов. Нужно больше — заведите отдельный '
       'аккаунт на другой номер телефона.',
-  'pwCapToy': 'Одна подписка — один зал. Нужен ещё зал — заведите отдельный '
-      'аккаунт на другой номер телефона.',
+  'pwCapToy': 'Каждый зал — отдельная подписка: \${price}/мес за зал. В одном аккаунте до {n} залов.',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} зал(а) — \${price}/мес',
+  'pwUnitsN': 'Залов: {n}',
+  'pwUnitsEach': '\${price}/мес за зал',
   'pwPayComingSoon': 'Оплата пока не подключена — подписка заработает совсем скоро',
   'subModuleThanks': 'Подписка «{module}» включена — спасибо!',
   // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
@@ -1570,8 +1576,11 @@ const Map<String, dynamic> lEn = {
   'pwSoonNote': 'This module opens very soon — price: \${price}/mo',
   'pwCapIjara': 'One subscription covers up to {n} properties. Need more? Open a '
       'separate account with another phone number.',
-  'pwCapToy': 'One subscription covers one venue. Need another venue? Open a '
-      'separate account with another phone number.',
+  'pwCapToy': 'Each venue is a separate subscription: \${price}/month per venue. One account holds up to {n} venues.',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} venues — \${price}/month',
+  'pwUnitsN': '{n} venues',
+  'pwUnitsEach': '\${price}/month per venue',
   'pwPayComingSoon': 'Payments are not connected yet — the subscription will work very soon',
   'subModuleThanks': '{module} subscription is active — thank you!',
   // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
@@ -2078,8 +2087,11 @@ const Map<String, dynamic> lEs = {
   'pwSoonNote': 'Esta sección se abre muy pronto — precio: \${price}/mes',
   'pwCapIjara': 'Una suscripción cubre hasta {n} propiedades. ¿Necesitas más? Abre '
       'otra cuenta con un número de teléfono distinto.',
-  'pwCapToy': 'Una suscripción cubre un solo salón. ¿Necesitas otro? Abre otra '
-      'cuenta con un número de teléfono distinto.',
+  'pwCapToy': 'Cada salón es una suscripción aparte: \${price}/mes por salón. Una cuenta admite hasta {n} salones.',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} salones — \${price}/mes',
+  'pwUnitsN': '{n} salones',
+  'pwUnitsEach': '\${price}/mes por salón',
   'pwPayComingSoon': 'El pago aún no está conectado — la suscripción funcionará muy pronto',
   'subModuleThanks': 'La suscripción «{module}» está activa — ¡gracias!',
   // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
@@ -2586,8 +2598,11 @@ const Map<String, dynamic> lFr = {
   'pwSoonNote': 'Cette section ouvre très bientôt — prix : \${price}/mois',
   'pwCapIjara': 'Un abonnement couvre jusqu\'à {n} biens. Il vous en faut plus ? '
       'Ouvrez un compte séparé avec un autre numéro de téléphone.',
-  'pwCapToy': 'Un abonnement couvre une seule salle. Il vous en faut une autre ? '
-      'Ouvrez un compte séparé avec un autre numéro de téléphone.',
+  'pwCapToy': 'Chaque salle est un abonnement distinct : \${price}/mois par salle. Un compte gère jusqu\'à {n} salles.',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} salles — \${price}/mois',
+  'pwUnitsN': '{n} salles',
+  'pwUnitsEach': '\${price}/mois par salle',
   'pwPayComingSoon': 'Le paiement n\'est pas encore activé — l\'abonnement fonctionnera très bientôt',
   'subModuleThanks': 'L\'abonnement « {module} » est activé — merci !',
   // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---
@@ -3089,7 +3104,11 @@ const Map<String, dynamic> lZh = {
   'pwCta': '订阅 — \${price}/月',
   'pwSoonNote': '该模块即将开放 — 价格：\${price}/月',
   'pwCapIjara': '一个订阅最多管理 {n} 套房产。需要更多，请用另一个手机号单独开一个账号。',
-  'pwCapToy': '一个订阅只含一个宴会厅。需要再开一个，请用另一个手机号单独开一个账号。',
+  'pwCapToy': '每个宴会厅单独订阅：每厅 \${price}/月。一个账号最多 {n} 个宴会厅。',
+  // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
+  'pwUnitsPrice': '{n} 个宴会厅 — \${price}/月',
+  'pwUnitsN': '{n} 个宴会厅',
+  'pwUnitsEach': '每厅 \${price}/月',
   'pwPayComingSoon': '支付尚未接入 — 订阅很快就会开放',
   'subModuleThanks': '「{module}」订阅已开通 — 谢谢！',
   // --- 2026-08-10 audit: profil qatori + Apple 3.1.2 narxli oshkorlik ---

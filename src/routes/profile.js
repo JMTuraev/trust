@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import {
   computeSubscription, getSubscription, countUsage,
-  getModulesStatus, productIdForModule, isFreeModule,
+  getModulesStatus, productIdForModule, isFreeModule, unitsForProduct,
 } from '../lib/subscription.js';
 import { appleConfigured, verifyAppleReceipt } from '../lib/appleIap.js';
 import { sendOtp, checkOtpCode } from '../services/otp.js';
@@ -161,13 +161,21 @@ async function grantModule(userId, module, provider, productId, token, newUntilM
 
   await auditPurchase(userId, provider, productId, token, finalIso);
 
-  const { error: upErr } = await supabaseAdmin.from('module_subs').upsert({
+  // 024: per_unit modul (to'yxona) — SKU'dan zal soni. Ustun bo'lmasa (024 qo'llanmagan)
+  // units'siz qayta yoziladi — obuna yo'qolmasin.
+  const row = {
     user_id: userId,
     module,
     active_until: finalIso,
     product_id: productId,
+    units: unitsForProduct(productId),
     updated_at: new Date().toISOString(),
-  });
+  };
+  let { error: upErr } = await supabaseAdmin.from('module_subs').upsert(row);
+  if (upErr && /units/.test(upErr.message || '') && /column|schema cache/i.test(upErr.message || '')) {
+    delete row.units;
+    ({ error: upErr } = await supabaseAdmin.from('module_subs').upsert(row));
+  }
   if (upErr) {
     const missing = /module_subs/.test(upErr.message || '')
       && /does not exist|schema cache/i.test(upErr.message || '');
@@ -198,8 +206,13 @@ router.post(
       // qimmat modulni ololmaydi — chek AYNAN shu product_id bo'yicha tekshiriladi.
       // `module` bo'lmasa — eski premium oqimi (orqaga moslik: joriy mobil versiyalar).
       const modKey = String(req.body?.module ?? '').trim();
-      const pid = productIdForModule(modKey);
-      if (!pid) return res.status(400).json({ success: false, error: "Noma'lum modul" });
+      // 024: per_unit modul (to'yxona) — klient `units` (zal soni) yuboradi, SKU serverda.
+      const units = req.body?.units == null || req.body.units === '' ? 1 : Math.round(Number(req.body.units));
+      if (!Number.isInteger(units) || units < 1 || units > 20) {
+        return res.status(400).json({ success: false, error: "Zal soni noto'g'ri" });
+      }
+      const pid = productIdForModule(modKey, units);
+      if (!pid) return res.status(400).json({ success: false, error: "Noma'lum modul yoki zal soni" });
       // Bepul modul (Xarajatlar, PO 2026-09-08) sotilmaydi — chek qabul qilinmaydi.
       if (isFreeModule(modKey)) return res.status(400).json({ success: false, error: "Bu bo'lim bepul — obuna kerak emas" });
 

@@ -159,8 +159,19 @@ const List<String> kToySlots = ['nahor', 'tushlik', 'kechki'];
 /// Holatlar — backend bilan bir xil.
 const List<String> kToyStatuses = ['band', 'tasdiq', 'yakun', 'bekor'];
 
-/// To'lov turlari (migratsiya 021: faqat shu ikkitasi).
-const List<String> kToyPayKinds = ['avans', 'yakuniy'];
+/// To'lov turlari (024: 'qaytarim' — mijozga QAYTARILGAN pul, paid'dan ayiriladi).
+const List<String> kToyPayKinds = ['avans', 'yakuniy', 'qaytarim'];
+
+/// Narx rejimlari (024): 'guest' — kishi boshiga (mehmon × narx),
+/// 'total' — butun to'yxona "podklyuch" (bitta kelishilgan summa).
+const List<String> kToyPriceModes = ['guest', 'total'];
+
+/// Bekor siyosati pog'onalari (024): to'ygacha ≥30 kun / ≥7 kun / <7 kun.
+/// Ega har pog'onaga TUSHGAN puldan (avans) qancha foiz ushlab qolishini kiritadi.
+const List<int> kToyPolicyDays = [30, 7, 0];
+
+/// Bir zal narxi ($/oy) — PO 2026-09-08: HAR ZAL $21, pog'onali SKU (1..5 zal).
+const int kToyMaxUnits = 5;
 
 /// Xizmat sonining formadagi yuqori chegarasi (server 10 000 gacha qabul
 /// qiladi, lekin bitta to'yda 20 tadan ortiq bir xil xizmat bo'lmaydi).
@@ -171,12 +182,33 @@ const List<String> kToyQuickServiceKeys = [
   'svcMusic', 'svcPhoto', 'svcVideo', 'svcCake', 'svcDecor', 'svcFire',
 ];
 
-/// Narx toifasi (hall_menus) — "Oddiy — 150 000", "Lyuks — 200 000".
+/// Stol ustidagi taom/mahsulot qatori (024, hall_menu_items) — pulsiz, faqat matn.
+class MenuItemRow {
+  final String id;
+  final String title;
+  final String qty; // "2 dona", "1 kg" — erkin matn
+  const MenuItemRow({required this.id, required this.title, this.qty = ''});
+
+  factory MenuItemRow.fromJson(Map<String, dynamic> j) => MenuItemRow(
+        id: '${j['id']}',
+        title: '${j['title'] ?? ''}',
+        qty: '${j['qty'] ?? ''}',
+      );
+
+  /// Ko'rinish: "Osh · 2 kg" / "Salat".
+  String get label => qty.isEmpty ? title : '$title · $qty';
+}
+
+/// STOL TURI (hall_menus) — "Oddiy — 150 000", "Lyuks — 200 000". Narx KISHI
+/// BOSHIGA; 024: stol sig'imi (seats) + stol ustidagi taomlar ro'yxati (items).
 class Menu {
   final String id;
   final String hallId;
   final String title;
   final int pricePerGuest;
+  final int? seats; // bir stolda necha kishi (024)
+  final String note;
+  final List<MenuItemRow> items; // stol ustidagi taomlar (024)
   final int sort;
   final bool archived;
   const Menu({
@@ -184,6 +216,9 @@ class Menu {
     required this.title,
     required this.pricePerGuest,
     this.hallId = '',
+    this.seats,
+    this.note = '',
+    this.items = const [],
     this.sort = 0,
     this.archived = false,
   });
@@ -193,10 +228,113 @@ class Menu {
         hallId: '${j['hall_id'] ?? ''}',
         title: '${j['title'] ?? ''}',
         pricePerGuest: _int(j['price_per_guest']),
+        seats: _intOrNull(j['seats']),
+        note: '${j['note'] ?? ''}',
+        items: [
+          for (final it in _rowsOf(j['items']))
+            if (it['id'] != null) MenuItemRow.fromJson(it),
+        ],
         sort: _int(j['sort']),
         archived: j['archived'] == true,
       );
 }
+
+/// Bekor siyosati pog'onasi (024): to'ygacha kamida `days` kun qolganda
+/// tushgan pulning `pct` foizi ushlab qolinadi.
+class CancelRule {
+  final int days;
+  final int pct;
+  const CancelRule(this.days, this.pct);
+  Map<String, int> toJson() => {'days': days, 'pct': pct};
+}
+
+/// Servis katalogi qatori (024, hall_services): video, sahna bezagi, shou...
+class HallService {
+  final String id;
+  final String? hallId; // null = barcha to'yxonalar uchun
+  final String title;
+  final int price;
+  final String note;
+  final int sort;
+  final bool archived;
+  const HallService({
+    required this.id,
+    required this.title,
+    this.hallId,
+    this.price = 0,
+    this.note = '',
+    this.sort = 0,
+    this.archived = false,
+  });
+
+  factory HallService.fromJson(Map<String, dynamic> j) => HallService(
+        id: '${j['id']}',
+        hallId: j['hall_id'] == null ? null : '${j['hall_id']}',
+        title: '${j['title'] ?? ''}',
+        price: _int(j['price']),
+        note: '${j['note'] ?? ''}',
+        sort: _int(j['sort']),
+        archived: j['archived'] == true,
+      );
+}
+
+/// Bekor hisob-kitobi (024, GET /bookings/:id/cancel-preview).
+class CancelPreview {
+  final int paid, penalty, refund, daysLeft, total;
+  const CancelPreview({this.paid = 0, this.penalty = 0, this.refund = 0, this.daysLeft = 0, this.total = 0});
+  factory CancelPreview.fromJson(Map<String, dynamic> j) => CancelPreview(
+        paid: _int(j['paid']),
+        penalty: _int(j['penalty']),
+        refund: _int(j['refund']),
+        daysLeft: _int(j['daysLeft']),
+        total: _int(j['total']),
+      );
+}
+
+/// Telefon bo'yicha topilgan mijoz (024, GET /clients?phone=).
+class ClientHint {
+  final String name;
+  final int bookings;
+  final bool inTrustbook;
+  const ClientHint({required this.name, this.bookings = 0, this.inTrustbook = false});
+}
+
+/// Bekor siyosatini backend ko'rinishidan o'qiydi (sof; testlanadi).
+List<CancelRule> toyParsePolicy(dynamic raw) {
+  final out = <CancelRule>[];
+  for (final r in _rowsOf(raw)) {
+    final d = _int(r['days'], -1);
+    final pct = _int(r['pct'], -1);
+    if (d < 0 || pct < 0 || pct > 100) continue;
+    out.add(CancelRule(d, pct));
+  }
+  out.sort((a, b) => b.days.compareTo(a.days));
+  return out;
+}
+
+/// Mijoz tomonidagi jarima hisobi — backend cancelPenalty bilan BIR XIL:
+/// qolgan kunga MOS eng katta `days` pog'onasi; topilmasa 0; o'tgan to'y → 0 kun.
+int toyCancelPenalty(List<CancelRule> policy, int paid, int daysLeft) {
+  if (paid <= 0 || policy.isEmpty) return 0;
+  final d = daysLeft < 0 ? 0 : daysLeft;
+  final rows = [...policy]..sort((a, b) => b.days.compareTo(a.days));
+  for (final r in rows) {
+    if (r.days <= d) {
+      final v = (paid * r.pct / 100).round();
+      return v > paid ? paid : v;
+    }
+  }
+  return 0;
+}
+
+/// Minimal avans (024): jamining deposit_pct foizi, yuqoriga yaxlitlab.
+int toyDepositMin(int total, int pct) {
+  if (pct <= 0 || total <= 0) return 0;
+  return (total * pct / 100).ceil();
+}
+
+/// Telefonni faqat raqamga keltiradi (backend normPhone bilan bir xil).
+String toyPhoneDigits(String v) => v.replaceAll(RegExp(r'\D'), '');
 
 /// To'yxona (halls) — narx toifalari ICHIDA keladi (backend embed qiladi).
 class Hall {
@@ -207,6 +345,11 @@ class Hall {
   final int sort;
   final bool archived;
   final List<Menu> menus;
+  // ---- 024 ----
+  final String priceMode; // 'guest' | 'total' — bandlar uchun DEFAULT
+  final int totalPrice; // 'total' rejimida butun to'yxona narxi (default)
+  final int depositPct; // minimal avans, jamidan % (0 = talab yo'q)
+  final List<CancelRule> cancelPolicy;
   const Hall({
     required this.id,
     required this.name,
@@ -215,6 +358,10 @@ class Hall {
     this.sort = 0,
     this.archived = false,
     this.menus = const [],
+    this.priceMode = 'guest',
+    this.totalPrice = 0,
+    this.depositPct = 0,
+    this.cancelPolicy = const [],
   });
 
   factory Hall.fromJson(Map<String, dynamic> j) => Hall(
@@ -224,6 +371,10 @@ class Hall {
         pricePerGuest: _int(j['price_per_guest']),
         sort: _int(j['sort']),
         archived: j['archived'] == true,
+        priceMode: j['price_mode'] == 'total' ? 'total' : 'guest',
+        totalPrice: _int(j['total_price']),
+        depositPct: _int(j['deposit_pct']).clamp(0, 100).toInt(),
+        cancelPolicy: toyParsePolicy(j['cancel_policy']),
         // menus HAR DOIM massiv (backend kafolati), lekin baribir ELEMENTMA-
         // ELEMENT ajratamiz: bitta buzuq toifa butun zallar ro'yxatini yiqitmasin.
         menus: [
@@ -245,7 +396,16 @@ class BookingItem {
   final String title;
   final int amount; // BIR DONA narxi
   final int qty;
-  const BookingItem({required this.id, required this.title, required this.amount, this.qty = 1});
+  final String? serviceId; // 024: katalogdan (snapshot)
+  final bool isBonus; // 024: bepul berildi — jamiga KIRMAYDI
+  const BookingItem({
+    required this.id,
+    required this.title,
+    required this.amount,
+    this.qty = 1,
+    this.serviceId,
+    this.isBonus = false,
+  });
 
   factory BookingItem.fromJson(Map<String, dynamic> j) {
     final q = _int(j['qty'], 1);
@@ -254,9 +414,12 @@ class BookingItem {
       title: '${j['title'] ?? ''}',
       amount: _int(j['amount']),
       qty: q <= 0 ? 1 : q,
+      serviceId: j['service_id'] == null ? null : '${j['service_id']}',
+      isBonus: j['is_bonus'] == true,
     );
   }
 
+  /// Qiymati (bonusda ham ko'rinadi); jamiga faqat pullik kiradi.
   int get total => amount * qty;
 }
 
@@ -302,6 +465,13 @@ class Booking {
   final List<BookingItem> items;
   final List<BookingPayment> payments;
   final Map<String, int> totals; // server hisoblagan yakunlar
+  // ---- 024 ----
+  final String priceMode; // 'guest' | 'total'
+  final int totalPrice; // 'total' rejimida SNAPSHOT summa
+  final DateTime? holdUntil; // avans kutish muddati (o'tsa server avto-bekor)
+  final String cancelReason;
+  final int cancelPenalty; // bekorda ushlab qolingan jarima (SNAPSHOT)
+  final bool inTrustbook; // mijoz Trustbook'da (client_user_id bor)
 
   const Booking({
     required this.id,
@@ -320,6 +490,12 @@ class Booking {
     this.items = const [],
     this.payments = const [],
     this.totals = const {},
+    this.priceMode = 'guest',
+    this.totalPrice = 0,
+    this.holdUntil,
+    this.cancelReason = '',
+    this.cancelPenalty = 0,
+    this.inTrustbook = false,
   });
 
   /// XAVFSIZ ajratish. Qoidalar:
@@ -367,9 +543,15 @@ class Booking {
         items: items,
         payments: pays,
         totals: {
-          for (final k in ['food', 'extras', 'total', 'paid', 'left'])
+          for (final k in ['food', 'extras', 'total', 'paid', 'left', 'bonus', 'refunded', 'penalty', 'refundDue'])
             if (rawTotals[k] != null) k: _int(rawTotals[k]),
         },
+        priceMode: j['price_mode'] == 'total' ? 'total' : 'guest',
+        totalPrice: _int(j['total_price']),
+        holdUntil: j['hold_until'] == null ? null : DateTime.tryParse('${j['hold_until']}')?.toLocal(),
+        cancelReason: '${j['cancel_reason'] ?? ''}',
+        cancelPenalty: _int(j['cancel_penalty']),
+        inTrustbook: j['client_user_id'] != null,
       );
     } catch (_) {
       return null;
@@ -377,10 +559,19 @@ class Booking {
   }
 
   // Server bergan yakunlar ustuvor; bo'lmasa klientda hisoblanadi (snapshotdan).
-  int get food => totals['food'] ?? guests * pricePerGuest;
-  int get extras => totals['extras'] ?? items.fold(0, (s, i) => s + i.total);
+  int get food => totals['food'] ?? (priceMode == 'total' ? totalPrice : guests * pricePerGuest);
+  int get extras => totals['extras'] ?? items.where((i) => !i.isBonus).fold(0, (s, i) => s + i.total);
+  /// Bonus (bepul) servislar qiymati — ko'rinadi, jamiga kirmaydi (024).
+  int get bonus => totals['bonus'] ?? items.where((i) => i.isBonus).fold(0, (s, i) => s + i.total);
   int get total => totals['total'] ?? (food + extras);
-  int get paid => totals['paid'] ?? payments.fold(0, (s, p) => s + p.amount);
+  /// Mijozga qaytarilgan pul (024, 'qaytarim').
+  int get refunded => totals['refunded'] ?? payments.where((p) => p.kind == 'qaytarim').fold(0, (s, p) => s + p.amount);
+  int get paid => totals['paid'] ?? (payments.where((p) => p.kind != 'qaytarim').fold(0, (s, p) => s + p.amount) - refunded);
+  /// Bekor qilingan bandda mijozga QAYTARILISHI kerak bo'lgan pul (jarimadan keyin).
+  int get refundDue => totals['refundDue'] ?? (cancelled ? (paid - cancelPenalty < 0 ? 0 : paid - cancelPenalty) : 0);
+  bool get isTotalMode => priceMode == 'total';
+  /// Avans kutilmoqda va muddat hali o'tmagan.
+  bool get onHold => holdUntil != null && status == 'band' && holdUntil!.isAfter(DateTime.now());
   /// Ortiqcha to'lovda MANFIY bo'lishi mumkin — clamp QILINMAYDI (backend shartnomasi).
   int get left => totals['left'] ?? (total - paid);
 
@@ -389,7 +580,7 @@ class Booking {
   /// Narx kelishilmagan band (U5): narx ham, xizmat ham yo'q. O'zbekistonda bu
   /// NORMAL holat — avans sanani ushlaydi, menyu keyin kelishiladi. Saqlash
   /// hech qachon bloklanmaydi, faqat yumshoq belgi ko'rsatiladi.
-  bool get priceMissing => pricePerGuest == 0 && items.isEmpty;
+  bool get priceMissing => (isTotalMode ? totalPrice == 0 : pricePerGuest == 0) && items.isEmpty;
 }
 
 class ToySummary {
@@ -409,6 +600,10 @@ class ToySummary {
   final int cancelledPaid;
 
   final Map<String, int> byStatus;
+  // ---- 024 analitika ----
+  final int penalties, refunded, bonus, guests, avgCheck;
+  final double occupancyPct;
+  final List<Map<String, dynamic>> topServices; // [{title, count, amount, bonus}]
   const ToySummary({
     this.count = 0,
     this.countActive = 0,
@@ -417,6 +612,13 @@ class ToySummary {
     this.left = 0,
     this.cancelledPaid = 0,
     this.byStatus = const {},
+    this.penalties = 0,
+    this.refunded = 0,
+    this.bonus = 0,
+    this.guests = 0,
+    this.avgCheck = 0,
+    this.occupancyPct = 0,
+    this.topServices = const [],
   });
 
   factory ToySummary.fromJson(Map<String, dynamic> j) {
@@ -437,6 +639,16 @@ class ToySummary {
       // Eski deploy bu maydonni yubormaydi -> 0 (qator umuman ko'rinmaydi).
       cancelledPaid: _int(j['cancelledPaid']),
       byStatus: byStatus,
+      penalties: _int(j['penalties']),
+      refunded: _int(j['refunded']),
+      bonus: _int(j['bonus']),
+      guests: _int(j['guests']),
+      avgCheck: _int(j['avgCheck']),
+      occupancyPct: (j['occupancyPct'] is num) ? (j['occupancyPct'] as num).toDouble() : 0,
+      topServices: [
+        for (final t in _rowsOf(j['topServices']))
+          {'title': '${t['title'] ?? ''}', 'count': _int(t['count']), 'amount': _int(t['amount']), 'bonus': _int(t['bonus'])},
+      ],
     );
   }
 }
@@ -546,6 +758,9 @@ class ToySeq {
 /// bilan ulanadi. Xatolar `error` maydonida — UI toast + qayta urinish beradi.
 class ToyxonaRepo extends ChangeNotifier {
   final List<Hall> _halls = [];
+  /// Servislar katalogi (024) — /halls bilan birga yuklanadi.
+  final List<HallService> _services = [];
+  bool servicesLoaded = false;
   final List<Booking> _month = [];
   final List<Booking> _upcoming = [];
 
@@ -612,6 +827,29 @@ class ToyxonaRepo extends ChangeNotifier {
   }
 
   bool get hasHalls => halls.isNotEmpty;
+
+  /// Faol servislar (024): umumiy (hall_id null) + berilgan to'yxonaniki.
+  List<HallService> servicesFor(String? hallId) {
+    final list = _services
+        .where((s) => !s.archived && (s.hallId == null || s.hallId == hallId))
+        .toList()
+      ..sort((a, b) => a.sort != b.sort ? a.sort.compareTo(b.sort) : a.title.compareTo(b.title));
+    return list;
+  }
+
+  List<HallService> get allServices {
+    final list = _services.where((s) => !s.archived).toList()
+      ..sort((a, b) => a.sort != b.sort ? a.sort.compareTo(b.sort) : a.title.compareTo(b.title));
+    return list;
+  }
+
+  HallService? serviceById(String? id) {
+    if (id == null) return null;
+    for (final s in _services) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
 
   Hall? hallById(String? id) {
     if (id == null) return null;
@@ -734,6 +972,8 @@ class ToyxonaRepo extends ChangeNotifier {
   /// TO'YXONA va uning saqlangan 'toy_hall' kaliti ham. Aks holda keyingi
   /// akkaunt oldingi eganing zallari va tanlovini ko'rib qolardi.
   void reset() {
+    _services.clear();
+    servicesLoaded = false;
     _seq.begin(); // yo'ldagi javoblar eskirsin — yangi akkauntga yozilmasin
     _resetGen++; // seq'siz yo'llar (loadHalls/search/mutatsiyalar) ham eskirsin
     _halls.clear();
@@ -846,6 +1086,18 @@ class ToyxonaRepo extends ChangeNotifier {
     final gen = _resetGen; // logout oralig'ida kelgan javob yangi akkauntga yozilmasin
     final r = await _req('GET', '/halls');
     if (gen != _resetGen) return; // orada reset() bo'ldi — javob eskirgan
+    // 024: servislar katalogi — eski server 404 bersa jim (katalog bo'sh qoladi)
+    _req('GET', '/services').then((sr) {
+      if (gen != _resetGen || !sr.ok) return;
+      _services
+        ..clear()
+        ..addAll([
+          for (final e in _rowsOf(sr.data))
+            if (e['id'] != null) HallService.fromJson(e),
+        ]);
+      servicesLoaded = true;
+      notifyListeners();
+    });
     if (r.ok) {
       _halls
         ..clear()
@@ -1047,9 +1299,19 @@ class ToyxonaRepo extends ChangeNotifier {
   // ---------------- Xizmatlar (items) ----------------
   // POST/DELETE TO'LIQ bandni qaytaradi — qatorni almashtiramiz, xulosani yangilaymiz.
 
-  Future<bool> addItem(String bookingId, String title, int amount, {int qty = 1}) =>
-      _bookingMutation('POST', '/bookings/$bookingId/items',
-          body: {'title': title, 'amount': amount, if (qty != 1) 'qty': qty});
+  Future<bool> addItem(String bookingId, String title, int amount,
+          {int qty = 1, String? serviceId, bool bonus = false}) =>
+      _bookingMutation('POST', '/bookings/$bookingId/items', body: {
+        if (serviceId != null) 'service_id': serviceId,
+        'title': title,
+        'amount': amount,
+        if (qty != 1) 'qty': qty,
+        if (bonus) 'is_bonus': true,
+      });
+
+  /// 024: bonusni yoqish/o'chirish.
+  Future<bool> setItemBonus(String itemId, bool bonus) =>
+      _bookingMutation('PATCH', '/items/$itemId', body: {'is_bonus': bonus});
 
   Future<bool> deleteItem(String itemId) => _bookingMutation('DELETE', '/items/$itemId');
 
@@ -1087,15 +1349,98 @@ class ToyxonaRepo extends ChangeNotifier {
     return true;
   }
 
+  // ---------------- Bekor qilish (024) ----------------
+
+  /// Bekor qilsak nima bo'ladi: tushgan pul, jarima, qaytariladigan summa.
+  /// Eski server (route yo'q) → null; UI o'zi hisoblaydi (toyCancelPenalty).
+  Future<CancelPreview?> cancelPreview(String id) async {
+    final r = await _req('GET', '/bookings/$id/cancel-preview');
+    if (!r.ok || r.data is! Map) return null;
+    return CancelPreview.fromJson((r.data as Map).cast<String, dynamic>());
+  }
+
+  /// Bekor qilish: jarima (siyosat yoki ega qo'lda), sabab, qaytarimni darhol yozish.
+  /// Eski serverda (404) oddiy status='bekor' PATCH'iga tushadi.
+  Future<bool> cancelBooking(String id, {String reason = '', int? penalty, bool refundNow = false}) async {
+    _clearErr();
+    final r = await _req('POST', '/bookings/$id/cancel', body: {
+      if (reason.isNotEmpty) 'reason': reason,
+      if (penalty != null) 'penalty': penalty,
+      if (refundNow) 'refund_now': true,
+    });
+    if (!r.ok && r.status == 404) return setStatus(id, 'bekor');
+    if (!r.ok) {
+      _fail(r);
+      notifyListeners();
+      return false;
+    }
+    _upsertBooking(r.data);
+    await refresh();
+    return true;
+  }
+
+  // ---------------- Mijoz autofill (024) ----------------
+
+  /// Telefon bo'yicha oldingi mijoz. Topilmasa/eski server → null.
+  Future<ClientHint?> lookupClient(String phone) async {
+    final d = toyPhoneDigits(phone);
+    if (d.length < 7) return null;
+    final r = await _req('GET', '/clients?phone=$d');
+    if (!r.ok || r.data is! Map) return null;
+    final m = (r.data as Map).cast<String, dynamic>();
+    final name = '${m['client_name'] ?? ''}'.trim();
+    if (name.isEmpty) return null;
+    return ClientHint(name: name, bookings: _int(m['bookings']), inTrustbook: m['in_trustbook'] == true);
+  }
+
+  // ---------------- Servislar katalogi (024) ----------------
+
+  Future<bool> createService(String title, int price, {String? hallId, String note = ''}) =>
+      _serviceMutation('POST', '/services', body: {
+        'title': title,
+        'price': price,
+        if (hallId != null) 'hall_id': hallId,
+        if (note.isNotEmpty) 'note': note,
+      });
+
+  Future<bool> patchService(String id, Map<String, dynamic> body) =>
+      _serviceMutation('PATCH', '/services/$id', body: body);
+
+  Future<bool> deleteService(String id) => _serviceMutation('DELETE', '/services/$id');
+
+  Future<bool> _serviceMutation(String method, String path, {Map<String, dynamic>? body}) async {
+    _clearErr();
+    final r = await _req(method, path, body: body);
+    if (!r.ok) {
+      _fail(r);
+      notifyListeners();
+      return false;
+    }
+    final sr = await _req('GET', '/services');
+    if (sr.ok) {
+      _services
+        ..clear()
+        ..addAll([
+          for (final e in _rowsOf(sr.data))
+            if (e['id'] != null) HallService.fromJson(e),
+        ]);
+      servicesLoaded = true;
+    }
+    notifyListeners();
+    return true;
+  }
+
   // ---------------- To'yxonalar (halls) ----------------
 
-  Future<bool> createHall(String name, {int? capacity, int? pricePerGuest}) async {
+  Future<bool> createHall(String name,
+      {int? capacity, int? pricePerGuest, Map<String, dynamic> extra = const {}}) async {
     _clearErr();
     final gen = _resetGen; // reset()'dan keyingi javob holatga tegmasin
     final r = await _req('POST', '/halls', body: {
       'name': name,
       if (capacity != null) 'capacity': capacity,
       if (pricePerGuest != null) 'price_per_guest': pricePerGuest,
+      ...extra, // 024: price_mode, total_price, deposit_pct, cancel_policy
     });
     if (gen != _resetGen) return false;
     if (!r.ok) {
@@ -1140,9 +1485,14 @@ class ToyxonaRepo extends ChangeNotifier {
   // Har mutatsiyadan keyin /halls qayta o'qiladi: menus[] ichida keladi,
   // shuning uchun bitta so'rov butun holatni yangilaydi.
 
-  Future<bool> createMenu(String hallId, String title, int pricePerGuest) =>
-      _menuMutation('POST', '/halls/$hallId/menus',
-          body: {'title': title, 'price_per_guest': pricePerGuest});
+  Future<bool> createMenu(String hallId, String title, int pricePerGuest,
+          {int? seats, List<String> items = const []}) =>
+      _menuMutation('POST', '/halls/$hallId/menus', body: {
+        'title': title,
+        'price_per_guest': pricePerGuest,
+        if (seats != null && seats > 0) 'seats': seats,
+        'items': [for (final t in items) {'title': t}],
+      });
 
   Future<bool> patchMenu(String menuId, Map<String, dynamic> body) =>
       _menuMutation('PATCH', '/menus/$menuId', body: body);

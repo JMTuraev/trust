@@ -279,7 +279,7 @@ test('MODUL — getModulesStatus shakli (mobil kontrakt) va narxlar', async () =
   assert.equal(by.xarajat.soon, false);
   // Obuna qoplaydigan obyektlar soni QAT'IY: to'yxona 1 ta zal, ijara 5 ta uy.
   // (Ko'proq kerak bo'lsa — alohida raqamga alohida ro'yxatdan o'tish; PO qarori.)
-  assert.equal(MODS.toyxona.max_units, 1);
+  assert.equal(MODS.toyxona.max_units, 5);   // PO 2026-09-08: har zal $21, 5 pog'onali SKU
   assert.equal(MODS.ijarachi.max_units, 5);
   // Ishlatilgan: xarajat -> expenses, qarz -> daftar egasi bo'yicha debts+operations
   assert.equal(by.xarajat.used, 2);
@@ -418,4 +418,22 @@ test('TOYXONA — 021 migratsiya yo\'q: used=0, /api/subs/status yiqilmaydi', as
   assert.equal(by.toyxona.used, 0);
   assert.equal(by.toyxona.free_limit, FREE_TOYXONA_BOOKINGS);
   __resetModuleSubsReady();
+});
+
+// ============ 024 — to'yxona per_unit SKU ============
+import { unitsForProduct, productIdForModule as pidFor } from './subscription.js';
+
+test('024 productIdForModule(toyxona, n) — pog\'onali SKU, noma\'lum miqdor null', () => {
+  assert.equal(pidFor('toyxona'), 'trust_toyxona_monthly');
+  assert.equal(pidFor('toyxona', 1), 'trust_toyxona_monthly');
+  assert.equal(pidFor('toyxona', 3), 'trust_toyxona_3_monthly');
+  assert.equal(pidFor('toyxona', 6), null);
+  assert.equal(pidFor('qarz', 3), 'trust_qarz_monthly');   // oddiy modul units'ni e'tiborsiz qoldiradi
+});
+
+test('024 unitsForProduct — SKU -> zal soni', () => {
+  assert.equal(unitsForProduct('trust_toyxona_4_monthly'), 4);
+  assert.equal(unitsForProduct('trust_toyxona_monthly'), 1);
+  assert.equal(unitsForProduct('trust_qarz_monthly'), 1);
+  assert.equal(unitsForProduct('nope'), 1);
 });

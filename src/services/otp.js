@@ -222,6 +222,13 @@ async function reactivateIfDeleted(userId) {
 // (004 migratsiyadagi trigger ham shu ishni qiladi — bu kod eski profillar uchun zaxira.)
 // Qaror mijozda: unga har bir pending bog'lanish uchun 'link_new' bildirishnoma boradi.
 async function linkPartners(user) {
+  // 024: to'yxona mijozi keyin Trustbook'ka kirsa — telefoni bo'yicha bandlarga bog'lanadi
+  // (client_phone faqat raqam holida saqlanadi). Xato bo'lsa jim — login to'xtamasin.
+  supabaseAdmin.from('bookings')
+    .update({ client_user_id: user.id })
+    .eq('client_phone', user.phone).is('client_user_id', null)
+    .then(({ error }) => { if (error && !/column|relation/i.test(error.message)) console.warn('bookings link:', error.message); })
+    .catch(() => {});
   const { data: linked } = await supabaseAdmin
     .from('partners')
     .update({ counterparty_id: user.id, updated_at: new Date().toISOString() })

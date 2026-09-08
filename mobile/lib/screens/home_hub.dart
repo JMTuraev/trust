@@ -47,6 +47,19 @@ const double kHubCardH = 200;
 /// Shu balandlikdan boshlab grid ekranni to'ldiradi (aks holda skroll rejimi).
 const double kHubGridMinH = 560;
 
+/// Qo'llanma rejimida yuqori-chap burchakdagi ikonka o'lchami (pt).
+/// PO 2026-09-08: 40 «juda kichik» — 52 ga oshirildi.
+const double kHubGuideIcon = 52;
+
+/// Qo'llanma izohining l10n kaliti (narx ostidagi bir jumla). Modul bu
+/// jadvalda BO'LMASA izoh chizilmaydi — faqat tarif turadi.
+const Map<String, String> kHubGuideNoteKey = {
+  'xarajat': 'hubGuideXar',
+  'qarz': 'hubGuideQarz',
+  'ijarachi': 'hubGuideIjara',
+  'toyxona': 'hubGuideToy',
+};
+
 class HomeHubScreen extends StatefulWidget {
   const HomeHubScreen({super.key});
 
@@ -54,7 +67,89 @@ class HomeHubScreen extends StatefulWidget {
   State<HomeHubScreen> createState() => _HomeHubScreenState();
 }
 
-class _HomeHubScreenState extends State<HomeHubScreen> {
+class _HomeHubScreenState extends State<HomeHubScreen> with SingleTickerProviderStateMixin {
+  /// NARX QO'LLANMASI yoqilganmi («Narxni bilish» tugmasi, PO 2026-09-08).
+  ///
+  /// Yoqilganda hub «tushuntirish» rejimiga o'tadi: kartalar BOSILMAYDI,
+  /// avval TO'RT ikonka yuqori-chap burchakka kichrayib ko'chadi, so'ng
+  /// tariflar KETMA-KET «yozilgandek» chiqadi: Xarajatlar yozilib bo'lgach
+  /// Qarz daftar, keyin Ijara, keyin To'yxona (hammasi birdan EMAS — PO).
+  /// O'chirilsa — hub AYNAN avvalgidek ishlaydi (qo'llanma faqat ko'rinish
+  /// qatlami: hech qanday holat, navigatsiya yoki server so'rovi o'zgarmaydi).
+  bool _guide = false;
+
+  /// Qo'llanma animatsiyasi (0 = odatdagi karta, 1 = hammasi yozib bo'lingan).
+  /// Davomiyligi MATN UZUNLIGIGA qarab _toggleGuide'da hisoblanadi (til va
+  /// tarifga bog'liq) — teskarisi (o'chirish) doim qisqa.
+  late final AnimationController _gc = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3000),
+    // O'chirish tezroq: foydalanuvchi "avvalgi holat"ni kutyapti, tomosha emas.
+    reverseDuration: const Duration(milliseconds: 450),
+  );
+
+  /// Ikonka ko'chish bosqichi tugaydigan nuqta (0..1) — undan keyin yozuv.
+  double _moveEnd = 0.15;
+
+  /// Har karta uchun yozuv oynasi [start, end] (0..1), kSubModuleOrder
+  /// tartibida, KETMA-KET (bir-birini kutadi). Standart — teng bo'lingan.
+  List<List<double>> _win = const [[.15, .36], [.36, .57], [.57, .78], [.78, 1]];
+
+  static const int _kMoveMs = 450; // ikonkalar ko'chishi
+  static const int _kCharMs = 20; // bir belgi «yozilishi»
+
+  /// Ikonka ko'chishi (0..1) — to'rttala kartada BIR VAQTDA, yozuvdan OLDIN:
+  /// ikonka hali ko'chayotganda matn chiqsa ustma-ust tushardi (PO 2026-09-08).
+  double _iconT() {
+    final x = (_gc.value / _moveEnd).clamp(0.0, 1.0);
+    return Curves.easeOutCubic.transform(x);
+  }
+
+  /// `i`-karta matnining yozilish ulushi (0..1) — o'z oynasida chiziqli
+  /// (belgi tezligi bir tekis), oynasi kelmagan bo'lsa 0, o'tgan bo'lsa 1.
+  double _typeT(int i) {
+    if (i >= _win.length) return _gc.value >= _moveEnd ? 1 : 0;
+    final a = _win[i][0], b = _win[i][1];
+    if (b <= a) return _gc.value >= a ? 1 : 0;
+    return ((_gc.value - a) / (b - a)).clamp(0.0, 1.0);
+  }
+
+  void _toggleGuide() {
+    if (!_guide) {
+      // Oynalar matn uzunligidan: har belgi _kCharMs, kartalar ketma-ket.
+      final v = store.vals();
+      final lens = kSubModuleOrder
+          .map((m) => _guidePrice(v, m).length + _guideNote(v, m).length)
+          .toList();
+      var typeMs = lens.fold<int>(0, (a, b) => a + b) * _kCharMs;
+      if (typeMs < 400) typeMs = 400;
+      final total = _kMoveMs + typeMs;
+      _gc.duration = Duration(milliseconds: total);
+      _moveEnd = _kMoveMs / total;
+      var cur = _moveEnd;
+      final win = <List<double>>[];
+      for (final n in lens) {
+        final wdt = n * _kCharMs / total;
+        win.add([cur, cur + wdt]);
+        cur += wdt;
+      }
+      if (win.isNotEmpty) win.last[1] = 1.0; // yaxlitlash qoldig'i oxirgi kartaga
+      _win = win;
+    }
+    setState(() => _guide = !_guide);
+    if (_guide) {
+      _gc.forward(from: 0);
+    } else {
+      _gc.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _gc.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +170,13 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     final skel = v['hubSkel'] == true;
     final empty = !skel && v['hubEmpty'] == true;
 
+    // Qo'llanma animatsiyasi kadrma-kadr qayta chizadi — TANA shu sababli
+    // AnimatedBuilder ichida quriladi (qo'llanma o'chiq bo'lsa _gc jim turadi
+    // va bu yerda hech narsa qimirlamaydi).
+    return AnimatedBuilder(animation: _gc, builder: (_, __) => _body(v, p, skel, empty));
+  }
+
+  Widget _body(Map<String, dynamic> v, Pal p, bool skel, bool empty) {
     // 4 ta karta: [Xarajatlar | Qarz daftar] / [Ijaradagi uylar | To'yxona].
     // Skeletda — shisha bloklar, bo'sh holatda — sub o'rniga kirish matni/CTA.
     final cards = skel ? _skelCards() : _cards(v, p, empty);
@@ -109,6 +211,10 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     return Stack(
       children: [
         Positioned.fill(child: body),
+        // Pastki-CHAP: narx qo'llanmasi tugmasi (chat FAB'ining qarshisida,
+        // grid pastidagi bo'sh joyda — grid pb:96 shu ikkisiga joy qoldiradi).
+        if (!skel)
+          Positioned(left: Tb.padX, bottom: 24, child: _guideBtn(p)),
         Positioned(
           right: Tb.padX,
           bottom: 24,
@@ -170,6 +276,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
   List<Widget> _cards(Map<String, dynamic> v, Pal p, bool empty) => [
         _card(
           v, p,
+          t: _iconT(),
+          k: _typeT(0),
           module: 'xarajat',
           asset: 'assets/illustrations/xarajat.png',
           icon: Icons.account_balance_wallet_outlined,
@@ -177,6 +285,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
         ),
         _card(
           v, p,
+          t: _iconT(),
+          k: _typeT(1),
           module: 'qarz',
           asset: 'assets/illustrations/daftar.png',
           icon: Icons.description_outlined,
@@ -184,6 +294,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
         ),
         _card(
           v, p,
+          t: _iconT(),
+          k: _typeT(2),
           module: 'ijarachi',
           asset: 'assets/illustrations/ijara.png',
           icon: Icons.apartment_rounded,
@@ -191,6 +303,8 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
         ),
         _card(
           v, p,
+          t: _iconT(),
+          k: _typeT(3),
           module: 'toyxona',
           asset: 'assets/illustrations/toyxona.png',
           icon: Icons.favorite_border_rounded,
@@ -200,19 +314,25 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
 
   // ──────────────────── UMUMIY KARTA QOBIG'I ────────────────────
   // Hub'dagi BARCHA kartalar AYNAN shu qobiqdan chiqadi. Anatomiya (tepadan):
-  //   [yuqori-o'ng: «Bepul» badge (bepul modul) yoki TARIF 12 t4]  ->
   //   markazda illyustratsiya (asset yo'q bo'lsa gradient qutidagi ikonka)  ->
-  //   nom 17/600 (Inter Tight)  ->
-  //   [pastki-chap: «N ta yozuv bepul» mint badge / «Bepul limit tugadi» coral,
-  //    bosilsa paywall — _freeChip].
-  //   Sub matn YO'Q (PO 2026-09-08).
+  //   [chapda: «N ta yozuv bepul» mint badge / «Bepul limit tugadi» coral,
+  //    bosilsa paywall — _freeChip]  ->
+  //   nom 17/600 (Inter Tight) — ENG PASTDA.
+  // PO 2026-09-08 (kech): kartada TARIF («$8/oy») va «Bepul» badge YO'Q —
+  // narxlar faqat «Narxni bilish» qo'llanmasida; badge NOM USTIGA ko'chdi
+  // (ilgari nom ostida edi). Sub matn YO'Q.
   //
   // 2026-08-10 audit: qulf KIRISHNI to'smaydi — karta bosilganda DOIM bo'lim
   // ochiladi. Backend o'qishni hech qachon bloklamaydi: limit tugagan
   // foydalanuvchi ham O'Z yozuvlarini ko'ra olishi kerak, karta esa paywall'ga
   // burab ma'lumotni «garovga» olardi. Paywall YOZISHDA (server 402 ->
   // Api.onPaymentRequired -> openPaywall_) o'zi ochiladi; qulf CHIPI ko'rinib
-  // turadi va bosilsa paywall'ni ochadi (_modChip).
+  // turadi va bosilsa paywall'ni ochadi (_freeChip).
+  //
+  // QO'LLANMA (t — ikonka ko'chishi 0..1, k — matn yozilishi 0..1):
+  //   t: ikonka markazdan YUQORI-CHAP burchakka kichrayib ko'chadi (kHubGuideIcon),
+  //      badge qatori so'nib YIG'ILADI (joy matnga qoladi);
+  //   k: bo'shagan markazda tarif + izoh «yozilgandek» belgima-belgi chiqadi.
   Widget _card(
     Map<String, dynamic> v,
     Pal p, {
@@ -220,43 +340,25 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     required String asset,
     required IconData icon,
     required VoidCallback onTap,
+    double t = 0,
+    double k = 0,
   }) {
     final name = modStr(kModNameKey[module] ?? '');
-    // PRO badge YO'Q (2026-09-08): modullar alohida sotiladi — faqat modul chipi.
-    final badge = _modChip(v, p, module);
-    final priceTx = _priceTx(v, p, module); // null = bepul modul
     final freeTx = _freeChip(v, p, module); // null = badge chizilmaydi
     return Tap(
-      onTap: onTap,
+      // QO'LLANMA rejimida karta BOSILMAYDI (PO 2026-09-08): hub shu paytda
+      // navigatsiya emas, tushuntirish qatlami. Qo'llanma o'chirilishi bilan
+      // onTap aynan avvalgi ko'rinishiga qaytadi.
+      onTap: _guide ? null : onTap,
       child: GlassCard(
         key: ValueKey('hubCard_$module'),
         r: Tb.rCard,
         pad: const EdgeInsets.all(16),
+        // Qo'llanmada chegara brend rangiga o'tadi — karta "gapirayotgani" ko'rinsin.
+        border: t > 0 ? Color.lerp(p.glassBd, p.cyan.withValues(alpha: .45), t) : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Yuqori-o'ng qatori — «Bepul» badge (bepul modul) VA TARIF
-            // (PO 2026-09-08: narx nom ostidan YUQORI-O'NG burchakka ko'chdi).
-            // Hech biri bo'lmasa ham 24px: to'rttala karta bir xil tuzilma.
-            // Tor kartada (320pt, ru/fr) sig'masa BUTUN qator kichrayadi.
-            SizedBox(
-              height: 24,
-              child: Align(
-                alignment: Alignment.topRight,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (badge != null) badge,
-                      if (badge != null && priceTx != null) const SizedBox(width: 6),
-                      if (priceTx != null) priceTx,
-                    ],
-                  ),
-                ),
-              ),
-            ),
             // Illyustratsiya — qolgan bo'sh joyni egallaydi, kvadrat (max 140).
             // O'lcham LayoutBuilder'dan: FittedBox EMAS — yuklanmagan Image
             // 0×0 bo'lib, FittedBox aspekt assert'iga uriladi.
@@ -268,33 +370,190 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
                   var s = w < h ? w : h;
                   if (s > 140) s = 140;
                   if (s < 0) s = 0;
-                  return Center(child: Illustration(asset: asset, fallback: icon, size: s));
+                  if (t <= 0) {
+                    return Center(child: Illustration(asset: asset, fallback: icon, size: s));
+                  }
+                  final small = s < kHubGuideIcon ? s : kHubGuideIcon;
+                  final size = s + (small - s) * t;
+                  final align = Alignment.lerp(Alignment.center, Alignment.topLeft, t) ?? Alignment.center;
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Align(
+                          alignment: align,
+                          child: Illustration(asset: asset, fallback: icon, size: size),
+                        ),
+                      ),
+                      // Matn ikonka qatori OSTIDA (ustma-ust tushmaydi); yozilishi
+                      // (k) ikonka ko'chib BO'LGACH boshlanadi — _toggleGuide.
+                      Positioned(
+                        top: kHubGuideIcon + 4, left: 0, right: 0, bottom: 0,
+                        child: _guideBody(v, p, module, w, k),
+                      ),
+                    ],
+                  );
                 },
               ),
             ),
             const SizedBox(height: 10),
+            // BADGE qatori — «N ta yozuv bepul» / «Bepul limit tugadi» (22) + 8
+            // oraliq. Badge bo'lmasa ham 30px: to'rttala karta bir xil tuzilma.
+            // QO'LLANMADA so'nadi va YIG'ILADI (heightFactor) — joy matnga
+            // qoladi; ko'rinmas qulf chipi bosilmasin (IgnorePointer).
+            ClipRect(
+              child: Align(
+                alignment: Alignment.topLeft,
+                heightFactor: (1 - t).clamp(0.0, 1.0),
+                child: IgnorePointer(
+                  ignoring: t > 0,
+                  child: Opacity(
+                    opacity: (1 - t).clamp(0.0, 1.0),
+                    child: SizedBox(
+                      height: 30,
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          height: 22,
+                          child: freeTx == null
+                              ? const SizedBox.shrink()
+                              : FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: freeTx),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             // Nom «...» bilan kesilmaydi — uzun tarjima (ru/fr) kichrayadi
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Tx(name, size: 17, w: FontWeight.w600, color: p.ink, font: TbFont.head, maxLines: 1),
             ),
-            const SizedBox(height: 8),
-            // PASTKI qatori — «N ta yozuv bepul» (PO 2026-09-08). Badge
-            // bo'lmasa ham 22px: to'rttala karta bir xil tuzilma.
-            SizedBox(
-              height: 22,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: freeTx == null
-                    ? const SizedBox.shrink()
-                    : FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: freeTx),
-              ),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  // ──────────── NARX QO'LLANMASI («Narxni bilish») ────────────
+  // Butun qo'llanma — SOF KO'RINISH qatlami: server so'rovi, holat yozuvi va
+  // navigatsiya YO'Q. Tugma o'chirilsa hub avvalgi holiga qaytadi.
+
+  /// Pastki-chapdagi toggle tugma. Bosilmagan holat — KO'TARILGAN (soya),
+  /// bosilgan holat — botgan (soya yo'q, 3pt pastga siljigan, brend rangi):
+  /// foydalanuvchi tugmaning YOQILGANINI bir qarashda ko'radi.
+  Widget _guideBtn(Pal p) {
+    final on = _guide;
+    return Tap(
+      key: const ValueKey('hubGuideBtn'),
+      onTap: _toggleGuide,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        transform: Matrix4.translationValues(0, on ? 3 : 0, 0),
+        decoration: BoxDecoration(
+          color: on ? p.cyan.withValues(alpha: .18) : p.glass2,
+          borderRadius: BorderRadius.circular(Tb.rPill),
+          border: Border.all(color: on ? p.cyan.withValues(alpha: .55) : p.glassBd),
+          boxShadow: on
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: p.isDark ? .45 : .14),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              on ? Icons.local_offer_rounded : Icons.local_offer_outlined,
+              size: 18,
+              color: on ? p.cyan : p.t2,
+            ),
+            const SizedBox(width: 8),
+            Tx(modStr('hubGuideBtn'), size: 14, w: FontWeight.w600, color: on ? p.cyan : p.ink, maxLines: 1),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Karta MARKAZIDAGI qo'llanma bloki: tarif + izoh, «yozilgandek» (k 0..1).
+  ///
+  /// YOZUV MEXANIKASI: matn TO'LIQ joylashtiriladi, hali yozilmagan qismi
+  /// SHAFFOF — shunda belgilar chiqqan sari satrlar sakramaydi (o'rama va
+  /// markazlash yakuniy holat bilan bir xil). Avval narx, keyin izoh.
+  /// FittedBox — kichik kartada (kHubCardH=200) blok o'zi kichrayadi, toshmaydi.
+  Widget _guideBody(Map<String, dynamic> v, Pal p, String module, double w, double k) {
+    final price = _guidePrice(v, module);
+    final note = _guideNote(v, module);
+    final shown = (k * (price.length + note.length)).round();
+    final sp = shown.clamp(0, price.length);
+    final sn = (shown - price.length).clamp(0, note.length);
+    final priceSt = tbStyle(size: 20, w: FontWeight.w700, color: p.ink, font: TbFont.head, tab: true);
+    final noteSt = tbStyle(size: 11, color: p.t2, lh: 14);
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(
+          width: w,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _typed(price, sp, priceSt, key: ValueKey('hubGuidePrice_$module'), maxLines: 1),
+              if (note.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _typed(note, sn, noteSt, key: ValueKey('hubGuideNote_$module'), maxLines: 4),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// `s` matnining birinchi `n` belgisi ko'rinadi, qolgani SHAFFOF (joy egallaydi).
+  Widget _typed(String s, int n, TextStyle st, {Key? key, int? maxLines}) {
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: s.substring(0, n), style: st),
+        TextSpan(text: s.substring(n), style: st.copyWith(color: Colors.transparent)),
+      ]),
+      key: key,
+      textAlign: TextAlign.center,
+      maxLines: maxLines,
+      textScaler: TextScaler.noScaling,
+    );
+  }
+
+  /// Qo'llanmadagi NARX satri. Bepul modulda (Xarajatlar) — «Bepul».
+  /// MANBA: server modSubs[].price, oflaynda kSubModuleDefaults; do'kon narxi
+  /// bo'lsa modPriceLabel o'sha summani beradi. Qotirilgan narx satri YO'Q.
+  String _guidePrice(Map<String, dynamic> v, String module) {
+    if (subsModuleFree(module, v['modSubs'])) return modStr('subFree');
+    final price = (_modOf(v, module)?['price'] as int?) ?? modDefPrice(module);
+    return modPriceLabel(module, price);
+  }
+
+  /// Narx ostidagi izoh: xarajat/qarz — «cheksiz yozuv» (bepul / pullik
+  /// rejaning mohiyati), ijara — {n} ta uy, to'yxona — bitta to'yxona +
+  /// qo'shimchasi uchun alohida {price}. Har jumla ORTIDA ishlaydigan tarif
+  /// bor (pwTitle* bilan bir ma'no) — bu yerda yangi va'da berilmaydi.
+  String _guideNote(Map<String, dynamic> v, String module) {
+    final k = kHubGuideNoteKey[module];
+    if (k == null) return '';
+    final price = (_modOf(v, module)?['price'] as int?) ?? modDefPrice(module);
+    return modStrF(k, {
+      'n': '${kModCapUnits[module] ?? 0}',
+      'price': modPriceLabel(module, price),
+    });
   }
 
   // ─────────────────── MODUL OBUNALARI (per-module subs) ───────────────────
@@ -327,24 +586,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
     return false;
   }
 
-  /// Kartaning yuqori-o'ng chipi: FAQAT «Bepul» badge (modul hamma uchun
-  /// bepul bo'lsa — Xarajatlar, PO 2026-09-08). Boshqa modullarda null —
-  /// o'sha joyni TARIF egallaydi (_priceTx).
-  ///
-  /// Hisoblagich va qulf endi bu yerda EMAS: ular PASTKI «N ta yozuv bepul»
-  /// badge'iga ko'chdi (_freeChip, PO 2026-09-08) — bitta kartada bir xil
-  /// fakt ikki joyda turmasin.
-  Widget? _modChip(Map<String, dynamic> v, Pal p, String module) {
-    // Legacy premium bo'lsa ham ko'rinadi: bu tarif haqidagi fakt, holat nishoni emas.
-    if (subsModuleFree(module, v['modSubs'])) {
-      return KeyedSubtree(
-        key: ValueKey('hubFree_$module'),
-        child: PillBadge.mint(modStr('subFree')),
-      );
-    }
-    return null;
-  }
-
   /// Kartaning PASTKI-CHAP badge'i — «N ta yozuv bepul» (PO 2026-09-08).
   ///
   /// DINAMIK: `n` = qolgan bepul yozuvlar (limit − used), manba
@@ -369,28 +610,6 @@ class _HomeHubScreenState extends State<HomeHubScreen> {
       onTap: () => _openPaywall(v, module),
       child: PillBadge.coral(modStr('subFreeOver'), h: 22, icon: Icons.lock_outline_rounded),
     );
-  }
-
-  /// Kartaning YUQORI-O'NG burchagidagi tarif («$5/oy», 12 t4) — chip yonida.
-  ///
-  /// MANBA — SERVER: modSubs[].price (GET /api/subs/status). Lokal
-  /// `kSubModuleDefaults` FAQAT oflayn zaxira (server javob bermadi / legacy
-  /// premium / modul ro'yxatda yo'q). Widget ichida QOTIRILGAN narx satri
-  /// bo'lishi MUMKIN EMAS — eskirgan «$9/oy» tarif o'zgarganidan keyin ham
-  /// 6 tilda chiqib ketgan edi. Format ham qotirilmaydi: modPriceTxt
-  /// «{price}/oy» kalitini joriy tildan oladi.
-  ///
-  /// OBUNA FAOL bo'lganda ham KO'RSATILADI: bu kartaning "tarifi", holat
-  /// nishoni emas — PO uni barcha kartalarda STANDART tarzda so'ragan.
-  ///
-  /// VALYUTA (PO qarori 2026-08-04): `modPriceLabel` avval DO'KON narxini oladi
-  /// (foydalanuvchi haqiqatan to'laydigan summa), u bo'lmasa katalog narxini.
-  ///
-  /// BEPUL modulda (subsModuleFree) null — tarif yo'q, «Bepul» badge yuqorida.
-  Widget? _priceTx(Map<String, dynamic> v, Pal p, String module) {
-    if (subsModuleFree(module, v['modSubs'])) return null;
-    final price = (_modOf(v, module)?['price'] as int?) ?? modDefPrice(module);
-    return Tx(modPriceLabel(module, price), size: 12, w: FontWeight.w500, color: p.t4, tab: true, maxLines: 1);
   }
 
   // ─────────────────────────── SARLAVHA ───────────────────────────

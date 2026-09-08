@@ -15,6 +15,10 @@ import {
   isDateStr, daysBetween, monthBounds, SLOTS, STATUSES, DEDUP_MS,
 } from './toyxona.js';
 
+/** 024: computeTotals qo'shimcha maydonlar (bonus/refunded/penalty/refundDue) qaytaradi —
+ *  eski testlar faqat asosiy 5 maydonni tekshiradi. */
+const core = (t) => ({ food: t.food, extras: t.extras, total: t.total, paid: t.paid, left: t.left });
+
 // ============================ Pul validatsiyasi ============================
 // Bu blok 2026-08-04 review topilmasini QULFLAYDI: money() eksport qilinmagani
 // uchun testsiz qolgan edi va JS'ning Number(null)===0 xatti-harakati tufayli
@@ -89,7 +93,7 @@ test('computeTotals — food + extras − to\'lovlar', () => {
     { amount: 500_000, qty: 2 },     // fotograf ×2
   ];
   const payments = [{ amount: 10_000_000 }];
-  assert.deepEqual(computeTotals(booking, items, payments), {
+  assert.deepEqual(core(computeTotals(booking, items, payments)), {
     food: 30_000_000,      // 200 × 150 000
     extras: 4_000_000,     // 3 000 000 + 2 × 500 000
     total: 34_000_000,
@@ -99,7 +103,7 @@ test('computeTotals — food + extras − to\'lovlar', () => {
 });
 
 test('computeTotals — bo\'sh band (xizmat/to\'lov yo\'q)', () => {
-  assert.deepEqual(computeTotals({ guests: 100, price_per_guest: 100_000 }, [], []), {
+  assert.deepEqual(core(computeTotals({ guests: 100, price_per_guest: 100_000 }, [], [])), {
     food: 10_000_000, extras: 0, total: 10_000_000, paid: 0, left: 10_000_000,
   });
 });
@@ -112,12 +116,12 @@ test('computeTotals — ortiqcha to\'lov left ni MANFIY qiladi (qaytarim ko\'rin
 
 test('computeTotals — narx 0 (kelishilmagan) yiqilmaydi, NaN chiqmaydi', () => {
   const t = computeTotals({ guests: 300, price_per_guest: 0 }, [{ amount: 200_000, qty: 1 }], []);
-  assert.deepEqual(t, { food: 0, extras: 200_000, total: 200_000, paid: 0, left: 200_000 });
+  assert.deepEqual(core(t), { food: 0, extras: 200_000, total: 200_000, paid: 0, left: 200_000 });
 });
 
 test('computeTotals — buzuq qatorlar (null/undefined) NaN tarqatmaydi', () => {
   const t = computeTotals({}, [{ amount: null, qty: 2 }, {}], [{ amount: undefined }]);
-  assert.deepEqual(t, { food: 0, extras: 0, total: 0, paid: 0, left: 0 });
+  assert.deepEqual(core(t), { food: 0, extras: 0, total: 0, paid: 0, left: 0 });
 });
 
 test('overMax — KO\'PAYTMA chegarasi (har omil alohida chegarada bo\'lsa ham)', () => {
@@ -212,6 +216,7 @@ test('foldSummary — xizmatlar yakunga qo\'shiladi, bo\'sh oraliq nol beradi', 
   assert.deepEqual(foldSummary([]), {
     count: 0, countActive: 0, total: 0, paid: 0, left: 0, cancelledPaid: 0,
     byStatus: { band: 0, tasdiq: 0, yakun: 0, bekor: 0 },
+    penalties: 0, refunded: 0, bonus: 0, guests: 0, avgCheck: 0, topServices: [],   // 024
   });
 });
 
@@ -424,4 +429,110 @@ test('searchTerms — uzunlik chegarasi: nom 80, telefon 20 belgidan oshmaydi', 
   // qidiruv naqshi saqlangan qiymatdan uzun bo'lishi ma'nosiz (va URL shishiradi).
   assert.equal(searchTerms('a'.repeat(200)).text.length, 80);
   assert.equal(searchTerms('9'.repeat(60)).digits.length, 20);
+});
+
+// ============================ 024 — to'yxona v2 ============================
+import {
+  depositMin, parseCancelPolicy, cancelPenalty, normPhone, PRICE_MODES, KINDS,
+} from './toyxona.js';
+
+test('024 computeTotals — total rejimida podklyuch narxi, mehmon ko\'paytirilmaydi', () => {
+  const b = { guests: 300, price_per_guest: 200_000, price_mode: 'total', total_price: 40_000_000 };
+  const t = computeTotals(b, [], []);
+  assert.equal(t.food, 40_000_000);
+  assert.equal(t.total, 40_000_000);
+  // guest rejimi eski xulq
+  assert.equal(computeTotals({ ...b, price_mode: 'guest' }, [], []).food, 60_000_000);
+});
+
+test('024 computeTotals — bonus xizmat jamiga KIRMAYDI, lekin qiymati ko\'rinadi', () => {
+  const items = [
+    { title: 'Video', amount: 3_000_000, qty: 1 },
+    { title: 'Sahna', amount: 2_000_000, qty: 1, is_bonus: true },
+  ];
+  const t = computeTotals({ guests: 10, price_per_guest: 100_000 }, items, []);
+  assert.equal(t.extras, 3_000_000);
+  assert.equal(t.bonus, 2_000_000);
+  assert.equal(t.total, 4_000_000);
+});
+
+test('024 computeTotals — qaytarim paid\'dan ayiriladi, refundDue faqat bekorda', () => {
+  const pays = [{ amount: 5_000_000, kind: 'avans' }, { amount: 1_000_000, kind: 'qaytarim' }];
+  const t = computeTotals({ guests: 1, price_per_guest: 10_000_000 }, [], pays);
+  assert.equal(t.paid, 4_000_000);
+  assert.equal(t.refunded, 1_000_000);
+  assert.equal(t.left, 6_000_000);
+  assert.equal(t.refundDue, 0);
+  const c = computeTotals({ guests: 1, price_per_guest: 10_000_000, status: 'bekor', cancel_penalty: 1_500_000 }, [], pays);
+  assert.equal(c.penalty, 1_500_000);
+  assert.equal(c.refundDue, 2_500_000);
+});
+
+test('024 depositMin — foiz yuqoriga yaxlitlanadi, 0% = talab yo\'q', () => {
+  assert.equal(depositMin(10_000_001, 30), 3_000_001);
+  assert.equal(depositMin(10_000_000, 0), 0);
+  assert.equal(depositMin(0, 50), 0);
+});
+
+test('024 parseCancelPolicy — tartiblaydi, takror/chegara rad etiladi', () => {
+  const r = parseCancelPolicy([{ days: 7, pct: 50 }, { days: 30, pct: 0 }, { days: 0, pct: 100 }]);
+  assert.deepEqual(r.policy.map((x) => x.days), [30, 7, 0]);
+  assert.equal(parseCancelPolicy(null).policy.length, 0);
+  assert.ok(parseCancelPolicy([{ days: 7, pct: 50 }, { days: 7, pct: 20 }]).error);
+  assert.ok(parseCancelPolicy([{ days: -1, pct: 50 }]).error);
+  assert.ok(parseCancelPolicy([{ days: 5, pct: 101 }]).error);
+  assert.ok(parseCancelPolicy('x').error);
+});
+
+test('024 cancelPenalty — pog\'ona: qolgan kunga MOS eng katta days', () => {
+  const policy = [{ days: 30, pct: 0 }, { days: 7, pct: 50 }, { days: 0, pct: 100 }];
+  const paid = 4_000_000;
+  assert.equal(cancelPenalty(policy, paid, 45), 0);        // 30+ kun → 0%
+  assert.equal(cancelPenalty(policy, paid, 30), 0);
+  assert.equal(cancelPenalty(policy, paid, 10), 2_000_000); // 7..29 → 50%
+  assert.equal(cancelPenalty(policy, paid, 2), 4_000_000);  // <7 → 100%
+  assert.equal(cancelPenalty(policy, paid, -3), 4_000_000); // o'tib ketgan to'y → 0 kun pog'onasi
+  assert.equal(cancelPenalty([], paid, 2), 0);               // siyosat yo'q
+  assert.equal(cancelPenalty(policy, 0, 2), 0);              // pul tushmagan
+  // Pog'ona topilmasa (barcha days > daysLeft… bo'lmaydi chunki 0 bor); 0 pog'onasiz:
+  assert.equal(cancelPenalty([{ days: 7, pct: 50 }], paid, 3), 0);
+});
+
+test('024 normPhone — faqat raqam, uzunlik tekshiruvi', () => {
+  assert.equal(normPhone('+998 90 123-45-67'), '998901234567');
+  assert.equal(normPhone(''), null);
+  assert.equal(normPhone(null), null);
+  assert.equal(normPhone('12345'), false);
+  assert.equal(normPhone('1'.repeat(16)), false);
+});
+
+test('024 foldSummary — jarima/qaytarim/bonus/avgCheck/topServices', () => {
+  const rows = [
+    { id: 'a', guests: 100, price_per_guest: 100_000, status: 'tasdiq', price_mode: 'guest' },
+    { id: 'b', guests: 0, price_per_guest: 0, status: 'tasdiq', price_mode: 'total', total_price: 30_000_000 },
+    { id: 'c', guests: 50, price_per_guest: 100_000, status: 'bekor', cancel_penalty: 1_000_000 },
+  ];
+  const items = new Map([
+    ['a', [{ title: 'Video', amount: 2_000_000, qty: 1 }, { title: 'Shou', amount: 500_000, qty: 2, is_bonus: true }]],
+    ['b', [{ title: 'Video', amount: 2_000_000, qty: 1 }]],
+  ]);
+  const pays = new Map([
+    ['c', [{ amount: 3_000_000, kind: 'avans' }, { amount: 2_000_000, kind: 'qaytarim' }]],
+  ]);
+  const s = foldSummary(rows, items, pays);
+  assert.equal(s.total, 10_000_000 + 2_000_000 + 30_000_000 + 2_000_000);
+  assert.equal(s.bonus, 1_000_000);
+  assert.equal(s.penalties, 1_000_000);
+  assert.equal(s.refunded, 2_000_000);
+  assert.equal(s.cancelledPaid, 1_000_000);
+  assert.equal(s.avgCheck, 22_000_000);
+  assert.equal(s.guests, 100);
+  assert.equal(s.topServices[0].title, 'Video');
+  assert.equal(s.topServices[0].count, 2);
+  assert.equal(s.topServices[0].amount, 4_000_000);
+});
+
+test('024 doimiylar', () => {
+  assert.deepEqual(PRICE_MODES, ['guest', 'total']);
+  assert.ok(KINDS.includes('qaytarim'));
 });

@@ -26,6 +26,8 @@ import '../theme.dart';
 import '../ui.dart';
 import '../toyxona_data.dart';
 import '../toyxona_l10n.dart';
+import '../toyxona_receipt.dart';
+import 'paywall_sheet.dart' show modDefPrice;
 
 /// Summani jonli "x xxx xxx" ko'rinishida guruhlovchi formatter —
 /// client_screen.dart nusxasi (F13): KURSOR O'RNINI SAQLAYDI. Eski variant
@@ -178,6 +180,15 @@ class _FormData {
   String note;
   /// Avans — faqat YANGI bronda ko'rinadi, foydalanuvchi kiritadi (ctor'da berilmaydi).
   String advance = '';
+  // ---- 024 ----
+  String priceMode; // 'guest' | 'total'
+  String totalPrice = ''; // 'total' rejimida butun to'yxona narxi
+  /// Yangi bronda katalogdan tanlangan servislar: service_id -> bonus?
+  final Map<String, bool> services = {};
+  /// Telefon bo'yicha topilgan mijoz (autofill). nameAuto — ism hali qo'lda
+  /// o'zgartirilmagan (keyingi topilma uni almashtirishi mumkin).
+  ClientHint? hint;
+  bool nameAuto = false;
   _FormData({
     this.id,
     required this.date,
@@ -190,6 +201,8 @@ class _FormData {
     this.guests = '',
     this.price = '',
     this.note = '',
+    this.priceMode = 'guest',
+    this.totalPrice = '',
   });
 }
 
@@ -226,7 +239,15 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   bool _monthMenu = false;
   Map<String, dynamic>? _confirm; // {title, body, danger, run}
   Map<String, dynamic>? _hallEdit; // {id?, hallId?, name, cap, price}
-  Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price}
+  Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price, seats, items}
+  // ---- 024 ----
+  bool _servicesOpen = false; // servislar katalogi qatlami
+  Map<String, dynamic>? _svcEdit; // {id?, title, price}
+  Map<String, dynamic>? _cancelSheet; // {id, preview?, penalty, reason, refundNow}
+  Timer? _phoneT; // telefon → mijoz autofill debounce
+  int _phoneSeq = 0;
+  bool _svcBonus = false; // tafsilotdagi xizmat formasi: bonus
+  String? _svcServiceId; // tafsilotdagi xizmat formasi: katalog id
 
   // Tafsilotdagi kichik formalar
   bool _svcOpen = false;
@@ -297,6 +318,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     if (!widget.handleSystemBack) store.clearModuleBack_(_backHook);
     _toastT?.cancel();
     _searchT?.cancel();
+    _phoneT?.cancel();
     _monthMenuCtl?.dispose();
     super.dispose();
   }
@@ -329,7 +351,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         _toastMsg(d.isEmpty ? ty('slotTaken') : '${ty('slotTaken')} · $d');
         return;
       case 'HALL_LIMIT':
-        _toastMsg(ty('oneVenueNote'));
+        _toastMsg(ty('perHallNote', {'price': '${modDefPrice('toyxona')}'}));
         return;
       case 'SUB_EXPIRED':
         _toastMsg(ty('errSubExpired'));
@@ -413,6 +435,14 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       setState(() => _tierEdit = null);
       return true;
     }
+    if (_svcEdit != null) {
+      setState(() => _svcEdit = null);
+      return true;
+    }
+    if (_cancelSheet != null) {
+      setState(() => _cancelSheet = null);
+      return true;
+    }
     if (_monthMenu) {
       setState(() => _monthMenu = false);
       return true;
@@ -422,6 +452,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     // qatlam yopilib, foydalanuvchi "orqaga bosdim, hech nima o'zgarmadi" derdi.
     if (_tiersHallId != null) {
       setState(() => _tiersHallId = null);
+      return true;
+    }
+    if (_servicesOpen) {
+      setState(() => _servicesOpen = false);
       return true;
     }
     if (_venuesOpen) {
@@ -466,6 +500,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       _payNote = '';
       _payKind = 'avans';
       _payDate = toyDay(DateTime.now());
+      _svcBonus = false;
+      _svcServiceId = null;
     });
   }
 
@@ -540,12 +576,15 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             if (_cancelledOpen) Positioned.fill(child: ScreenBg(child: _cancelledView(p))),
             if (_detailId != null) Positioned.fill(child: ScreenBg(child: _detail(p))),
             if (_form != null) Positioned.fill(child: ScreenBg(child: _formView(p))),
-            if (_venuesOpen && _tiersHallId == null) Positioned.fill(child: ScreenBg(child: _venuesView(p))),
+            if (_venuesOpen && _tiersHallId == null && !_servicesOpen) Positioned.fill(child: ScreenBg(child: _venuesView(p))),
+            if (_servicesOpen && _tiersHallId == null) Positioned.fill(child: ScreenBg(child: _servicesView(p))),
             if (_tiersHallId != null) Positioned.fill(child: ScreenBg(child: _tiersView(p))),
             if (_monthMenu) _monthMenuCard(p),
             if (_confirm != null) _confirmModal(p),
             if (_hallEdit != null) _hallEditModal(p),
             if (_tierEdit != null) _tierEditModal(p),
+            if (_svcEdit != null) _svcEditModal(p),
+            if (_cancelSheet != null) _cancelModal(p),
             ToastView(open: _toast.isNotEmpty, text: _toast),
           ],
         );
@@ -554,7 +593,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     if (!widget.handleSystemBack) return body;
     // Preview rejimi: apparat "orqaga" ochiq qatlamni yopadi.
     return PopScope(
-      canPop: !_anyLayer && _confirm == null && _hallEdit == null && _tierEdit == null && !_monthMenu,
+      canPop: !_anyLayer && _confirm == null && _hallEdit == null && _tierEdit == null && _svcEdit == null && _cancelSheet == null && !_servicesOpen && !_monthMenu,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         _closeTop();
@@ -1064,6 +1103,27 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           ),
           const SizedBox(height: 6),
           Tx(ty('advanceLine', {'paid': toyMoney(s.paid), 'left': toyMoney(s.left)}), size: 13, color: p.t2, lh: 18),
+          // 024 analitika: bandlik % · o'rtacha chek · eng ko'p sotilgan servis
+          if (s.countActive > 0) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                PillBadge.muted(ty('occupancyChip', {'pct': _pctTxt(s.occupancyPct)}), h: 22),
+                PillBadge.muted(ty('avgCheckChip', {'sum': toyFx(s.avgCheck)}), h: 22),
+                if (s.topServices.isNotEmpty)
+                  PillBadge.cyan(
+                    ty('topServiceChip', {
+                      'title': '${s.topServices.first['title']}',
+                      'n': '${s.topServices.first['count']}',
+                    }),
+                    h: 22,
+                  ),
+                if (s.bonus > 0) PillBadge.mint(ty('bonusChip', {'sum': toyFx(s.bonus)}), h: 22),
+              ],
+            ),
+          ],
           // Bekor qilingan bronlardan qolgan pul — ALOHIDA qator, faqat bor bo'lsa.
           // Yuqoridagi raqamlardan TINCHROQ (t3): bu bo'lib o'tgan to'y daromadi
           // emas, lekin egada qolgan pul — kassaga mos kelishi uchun ko'rinadi.
@@ -1603,6 +1663,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         price: tiers.isNotEmpty
             ? toyFx(tiers.first.pricePerGuest)
             : (hall != null && hall.pricePerGuest > 0 ? toyFx(hall.pricePerGuest) : ''),
+        // 024: rejim va podklyuch narxi to'yxona defaultidan
+        priceMode: hall?.priceMode ?? 'guest',
+        totalPrice: hall != null && hall.totalPrice > 0 ? toyFx(hall.totalPrice) : '',
       );
     });
     // U1: har ochilishda shu kun QAYTA so'raladi (kesh eskirgan bo'lishi
@@ -1626,6 +1689,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         guests: '${b.guests}',
         price: toyFx(b.pricePerGuest),
         note: b.note,
+        priceMode: b.priceMode,
+        totalPrice: b.totalPrice > 0 ? toyFx(b.totalPrice) : '',
       );
     });
     _dayFetched.remove(toyYmd(b.eventDate)); // U1: yangi ochilishda qayta so'raladi
@@ -1746,6 +1811,23 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   _statusBadge(b.status, h: 24),
                 ],
               ),
+              // 024: mijoz Trustbook'da / avans kutilmoqda (hold)
+              if (b.inTrustbook || b.onHold) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (b.inTrustbook) PillBadge.mint(ty('inTrustbook'), h: 22, icon: Icons.verified_rounded),
+                    if (b.onHold)
+                      PillBadge.amber(ty('holdUntil', {'t': _holdLeft(b.holdUntil!)}), h: 22, icon: Icons.timer_outlined),
+                  ],
+                ),
+              ],
+              if (b.cancelled && b.cancelReason.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Tx(ty('cancelReasonLine', {'r': b.cancelReason}), size: 13, color: p.t3, lh: 18),
+              ],
               if (b.note.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -1789,7 +1871,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Tx(
-                      b.menuTitle.isEmpty
+                      b.isTotalMode
+                          ? ty('totalModeLine', {'guests': '${b.guests}'})
+                          : b.menuTitle.isEmpty
                           ? ty('guestsMath', {'guests': '${b.guests}', 'price': toyFx(b.pricePerGuest)})
                           : ty('tierMath', {
                               'title': b.menuTitle,
@@ -1828,12 +1912,34 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                 _totalRow(p, ty('totalLabel'), toyMoney(b.total), p.t4, big: true),
                 const SizedBox(height: 8),
                 _totalRow(p, ty('cancelledKept'), toyMoney(b.paid), p.mint),
+                // 024: jarima (ushlab qolingan) va qaytarilishi kerak bo'lgan qoldiq
+                if (b.cancelPenalty > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow(p, ty('penaltyLabel'), toyMoney(b.cancelPenalty), p.coral),
+                ],
+                if (b.refundDue > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow(p, ty('refundDueLabel'), toyMoney(b.refundDue), p.amber, big: true),
+                ],
               ] else ...[
                 _totalRow(p, ty('totalLabel'), toyMoney(b.total), p.ink, big: true),
+                if (b.bonus > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow(p, ty('bonusLabel'), toyMoney(b.bonus), p.t3),
+                ],
                 const SizedBox(height: 8),
                 _totalRow(p, ty('paidLabel'), toyMoney(b.paid), p.mint),
+                if (b.refunded > 0) ...[
+                  const SizedBox(height: 8),
+                  _totalRow(p, ty('refundedLabel'), toyMoney(b.refunded), p.t3),
+                ],
                 const SizedBox(height: 8),
                 _totalRow(p, ty('leftLabel'), toyMoney(b.left), _leftColor(b.left, p), big: true),
+                // 024: minimal avans (to'yxona sozlamasi) hali to'lanmagan bo'lsa
+                if (_depositShort(b) > 0) ...[
+                  const SizedBox(height: 6),
+                  Tx(ty('depositShort', {'sum': toyMoney(_depositShort(b))}), size: 12, color: p.amber),
+                ],
               ],
             ],
           ),
@@ -1868,8 +1974,22 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           // 'nom × soni' — summa esa amount × qty (U3; BookingItem.total)
           Expanded(
             flex: 3,
-            child: Tx(it.qty > 1 ? '${it.title} × ${it.qty}' : it.title,
-                size: 14, color: p.ink, maxLines: 1, ellipsis: true),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Tx(it.qty > 1 ? '${it.title} × ${it.qty}' : it.title,
+                      size: 14, color: it.isBonus ? p.t3 : p.ink, maxLines: 1, ellipsis: true),
+                ),
+                // 024: bonus belgisi — bosilsa bonus yechiladi/qo'yiladi
+                const SizedBox(width: 6),
+                Tap(
+                  onTap: _busy ? null : () => _toggleBonus(it),
+                  child: it.isBonus
+                      ? PillBadge.mint(ty('bonusBadge'), h: 20, icon: Icons.card_giftcard_rounded)
+                      : Icon(Icons.card_giftcard_outlined, size: 16, color: p.t5),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
           // Pul kesilmaydi (F14)
@@ -1878,13 +1998,22 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
-              child: Tx(toyMoney(it.total), size: 14, w: FontWeight.w600, color: p.ink, tab: true),
+              child: Tx(toyMoney(it.total), size: 14, w: FontWeight.w600,
+                  color: it.isBonus ? p.t4 : p.ink, tab: true, strike: it.isBonus),
             ),
           ),
           _xBtn(p, () => _askDeleteItem(it)),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleBonus(BookingItem it) async {
+    setState(() => _busy = true);
+    final ok = await toyRepo.setItemBonus(it.id, !it.isBonus);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ok ? _toastMsg(ty('saved')) : _toastErr();
   }
 
   /// O'chirish (×) tugmasi — bosish maydoni kamida 40×40 (F14): to'y kuni
@@ -1909,17 +2038,48 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 024: avval EGA KATALOGI (narxi bilan), keyin tez chiplar
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
+              for (final sv in toyRepo.servicesFor(b.hallId))
+                _smallChip(
+                  p,
+                  sv.price > 0 ? '${sv.title} · ${toyFx(sv.price)}' : sv.title,
+                  _svcServiceId == sv.id,
+                  () => setState(() {
+                    _svcServiceId = sv.id;
+                    _svcTitle = sv.title;
+                    _svcAmount = sv.price > 0 ? toyFx(sv.price) : '';
+                  }),
+                ),
               for (final k in kToyQuickServiceKeys)
-                _smallChip(p, ty(k), _svcTitle == ty(k), () => setState(() => _svcTitle = ty(k))),
+                _smallChip(p, ty(k), _svcServiceId == null && _svcTitle == ty(k), () => setState(() {
+                      _svcServiceId = null;
+                      _svcTitle = ty(k);
+                    })),
             ],
           ),
           const SizedBox(height: 12),
-          _field(p, ty('svcTitleLabel'), _svcTitle, (v) => setState(() => _svcTitle = v),
+          _field(p, ty('svcTitleLabel'), _svcTitle, (v) => setState(() {
+                _svcTitle = v;
+                if (_svcServiceId != null && v != toyRepo.serviceById(_svcServiceId)?.title) _svcServiceId = null;
+              }),
               hint: ty('svcTitlePh')),
+          const SizedBox(height: 12),
+          // 024: bonus — bepul beriladi, narxi ko'rinadi, jamiga kirmaydi
+          Tap(
+            onTap: () => setState(() => _svcBonus = !_svcBonus),
+            child: Row(
+              children: [
+                Icon(_svcBonus ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                    size: 20, color: _svcBonus ? p.mint : p.t4),
+                const SizedBox(width: 8),
+                Expanded(child: Tx(ty('bonusToggle'), size: 14, color: p.t1)),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           // Summa + soni (U3): "6 ta salyut", "3 ta artist" — bir dona narxi
           // yoziladi, soni stepper bilan; ro'yxatda 'nom × soni' va jami chiqadi.
@@ -1954,6 +2114,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     _svcTitle = '';
                     _svcAmount = '';
                     _svcQty = 1;
+                    _svcBonus = false;
+                    _svcServiceId = null;
                   }),
                 ),
               ),
@@ -2011,12 +2173,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       _toastMsg(ty('needSvcTitle'));
       return;
     }
-    if (amount <= 0) {
+    if (amount <= 0 && !_svcBonus) {
       _toastMsg(ty('needTierPrice'));
       return;
     }
     setState(() => _busy = true);
-    final ok = await toyRepo.addItem(b.id, title, amount, qty: _svcQty);
+    final ok = await toyRepo.addItem(b.id, title, amount,
+        qty: _svcQty, serviceId: _svcServiceId, bonus: _svcBonus);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -2025,6 +2188,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         _svcTitle = '';
         _svcAmount = '';
         _svcQty = 1;
+        _svcBonus = false;
+        _svcServiceId = null;
       }
     });
     if (ok) {
@@ -2281,6 +2446,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       children: [
         GlassBtn(label: ty('edit'), icon: Icons.edit_outlined, h: 52, onTap: () => _openEditBooking(b)),
         const SizedBox(height: 10),
+        // 024: chek/PDF — mijozga ulashish (stol, servislar, avans, qoldiq, shartlar)
+        GlassBtn(label: ty('receiptBtn'), icon: Icons.receipt_long_outlined, h: 52, onTap: () => _shareReceipt(b)),
+        const SizedBox(height: 10),
         b.cancelled
             ? SolidBtn.coral(ty('deleteBooking'), () => _askDeleteBooking(b), icon: Icons.delete_outline_rounded)
             : TextBtn(label: ty('cancelBooking'), color: p.coral, onTap: () => _askCancelBooking(b)),
@@ -2288,21 +2456,162 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// 024: bekor varag'i — jarima (siyosat bo'yicha, ega o'zgartira oladi),
+  /// qaytariladigan summa, sabab, "pulni darhol qaytardim".
   void _askCancelBooking(Booking b) {
-    setState(() => _confirm = {
-          'title': ty('confirmCancelTitle'),
-          'body': ty('confirmCancelBody', {
+    final hall = toyRepo.hallById(b.hallId);
+    final daysLeft = toyDay(b.eventDate).difference(toyDay(DateTime.now())).inDays;
+    final localPen = toyCancelPenalty(hall?.cancelPolicy ?? const [], b.paid, daysLeft);
+    setState(() => _cancelSheet = {
+          'id': b.id,
+          'paid': b.paid,
+          'daysLeft': daysLeft,
+          'penalty': localPen > 0 ? toyFx(localPen) : '',
+          'reason': '',
+          'refundNow': false,
+          'loading': true,
+        });
+    // Server hisobi (to'yxona siyosati serverda ham) — kelsa lokalni almashtiradi
+    toyRepo.cancelPreview(b.id).then((pv) {
+      if (!mounted || _cancelSheet == null || _cancelSheet!['id'] != b.id) return;
+      setState(() {
+        _cancelSheet!['loading'] = false;
+        if (pv != null) {
+          _cancelSheet!['paid'] = pv.paid;
+          _cancelSheet!['daysLeft'] = pv.daysLeft;
+          _cancelSheet!['penalty'] = pv.penalty > 0 ? toyFx(pv.penalty) : '';
+        }
+      });
+    });
+  }
+
+  Widget _cancelModal(Pal p) {
+    final c = _cancelSheet!;
+    final b = toyRepo.byId('${c['id']}');
+    void close() => setState(() => _cancelSheet = null);
+    if (b == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _cancelSheet != null) close();
+      });
+      return const SizedBox.shrink();
+    }
+    final paid = (c['paid'] as int?) ?? 0;
+    final penalty = _digits('${c['penalty']}').clamp(0, paid).toInt();
+    final refund = paid - penalty;
+    final daysLeft = (c['daysLeft'] as int?) ?? 0;
+    return _sheet(
+      close,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTitle(p, ty('confirmCancelTitle'), close),
+          const SizedBox(height: 8),
+          Tx(ty('confirmCancelBody', {
             'name': b.clientName,
             'date': toyDateLong(b.eventDate),
             'slot': tySlot(b.slot),
-          }),
-          'danger': true,
-          'run': () async {
-            final ok = await toyRepo.setStatus(b.id, 'bekor');
-            if (!mounted) return;
-            ok ? _toastMsg(ty('cancelled')) : _toastErr();
-          },
-        });
+          }), size: 14, color: p.t2, lh: 20),
+          const SizedBox(height: 16),
+          GlassCard(
+            r: Tb.rRow,
+            pad: const EdgeInsets.all(14),
+            color: p.glass2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _totalRow(p, ty('daysLeftLabel'), '$daysLeft', p.t1),
+                const SizedBox(height: 6),
+                _totalRow(p, ty('cancelPaidLabel'), toyMoney(paid), p.mint),
+                const SizedBox(height: 6),
+                _totalRow(p, ty('penaltyLabel'), toyMoney(penalty), p.coral),
+                const SizedBox(height: 6),
+                _totalRow(p, ty('refundDueLabel'), toyMoney(refund), p.amber, big: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (paid > 0) ...[
+            _field(p, ty('penaltyEditLabel'), '${c['penalty']}', (v) => setState(() => c['penalty'] = v),
+                number: true, icon: Icons.gavel_rounded),
+            const SizedBox(height: 12),
+            Tap(
+              onTap: () => setState(() => c['refundNow'] = c['refundNow'] != true),
+              child: Row(
+                children: [
+                  Icon(c['refundNow'] == true ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                      size: 20, color: c['refundNow'] == true ? p.mint : p.t4),
+                  const SizedBox(width: 8),
+                  Expanded(child: Tx(ty('refundNowToggle', {'sum': toyMoney(refund)}), size: 14, color: p.t1)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          _field(p, ty('cancelReasonLabel'), '${c['reason']}', (v) => setState(() => c['reason'] = v),
+              hint: ty('cancelReasonPh'), icon: Icons.edit_outlined),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(child: GlassBtn(label: ty('no'), h: 52, onTap: close)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SolidBtn.coral(ty('cancelBooking'), _busy ? null : () => _runCancel(b, c),
+                    h: 52, loading: _busy),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runCancel(Booking b, Map<String, dynamic> c) async {
+    setState(() => _busy = true);
+    final paid = (c['paid'] as int?) ?? 0;
+    final ok = await toyRepo.cancelBooking(
+      b.id,
+      reason: '${c['reason']}'.trim(),
+      penalty: paid > 0 ? _digits('${c['penalty']}').clamp(0, paid).toInt() : null,
+      refundNow: c['refundNow'] == true,
+    );
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (ok) _cancelSheet = null;
+    });
+    ok ? _toastMsg(ty('cancelled')) : _toastErr();
+  }
+
+  /// 024: minimal avans (to'yxona deposit_pct) hali qoplanmagan qismi.
+  int _depositShort(Booking b) {
+    if (b.cancelled || b.status == 'yakun') return 0;
+    final pct = toyRepo.hallById(b.hallId)?.depositPct ?? 0;
+    final min = toyDepositMin(b.total, pct);
+    return min > b.paid ? min - b.paid : 0;
+  }
+
+  /// "2 kun 5 soat" / "3 soat" — hold qolgan vaqti.
+  String _holdLeft(DateTime until) {
+    final d = until.difference(DateTime.now());
+    if (d.inHours >= 24) return ty('holdDaysHours', {'d': '${d.inDays}', 'h': '${d.inHours % 24}'});
+    if (d.inHours >= 1) return ty('holdHours', {'h': '${d.inHours}'});
+    return ty('holdMinutes', {'m': '${d.inMinutes.clamp(1, 59)}'});
+  }
+
+  String _pctTxt(double v) {
+    if (v == v.roundToDouble()) return '${v.round()}';
+    return v.toStringAsFixed(1);
+  }
+
+  Future<void> _shareReceipt(Booking b) async {
+    setState(() => _busy = true);
+    try {
+      await shareBookingReceipt(b, hall: toyRepo.hallById(b.hallId), ownerName: '${store.S['meName'] ?? ''}');
+    } catch (_) {
+      if (mounted) _toastMsg(ty('receiptFailed'));
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   void _askDeleteBooking(Booking b) {
@@ -2335,8 +2644,19 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     final tiers = toyRepo.tiersOf(f.hallId);
     final guests = _digits(f.guests);
     final price = _digits(f.price);
-    final total = guests * price;
+    final totalMode = f.priceMode == 'total';
+    final food = totalMode ? _digits(f.totalPrice) : guests * price;
+    // 024: yangi bronda tanlangan servislar (bonus jamiga kirmaydi)
+    var extras = 0;
+    for (final e in f.services.entries) {
+      if (e.value) continue;
+      extras += toyRepo.serviceById(e.key)?.price ?? 0;
+    }
+    final total = food + extras;
     final tier = _tierById(tiers, f.menuId);
+    final hall = toyRepo.hallById(f.hallId);
+    final depMin = toyDepositMin(total, hall?.depositPct ?? 0);
+    final catalog = toyRepo.servicesFor(f.hallId);
 
     return Column(
       children: [
@@ -2382,8 +2702,28 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     ],
                   ),
                 ],
-                // ---- Narx toifasi ----
-                if (tiers.isNotEmpty) ...[
+                // ---- Narx rejimi (024): kishi boshiga / butun to'yxona ----
+                const SizedBox(height: 20),
+                Cap(ty('priceModeLabel')),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (final m in kToyPriceModes) ...[
+                      Expanded(
+                        child: PillChip(
+                          label: tyPriceMode(m),
+                          selected: f.priceMode == m,
+                          leading: Icon(m == 'total' ? Icons.home_work_outlined : Icons.person_outline_rounded,
+                              size: 16, color: f.priceMode == m ? p.bg : p.t2),
+                          onTap: () => setState(() => f.priceMode = m),
+                        ),
+                      ),
+                      if (m != kToyPriceModes.last) const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+                // ---- Stol turi (faqat kishi boshiga rejimida) ----
+                if (!totalMode && tiers.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Cap(ty('tierLabel')),
                   const SizedBox(height: 10),
@@ -2404,17 +2744,39 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                         ),
                     ],
                   ),
-                ] else if (f.hallId != null) ...[
+                ] else if (!totalMode && f.hallId != null) ...[
                   const SizedBox(height: 10),
                   Tx(ty('noTiersHint'), size: 13, color: p.t4),
                 ],
+                // 024: tanlangan stol turining taomlari (eslatma sifatida)
+                if (!totalMode && tier != null && tier.items.isNotEmpty && !f.priceManual) ...[
+                  const SizedBox(height: 8),
+                  Tx(tier.items.map((i) => i.label).join(' · '), size: 12, color: p.t4, lh: 16, maxLines: 3, ellipsis: true),
+                ],
                 const SizedBox(height: 20),
-                // ---- Mijoz ----
-                _field(p, ty('nameLabel'), f.name, (v) => setState(() => f.name = v),
-                    hint: ty('namePh'), icon: Icons.person_outline_rounded),
-                const SizedBox(height: 16),
-                _field(p, ty('phoneLabel'), f.phone, (v) => setState(() => f.phone = v),
+                // ---- Mijoz (024: AVVAL telefon — bazadan ism avto-to'ladi) ----
+                _field(p, ty('phoneLabel'), f.phone, (v) => _onPhoneChanged(f, v),
                     phone: true, icon: Icons.smartphone_rounded),
+                if (f.hint != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.history_rounded, size: 14, color: p.cyan),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Tx(ty('clientKnown', {'name': f.hint!.name, 'n': '${f.hint!.bookings}'}),
+                            size: 12, color: p.cyan, maxLines: 1, ellipsis: true),
+                      ),
+                      if (f.hint!.inTrustbook) PillBadge.mint(ty('inTrustbook'), h: 18),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _field(p, ty('nameLabel'), f.name, (v) => setState(() {
+                      f.name = v;
+                      f.nameAuto = false; // qo'lda tahrir — autofill endi ustidan yozmaydi
+                    }),
+                    hint: ty('namePh'), icon: Icons.person_outline_rounded),
                 const SizedBox(height: 16),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2426,20 +2788,40 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       flex: 2,
-                      child: _field(
-                        p,
-                        tiers.isEmpty ? ty('priceLabel') : ty('priceManualLabel'),
-                        f.price,
-                        (v) => setState(() {
-                          f.price = v;
-                          // Qo'lda o'zgartirilgan narx toifa narxidan USTUN turadi
-                          f.priceManual = tier == null || _digits(v) != tier.pricePerGuest;
-                        }),
-                        number: true,
-                      ),
+                      child: totalMode
+                          ? _field(p, ty('totalPriceLabel'), f.totalPrice,
+                              (v) => setState(() => f.totalPrice = v), number: true)
+                          : _field(
+                              p,
+                              tiers.isEmpty ? ty('priceLabel') : ty('priceManualLabel'),
+                              f.price,
+                              (v) => setState(() {
+                                f.price = v;
+                                // Qo'lda o'zgartirilgan narx toifa narxidan USTUN turadi
+                                f.priceManual = tier == null || _digits(v) != tier.pricePerGuest;
+                              }),
+                              number: true,
+                            ),
                     ),
                   ],
                 ),
+                // ---- Servislar (024): faqat YANGI bronda katalogdan tanlash ----
+                if (isNew && catalog.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Cap(ty('servicesLabel')),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final sv in catalog) _serviceChip(p, f, sv),
+                    ],
+                  ),
+                  if (f.services.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Tx(ty('bonusHint'), size: 12, color: p.t4, lh: 16),
+                  ],
+                ],
                 // U4: sig'imdan oshsa OGOHLANTIRISH — bloklamaydi (qo'shimcha
                 // stol qo'yish egalarning odatiy amaliyoti), faqat eslatadi.
                 if (_capacityOver(f, guests) != null) ...[
@@ -2459,6 +2841,18 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   const SizedBox(height: 16),
                   _field(p, ty('advanceLabel'), f.advance, (v) => setState(() => f.advance = v),
                       number: true, icon: Icons.payments_outlined),
+                  // 024: minimal avans (to'yxona sozlamasi) va avanssiz hold eslatmasi
+                  if (depMin > 0) ...[
+                    const SizedBox(height: 6),
+                    Tx(
+                      ty('depositMinLine', {'sum': toyMoney(depMin), 'pct': '${hall?.depositPct ?? 0}'}),
+                      size: 12, color: _digits(f.advance) >= depMin ? p.mint : p.amber, lh: 16,
+                    ),
+                  ],
+                  if (_digits(f.advance) <= 0) ...[
+                    const SizedBox(height: 6),
+                    Tx(ty('holdNote', {'h': '48'}), size: 12, color: p.t4, lh: 16),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 _field(p, ty('noteLabel'), f.note, (v) => setState(() => f.note = v),
@@ -2480,14 +2874,20 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                       ),
                       const SizedBox(height: 6),
                       Tx(
-                        ty('foodLine', {
-                          'guests': '$guests',
-                          'price': toyFx(price),
-                          'total': toyFx(total),
-                        }),
+                        totalMode
+                            ? ty('totalModeLine', {'guests': '$guests'})
+                            : ty('foodLine', {
+                                'guests': '$guests',
+                                'price': toyFx(price),
+                                'total': toyFx(food),
+                              }),
                         size: 13, color: p.t2, lh: 18, tab: true,
                       ),
-                      if (tier != null && !f.priceManual) ...[
+                      if (extras > 0) ...[
+                        const SizedBox(height: 3),
+                        Tx(ty('extrasLine', {'sum': toyFx(extras)}), size: 13, color: p.t2, tab: true),
+                      ],
+                      if (!totalMode && tier != null && !f.priceManual) ...[
                         const SizedBox(height: 3),
                         Tx(tier.title, size: 13, color: p.t4),
                       ],
@@ -2502,6 +2902,56 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         ),
       ],
     );
+  }
+
+  /// 024: katalog servisi chipi. Bosish — tanlash/yechish; tanlanganida
+  /// ikkinchi bosish "bonus"ga o'tkazadi (bepul), uchinchisi yechadi.
+  Widget _serviceChip(Pal p, _FormData f, HallService sv) {
+    final sel = f.services.containsKey(sv.id);
+    final bonus = sel && f.services[sv.id] == true;
+    final label = bonus
+        ? '${sv.title} · ${ty('bonusBadge')}'
+        : (sv.price > 0 ? '${sv.title} · ${toyFx(sv.price)}' : sv.title);
+    return PillChip(
+      label: label,
+      selected: sel,
+      selectedBg: bonus ? p.mint.withValues(alpha: .18) : null,
+      selectedFg: bonus ? p.mint : null,
+      leading: Icon(bonus ? Icons.card_giftcard_rounded : Icons.add_circle_outline_rounded,
+          size: 16, color: bonus ? p.mint : (sel ? p.bg : p.t2)),
+      onTap: () => setState(() {
+        if (!sel) {
+          f.services[sv.id] = false;
+        } else if (!bonus) {
+          f.services[sv.id] = true;
+        } else {
+          f.services.remove(sv.id);
+        }
+      }),
+    );
+  }
+
+  /// 024: telefon o'zgardi — 500ms dan keyin bazadan mijoz qidiriladi;
+  /// topilsa ism (agar qo'lda yozilmagan bo'lsa) avto-to'ladi.
+  void _onPhoneChanged(_FormData f, String v) {
+    setState(() {
+      f.phone = v;
+      f.hint = null;
+    });
+    _phoneT?.cancel();
+    if (toyPhoneDigits(v).length < 9) return;
+    final seq = ++_phoneSeq;
+    _phoneT = Timer(const Duration(milliseconds: 500), () async {
+      final h = await toyRepo.lookupClient(v);
+      if (!mounted || seq != _phoneSeq || _form != f) return;
+      setState(() {
+        f.hint = h;
+        if (h != null && (f.name.trim().isEmpty || f.nameAuto)) {
+          f.name = h.name;
+          f.nameAuto = true;
+        }
+      });
+    });
   }
 
   /// Slot chipi (U1): bo'sh slot — odatiy tanlanadigan chip (slot ikonkasi
@@ -2642,20 +3092,32 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     }
     final price = _digits(f.price);
     final advance = _digits(f.advance);
+    final totalMode = f.priceMode == 'total';
+    if (totalMode && _digits(f.totalPrice) <= 0 && f.id == null) {
+      // Podklyuch narxi kelishilmagan — saqlash bloklanmaydi (avans avval kelishi
+      // normal), faqat eslatma (U5 bilan bir xil siyosat).
+    }
     final body = <String, dynamic>{
       if (f.hallId != null) 'hall_id': f.hallId,
       'event_date': toyYmd(f.date),
       'slot': f.slot,
       'client_name': name,
-      if (f.phone.trim().isNotEmpty) 'client_phone': f.phone.trim(),
+      if (f.phone.trim().isNotEmpty) 'client_phone': toyPhoneDigits(f.phone),
       'guests': guests,
+      // 024: narx rejimi + podklyuch summasi
+      'price_mode': f.priceMode,
+      if (totalMode) 'total_price': _digits(f.totalPrice),
+      if (f.id == null && f.services.isNotEmpty)
+        'items': [
+          for (final e in f.services.entries) {'service_id': e.key, if (e.value) 'is_bonus': true},
+        ],
       // Narx ustuvorligi (backend shartnomasi, F10): aniq price_per_guest >
       // menu > to'yxona defaulti. menu_id + price_per_guest BIRGA yuborilishi
       // TO'G'RI — aniq narx g'olib, menu esa toifa NOMINI snapshot qiladi
       // (tahrir/qo'lda narx holati). Toifa tanlanib narx QO'LDA o'zgartirilmagan
       // bo'lsa faqat menu_id ketadi — narxni server toifadan o'zi nusxalaydi.
-      if (f.menuId != null) 'menu_id': f.menuId,
-      if (f.menuId == null || f.priceManual) 'price_per_guest': price,
+      if (!totalMode && f.menuId != null) 'menu_id': f.menuId,
+      if (!totalMode && (f.menuId == null || f.priceManual)) 'price_per_guest': price,
       if (f.note.trim().isNotEmpty) 'note': f.note.trim(),
       if (f.id == null && advance > 0) 'advance': advance,
     };
@@ -2715,8 +3177,11 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           // Bitta akkaunt = bitta to'yxona (MODULES.toyxona.max_units = 1).
           // To'yxona bor ekan "+" KO'RSATILMAYDI: server 403 HALL_LIMIT qaytaradi,
           // ya'ni bu tugma kafolatlangan xatolik bo'lardi. Arxivlangach qaytadi.
+          // 024 / PO: HAR ZAL $21 — "+" doim ko'rinadi; obuna qoplamasa server
+          // 403 HALL_LIMIT beradi va paywall (zal soni bilan) ochiladi.
           trailing: [
-            if (halls.isEmpty) GlassIconBtn(icon: Icons.add_rounded, onTap: _openNewHall),
+            GlassIconBtn(icon: Icons.room_service_outlined, iconSize: 20, onTap: () => setState(() => _servicesOpen = true)),
+            GlassIconBtn(icon: Icons.add_rounded, onTap: _openNewHall),
           ],
         ),
         Expanded(
@@ -2759,7 +3224,16 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     if (i < halls.length - 1) const SizedBox(height: 8),
                   ],
                   const SizedBox(height: 14),
-                  // Ishlamaydigan tugma o'rniga tinch tushuntirish
+                  GlassBtn(label: ty('addHall'), h: 44, icon: Icons.add_rounded, onTap: _openNewHall),
+                  const SizedBox(height: 10),
+                  // 024: servislar katalogi (video, sahna bezagi, shou...)
+                  GlassBtn(
+                    label: ty('servicesCatalog', {'n': '${toyRepo.allServices.length}'}),
+                    h: 44,
+                    icon: Icons.room_service_outlined,
+                    onTap: () => setState(() => _servicesOpen = true),
+                  ),
+                  const SizedBox(height: 14),
                   GlassCard(
                     r: Tb.rRow,
                     pad: const EdgeInsets.all(14),
@@ -2768,7 +3242,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                       children: [
                         Icon(Icons.info_outline_rounded, size: 16, color: p.t4),
                         const SizedBox(width: 8),
-                        Expanded(child: Tx(ty('oneVenueNote'), size: 13, color: p.t2, lh: 18)),
+                        Expanded(child: Tx(ty('perHallNote', {'price': '${modDefPrice('toyxona')}'}), size: 13, color: p.t2, lh: 18)),
                       ],
                     ),
                   ),
@@ -2872,6 +3346,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                         : ty('hallLine', {'cap': '${h.capacity}', 'n': tiersTxt}),
                     size: 13, color: p.t2, maxLines: 1, ellipsis: true,
                   ),
+                  // 024: rejim · minimal avans
+                  const SizedBox(height: 2),
+                  Tx(
+                    '${tyPriceMode(h.priceMode)}${h.depositPct > 0 ? ' · ${ty('depositPctShort', {'pct': '${h.depositPct}'})}' : ''}',
+                    size: 12, color: p.t4, maxLines: 1, ellipsis: true,
+                  ),
                 ],
               ),
             ),
@@ -2944,8 +3424,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   Widget _tierRow(Pal p, Hall h, Menu m, {required bool last}) {
+    final subParts = <String>[
+      if (m.seats != null) ty('seatsN', {'n': '${m.seats}'}),
+      if (m.items.isNotEmpty) ty('itemsN', {'n': '${m.items.length}'}),
+    ];
     return ListRow(
       title: m.title,
+      subtitle: subParts.isEmpty ? null : subParts.join(' · '),
       last: last,
       h: 60,
       onTap: () => _openEditTier(h, m),
@@ -2958,6 +3443,154 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         ),
       ),
     );
+  }
+
+  // ================= SERVISLAR KATALOGI (024) =================
+
+  Widget _servicesView(Pal p) {
+    final list = toyRepo.allServices;
+    return Column(
+      children: [
+        ScreenHeader(
+          title: ty('servicesTitle'),
+          subtitle: ty('servicesSub'),
+          onBack: () => setState(() => _servicesOpen = false),
+          trailing: [GlassIconBtn(icon: Icons.add_rounded, onTap: _openNewService)],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GlassCard(
+                  r: Tb.rCard,
+                  child: list.isEmpty
+                      ? SizedBox(
+                          width: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+                            child: Tx(ty('noServices'), size: 14, color: p.t4, align: TextAlign.center, lh: 20),
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            for (var i = 0; i < list.length; i++)
+                              ListRow(
+                                title: list[i].title,
+                                subtitle: list[i].hallId == null
+                                    ? null
+                                    : (toyRepo.hallById(list[i].hallId)?.name),
+                                last: i == list.length - 1,
+                                h: 60,
+                                onTap: () => _openEditService(list[i]),
+                                trailing: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 150),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Tx(list[i].price > 0 ? toyMoney(list[i].price) : ty('freePrice'),
+                                        size: 15, w: FontWeight.w600, color: p.ink, tab: true),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 10),
+                GlassBtn(label: ty('addService'), h: 44, onTap: _openNewService),
+                const SizedBox(height: 16),
+                Tx(ty('servicesNote'), size: 13, color: p.t4, lh: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openNewService() => setState(() => _svcEdit = {'title': '', 'price': ''});
+
+  void _openEditService(HallService sv) => setState(() => _svcEdit = {
+        'id': sv.id,
+        'title': sv.title,
+        'price': sv.price > 0 ? toyFx(sv.price) : '',
+      });
+
+  Widget _svcEditModal(Pal p) {
+    final e = _svcEdit!;
+    final isNew = e['id'] == null;
+    void close() => setState(() => _svcEdit = null);
+    return _sheet(
+      close,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTitle(p, isNew ? ty('newService') : ty('editService'), close),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final k in kToyQuickServiceKeys)
+                _smallChip(p, ty(k), e['title'] == ty(k), () => setState(() => e['title'] = ty(k))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _field(p, ty('svcTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
+              hint: ty('svcTitlePh'), icon: Icons.room_service_outlined),
+          const SizedBox(height: 16),
+          _field(p, ty('svcAmountLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
+              number: true, icon: Icons.payments_outlined),
+          const SizedBox(height: 24),
+          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveService(e)),
+          if (!isNew) ...[
+            const SizedBox(height: 6),
+            TextBtn(
+              label: ty('deleteService'),
+              color: p.coral,
+              onTap: () => _askDeleteService('${e['id']}', '${e['title']}'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveService(Map<String, dynamic> e) async {
+    final title = '${e['title']}'.trim();
+    final price = _digits('${e['price']}');
+    if (title.isEmpty) {
+      _toastMsg(ty('needSvcTitle'));
+      return;
+    }
+    setState(() => _busy = true);
+    final ok = e['id'] == null
+        ? await toyRepo.createService(title, price)
+        : await toyRepo.patchService('${e['id']}', {'title': title, 'price': price});
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (ok) _svcEdit = null;
+    });
+    ok ? _toastMsg(ty('saved')) : _toastErr();
+  }
+
+  void _askDeleteService(String id, String title) {
+    setState(() {
+      _svcEdit = null;
+      _confirm = {
+        'title': ty('confirmDeleteTitle'),
+        'body': '$title\n${ty('servicesNote')}',
+        'danger': true,
+        'run': () async {
+          final ok = await toyRepo.deleteService(id);
+          if (!mounted) return;
+          ok ? _toastMsg(ty('deleted')) : _toastErr();
+        },
+      };
+    });
   }
 
   // ================= QIDIRUV (U7) =================
@@ -3124,13 +3757,29 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ---- To'yxona qo'shish / tahrirlash ----
 
-  void _openNewHall() => setState(() => _hallEdit = {'name': '', 'cap': '', 'price': ''});
+  void _openNewHall() => setState(() => _hallEdit = {
+        'name': '', 'cap': '', 'price': '',
+        'mode': 'guest', 'total': '', 'dep': '',
+        'pol': {for (final d in kToyPolicyDays) d: ''},
+      });
 
   void _openEditHall(Hall h) => setState(() => _hallEdit = {
         'id': h.id,
         'name': h.name,
         'cap': h.capacity == null ? '' : '${h.capacity}',
         'price': h.pricePerGuest > 0 ? toyFx(h.pricePerGuest) : '',
+        'mode': h.priceMode,
+        'total': h.totalPrice > 0 ? toyFx(h.totalPrice) : '',
+        'dep': h.depositPct > 0 ? '${h.depositPct}' : '',
+        'pol': {
+          for (final d in kToyPolicyDays)
+            d: () {
+              for (final r in h.cancelPolicy) {
+                if (r.days == d) return '${r.pct}';
+              }
+              return '';
+            }(),
+        },
       });
 
   Widget _hallEditModal(Pal p) {
@@ -3151,9 +3800,56 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           _field(p, ty('capacityLabel'), '${e['cap']}', (v) => setState(() => e['cap'] = v),
               number: true, group: false, icon: Icons.people_outline_rounded),
           const SizedBox(height: 16),
-          _field(p, ty('priceLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
-              number: true, icon: Icons.payments_outlined),
-          const SizedBox(height: 24),
+          // 024: narx rejimi defaulti
+          Cap(ty('priceModeLabel')),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final m in kToyPriceModes) ...[
+                Expanded(
+                  child: PillChip(
+                    label: tyPriceMode(m),
+                    selected: e['mode'] == m,
+                    onTap: () => setState(() => e['mode'] = m),
+                  ),
+                ),
+                if (m != kToyPriceModes.last) const SizedBox(width: 8),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (e['mode'] == 'total')
+            _field(p, ty('totalPriceLabel'), '${e['total']}', (v) => setState(() => e['total'] = v),
+                number: true, icon: Icons.home_work_outlined)
+          else
+            _field(p, ty('priceLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
+                number: true, icon: Icons.payments_outlined),
+          const SizedBox(height: 16),
+          // 024: minimal avans %
+          _field(p, ty('depositPctLabel'), '${e['dep']}', (v) => setState(() => e['dep'] = v),
+              number: true, group: false, icon: Icons.percent_rounded, hint: '0'),
+          const SizedBox(height: 16),
+          // 024: bekor jarimasi — 3 pog'ona (tushgan puldan %)
+          Cap(ty('cancelPolicyLabel')),
+          const SizedBox(height: 6),
+          Tx(ty('cancelPolicyHint'), size: 12, color: p.t4, lh: 16),
+          const SizedBox(height: 10),
+          for (final d in kToyPolicyDays) ...[
+            Row(
+              children: [
+                Expanded(child: Tx(tyPolicyDays(d), size: 14, color: p.t1)),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 96,
+                  child: _inputBox(p, '0', '${(e['pol'] as Map)[d]}',
+                      (v) => setState(() => (e['pol'] as Map)[d] = v),
+                      number: true, group: false, icon: Icons.percent_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 16),
           GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveHall(e)),
           if (!isNew) ...[
             const SizedBox(height: 6),
@@ -3176,24 +3872,51 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     }
     final cap = _digits('${e['cap']}');
     final price = _digits('${e['price']}');
+    final dep = _digits('${e['dep']}');
+    if (dep > 100) {
+      _toastMsg(ty('badPct'));
+      return;
+    }
+    final pol = <Map<String, int>>[];
+    for (final d in kToyPolicyDays) {
+      final raw = '${(e['pol'] as Map)[d]}'.trim();
+      if (raw.isEmpty) continue;
+      final pct = _digits(raw);
+      if (pct > 100) {
+        _toastMsg(ty('badPct'));
+        return;
+      }
+      pol.add({'days': d, 'pct': pct});
+    }
+    final extra = <String, dynamic>{
+      'price_mode': e['mode'] == 'total' ? 'total' : 'guest',
+      'total_price': _digits('${e['total']}'),
+      'deposit_pct': dep,
+      'cancel_policy': pol,
+    };
     setState(() => _busy = true);
     final ok = e['id'] == null
-        ? await toyRepo.createHall(name, capacity: cap > 0 ? cap : null, pricePerGuest: price)
+        ? await toyRepo.createHall(name, capacity: cap > 0 ? cap : null, pricePerGuest: price, extra: extra)
         : await toyRepo.patchHall('${e['id']}', {
             'name': name,
             'capacity': cap > 0 ? cap : null,
             'price_per_guest': price,
+            ...extra,
           });
     if (!mounted) return;
-    // 403 HALL_LIMIT — poyga holati: boshqa qurilmada to'yxona qo'shilgan.
-    // Modalni yopamiz (qayta urinish foydasiz), server xabarini toast qilamiz va
-    // ro'yxatni qayta o'qiymiz — ekran haqiqiy holatni ko'rsatsin. Paywall YO'Q.
+    // 403 HALL_LIMIT (024/PO: har zal $21) — obuna bu zal sonini qoplamaydi:
+    // modal yopiladi, PAYWALL zal soni bilan ochiladi (yana bir zal = +$21).
     if (!ok && toyRepo.lastCode == 'HALL_LIMIT') {
       setState(() {
         _busy = false;
         _hallEdit = null;
       });
-      _toastErr(ty('oneVenueNote'));
+      final want = toyRepo.halls.length + 1;
+      if (want <= kToyMaxUnits) {
+        store.openPaywallUnits_('toyxona', want);
+      } else {
+        _toastErr(ty('maxHallsNote', {'n': '$kToyMaxUnits'}));
+      }
       await toyRepo.loadHalls();
       return;
     }
@@ -3228,13 +3951,16 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   // ---- Narx toifasi qo'shish / tahrirlash ----
 
   void _openNewTier(Hall h) =>
-      setState(() => _tierEdit = {'hallId': h.id, 'title': '', 'price': ''});
+      setState(() => _tierEdit = {'hallId': h.id, 'title': '', 'price': '', 'seats': '', 'items': ''});
 
   void _openEditTier(Hall h, Menu m) => setState(() => _tierEdit = {
         'hallId': h.id,
         'id': m.id,
         'title': m.title,
         'price': toyFx(m.pricePerGuest),
+        'seats': m.seats == null ? '' : '${m.seats}',
+        // 024: har qatorda bitta taom ("Osh · 2 kg" ko'rinishi saqlanadi)
+        'items': m.items.map((i) => i.label).join('\n'),
       });
 
   Widget _tierEditModal(Pal p) {
@@ -3254,6 +3980,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           const SizedBox(height: 16),
           _field(p, ty('tierPriceLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
               number: true, icon: Icons.payments_outlined),
+          const SizedBox(height: 16),
+          // 024: stol sig'imi + stol ustidagi taomlar (har qatorda bittadan)
+          _field(p, ty('seatsLabel'), '${e['seats']}', (v) => setState(() => e['seats'] = v),
+              number: true, group: false, icon: Icons.chair_outlined),
+          const SizedBox(height: 16),
+          _field(p, ty('tableItemsLabel'), '${e['items']}', (v) => setState(() => e['items'] = v),
+              hint: ty('tableItemsPh'), lines: 4),
           const SizedBox(height: 24),
           GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveTier(e)),
           if (!isNew) ...[
@@ -3280,10 +4013,24 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       _toastMsg(ty('needTierPrice'));
       return;
     }
+    final seats = _digits('${e['seats']}');
+    final items = [
+      for (final l in '${e['items']}'.split('\n'))
+        if (l.trim().isNotEmpty) l.trim(),
+    ];
+    if (seats > 100) {
+      _toastMsg(ty('badSeats'));
+      return;
+    }
     setState(() => _busy = true);
     final ok = e['id'] == null
-        ? await toyRepo.createMenu('${e['hallId']}', title, price)
-        : await toyRepo.patchMenu('${e['id']}', {'title': title, 'price_per_guest': price});
+        ? await toyRepo.createMenu('${e['hallId']}', title, price, seats: seats > 0 ? seats : null, items: items)
+        : await toyRepo.patchMenu('${e['id']}', {
+            'title': title,
+            'price_per_guest': price,
+            'seats': seats > 0 ? seats : null,
+            'items': [for (final t in items) {'title': t}],
+          });
     if (!mounted) return;
     setState(() {
       _busy = false;

@@ -42,6 +42,29 @@ class IapService {
     'toyxona': 'trust_toyxona_monthly',
   };
 
+  /// 024 / PO 2026-09-08: to'yxona HAR ZAL $21 — pog'onali SKU (2..5 zal).
+  /// Backend (subscription.js MODULES.toyxona.unit_products) bilan AYNAN bir xil.
+  static const Map<int, String> toyxonaUnitProductIds = {
+    2: 'trust_toyxona_2_monthly',
+    3: 'trust_toyxona_3_monthly',
+    4: 'trust_toyxona_4_monthly',
+    5: 'trust_toyxona_5_monthly',
+  };
+
+  /// Modul + zal soni -> SKU. 1 zal (yoki oddiy modul) = asosiy SKU.
+  static String? productIdFor(String module, int units) {
+    if (module == 'toyxona' && units > 1) return toyxonaUnitProductIds[units];
+    return moduleProductIds[module];
+  }
+
+  /// SKU -> zal soni (per-unit SKU bo'lmasa 1).
+  static int unitsOf(String pid) {
+    for (final e in toyxonaUnitProductIds.entries) {
+      if (e.value == pid) return e.key;
+    }
+    return 1;
+  }
+
   static final InAppPurchase _iap = InAppPurchase.instance;
   static StreamSubscription<List<PurchaseDetails>>? _sub;
   static bool _storeReady = false;
@@ -98,6 +121,7 @@ class IapService {
     for (final e in moduleProductIds.entries) {
       if (e.value == pid) return e.key;
     }
+    if (toyxonaUnitProductIds.containsValue(pid)) return 'toyxona';
     return null;
   }
 
@@ -140,7 +164,7 @@ class IapService {
   static Future<void> _loadModuleProducts() async {
     try {
       final resp = await _iap
-          .queryProductDetails(moduleProductIds.values.toSet())
+          .queryProductDetails({...moduleProductIds.values, ...toyxonaUnitProductIds.values})
           .timeout(const Duration(seconds: 10));
       for (final p in resp.productDetails) {
         _modProducts[p.id] = p;
@@ -191,8 +215,8 @@ class IapService {
   ///           toast mexanizmi bilan "to'lov tez orada" xabarini ko'rsatadi —
   ///           bu yerda onError CHAQIRILMAYDI (ikkita xabar chiqmasin).
   ///   true  — to'lov oynasi ochildi; natija purchaseStream orqali keladi.
-  static Future<bool> buyModule(String module) async {
-    final id = moduleProductIds[module];
+  static Future<bool> buyModule(String module, {int units = 1}) async {
+    final id = productIdFor(module, units);
     if (id == null) return false; // noma'lum modul ("tez orada" bo'lishi mumkin)
     if (!Platform.isIOS) return false; // Android: Play Billing hali ulanmagan
     if (!_storeReady) return false; // StoreKit tayyor emas
@@ -343,7 +367,7 @@ class IapService {
   /// avvalgidek (`module` kaliti YO'Q), ya'ni eski oqim o'zgarmaydi.
   static Map<String, dynamic> verifyBodyFor(String purchasedId, String receipt) {
     final pid = purchasedId.isNotEmpty ? purchasedId : productId;
-    return Api.verifyAppleBody(receipt, productId: pid, module: moduleOf(purchasedId));
+    return Api.verifyAppleBody(receipt, productId: pid, module: moduleOf(purchasedId), units: unitsOf(purchasedId));
   }
 
   /// Tasdiq xatosida tranzaksiyani OCHIQ qoldirish kerakmi (sof funksiya — testlanadi).

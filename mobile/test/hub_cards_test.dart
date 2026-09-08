@@ -6,11 +6,10 @@
 //      2×2 grid, bir xil o'lcham.
 //   2) O'LCHAM ham bir xil: grid rejimida Expanded qatorlar, ixcham rejimda
 //      kHubCardH — har ikkisida to'rttala karta teng bo'yda.
-//   3) TARIF har kartada YUQORI-O'NG burchakda va FAQAT ma'lumotdan
-//      (server modSubs[].price, oflaynda kSubModuleDefaults) — widget ichida
-//      qotirilgan narx satri bir marta tarif o'zgargach 6 tilda chiqib ketgan.
-//      Nom ostida SUB MATN YO'Q (PO 2026-09-08). Xarajatlar HAMMA uchun BEPUL:
-//      «Bepul» badge (hubFree_xarajat), tarif/hisoblagich/qulf yo'q.
+//   3) KARTADA TARIF YO'Q va «Bepul» badge YO'Q (PO 2026-09-08 kech): narxlar
+//      faqat «Narxni bilish» qo'llanmasida (hub_guide_test). Kartada: nom
+//      (ENG PASTDA) va uning USTIDA «N ta yozuv bepul» / qulf badge'i.
+//      Nom ostida SUB MATN YO'Q. Xarajatlar HAMMA uchun BEPUL: hisoblagich/qulf yo'q.
 //   4) 404 HOLATI — bugungi production'da /api/ijara/summary va
 //      /api/toyxona/summary YO'Q. O'shanda karta TINCH nol holatida chizilishi
 //      shart: xato ham, spinner ham, crash ham bo'lmasin. PO qurilmada AYNAN
@@ -141,7 +140,7 @@ void main() {
       expect(rects[2].top, greaterThan(rects[0].bottom));
     });
 
-    testWidgets('har kartada: NOM + tarif; sub matn YO\'Q; Xarajatlar BEPUL', (t) async {
+    testWidgets('har kartada: NOM; tarif va «Bepul» badge YO\'Q; sub matn YO\'Q', (t) async {
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -160,21 +159,19 @@ void main() {
       expect(find.text('${hv['hubXarTxt']} ${hv['hubXarUnit']}'), findsNothing);
       expect(find.text(lUz['modIjarachiDesc'] as String), findsNothing);
       expect(find.text(lUz['modToyxonaDesc'] as String), findsNothing);
-      // Tarif — pullik 3 karta (oflayn zaxira narxlari: qarz 8, ijara 13, to'yxona 21)
-      for (final price in [8, 13, 21]) {
-        expect(find.text('\$$price/oy'), findsOneWidget, reason: '\$$price/oy yo\'q');
-      }
-      // Xarajatlar BEPUL: tarif yo'q, «Bepul» badge bor
-      expect(find.text('\$0/oy'), findsNothing);
-      expect(find.text('\$5/oy'), findsNothing);
-      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsOneWidget);
-      expect(find.text(lUz['subFree'] as String), findsOneWidget);
+      // TARIF kartada YO'Q (PO 2026-09-08 kech) — faqat qo'llanmada
+      expect(find.textContaining('/oy'), findsNothing, reason: 'kartada tarif qoldi');
+      // «Bepul» badge ham YO'Q
+      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsNothing);
+      expect(find.text(lUz['subFree'] as String), findsNothing);
+      // Xarajatlar bepul: hisoblagich/qulf yo'q; pullik 3 kartada «5 ta yozuv bepul»
+      expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
+      expect(find.text(_freeLeft(5)), findsNWidgets(3));
     });
 
-    // Tarif YUQORI-O'NG burchakda (PO 2026-09-08), pullik kartalarda bir xil
-    // joyda. Matn mavjudligini tekshirish yetarli emas edi — u kartaning
-    // o'rtasida turib ham testdan o'tib ketardi.
-    testWidgets('tarif AYNAN yuqori-o\'ng burchakda (3 pullik kartada)', (t) async {
+    // Badge NOM USTIDA, nom ENG PASTDA (PO 2026-09-08 kech: joylari almashdi).
+    // Matn mavjudligini tekshirish yetarli emas — joyi ham tekshiriladi.
+    testWidgets('badge NOM USTIDA, nom kartaning pastida (3 pullik kartada)', (t) async {
       _atHub(
         ijara: const {'left': 4200000, 'count': 3, 'pending': 2},
         toy: const {'left': 18500000, 'count': 4, 'pending': 1},
@@ -188,17 +185,16 @@ void main() {
           .toList();
       expect(cardRects.length, 4);
 
-      for (final price in [8, 13, 21]) {
-        final pr = t.getRect(find.text('\$$price/oy'));
-        // Qaysi kartaga tegishli
-        final card = cardRects.firstWhere((c) => c.contains(pr.center),
-            orElse: () => Rect.zero);
-        expect(card, isNot(Rect.zero), reason: '\$$price/oy hech bir kartada emas');
-        // O'ng chetga taqalgan (pad 16) va tepada (pad 16 + 24pt chip qatori)
-        expect(card.right - pr.right, closeTo(16, 1.5),
-            reason: '\$$price/oy o\'ng chetda emas');
-        expect(pr.top - card.top, lessThan(28),
-            reason: '\$$price/oy yuqori burchakda emas');
+      for (final m in ['qarz', 'ijarachi', 'toyxona']) {
+        final br = t.getRect(find.byKey(ValueKey('hubFreeLeft_$m')));
+        final nr = t.getRect(find.text(_name(kModNameKey[m]!)));
+        final card = cardRects.firstWhere((c) => c.contains(br.center), orElse: () => Rect.zero);
+        expect(card, isNot(Rect.zero), reason: '$m badge hech bir kartada emas');
+        expect(card.contains(nr.center), isTrue, reason: '$m nomi boshqa kartada');
+        // Badge nomdan TEPADA, chap chetda (pad 16); nom kartaning pastida
+        expect(br.bottom, lessThanOrEqualTo(nr.top + 0.5), reason: '$m: badge nom ustida emas');
+        expect(br.left - card.left, closeTo(16, 1.5), reason: '$m: badge chap chetda emas');
+        expect(card.bottom - nr.bottom, closeTo(16, 3), reason: '$m: nom eng pastda emas');
       }
     });
 
@@ -351,9 +347,10 @@ void main() {
     });
   });
 
-  // ─────────────────── 4. TARIF (yuqori-o'ng burchak) ───────────────────
-  group('narx — faqat ma\'lumotdan', () {
-    testWidgets('SERVER narxi lokal zaxirani almashtiradi', (t) async {
+  // ─────────────────── 4. TARIF kartada YO'Q; badge/qulf mantiqi ───────────────────
+  // Narx ma'lumotdan (server ustun) — qo'llanmada tekshiriladi: hub_guide_test.
+  group('kartada narx yo\'q — badge/qulf mantiqi', () {
+    testWidgets('SERVER narxi kelsa ham kartada tarif chizilmaydi', (t) async {
       _atHub(
         mods: mapSubsModules({
           'modules': [
@@ -366,13 +363,15 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('\$7/oy'), findsOneWidget, reason: 'server narxi ishlatilmadi');
-      expect(find.text('\$8/oy'), findsNothing, reason: 'eskirgan lokal narx chiqdi');
+      expect(find.text('\$7/oy'), findsNothing, reason: 'kartada tarif chiqdi');
+      expect(find.text('\$8/oy'), findsNothing);
+      // Hisoblagich esa serverdan: 5 − 1 = 4
+      expect(find.text(_freeLeft(4)), findsOneWidget);
     });
 
     // PO 2026-09-08: Xarajatlar HAMMA uchun DOIM bepul. Eski server «5/5, $5»
     // desa ham (free maydoni yo'q) lokal standart bepul — badge, qulf yo'q.
-    testWidgets('Xarajatlar BEPUL: badge bor, tarif/hisoblagich/qulf YO\'Q', (t) async {
+    testWidgets('Xarajatlar BEPUL: tarif/hisoblagich/qulf YO\'Q (badge ham yo\'q)', (t) async {
       _atHub(
         mods: mapSubsModules({
           'modules': [
@@ -384,8 +383,8 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsOneWidget);
-      expect(find.text(lUz['subFree'] as String), findsOneWidget);
+      expect(find.byKey(const ValueKey('hubFree_xarajat')), findsNothing);
+      expect(find.text(lUz['subFree'] as String), findsNothing);
       expect(find.byKey(const ValueKey('hubLock_xarajat')), findsNothing);
       expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
       expect(find.text('5/5'), findsNothing);
@@ -412,7 +411,7 @@ void main() {
 
       expect(find.byKey(const ValueKey('hubFree_xarajat')), findsNothing);
       expect(find.byKey(const ValueKey('hubLock_xarajat')), findsOneWidget);
-      expect(find.text('\$5/oy'), findsOneWidget);
+      expect(find.text('\$5/oy'), findsNothing); // tarif kartada yo'q
     });
 
     testWidgets('QULF chipida narx YO\'Q — bir kartada ikki marta chiqmasin',
@@ -428,8 +427,8 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      // Tarif faqat BITTA joyda — yuqori-o'ngda, qulf chipi yonida
-      expect(find.text('\$21/oy'), findsOneWidget);
+      // Tarif kartada UMUMAN yo'q (faqat qo'llanmada)
+      expect(find.text('\$21/oy'), findsNothing);
       // Qulf chipi To'yxona kartasida; PRO badge hech qayerda yo'q
       expect(find.byKey(const ValueKey('hubLock_toyxona')), findsOneWidget);
       expect(find.text('PRO'), findsNothing);
@@ -458,7 +457,7 @@ void main() {
       // Eski hisoblagich chipi YO'Q
       expect(find.text('3/5'), findsNothing);
       expect(find.text('PRO'), findsNothing);
-      // Bepul modulda (Xarajatlar) badge UMUMAN yo'q — yuqorida «Bepul» turadi
+      // Bepul modulda (Xarajatlar) badge UMUMAN yo'q
       expect(find.byKey(const ValueKey('hubFreeLeft_xarajat')), findsNothing);
 
       // «7/300» — render.yaml sinov limiti TARIF emas: kartada 5 lik tarif
@@ -509,7 +508,7 @@ void main() {
       expect(find.byKey(const ValueKey('hubLock_qarz')), findsNothing);
     });
 
-    testWidgets('OBUNA FAOL bo\'lsa ham tarif ko\'rinadi (bir xillik)', (t) async {
+    testWidgets('OBUNA FAOL — karta toza: badge ham, tarif ham yo\'q', (t) async {
       _atHub(
         mods: mapSubsModules({
           'modules': [
@@ -521,7 +520,10 @@ void main() {
       await t.pumpWidget(const TrustApp());
       await t.pump();
 
-      expect(find.text('\$13/oy'), findsOneWidget);
+      expect(find.text('\$13/oy'), findsNothing);
+      expect(find.byKey(const ValueKey('hubFreeLeft_ijarachi')), findsNothing);
+      expect(find.byKey(const ValueKey('hubLock_ijarachi')), findsNothing);
+      expect(find.text(_name('modIjarachi')), findsOneWidget);
     });
   });
 
