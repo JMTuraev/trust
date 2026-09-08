@@ -489,7 +489,7 @@ void main() {
 
     test('holatlar va to‘lov turlari backend bilan bir xil', () {
       expect(kToyStatuses, ['band', 'tasdiq', 'yakun', 'bekor']);
-      expect(kToyPayKinds, ['avans', 'yakuniy']);
+      expect(kToyPayKinds, ['avans', 'yakuniy', 'qaytarim']);   // 024: qaytarim
     });
 
     test('xizmat soni chegarasi (U3 stepper)', () {

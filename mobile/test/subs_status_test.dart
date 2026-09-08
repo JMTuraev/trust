@@ -382,7 +382,7 @@ void main() {
       expect(kModCapKey.keys.toSet(), kModCapUnits.keys.toSet());
       // Backend: MODULES.ijarachi.max_units=5, MODULES.toyxona.max_units=1
       expect(kModCapUnits['ijarachi'], 5);
-      expect(kModCapUnits['toyxona'], 1);
+      expect(kModCapUnits['toyxona'], 5);   // PO 2026-09-08: har zal $21, 5 tagacha
     });
 
     test('izoh har tilda bor, bo\'sh emas va NARX ko\'rsatmaydi', () {

@@ -245,6 +245,12 @@ const Map<String, dynamic> lUz = {
   'xfRingAddInc': "Daromadni kiriting",
   'subFreeLeft': "{n} ta yozuv bepul",
   'subFreeOver': "Bepul limit tugadi",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': 'Narxni bilish',
+  'hubGuideXar': 'Cheksiz yozuv',
+  'hubGuideQarz': 'Cheksiz yozuv',
+  'hubGuideIjara': '{n} tagacha ijaradagi uy',
+  'hubGuideToy': 'Bitta to\'yxona hisob-kitobi. Yana to\'yxona uchun alohida {price}',
   'supportTitle': "Yordam chati",
   'supportEmpty': "Savol, muammo yoki taklifingizni yozing — jamoamiz shu yerning o'zida javob beradi.",
   'supportHint': "Xabar yozing...",
@@ -551,7 +557,7 @@ const Map<String, dynamic> lUz = {
   // tepasida turadi. {n} — src/lib/subscription.js: MODULES.ijarachi.max_units.
   'pwCapIjara': 'Bitta obuna — {n} tagacha uy. Ko\'proq kerak bo\'lsa, boshqa '
       'telefon raqamiga alohida hisob oching.',
-  'pwCapToy': 'Har to\'yxona alohida obuna — har zal uchun \${price}/oy. Bitta akkauntda {n} tagacha to\'yxona.',
+  'pwCapToy': 'Har to\'yxona alohida obuna — yana zal qo\'shsangiz obuna shunga qarab kengayadi.',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} ta to\'yxona — \${price}/oy',
   'pwUnitsN': '{n} ta to\'yxona',
@@ -823,6 +829,12 @@ const Map<String, dynamic> lRu = {
   'xfRingAddInc': "Введите доход",
   'subFreeLeft': "{n} записей бесплатно",
   'subFreeOver': "Бесплатный лимит исчерпан",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': 'Узнать цены',
+  'hubGuideXar': 'Без ограничений',
+  'hubGuideQarz': 'Без ограничений',
+  'hubGuideIjara': 'До {n} домов в аренде',
+  'hubGuideToy': 'Учёт одного зала. Ещё зал — отдельно {price}',
   'supportTitle': "Чат поддержки",
   'supportEmpty': "Напишите вопрос, проблему или предложение — наша команда ответит прямо здесь.",
   'supportHint': "Напишите сообщение...",
@@ -1066,7 +1078,7 @@ const Map<String, dynamic> lRu = {
   'pwSoonNote': 'Раздел откроется совсем скоро — цена: \${price}/мес',
   'pwCapIjara': 'Одна подписка — до {n} домов. Нужно больше — заведите отдельный '
       'аккаунт на другой номер телефона.',
-  'pwCapToy': 'Каждый зал — отдельная подписка: \${price}/мес за зал. В одном аккаунте до {n} залов.',
+  'pwCapToy': 'Каждый зал — отдельная подписка: добавляете зал — подписка расширяется.',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} зал(а) — \${price}/мес',
   'pwUnitsN': 'Залов: {n}',
@@ -1333,6 +1345,12 @@ const Map<String, dynamic> lEn = {
   'xfRingAddInc': "Add income",
   'subFreeLeft': "{n} free entries",
   'subFreeOver': "Free limit reached",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': 'See prices',
+  'hubGuideXar': 'Unlimited entries',
+  'hubGuideQarz': 'Unlimited entries',
+  'hubGuideIjara': 'Up to {n} rental homes',
+  'hubGuideToy': 'One venue. Each extra venue is another {price}',
   'supportTitle': "Support chat",
   'supportEmpty': "Write your question, problem or suggestion — our team will reply right here.",
   'supportHint': "Write a message...",
@@ -1576,7 +1594,7 @@ const Map<String, dynamic> lEn = {
   'pwSoonNote': 'This module opens very soon — price: \${price}/mo',
   'pwCapIjara': 'One subscription covers up to {n} properties. Need more? Open a '
       'separate account with another phone number.',
-  'pwCapToy': 'Each venue is a separate subscription: \${price}/month per venue. One account holds up to {n} venues.',
+  'pwCapToy': 'Each venue is a separate subscription — add a venue and the subscription grows with it.',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} venues — \${price}/month',
   'pwUnitsN': '{n} venues',
@@ -1843,6 +1861,12 @@ const Map<String, dynamic> lEs = {
   'xfRingAddInc': "Añadir ingreso",
   'subFreeLeft': "{n} registros gratis",
   'subFreeOver': "Límite gratuito alcanzado",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': 'Ver precios',
+  'hubGuideXar': 'Registros ilimitados',
+  'hubGuideQarz': 'Registros ilimitados',
+  'hubGuideIjara': 'Hasta {n} casas en alquiler',
+  'hubGuideToy': 'Un salón. Cada salón extra, otros {price}',
   'supportTitle': "Chat de soporte",
   'supportEmpty': "Escribe tu pregunta, problema o sugerencia: nuestro equipo responderá aquí mismo.",
   'supportHint': "Escribe un mensaje...",
@@ -2087,7 +2111,7 @@ const Map<String, dynamic> lEs = {
   'pwSoonNote': 'Esta sección se abre muy pronto — precio: \${price}/mes',
   'pwCapIjara': 'Una suscripción cubre hasta {n} propiedades. ¿Necesitas más? Abre '
       'otra cuenta con un número de teléfono distinto.',
-  'pwCapToy': 'Cada salón es una suscripción aparte: \${price}/mes por salón. Una cuenta admite hasta {n} salones.',
+  'pwCapToy': 'Cada salón es una suscripción aparte: al añadir un salón, la suscripción se amplía.',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} salones — \${price}/mes',
   'pwUnitsN': '{n} salones',
@@ -2354,6 +2378,12 @@ const Map<String, dynamic> lFr = {
   'xfRingAddInc': "Ajouter un revenu",
   'subFreeLeft': "{n} entrées gratuites",
   'subFreeOver': "Limite gratuite atteinte",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': 'Voir les prix',
+  'hubGuideXar': 'Écritures illimitées',
+  'hubGuideQarz': 'Écritures illimitées',
+  'hubGuideIjara': 'Jusqu\'à {n} logements loués',
+  'hubGuideToy': 'Une salle. Chaque salle en plus : {price}',
   'supportTitle': "Chat d'assistance",
   'supportEmpty': "Écrivez votre question, problème ou suggestion — notre équipe répondra ici même.",
   'supportHint': "Écrivez un message...",
@@ -2598,7 +2628,7 @@ const Map<String, dynamic> lFr = {
   'pwSoonNote': 'Cette section ouvre très bientôt — prix : \${price}/mois',
   'pwCapIjara': 'Un abonnement couvre jusqu\'à {n} biens. Il vous en faut plus ? '
       'Ouvrez un compte séparé avec un autre numéro de téléphone.',
-  'pwCapToy': 'Chaque salle est un abonnement distinct : \${price}/mois par salle. Un compte gère jusqu\'à {n} salles.',
+  'pwCapToy': 'Chaque salle est un abonnement distinct : ajoutez une salle et l\'abonnement s\'étend.',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} salles — \${price}/mois',
   'pwUnitsN': '{n} salles',
@@ -2864,6 +2894,12 @@ const Map<String, dynamic> lZh = {
   'xfRingAddInc': "录入收入",
   'subFreeLeft': "免费 {n} 条",
   'subFreeOver': "免费额度已用完",
+  // Hub «Narxni bilish» qo'llanmasi (2026-09-08)
+  'hubGuideBtn': '查看价格',
+  'hubGuideXar': '记录不限',
+  'hubGuideQarz': '记录不限',
+  'hubGuideIjara': '最多 {n} 套出租房',
+  'hubGuideToy': '一个宴会厅。每增加一个厅另付 {price}',
   'supportTitle': "支持聊天",
   'supportEmpty': "写下您的问题、疑问或建议 — 我们的团队会在这里回复。",
   'supportHint': "输入消息...",
@@ -3104,7 +3140,7 @@ const Map<String, dynamic> lZh = {
   'pwCta': '订阅 — \${price}/月',
   'pwSoonNote': '该模块即将开放 — 价格：\${price}/月',
   'pwCapIjara': '一个订阅最多管理 {n} 套房产。需要更多，请用另一个手机号单独开一个账号。',
-  'pwCapToy': '每个宴会厅单独订阅：每厅 \${price}/月。一个账号最多 {n} 个宴会厅。',
+  'pwCapToy': '每个宴会厅单独订阅——添加宴会厅时订阅相应扩展。',
   // 024 / PO 2026-09-08: to'yxona HAR ZAL — paywall zal soni stepper'i
   'pwUnitsPrice': '{n} 个宴会厅 — \${price}/月',
   'pwUnitsN': '{n} 个宴会厅',
