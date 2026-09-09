@@ -189,3 +189,123 @@ Future<Uint8List> buildBookingReceipt(Booking b, {Hall? hall, String ownerName =
   ));
   return doc.save();
 }
+
+// ============================ 027: STOL TARKIBI (PDF) ============================
+// Katalogdagi bitta stol: N kishilik, mahsulotlar jadvali (miqdor · birlik narxi ·
+// qator jami), STOL JAMI va 1 KISHIGA narx. Ega mijozga "stol ustida nima bo'ladi"ni
+// ko'rsatib kelishadi. Chek bilan bir xil shrift/rang qoidalari.
+
+/// Stol tarkibini PDF qilib, tizim ulashish varag'ini ochadi.
+Future<void> shareTableSheet(Menu m, {Hall? hall, String ownerName = ''}) async {
+  final bytes = await buildTableSheet(m, hall: hall, ownerName: ownerName);
+  final safeName = m.title.replaceAll(RegExp(r'[^\w\d]+'), '_');
+  await Printing.sharePdf(bytes: bytes, filename: 'trustbook_stol_$safeName.pdf');
+}
+
+/// Sof qurish (testlanadi): Menu (+Hall) -> PDF baytlar.
+Future<Uint8List> buildTableSheet(Menu m, {Hall? hall, String ownerName = ''}) async {
+  pw.Font? base;
+  pw.Font? bold;
+  try {
+    base = await PdfGoogleFonts.notoSansRegular();
+    bold = await PdfGoogleFonts.notoSansBold();
+  } catch (_) {}
+  final theme = base == null ? pw.ThemeData.base() : pw.ThemeData.withFont(base: base, bold: bold ?? base);
+
+  final ink = PdfColor.fromHex('#111111');
+  final muted = PdfColor.fromHex('#6B6B6B');
+  final line = PdfColor.fromHex('#DDDDDD');
+  final green = PdfColor.fromHex('#2F7A54');
+
+  pw.Widget cell(String t, {bool right = false, bool bold = false, PdfColor? color, double size = 10}) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: pw.Text(t,
+            textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
+            style: pw.TextStyle(fontSize: size, color: color ?? ink, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+      );
+  pw.Widget hr() => pw.Container(height: 0.6, color: line, margin: const pw.EdgeInsets.symmetric(vertical: 6));
+
+  final total = m.tableTotal;
+  final doc = pw.Document(theme: theme, title: 'Trustbook — ${m.title}');
+  doc.addPage(pw.Page(
+    pageFormat: PdfPageFormat.a4,
+    margin: const pw.EdgeInsets.fromLTRB(40, 36, 40, 36),
+    build: (ctx) => pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text(ty('tableSheetTitle'), style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: ink)),
+              pw.SizedBox(height: 2),
+              pw.Text(hall?.name ?? '', style: pw.TextStyle(fontSize: 11, color: muted)),
+              if (ownerName.isNotEmpty) pw.Text(ownerName, style: pw.TextStyle(fontSize: 10, color: muted)),
+            ]),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: ink, width: 1.2)),
+              child: pw.Text(
+                m.seats != null ? ty('seatsShort', {'n': '${m.seats}'}).toUpperCase() : m.title.toUpperCase(),
+                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: ink),
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(m.title, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: ink)),
+        hr(),
+        if (m.items.isEmpty)
+          pw.Text(ty('noProducts'), style: pw.TextStyle(fontSize: 10, color: muted))
+        else
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(4),
+              1: pw.FlexColumnWidth(1.6),
+              2: pw.FlexColumnWidth(2),
+              3: pw.FlexColumnWidth(2),
+            },
+            border: pw.TableBorder(horizontalInside: pw.BorderSide(color: line, width: 0.5)),
+            children: [
+              pw.TableRow(children: [
+                cell(ty('productsCap'), color: muted, size: 8.5),
+                cell(ty('amountPh').toUpperCase(), right: true, color: muted, size: 8.5),
+                cell(ty('unitPricePh').toUpperCase(), right: true, color: muted, size: 8.5),
+                cell(ty('totalLabel'), right: true, color: muted, size: 8.5),
+              ]),
+              for (final it in m.items)
+                pw.TableRow(children: [
+                  cell(it.title),
+                  cell(it.qtyText, right: true),
+                  cell(it.unitPrice > 0 ? toyFx(it.unitPrice) : '', right: true),
+                  cell(it.lineTotal > 0 ? toyFx(it.lineTotal) : '', right: true, bold: true),
+                ]),
+            ],
+          ),
+        hr(),
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+          pw.Text(ty('tableTotalCap'), style: pw.TextStyle(fontSize: 11, color: ink)),
+          pw.Text(toyMoney(total), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: ink)),
+        ]),
+        pw.SizedBox(height: 4),
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+          pw.Text(ty('perGuestCap'), style: pw.TextStyle(fontSize: 12, color: green)),
+          pw.Text(toyMoney(m.pricePerGuest), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: green)),
+        ]),
+        pw.SizedBox(height: 6),
+        pw.Text(ty('tablesNote'), style: pw.TextStyle(fontSize: 8.5, color: muted)),
+        pw.Spacer(),
+        hr(),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Trustbook · trustbook.uz', style: pw.TextStyle(fontSize: 8.5, color: muted)),
+            pw.Text('${ty('receiptCreated')}: ${toyDateLong(DateTime.now())}', style: pw.TextStyle(fontSize: 8.5, color: muted)),
+          ],
+        ),
+      ],
+    ),
+  ));
+  return doc.save();
+}

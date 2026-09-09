@@ -263,7 +263,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   bool _monthMenu = false;
   Map<String, dynamic>? _confirm; // {title, body, danger, run}
   Map<String, dynamic>? _hallEdit; // {id?, hallId?, name, cap, price}
-  Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price, seats, items}
+  Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price, priceManual, seats, rows}
+  Menu? _tableInfo; // 027: bronda stol tarkibi varag'i
   // ---- 024 ----
   bool _servicesOpen = false; // servislar katalogi qatlami
   // 025: ochilgan kategoriya slug'i (null = kategoriya grid'i). Servislar
@@ -468,6 +469,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       setState(() => _tierEdit = null);
       return true;
     }
+    if (_tableInfo != null) {
+      setState(() => _tableInfo = null);
+      return true;
+    }
     if (_svcEdit != null) {
       setState(() => _svcEdit = null);
       return true;
@@ -621,6 +626,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             if (_confirm != null) _confirmModal(p),
             if (_hallEdit != null) _hallEditModal(p),
             if (_tierEdit != null) _tierEditModal(p),
+            if (_tableInfo != null) _tableSheet(p),
             if (_svcEdit != null) _svcEditModal(p),
             if (_cancelSheet != null) _cancelModal(p),
             ToastView(open: _toast.isNotEmpty, text: _toast),
@@ -631,7 +637,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     if (!widget.handleSystemBack) return body;
     // Preview rejimi: apparat "orqaga" ochiq qatlamni yopadi.
     return PopScope(
-      canPop: !_anyLayer && _confirm == null && _hallEdit == null && _tierEdit == null && _svcEdit == null && _cancelSheet == null && !_servicesOpen && !_monthMenu,
+      canPop: !_anyLayer && _confirm == null && _hallEdit == null && _tierEdit == null && _tableInfo == null && _svcEdit == null && _cancelSheet == null && !_servicesOpen && !_monthMenu,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         _closeTop();
@@ -1702,6 +1708,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         date: date,
         slot: slot,
         hallId: hid,
+        guests: '200', // 027: o'rtacha to'y — ega faqat farqini tuzatadi
         menuId: tiers.isNotEmpty ? tiers.first.id : null,
         price: tiers.isNotEmpty
             ? toyFx(tiers.first.pricePerGuest)
@@ -2842,30 +2849,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                             (v) => setState(() => f.totalPrice = v), number: true)
                       else ...[
                         if (tiers.isNotEmpty) ...[
+                          // 027: stol kartalari — tanlansa narx/kishi avto to'ladi
                           Cap(ty('tierLabel')),
                           const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final t in tiers)
-                                _chip(
-                                  p,
-                                  ty('tierChip', {'title': t.title, 'price': toyFx(t.pricePerGuest)}),
-                                  f.menuId == t.id && !f.priceManual,
-                                  () => setState(() {
-                                    f.menuId = t.id;
-                                    f.priceManual = false;
-                                    f.price = toyFx(t.pricePerGuest);
-                                  }),
-                                ),
-                            ],
-                          ),
-                          if (tier != null && tier.items.isNotEmpty && !f.priceManual) ...[
-                            const SizedBox(height: 8),
-                            Tx(tier.items.map((i) => i.label).join(' · '),
-                                size: 12, color: p.t4, lh: 16, maxLines: 3, ellipsis: true),
-                          ],
+                          _tableCards(p, f, tiers),
                           const SizedBox(height: 14),
                         ] else if (f.hallId != null) ...[
                           Tx(ty('noTiersHint'), size: 13, color: p.t4),
@@ -3573,6 +3560,14 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     icon: Icons.room_service_outlined,
                     onTap: () => setState(() => _servicesOpen = true),
                   ),
+                  const SizedBox(height: 10),
+                  // 027: stol ko'rinishi (N kishilik stol tarkibi va 1 kishiga narx)
+                  GlassBtn(
+                    label: ty('tablesBtn', {'n': '${halls.fold<int>(0, (n, h) => n + h.tiers.length)}'}),
+                    h: 44,
+                    icon: Icons.table_restaurant_outlined,
+                    onTap: _openTables,
+                  ),
                   const SizedBox(height: 14),
                   GlassCard(
                     r: Tb.rRow,
@@ -3705,6 +3700,24 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ================= BITTA TO'YXONA: NARXLAR =================
 
+  // ================= STOL KO'RINISHI (027) =================
+  //
+  // hall_menus = STOL. Ega bir marta N kishilik stolga qo'yiladigan hamma
+  // mahsulotni (miqdor × birlik × birlik narxi) kiritadi — ilova stol jamini
+  // va 1 KISHIGA narxni chiqaradi. Bronda shu stol tanlanadi, mehmon soni ×
+  // narx/kishi = summa. Qolgan mahsulot egasining ishi — ilova hisoblamaydi.
+
+  /// Sozlamalardan "Stol ko'rinishi": tanlangan (yoki birinchi) to'yxona stollari.
+  void _openTables() {
+    final halls = toyRepo.halls;
+    if (halls.isEmpty) {
+      _toastMsg(ty('needVenue'));
+      return;
+    }
+    final sel = toyRepo.selectedHallId;
+    setState(() => _tiersHallId = halls.any((h) => h.id == sel) ? sel : halls.first.id);
+  }
+
   Widget _tiersView(Pal p) {
     final h = toyRepo.hallById(_tiersHallId);
     if (h == null) {
@@ -3715,15 +3728,19 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       });
       return const SizedBox.shrink();
     }
+    final halls = toyRepo.halls;
     final tiers = h.tiers;
     return Column(
       children: [
         ScreenHeader(
-          title: h.name,
-          subtitle: tiers.isEmpty ? ty('noTiersN') : ty('tiersN', {'n': '${tiers.length}'}),
+          title: ty('tablesTitle'),
+          subtitle: halls.length > 1
+              ? h.name
+              : (tiers.isEmpty ? ty('noTiersN') : ty('tablesN', {'n': '${tiers.length}'})),
           onBack: () => setState(() => _tiersHallId = null),
           trailing: [
             GlassIconBtn(icon: Icons.edit_outlined, iconSize: 20, onTap: () => _openEditHall(h)),
+            GlassIconBtn(icon: Icons.add_rounded, onTap: () => _openNewTier(h)),
           ],
         ),
         Expanded(
@@ -3732,28 +3749,44 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (halls.length > 1) ...[
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final x in halls)
+                        _smallChip(p, x.name, x.id == h.id, () => setState(() => _tiersHallId = x.id)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Cap(ty('tiersCap')),
                 const SizedBox(height: 12),
-                GlassCard(
-                  r: Tb.rCard,
-                  child: tiers.isEmpty
-                      ? SizedBox(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-                            child: Tx(ty('noTiers'), size: 14, color: p.t4, align: TextAlign.center, lh: 20),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < tiers.length; i++)
-                              _tierRow(p, h, tiers[i], last: i == tiers.length - 1),
-                          ],
-                        ),
-                ),
-                const SizedBox(height: 10),
-                GlassBtn(label: ty('addTier'), h: 44, onTap: () => _openNewTier(h)),
+                if (tiers.isEmpty)
+                  GlassCard(
+                    r: Tb.rCard,
+                    pad: const EdgeInsets.symmetric(vertical: 26, horizontal: 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        children: [
+                          Icon(Icons.table_restaurant_outlined, size: 28, color: p.t3),
+                          const SizedBox(height: 10),
+                          Tx(ty('noTiers'), size: 14, color: p.t4, align: TextAlign.center, lh: 20),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  for (var i = 0; i < tiers.length; i++) ...[
+                    _tableCatalogCard(p, h, tiers[i]),
+                    if (i < tiers.length - 1) const SizedBox(height: 8),
+                  ],
+                const SizedBox(height: 12),
+                GlassBtn(label: ty('addTier'), h: 44, icon: Icons.add_rounded, onTap: () => _openNewTier(h)),
                 const SizedBox(height: 16),
+                Tx(ty('tablesNote'), size: 13, color: p.t4, lh: 18),
+                const SizedBox(height: 6),
                 Tx(ty('priceSnapshotNote'), size: 13, color: p.t4, lh: 18),
               ],
             ),
@@ -3763,24 +3796,523 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  Widget _tierRow(Pal p, Hall h, Menu m, {required bool last}) {
-    final subParts = <String>[
-      if (m.seats != null) ty('seatsN', {'n': '${m.seats}'}),
-      if (m.items.isNotEmpty) ty('itemsN', {'n': '${m.items.length}'}),
-    ];
-    return ListRow(
-      title: m.title,
-      subtitle: subParts.isEmpty ? null : subParts.join(' · '),
-      last: last,
-      h: 60,
+  /// Katalogdagi stol kartasi: nom, N kishilik, mahsulot soni, stol jami; o'ngda 1 kishiga.
+  Widget _tableCatalogCard(Pal p, Hall h, Menu m) {
+    final products = m.items.length;
+    final tt = m.tableTotal;
+    return Tap(
       onTap: () => _openEditTier(h, m),
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 150),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerRight,
-          child: Tx(toyMoney(m.pricePerGuest), size: 15, w: FontWeight.w600, color: p.ink, tab: true),
+      child: GlassCard(
+        r: Tb.rRow,
+        pad: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: p.glass2,
+                border: Border.all(color: p.glassBd),
+                borderRadius: BorderRadius.circular(Tb.rIcon),
+              ),
+              child: m.seats != null
+                  ? Tx('${m.seats}', size: 16, w: FontWeight.w700, color: p.ink, tab: true)
+                  : Icon(Icons.table_restaurant_outlined, size: 20, color: p.t1),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tx(m.title, size: 15, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                  const SizedBox(height: 3),
+                  Tx(
+                    [
+                      if (m.seats != null) ty('seatsShort', {'n': '${m.seats}'}),
+                      products > 0 ? ty('productsN', {'n': '$products'}) : ty('noProducts'),
+                      if (tt > 0) toyFx(tt),
+                    ].join(' · '),
+                    size: 12, color: p.t4, maxLines: 1, ellipsis: true, tab: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Tx(toyFx(m.pricePerGuest), size: 15, w: FontWeight.w700, color: p.mint, tab: true),
+                Tx(ty('perGuestShort'), size: 11, color: p.t4),
+              ],
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 20, color: p.t4),
+          ],
         ),
+      ),
+    );
+  }
+
+  // ---------- Stol muharriri ----------
+
+  Map<String, dynamic> _emptyRow() => {'title': '', 'amount': '', 'unit': 'kg', 'price': ''};
+
+  void _openNewTier(Hall h) => setState(() => _tierEdit = {
+        'hallId': h.id,
+        'title': '',
+        'price': '',
+        'priceManual': false,
+        'seats': '12',
+        'rows': <Map<String, dynamic>>[_emptyRow()],
+      });
+
+  void _openEditTier(Hall h, Menu m) => setState(() => _tierEdit = {
+        'hallId': h.id,
+        'id': m.id,
+        'menu': m,
+        'title': m.title,
+        'price': toyFx(m.pricePerGuest),
+        // Narx hisobdan farq qilsa — ega qo'lda qo'ygan, ustidan yozmaymiz
+        'priceManual': m.perGuestCalc == 0 || m.pricePerGuest != m.perGuestCalc,
+        'seats': m.seats == null ? '' : '${m.seats}',
+        'rows': <Map<String, dynamic>>[
+          for (final it in m.items)
+            {
+              'title': it.title,
+              'amount': it.amount != null ? toyAmountStr(it.amount) : (it.qty.isNotEmpty ? it.qty : ''),
+              'unit': it.unit.isNotEmpty ? it.unit : 'kg',
+              'price': it.unitPrice > 0 ? toyFx(it.unitPrice) : '',
+              'legacy': it.amount == null && it.qty.isNotEmpty, // eski matnli qator
+            },
+          if (m.items.isEmpty) _emptyRow(),
+        ],
+      });
+
+  /// Muharrir qatorlaridan stol jami (faqat to'liq to'ldirilgan qatorlar).
+  int _rowsTotal(List rows) {
+    var t = 0;
+    for (final r in rows) {
+      if (r['legacy'] == true) continue;
+      t += toyLineTotal(_amountOf('${r['amount']}'), _digits('${r['price']}'));
+    }
+    return t;
+  }
+
+  double? _amountOf(String s) {
+    final t = s.trim().replaceAll(',', '.');
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  Widget _tierEditModal(Pal p) {
+    final e = _tierEdit!;
+    final isNew = e['id'] == null;
+    final rows = e['rows'] as List<Map<String, dynamic>>;
+    final seats = _digits('${e['seats']}');
+    final total = _rowsTotal(rows);
+    final calc = toyPerGuest(total, seats > 0 ? seats : null);
+    final manual = e['priceManual'] == true;
+    // Avto narx: qo'lda o'zgartirilmagan bo'lsa hisob bilan jonli yuradi
+    final priceShown = manual ? '${e['price']}' : (calc > 0 ? toyFx(calc) : '${e['price']}');
+    void close() => setState(() => _tierEdit = null);
+    return _sheet(
+      close,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTitle(p, isNew ? ty('newTier') : ty('editTier'), close),
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _field(p, ty('tierTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
+                    hint: ty('tierTitlePh'), icon: Icons.table_restaurant_outlined),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: _field(p, ty('seatsLabel'), '${e['seats']}', (v) => setState(() => e['seats'] = v),
+                    number: true, group: false, icon: Icons.chair_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Cap(ty('productsCap')),
+          const SizedBox(height: 6),
+          Tx(ty('productsHint'), size: 12, color: p.t4, lh: 16),
+          const SizedBox(height: 10),
+          for (var i = 0; i < rows.length; i++) ...[
+            _productRow(p, rows, i),
+            const SizedBox(height: 8),
+          ],
+          GlassBtn(
+            label: ty('addProduct'),
+            h: 40,
+            fs: 14,
+            icon: Icons.add_rounded,
+            onTap: () => setState(() => rows.add(_emptyRow())),
+          ),
+          const SizedBox(height: 20),
+          // ---- Hisob ----
+          GlassCard(
+            r: Tb.rCard,
+            pad: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _totalRow(p, ty('tableTotalCap'), toyMoney(total), p.t2),
+                const SizedBox(height: 4),
+                _totalRow(
+                  p,
+                  seats > 0 ? ty('perGuestCalcCap', {'n': '$seats'}) : ty('perGuestNoSeats'),
+                  calc > 0 ? toyMoney(calc) : '—',
+                  p.mint,
+                  big: true,
+                ),
+                const SizedBox(height: 14),
+                _field(
+                  p,
+                  manual ? ty('tierPriceLabel') : ty('tierPriceAutoLabel'),
+                  priceShown,
+                  (v) => setState(() {
+                    e['price'] = v;
+                    e['priceManual'] = _digits(v) != calc;
+                  }),
+                  number: true,
+                  icon: Icons.payments_outlined,
+                ),
+                if (manual && calc > 0) ...[
+                  const SizedBox(height: 8),
+                  Tap(
+                    onTap: () => setState(() {
+                      e['priceManual'] = false;
+                      e['price'] = toyFx(calc);
+                    }),
+                    child: Tx(ty('useCalcPrice', {'sum': toyFx(calc)}), size: 12, w: FontWeight.w600, color: p.violet),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveTier(e)),
+          if (!isNew) ...[
+            const SizedBox(height: 8),
+            GlassBtn(
+              label: ty('tablePdf'),
+              h: 44,
+              icon: Icons.picture_as_pdf_outlined,
+              onTap: () => _shareTablePdf(e['menu'] as Menu),
+            ),
+            const SizedBox(height: 4),
+            TextBtn(
+              label: ty('archiveTier'),
+              color: p.coral,
+              onTap: () => _askArchiveTier('${e['id']}', '${e['title']}'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Bitta mahsulot qatori: nom · miqdor + birlik · birlik narxi → qator jami.
+  Widget _productRow(Pal p, List<Map<String, dynamic>> rows, int i) {
+    final r = rows[i];
+    final legacy = r['legacy'] == true;
+    final lt = legacy ? 0 : toyLineTotal(_amountOf('${r['amount']}'), _digits('${r['price']}'));
+    return GlassCard(
+      r: Tb.rRow,
+      pad: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _inputBox(p, ty('productTitlePh'), '${r['title']}', (v) => setState(() => r['title'] = v)),
+              ),
+              const SizedBox(width: 8),
+              GlassIconBtn(
+                icon: Icons.close_rounded,
+                iconSize: 18,
+                onTap: () => setState(() {
+                  rows.removeAt(i);
+                  if (rows.isEmpty) rows.add(_emptyRow());
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _inputBox(p, ty('amountPh'), '${r['amount']}', (v) => setState(() {
+                      r['amount'] = v;
+                      r['legacy'] = false; // eski matnli qator qayta terildi — endi hisoblanadi
+                    }),
+                    decimal: true, group: false),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _inputBox(p, ty('unitPricePh'), '${r['price']}', (v) => setState(() {
+                      r['price'] = v;
+                      r['legacy'] = false;
+                    }),
+                    number: true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 30,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final u in kToyUnits) ...[
+                  PillChip(
+                    label: tyUnit(u),
+                    selected: r['unit'] == u,
+                    h: 30,
+                    onTap: () => setState(() {
+                      r['unit'] = u;
+                      r['legacy'] = false;
+                    }),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                const SizedBox(width: 6),
+                if (lt > 0)
+                  Center(child: Tx('= ${toyFx(lt)}', size: 13, w: FontWeight.w700, color: p.mint, tab: true)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveTier(Map<String, dynamic> e) async {
+    final title = '${e['title']}'.trim();
+    final rows = e['rows'] as List<Map<String, dynamic>>;
+    final seats = _digits('${e['seats']}');
+    final total = _rowsTotal(rows);
+    final calc = toyPerGuest(total, seats > 0 ? seats : null);
+    final price = e['priceManual'] == true ? _digits('${e['price']}') : (calc > 0 ? calc : _digits('${e['price']}'));
+    if (title.isEmpty) {
+      _toastMsg(ty('needTierTitle'));
+      return;
+    }
+    if (price <= 0) {
+      _toastMsg(ty('needTierPrice'));
+      return;
+    }
+    if (seats > 100) {
+      _toastMsg(ty('badSeats'));
+      return;
+    }
+    final items = [
+      for (final r in rows)
+        if ('${r['title']}'.trim().isNotEmpty)
+          r['legacy'] == true
+              ? {'title': '${r['title']}'.trim(), 'qty': '${r['amount']}'.trim()}
+              : {
+                  'title': '${r['title']}'.trim(),
+                  if (_amountOf('${r['amount']}') != null) 'amount': _amountOf('${r['amount']}'),
+                  if (_amountOf('${r['amount']}') != null) 'unit': r['unit'],
+                  'unit_price': _digits('${r['price']}'),
+                },
+    ];
+    final body = {
+      'title': title,
+      'price_per_guest': price,
+      'seats': seats > 0 ? seats : null,
+      'items': items,
+    };
+    setState(() => _busy = true);
+    final ok = e['id'] == null
+        ? await toyRepo.createMenu('${e['hallId']}', body)
+        : await toyRepo.patchMenu('${e['id']}', body);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (ok) _tierEdit = null;
+    });
+    ok ? _toastMsg(ty('tierSaved')) : _toastErr();
+  }
+
+  Future<void> _shareTablePdf(Menu m) async {
+    setState(() => _busy = true);
+    try {
+      await shareTableSheet(m, hall: toyRepo.hallById(m.hallId), ownerName: '${store.S['meName'] ?? ''}');
+    } catch (_) {
+      if (mounted) _toastMsg(ty('receiptFailed'));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  // ---------- Bronda stol tanlash ----------
+
+  /// Stol kartalari (2 ustun): nom, N kishilik, stol jami; tanlanganida narx/kishi
+  /// avto to'ladi. "i" — tarkib varag'i.
+  Widget _tableCards(Pal p, _FormData f, List<Menu> tiers) {
+    return LayoutBuilder(
+      builder: (_, c) {
+        const gap = 8.0;
+        final w = (c.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final m in tiers)
+              SizedBox(width: w, child: _tableCard(p, f, m)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _tableCard(Pal p, _FormData f, Menu m) {
+    final on = f.menuId == m.id && !f.priceManual;
+    return Tap(
+      onTap: () => setState(() {
+        f.menuId = m.id;
+        f.priceManual = false;
+        f.price = toyFx(m.pricePerGuest);
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: on ? p.ink : p.glass,
+          border: Border.all(color: on ? p.ink : p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rCard),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Tx(m.title, size: 14, w: FontWeight.w700, color: on ? p.bg : p.ink, maxLines: 1, ellipsis: true),
+                ),
+                Tap(
+                  onTap: () => setState(() => _tableInfo = m),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.info_outline_rounded, size: 18, color: on ? p.bg.withValues(alpha: .8) : p.t3),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Tx(
+              m.seats != null ? ty('seatsShort', {'n': '${m.seats}'}) : ty('productsN', {'n': '${m.items.length}'}),
+              size: 12, color: on ? p.bg.withValues(alpha: .7) : p.t4,
+            ),
+            const SizedBox(height: 8),
+            if (m.tableTotal > 0)
+              Tx(ty('tableTotalLine', {'sum': toyFx(m.tableTotal)}), size: 12, color: on ? p.bg.withValues(alpha: .75) : p.t3, tab: true),
+            Tx('${toyFx(m.pricePerGuest)} ${ty('perGuestShort')}',
+                size: 14, w: FontWeight.w700, color: on ? p.bg : p.mint, tab: true, maxLines: 1),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Stol tarkibi varag'i: mahsulot · miqdor · birlik narxi · qator jami; PDF; tanlash.
+  Widget _tableSheet(Pal p) {
+    final m = _tableInfo!;
+    final f = _form;
+    void close() => setState(() => _tableInfo = null);
+    return _sheet(
+      close,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTitle(p, m.title, close),
+          const SizedBox(height: 4),
+          Tx(
+            [
+              if (m.seats != null) ty('seatsShort', {'n': '${m.seats}'}),
+              ty('productsN', {'n': '${m.items.length}'}),
+            ].join(' · '),
+            size: 13, color: p.t4,
+          ),
+          const SizedBox(height: 16),
+          GlassCard(
+            r: Tb.rCard,
+            pad: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Column(
+              children: [
+                if (m.items.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Tx(ty('noProducts'), size: 13, color: p.t4),
+                  ),
+                for (var i = 0; i < m.items.length; i++)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: i == 0 ? null : BoxDecoration(border: Border(top: BorderSide(color: p.hairline))),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Tx(m.items[i].title, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                              if (m.items[i].qtyText.isNotEmpty || m.items[i].unitPrice > 0)
+                                Tx(
+                                  [
+                                    if (m.items[i].qtyText.isNotEmpty) m.items[i].qtyText,
+                                    if (m.items[i].unitPrice > 0) '${toyFx(m.items[i].unitPrice)}/${tyUnit(m.items[i].unit)}',
+                                  ].join(' × '),
+                                  size: 12, color: p.t4, tab: true,
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (m.items[i].lineTotal > 0) ...[
+                          const SizedBox(width: 10),
+                          Tx(toyFx(m.items[i].lineTotal), size: 14, w: FontWeight.w600, color: p.ink, tab: true),
+                        ],
+                      ],
+                    ),
+                  ),
+                if (m.tableTotal > 0) ...[
+                  Container(height: 1, color: p.glassBd),
+                  const SizedBox(height: 10),
+                  _totalRow(p, ty('tableTotalCap'), toyFx(m.tableTotal), p.t2),
+                  const SizedBox(height: 4),
+                ],
+                _totalRow(p, ty('perGuestCap'), toyMoney(m.pricePerGuest), p.mint, big: true),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (f != null && f.id == null)
+            GradientBtn(
+              label: ty('pickTable'),
+              icon: Icons.check_rounded,
+              onTap: () => setState(() {
+                f.menuId = m.id;
+                f.priceManual = false;
+                f.price = toyFx(m.pricePerGuest);
+                _tableInfo = null;
+              }),
+            ),
+          const SizedBox(height: 8),
+          GlassBtn(label: ty('tablePdf'), h: 44, icon: Icons.picture_as_pdf_outlined, loading: _busy, onTap: () => _shareTablePdf(m)),
+        ],
       ),
     );
   }
@@ -4647,95 +5179,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ---- Narx toifasi qo'shish / tahrirlash ----
 
-  void _openNewTier(Hall h) =>
-      setState(() => _tierEdit = {'hallId': h.id, 'title': '', 'price': '', 'seats': '', 'items': ''});
-
-  void _openEditTier(Hall h, Menu m) => setState(() => _tierEdit = {
-        'hallId': h.id,
-        'id': m.id,
-        'title': m.title,
-        'price': toyFx(m.pricePerGuest),
-        'seats': m.seats == null ? '' : '${m.seats}',
-        // 024: har qatorda bitta taom ("Osh · 2 kg" ko'rinishi saqlanadi)
-        'items': m.items.map((i) => i.label).join('\n'),
-      });
-
-  Widget _tierEditModal(Pal p) {
-    final e = _tierEdit!;
-    final isNew = e['id'] == null;
-    void close() => setState(() => _tierEdit = null);
-    return _sheet(
-      close,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sheetTitle(p, isNew ? ty('newTier') : ty('editTier'), close),
-          const SizedBox(height: 20),
-          _field(p, ty('tierTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
-              hint: ty('tierTitlePh'), icon: Icons.star_rounded),
-          const SizedBox(height: 16),
-          _field(p, ty('tierPriceLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
-              number: true, icon: Icons.payments_outlined),
-          const SizedBox(height: 16),
-          // 024: stol sig'imi + stol ustidagi taomlar (har qatorda bittadan)
-          _field(p, ty('seatsLabel'), '${e['seats']}', (v) => setState(() => e['seats'] = v),
-              number: true, group: false, icon: Icons.chair_outlined),
-          const SizedBox(height: 16),
-          _field(p, ty('tableItemsLabel'), '${e['items']}', (v) => setState(() => e['items'] = v),
-              hint: ty('tableItemsPh'), lines: 4),
-          const SizedBox(height: 24),
-          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveTier(e)),
-          if (!isNew) ...[
-            const SizedBox(height: 6),
-            TextBtn(
-              label: ty('archiveTier'),
-              color: p.coral,
-              onTap: () => _askArchiveTier('${e['id']}', '${e['title']}'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _saveTier(Map<String, dynamic> e) async {
-    final title = '${e['title']}'.trim();
-    final price = _digits('${e['price']}');
-    if (title.isEmpty) {
-      _toastMsg(ty('needTierTitle'));
-      return;
-    }
-    if (price <= 0) {
-      _toastMsg(ty('needTierPrice'));
-      return;
-    }
-    final seats = _digits('${e['seats']}');
-    final items = [
-      for (final l in '${e['items']}'.split('\n'))
-        if (l.trim().isNotEmpty) l.trim(),
-    ];
-    if (seats > 100) {
-      _toastMsg(ty('badSeats'));
-      return;
-    }
-    setState(() => _busy = true);
-    final ok = e['id'] == null
-        ? await toyRepo.createMenu('${e['hallId']}', title, price, seats: seats > 0 ? seats : null, items: items)
-        : await toyRepo.patchMenu('${e['id']}', {
-            'title': title,
-            'price_per_guest': price,
-            'seats': seats > 0 ? seats : null,
-            'items': [for (final t in items) {'title': t}],
-          });
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (ok) _tierEdit = null;
-    });
-    ok ? _toastMsg(ty('tierSaved')) : _toastErr();
-  }
-
   void _askArchiveTier(String id, String title) {
     setState(() {
       _tierEdit = null;
@@ -4782,6 +5225,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     bool number = false,
     bool group = true,
     bool phone = false,
+    bool decimal = false,
     int lines = 1,
     IconData? icon,
   }) {
@@ -4791,7 +5235,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         Cap(label),
         const SizedBox(height: 10),
         _inputBox(p, hint ?? '', value, onChanged,
-            number: number, group: group, phone: phone, lines: lines, icon: icon),
+            number: number, group: group, phone: phone, decimal: decimal, lines: lines, icon: icon),
       ],
     );
   }
@@ -4804,6 +5248,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     bool number = false,
     bool group = true,
     bool phone = false,
+    bool decimal = false,
     int lines = 1,
     IconData? icon,
   }) {
@@ -4817,11 +5262,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         hint: hint.isEmpty ? null : hint,
         keyboardType: phone
             ? TextInputType.phone
-            : (number ? TextInputType.number : TextInputType.text),
+            : (decimal
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : (number ? TextInputType.number : TextInputType.text)),
         inputFormatters: phone ? [_PhoneFmt()] : (number && group ? [_GroupFmt()] : null),
         maxLines: lines,
         minLines: lines > 1 ? lines : 1,
-        style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: number || phone),
+        style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: number || phone || decimal),
         hintColor: p.t5,
       ),
     );

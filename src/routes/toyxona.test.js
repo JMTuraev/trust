@@ -13,6 +13,7 @@ import {
   computeTotals, autoStatusAfterPayment, sortBookings, overMax, foldSummary,
   money, isUniqueViolation, readHallFilter, searchTerms,
   isDateStr, daysBetween, monthBounds, SLOTS, STATUSES, DEDUP_MS,
+  lineTotal, menuTableTotal, menuPerGuest, readMenuItems, MENU_UNITS,
 } from './toyxona.js';
 
 /** 024: computeTotals qo'shimcha maydonlar (bonus/refunded/penalty/refundDue) qaytaradi —
@@ -535,4 +536,47 @@ test('024 foldSummary — jarima/qaytarim/bonus/avgCheck/topServices', () => {
 test('024 doimiylar', () => {
   assert.deepEqual(PRICE_MODES, ['guest', 'total']);
   assert.ok(KINDS.includes('qaytarim'));
+});
+
+// ---------------- 027: STOL KO'RINISHI — mahsulot hisobi ----------------
+test('027 lineTotal — miqdor × birlik narxi, kasr kg yaxlitlanadi; buzuq/nol = 0', () => {
+  assert.equal(lineTotal(2, 120_000), 240_000);
+  assert.equal(lineTotal(1.5, 95_000), 142_500);
+  assert.equal(lineTotal(0.333, 100_000), 33_300);
+  assert.equal(lineTotal(null, 100), 0);
+  assert.equal(lineTotal(2, 0), 0);
+  assert.equal(lineTotal('x', 5), 0);
+});
+
+test('027 menuTableTotal / menuPerGuest — stol jami va 1 kishiga YUQORIGA yaxlitlab', () => {
+  const items = [
+    { amount: 2, unit_price: 120_000 },     // osh 240 000
+    { amount: 12, unit_price: 8_000 },      // non 96 000
+    { amount: 3, unit_price: 25_000 },      // salat 75 000
+    { amount: null, unit: null, unit_price: 0, title: 'eski qator' },
+  ];
+  assert.equal(menuTableTotal(items), 411_000);
+  assert.equal(menuPerGuest(items, 12), 34_250);
+  assert.equal(menuPerGuest(items, 7), 58_715);   // 58714.28 -> 58715
+  assert.equal(menuPerGuest(items, null), 0);
+  assert.equal(menuPerGuest([], 12), 0);
+});
+
+test('027 readMenuItems — amount/unit/unit_price normallashadi; eski {title, qty} ham o\'tadi', () => {
+  const r = readMenuItems([
+    { title: 'Osh', amount: '2,5', unit: 'kg', unit_price: 120000 },
+    { title: 'Non', amount: 12, unit: 'dona', unit_price: 8000 },
+    { title: 'Salat', qty: '3 ta' },
+    { title: '' },
+  ]);
+  assert.equal(r.error, undefined);
+  assert.equal(r.items.length, 3);
+  assert.deepEqual(r.items[0], { title: 'Osh', qty: null, amount: 2.5, unit: 'kg', unit_price: 120000 });
+  assert.deepEqual(r.items[1], { title: 'Non', qty: null, amount: 12, unit: 'dona', unit_price: 8000 });
+  assert.equal(r.items[2].amount, null);
+  assert.equal(r.items[2].unit_price, 0);
+  assert.ok(readMenuItems([{ title: 'X', unit: 'quti' }]).error);
+  assert.ok(readMenuItems([{ title: 'X', amount: -1 }]).error);
+  assert.ok(readMenuItems([{ title: 'X', unit_price: 'abc' }]).error);
+  assert.deepEqual(MENU_UNITS, ['kg', 'g', 'dona', 'l', 'porsiya', 'paket']);
 });

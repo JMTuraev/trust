@@ -249,20 +249,65 @@ ToyServiceCat catOf(String? slug) {
 const int kToyMaxSvcImages = 5;
 
 /// Stol ustidagi taom/mahsulot qatori (024, hall_menu_items) — pulsiz, faqat matn.
+/// 027: stol mahsuloti birliklari (backend MENU_UNITS va DB CHECK bilan bir xil).
+const List<String> kToyUnits = ['kg', 'g', 'dona', 'l', 'porsiya', 'paket'];
+
+/// 027: qator jami — miqdor × birlik narxi, butun so'mga yaxlitlab (backend lineTotal nusxasi).
+int toyLineTotal(double? amount, int unitPrice) {
+  if (amount == null || amount <= 0 || unitPrice <= 0) return 0;
+  return (amount * unitPrice).round();
+}
+
+/// 027: 1 kishiga narx — stol jami ÷ o'rindiq, YUQORIGA yaxlitlab. seats yo'q = 0.
+int toyPerGuest(int tableTotal, int? seats) {
+  if (tableTotal <= 0 || seats == null || seats <= 0) return 0;
+  return (tableTotal / seats).ceil();
+}
+
+/// Miqdor ko'rinishi: 2 -> "2", 2.5 -> "2.5", 0.25 -> "0.25".
+String toyAmountStr(double? a) {
+  if (a == null) return '';
+  if (a == a.roundToDouble()) return '${a.toInt()}';
+  var s = a.toStringAsFixed(3);
+  while (s.endsWith('0')) {
+    s = s.substring(0, s.length - 1);
+  }
+  return s;
+}
+
 class MenuItemRow {
   final String id;
   final String title;
-  final String qty; // "2 dona", "1 kg" — erkin matn
-  const MenuItemRow({required this.id, required this.title, this.qty = ''});
+  final String qty; // "2 dona", "1 kg" — erkin matn (024, eski qatorlar)
+  // 027: hisoblanadigan mahsulot — miqdor × birlik × birlik narxi
+  final double? amount;
+  final String unit; // '' = berilmagan
+  final int unitPrice;
+  const MenuItemRow({
+    required this.id,
+    required this.title,
+    this.qty = '',
+    this.amount,
+    this.unit = '',
+    this.unitPrice = 0,
+  });
 
   factory MenuItemRow.fromJson(Map<String, dynamic> j) => MenuItemRow(
         id: '${j['id']}',
         title: '${j['title'] ?? ''}',
         qty: '${j['qty'] ?? ''}',
+        amount: j['amount'] == null ? null : double.tryParse('${j['amount']}'),
+        unit: '${j['unit'] ?? ''}',
+        unitPrice: _int(j['unit_price']),
       );
 
+  int get lineTotal => toyLineTotal(amount, unitPrice);
+
+  /// Miqdor matni: 027 qatorda "2 kg", eski qatorda qty matni.
+  String get qtyText => amount != null ? '${toyAmountStr(amount)} $unit'.trim() : qty;
+
   /// Ko'rinish: "Osh · 2 kg" / "Salat".
-  String get label => qty.isEmpty ? title : '$title · $qty';
+  String get label => qtyText.isEmpty ? title : '$title · $qtyText';
 }
 
 /// STOL TURI (hall_menus) — "Oddiy — 150 000", "Lyuks — 200 000". Narx KISHI
@@ -277,6 +322,11 @@ class Menu {
   final List<MenuItemRow> items; // stol ustidagi taomlar (024)
   final int sort;
   final bool archived;
+
+  /// 027: stol jami (Σ mahsulot qatorlari) va shundan 1 kishiga hisob.
+  int get tableTotal => items.fold(0, (s, it) => s + it.lineTotal);
+  int get perGuestCalc => toyPerGuest(tableTotal, seats);
+
   const Menu({
     required this.id,
     required this.title,
@@ -1661,14 +1711,9 @@ class ToyxonaRepo extends ChangeNotifier {
   // Har mutatsiyadan keyin /halls qayta o'qiladi: menus[] ichida keladi,
   // shuning uchun bitta so'rov butun holatni yangilaydi.
 
-  Future<bool> createMenu(String hallId, String title, int pricePerGuest,
-          {int? seats, List<String> items = const []}) =>
-      _menuMutation('POST', '/halls/$hallId/menus', body: {
-        'title': title,
-        'price_per_guest': pricePerGuest,
-        if (seats != null && seats > 0) 'seats': seats,
-        'items': [for (final t in items) {'title': t}],
-      });
+  /// 027: body — {title, price_per_guest, seats?, note?, items: [{title, amount?, unit?, unit_price?}]}
+  Future<bool> createMenu(String hallId, Map<String, dynamic> body) =>
+      _menuMutation('POST', '/halls/$hallId/menus', body: body);
 
   Future<bool> patchMenu(String menuId, Map<String, dynamic> body) =>
       _menuMutation('PATCH', '/menus/$menuId', body: body);

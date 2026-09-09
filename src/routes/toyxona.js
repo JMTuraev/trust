@@ -65,7 +65,10 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 // Rasm URL'i FAQAT o'z bucket'imizdan bo'lsin. Aks holda ega (yoki buzilgan klient)
 // ixtiyoriy tashqi manzilni yozib qo'yardi: bron varaqasi begona serverga so'rov
 // yuborib mijozning IP'sini oshkor qilardi va rasm istalgan payt almashib ketardi.
-const MAX_MENU_ITEMS = 60;       // bir stol turidagi taom/mahsulot qatorlari
+const MAX_MENU_ITEMS = 60;
+// 027: stol mahsuloti birliklari (DB CHECK bilan bir xil ro'yxat)
+export const MENU_UNITS = ['kg', 'g', 'dona', 'l', 'porsiya', 'paket'];
+const MAX_ITEM_AMOUNT = 1_000_000;       // bir stol turidagi taom/mahsulot qatorlari
 const MAX_POLICY_ROWS = 10;      // bekor siyosati pog'onalari
 // Avans kelmasa sana shuncha soat ushlab turiladi (POST /bookings hold_hours override, 1..720)
 export const DEFAULT_HOLD_HOURS = 48;
@@ -649,13 +652,48 @@ function mapMenu(m, items = []) {
     archived: !!m.archived,
     created_at: m.created_at,
     // 024: stol ustidagi taom/mahsulotlar — HAR DOIM massiv
-    items: items.map((it) => ({ id: it.id, title: it.title, qty: it.qty || null, sort: Number(it.sort) || 0 })),
+    // 027: amount × unit_price = line_total; stol jami va 1 kishiga hisob
+    items: items.map(mapMenuItem),
+    table_total: menuTableTotal(items),
+    per_guest_calc: menuPerGuest(items, m.seats),
   };
+}
+
+function mapMenuItem(it) {
+  const amount = it.amount == null ? null : Number(it.amount);
+  const unit_price = Number(it.unit_price) || 0;
+  return {
+    id: it.id,
+    title: it.title,
+    qty: it.qty || null,
+    sort: Number(it.sort) || 0,
+    amount,
+    unit: MENU_UNITS.includes(it.unit) ? it.unit : null,
+    unit_price,
+    line_total: lineTotal(amount, unit_price),
+  };
+}
+
+/** 027: qator jami — miqdor × birlik narxi, butun so'mga yaxlitlanadi. Buzuq kirish 0. */
+export function lineTotal(amount, unitPrice) {
+  const a = Number(amount); const u = Number(unitPrice);
+  if (!Number.isFinite(a) || !Number.isFinite(u) || a <= 0 || u <= 0) return 0;
+  return Math.round(a * u);
+}
+/** 027: stol jami = Σ qator jami. */
+export function menuTableTotal(items = []) {
+  return (items || []).reduce((s, it) => s + lineTotal(it.amount, it.unit_price), 0);
+}
+/** 027: 1 kishiga narx — stol jami ÷ o'rindiq, YUQORIGA yaxlitlab (ega zarar ko'rmasin). seats yo'q = 0. */
+export function menuPerGuest(items, seats) {
+  const t = menuTableTotal(items); const n = Number(seats) || 0;
+  if (t <= 0 || n <= 0) return 0;
+  return Math.ceil(t / n);
 }
 
 /** Stol turlari uchun taomlarni TO'PLAB yuklaydi (N+1 yo'q). menu_id -> rows[] */
 async function loadMenuItems(userId, menuIds = null) {
-  let q = supabaseAdmin.from('hall_menu_items').select('id, menu_id, title, qty, sort')
+  let q = supabaseAdmin.from('hall_menu_items').select('id, menu_id, title, qty, sort, amount, unit, unit_price')
     .eq('user_id', userId).order('sort').order('created_at').limit(MAX_MENUS_TOTAL);
   if (menuIds) q = q.in('menu_id', menuIds);
   const { data, error } = await q;
@@ -925,8 +963,9 @@ function readMenuExtras(body, patch) {
   return null;
 }
 
-/** items[] ni tekshiradi: [{title, qty?}] → normallashgan massiv yoki { error }. */
-function readMenuItems(raw) {
+/** items[] ni tekshiradi: [{title, qty?, amount?, unit?, unit_price?}] → normallashgan massiv yoki { error }.
+ *  027: amount (0..1e6, kasr mumkin), unit (MENU_UNITS), unit_price (so'm, 0 mumkin). */
+export function readMenuItems(raw) {
   if (raw === undefined) return { items: undefined };
   if (!Array.isArray(raw)) return { error: "Taomlar ro'yxat bo'lsin" };
   if (raw.length > MAX_MENU_ITEMS) return { error: `Bir stol turida ${MAX_MENU_ITEMS} tadan ortiq qator bo'lmasin` };
@@ -934,7 +973,23 @@ function readMenuItems(raw) {
   for (const r of raw) {
     const title = clean(typeof r === 'string' ? r : r?.title, 60);
     if (!title) continue;   // bo'sh qator — o'tkazib yuboriladi (mobil bo'sh input qoldirishi mumkin)
-    items.push({ title, qty: clean(r?.qty, 30) });
+    let amount = null;
+    if (r?.amount != null && r.amount !== '') {
+      const a = Number(String(r.amount).replace(',', '.'));
+      if (!Number.isFinite(a) || a < 0 || a > MAX_ITEM_AMOUNT) return { error: `"${title}": miqdor noto'g'ri` };
+      amount = Math.round(a * 1000) / 1000;
+    }
+    let unit = null;
+    if (r?.unit != null && r.unit !== '') {
+      unit = String(r.unit);
+      if (!MENU_UNITS.includes(unit)) return { error: `"${title}": birlik noto'g'ri (${MENU_UNITS.join('/')})` };
+    }
+    let unit_price = 0;
+    if (r?.unit_price != null && r.unit_price !== '') {
+      unit_price = money(r.unit_price, { allowZero: true });
+      if (unit_price == null) return { error: `"${title}": birlik narxi noto'g'ri` };
+    }
+    items.push({ title, qty: clean(r?.qty, 30), amount, unit, unit_price });
   }
   return { items };
 }
@@ -948,7 +1003,10 @@ async function replaceMenuItems(userId, menuId, items) {
   if (oe) throw new Error(oe.message);
   if (items.length) {
     const { error } = await supabaseAdmin.from('hall_menu_items').insert(
-      items.map((it, i) => ({ user_id: userId, menu_id: menuId, title: it.title, qty: it.qty, sort: i })));
+      items.map((it, i) => ({
+        user_id: userId, menu_id: menuId, title: it.title, qty: it.qty, sort: i,
+        amount: it.amount ?? null, unit: it.unit ?? null, unit_price: it.unit_price || 0,
+      })));
     if (error) throw new Error(error.message);
   }
   if (old?.length) {
@@ -966,13 +1024,19 @@ router.post('/halls/:hallId/menus', async (req, res, next) => {
 
     const title = clean(req.body?.title, 60);
     if (!title) return res.status(400).json({ success: false, error: 'Toifa nomi kerak' });
-    const price = money(req.body?.price_per_guest, { allowZero: true });
-    if (price == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
     const extras = {};
     const exErr = readMenuExtras(req.body, extras);
     if (exErr) return res.status(400).json({ success: false, error: exErr });
     const ri = readMenuItems(req.body?.items);
     if (ri.error) return res.status(400).json({ success: false, error: ri.error });
+    // 027: narx berilmasa — mahsulotlardan hisoblanadi (stol jami ÷ o'rindiq)
+    let price;
+    if (req.body?.price_per_guest == null || req.body.price_per_guest === '') {
+      price = menuPerGuest(ri.items || [], extras.seats);
+    } else {
+      price = money(req.body.price_per_guest, { allowZero: true });
+      if (price == null) return res.status(400).json({ success: false, error: "Narx noto'g'ri" });
+    }
 
     const { count, error: ce } = await supabaseAdmin.from('hall_menus')
       .select('id', { count: 'exact', head: true })

@@ -571,4 +571,53 @@ void main() {
       expect(old.category, 'boshqa');
     });
   });
+
+  main027();
+}
+
+// ---------------- 027: STOL KO'RINISHI — mahsulot hisobi (backend bilan bir xil) ----------------
+void main027() {
+  test('027 toyLineTotal / toyPerGuest — miqdor × narx; 1 kishiga YUQORIGA yaxlitlab', () {
+    expect(toyLineTotal(2, 120000), 240000);
+    expect(toyLineTotal(1.5, 95000), 142500);
+    expect(toyLineTotal(null, 100), 0);
+    expect(toyLineTotal(2, 0), 0);
+    expect(toyPerGuest(411000, 12), 34250);
+    expect(toyPerGuest(411000, 7), 58715);
+    expect(toyPerGuest(411000, null), 0);
+    expect(toyPerGuest(0, 12), 0);
+  });
+
+  test('027 Menu.fromJson — mahsulot qatorlari, tableTotal/perGuestCalc; eski qty qatori buzilmaydi', () {
+    final m = Menu.fromJson({
+      'id': 'm1', 'title': 'Oddiy', 'price_per_guest': 34250, 'seats': 12,
+      'items': [
+        {'id': 'a', 'title': 'Osh', 'amount': 2, 'unit': 'kg', 'unit_price': 120000},
+        {'id': 'b', 'title': 'Non', 'amount': '12', 'unit': 'dona', 'unit_price': 8000},
+        {'id': 'c', 'title': 'Salat', 'amount': 3, 'unit': 'porsiya', 'unit_price': 25000},
+        {'id': 'd', 'title': 'Eski', 'qty': '2 ta'},
+      ],
+    });
+    expect(m.items.length, 4);
+    expect(m.items[0].lineTotal, 240000);
+    expect(m.items[0].qtyText, '2 kg');
+    expect(m.items[3].amount, isNull);
+    expect(m.items[3].qtyText, '2 ta');
+    expect(m.items[3].label, 'Eski · 2 ta');
+    expect(m.tableTotal, 411000);
+    expect(m.perGuestCalc, 34250);
+    expect(toyAmountStr(2.5), '2.5');
+    expect(toyAmountStr(2), '2');
+    expect(toyAmountStr(0.25), '0.25');
+  });
+
+  test('027 l10n — yangi kalitlar 6 tilda', () {
+    for (final e in kToyLangs.entries) {
+      for (final k in ['tablesTitle', 'tablesBtn', 'productsCap', 'perGuestCap', 'pickTable', 'unitKg', 'unitPaket']) {
+        expect(e.value[k], isNotNull, reason: '${e.key}: $k');
+      }
+    }
+    expect(tyUnit('kg'), isNotEmpty);
+    expect(tyUnit('x'), '');
+  });
 }
