@@ -250,7 +250,8 @@ const int kToyMaxSvcImages = 5;
 
 /// Stol ustidagi taom/mahsulot qatori (024, hall_menu_items) — pulsiz, faqat matn.
 /// 027: stol mahsuloti birliklari (backend MENU_UNITS va DB CHECK bilan bir xil).
-const List<String> kToyUnits = ['kg', 'g', 'dona', 'l', 'porsiya', 'paket'];
+/// Mobil tanlovda 'g' YO'Q (ega kg'da o'ylaydi); eski 'g' qatorlar o'qiladi.
+const List<String> kToyUnits = ['kg', 'dona', 'l', 'porsiya', 'paket'];
 
 /// 027: qator jami — miqdor × birlik narxi, butun so'mga yaxlitlab (backend lineTotal nusxasi).
 int toyLineTotal(double? amount, int unitPrice) {
@@ -322,6 +323,9 @@ class Menu {
   final List<MenuItemRow> items; // stol ustidagi taomlar (024)
   final int sort;
   final bool archived;
+  /// 028: stol rasmlari (5 tagacha), birinchisi muqova.
+  final List<String> images;
+  String? get cover => images.isEmpty ? null : images.first;
 
   /// 027: stol jami (Σ mahsulot qatorlari) va shundan 1 kishiga hisob.
   int get tableTotal => items.fold(0, (s, it) => s + it.lineTotal);
@@ -337,6 +341,7 @@ class Menu {
     this.items = const [],
     this.sort = 0,
     this.archived = false,
+    this.images = const [],
   });
 
   factory Menu.fromJson(Map<String, dynamic> j) => Menu(
@@ -352,6 +357,10 @@ class Menu {
         ],
         sort: _int(j['sort']),
         archived: j['archived'] == true,
+        images: [
+          for (final u in (j['images'] is List ? j['images'] as List : const []))
+            if (u is String && u.isNotEmpty) u,
+        ],
       );
 }
 

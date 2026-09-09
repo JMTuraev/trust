@@ -265,6 +265,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   Map<String, dynamic>? _hallEdit; // {id?, hallId?, name, cap, price}
   Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price, priceManual, seats, rows}
   Menu? _tableInfo; // 027: bronda stol tarkibi varag'i
+  String? _imgBusyMenuId; // 028: katalog kartasidan rasm yuklanmoqda (qaysi stol)
+  int? _sumDay; // 028: xulosa kartasida tanlangan band kun
   // ---- 024 ----
   bool _servicesOpen = false; // servislar katalogi qatlami
   // 025: ochilgan kategoriya slug'i (null = kategoriya grid'i). Servislar
@@ -312,7 +314,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   final Set<String> _dayFetched = {};
 
   // Zallar sahifasidagi "Arxiv (N)" bo'limi (U10)
-  bool _archOpen = false;
 
   // Oy menyusi 31 oyni qamraydi (F11) — ochilganda tanlangan oy ko'rinib
   // turishi uchun boshlang'ich siljish bilan yaratiladigan controller.
@@ -854,10 +855,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         children: [
           // F1: birinchi yuklashdan keyin oy almashtirilsa skelet o'rniga
           // yengil "yuklanmoqda" belgisi — kontekst yo'qolmaydi.
-          if (toyRepo.loading && toyRepo.loaded) ...[
-            _loadingHint(p),
-            const SizedBox(height: 12),
-          ],
           // F1: oy yuklanmay qolsa ESKI OY JIMGINA TURMAYDI — repo ro'yxatni
           // tozalagan, bu yerda banner + qayta urinish.
           if (toyRepo.monthError != null && !toyRepo.loading) ...[
@@ -905,6 +902,21 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ),
           ),
         ),
+        // F1/028: oy almashganda yuklanish belgisi SHU YERDA — sarlavha qatori
+        // balandligi o'zgarmaydi, kalendar va kartalar joyidan siljimaydi.
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: toyRepo.loading && toyRepo.loaded
+              ? Center(
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 1.8, valueColor: AlwaysStoppedAnimation<Color>(p.cyan)),
+                  ),
+                )
+              : null,
+        ),
         const SizedBox(width: 8),
         GlassIconBtn(
           icon: Icons.chevron_left_rounded,
@@ -940,7 +952,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  /// Yengil yuklanish belgisi (F1) — skelet emas, kontent ustidagi bir qator.
+  /// Yengil yuklanish belgisi (F1) — qidiruvda ishlatiladi (oy almashishida
+  /// endi sarlavha qatoridagi kichik spinner, 028).
   Widget _loadingHint(Pal p) {
     return Row(
       children: [
@@ -1130,69 +1143,125 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     // F3: server xulosasi shu yuklashda kelmagan bo'lsa — yuklangan qatorlardan
     // hisob (shownSummary). Eski oyning raqami hech qachon ko'rsatilmaydi.
     final s = toyRepo.shownSummary;
+    // 028: BAND KUNLAR — oy ichida bron bor kunlar (bekorlarsiz), kun → bronlar.
+    final byDay = <int, List<Booking>>{};
+    for (final b in toyRepo.activeMonthBookings) {
+      if (b.eventDate.year != _month.year || b.eventDate.month != _month.month) continue;
+      (byDay[b.eventDate.day] ??= []).add(b);
+    }
+    final days = byDay.keys.toList()..sort();
+    for (final l in byDay.values) {
+      l.sort((a, b) => kToySlots.indexOf(a.slot).compareTo(kToySlots.indexOf(b.slot)));
+    }
+    final sel = _sumDay != null && byDay.containsKey(_sumDay) ? _sumDay : null;
     return GlassCard(
       r: Tb.rCard,
       pad: const EdgeInsets.all(20),
       child: SizedBox(
         width: double.infinity,
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // countActive — total/paid/left AYNAN shu bandlardan (bekor qilinganlarsiz),
-          // ya'ni sarlavhadagi son pastdagi summa bilan kafolatli mos keladi.
-          Cap(ty('summaryCap', {'month': '${tyMonth(_month.month)} ${_month.year}', 'n': '${s.countActive}'})),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Tx(toyMoney(s.total), size: 30, w: FontWeight.w600, color: p.mint, tab: true),
-          ),
-          const SizedBox(height: 6),
-          Tx(ty('advanceLine', {'paid': toyMoney(s.paid), 'left': toyMoney(s.left)}), size: 13, color: p.t2, lh: 18),
-          // 024 analitika: bandlik % · o'rtacha chek · eng ko'p sotilgan servis
-          if (s.countActive > 0) ...[
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // countActive — total/paid/left AYNAN shu bandlardan (bekor qilinganlarsiz)
+            Cap(ty('summaryCap', {'month': '${tyMonth(_month.month)} ${_month.year}', 'n': '${s.countActive}'})),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Tx(toyMoney(s.total), size: 30, w: FontWeight.w600, color: p.mint, tab: true),
+            ),
+            const SizedBox(height: 6),
+            Tx(ty('advanceLine', {'paid': toyMoney(s.paid), 'left': toyMoney(s.left)}), size: 13, color: p.t2, lh: 18),
+            if (days.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Cap(ty('bookedDaysCap')),
+              const SizedBox(height: 8),
+              // Kun belgilari — ko'p bo'lsa gorizontal aylanadi, karta kengaymaydi
+              SizedBox(
+                height: 54,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final d in days) ...[
+                      _dayBadge(p, d, byDay[d]!, sel == d),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+              if (sel != null) ...[
+                const SizedBox(height: 10),
+                for (var i = 0; i < byDay[sel]!.length; i++) _sumBookingRow(p, byDay[sel]![i], first: i == 0),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kun belgisi: kun raqami + shu kundagi bronlarning slot ikonkalari
+  /// (osh / tushlik / to'y). Bosilsa ostida mijozlar ro'yxati ochiladi.
+  Widget _dayBadge(Pal p, int day, List<Booking> rows, bool on) {
+    return Tap(
+      onTap: () => setState(() => _sumDay = on ? null : day),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: on ? p.ink : p.glass2,
+          border: Border.all(color: on ? p.ink : p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rIcon),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Tx('$day', size: 16, w: FontWeight.w700, color: on ? p.bg : p.ink, tab: true),
+            const SizedBox(height: 3),
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                PillBadge.muted(ty('occupancyChip', {'pct': _pctTxt(s.occupancyPct)}), h: 22),
-                PillBadge.muted(ty('avgCheckChip', {'sum': toyFx(s.avgCheck)}), h: 22),
-                if (s.topServices.isNotEmpty)
-                  PillBadge.cyan(
-                    ty('topServiceChip', {
-                      'title': '${s.topServices.first['title']}',
-                      'n': '${s.topServices.first['count']}',
-                    }),
-                    h: 22,
-                  ),
-                if (s.bonus > 0) PillBadge.mint(ty('bonusChip', {'sum': toyFx(s.bonus)}), h: 22),
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 3),
+                  Icon(_slotIcon(rows[i].slot), size: 12, color: on ? p.bg.withValues(alpha: .85) : _slotColor(rows[i].slot, p)),
+                ],
               ],
             ),
           ],
-          // Bekor qilingan bronlardan qolgan pul — ALOHIDA qator, faqat bor bo'lsa.
-          // Yuqoridagi raqamlardan TINCHROQ (t3): bu bo'lib o'tgan to'y daromadi
-          // emas, lekin egada qolgan pul — kassaga mos kelishi uchun ko'rinadi.
-          if (s.cancelledPaid > 0) ...[
-            const SizedBox(height: 8),
-            // Bosiladigan: "qaysi bron edi?" — kassani solishtirayotgan ega
-            // birinchi navbatda shuni so'raydi.
-            Tap(
-              onTap: () => setState(() => _cancelledOpen = true),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
+        ),
+      ),
+    );
+  }
+
+  /// Tanlangan kundagi bron qatori: slot ikonkasi · mijoz ismi · ostida telefon;
+  /// bosilsa bron tafsiloti ochiladi.
+  Widget _sumBookingRow(Pal p, Booking b, {required bool first}) {
+    return Tap(
+      onTap: () => setState(() => _detailId = b.id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: first ? null : BoxDecoration(border: Border(top: BorderSide(color: p.hairline))),
+        child: Row(
+          children: [
+            _slotIconBox(b.slot, p, size: 36),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Tx(ty('cancelledPaidLine', {'sum': toyMoney(s.cancelledPaid)}), size: 13, color: p.t3, lh: 18),
+                  Tx(b.clientName, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                  Tx(
+                    b.clientPhone.isNotEmpty ? _phoneShow(b.clientPhone) : tySlot(b.slot),
+                    size: 12, color: p.t4, maxLines: 1, tab: true,
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.chevron_right_rounded, size: 18, color: p.t4),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
+            Tx(toyFx(b.total), size: 13, w: FontWeight.w600, color: p.t2, tab: true),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 18, color: p.t4),
           ],
-        ],
         ),
       ),
     );
@@ -2653,11 +2722,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     return ty('holdMinutes', {'m': '${d.inMinutes.clamp(1, 59)}'});
   }
 
-  String _pctTxt(double v) {
-    if (v == v.roundToDouble()) return '${v.round()}';
-    return v.toStringAsFixed(1);
-  }
-
   Future<void> _shareReceipt(Booking b) async {
     setState(() => _busy = true);
     try {
@@ -3508,7 +3572,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           // 403 HALL_LIMIT beradi va paywall (zal soni bilan) ochiladi.
           trailing: [
             GlassIconBtn(icon: Icons.room_service_outlined, iconSize: 20, onTap: () => setState(() => _servicesOpen = true)),
-            GlassIconBtn(icon: Icons.add_rounded, onTap: _openNewHall),
           ],
         ),
         Expanded(
@@ -3582,32 +3645,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     ),
                   ),
                 ],
-                // U10: arxivlangan to'yxonalar — yig'ilgan bo'lim. if/else'dan
-                // TASHQARIDA: yagona to'yxona arxivlanganda ro'yxat bo'sh bo'ladi,
-                // lekin qaytarish yo'li aynan shu yerda ochiq qolishi shart.
-                if (toyRepo.archivedHalls.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Tap(
-                    onTap: () => setState(() => _archOpen = !_archOpen),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Expanded(child: Cap(ty('archivedN', {'n': '${toyRepo.archivedHalls.length}'}))),
-                          Icon(_archOpen ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                              size: 20, color: p.t4),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_archOpen) ...[
-                    const SizedBox(height: 10),
-                    for (final h in toyRepo.archivedHalls) ...[
-                      _archivedRow(p, h),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                ],
                 const SizedBox(height: 16),
                 Tx(ty('priceSnapshotNote'), size: 13, color: p.t4, lh: 18),
               ],
@@ -3616,36 +3653,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         ),
       ],
     );
-  }
-
-  /// Arxivlangan to'yxona qatori (U10): nom xira + "Arxivdan qaytarish".
-  /// Chegaradan oshsa server 403 HALL_LIMIT beradi — _toastErr uni 6 tilli
-  /// oneVenueNote'ga aylantiradi, PAYWALL OCHILMAYDI (sotiladigan narsa yo'q).
-  Widget _archivedRow(Pal p, Hall h) {
-    return GlassCard(
-      r: Tb.rRow,
-      pad: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      color: const Color(0x00000000),
-      child: Row(
-        children: [
-          Icon(Icons.archive_outlined, size: 20, color: p.t4),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Tx(h.name, size: 14, w: FontWeight.w600, color: p.t3, maxLines: 1, ellipsis: true),
-          ),
-          const SizedBox(width: 10),
-          _MiniBtn(ty('unarchive'), onTap: _busy ? null : () => _unarchiveHall(h)),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _unarchiveHall(Hall h) async {
-    setState(() => _busy = true);
-    final ok = await toyRepo.patchHall(h.id, {'archived': false});
-    if (!mounted) return;
-    setState(() => _busy = false);
-    ok ? _toastMsg(ty('hallSaved')) : _toastErr();
   }
 
   Widget _venueRow(Pal p, Hall h) {
@@ -3691,6 +3698,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               ),
             ),
             const SizedBox(width: 8),
+            // 028: to'yxona ma'lumotini tahrirlash SHU YERDAN (stollar ekranidan emas)
+            GlassIconBtn(icon: Icons.edit_outlined, iconSize: 18, size: 36, onTap: () => _openEditHall(h)),
+            const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, size: 20, color: p.t6),
           ],
         ),
@@ -3700,12 +3710,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ================= BITTA TO'YXONA: NARXLAR =================
 
-  // ================= STOL KO'RINISHI (027) =================
+  // ================= STOL KO'RINISHI (027/028) =================
   //
   // hall_menus = STOL. Ega bir marta N kishilik stolga qo'yiladigan hamma
   // mahsulotni (miqdor × birlik × birlik narxi) kiritadi — ilova stol jamini
-  // va 1 KISHIGA narxni chiqaradi. Bronda shu stol tanlanadi, mehmon soni ×
-  // narx/kishi = summa. Qolgan mahsulot egasining ishi — ilova hisoblamaydi.
+  // va 1 KISHIGA narxni chiqaradi. 028: stolga 5 tagacha rasm — karta rasm
+  // fonida, ma'lumot soya ustida. Bronda shu stol tanlanadi.
 
   /// Sozlamalardan "Stol ko'rinishi": tanlangan (yoki birinchi) to'yxona stollari.
   void _openTables() {
@@ -3738,10 +3748,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               ? h.name
               : (tiers.isEmpty ? ty('noTiersN') : ty('tablesN', {'n': '${tiers.length}'})),
           onBack: () => setState(() => _tiersHallId = null),
-          trailing: [
-            GlassIconBtn(icon: Icons.edit_outlined, iconSize: 20, onTap: () => _openEditHall(h)),
-            GlassIconBtn(icon: Icons.add_rounded, onTap: () => _openNewTier(h)),
-          ],
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -3760,8 +3766,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                Cap(ty('tiersCap')),
-                const SizedBox(height: 12),
                 if (tiers.isEmpty)
                   GlassCard(
                     r: Tb.rCard,
@@ -3779,15 +3783,18 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   )
                 else
                   for (var i = 0; i < tiers.length; i++) ...[
-                    _tableCatalogCard(p, h, tiers[i]),
-                    if (i < tiers.length - 1) const SizedBox(height: 8),
+                    _tablePhotoCard(
+                      p,
+                      tiers[i],
+                      onTap: () => _openEditTier(h, tiers[i]),
+                      onAddPhoto: tiers[i].images.length < kToyMaxSvcImages ? () => _quickAddTablePhoto(tiers[i]) : null,
+                    ),
+                    if (i < tiers.length - 1) const SizedBox(height: 10),
                   ],
                 const SizedBox(height: 12),
                 GlassBtn(label: ty('addTier'), h: 44, icon: Icons.add_rounded, onTap: () => _openNewTier(h)),
                 const SizedBox(height: 16),
                 Tx(ty('tablesNote'), size: 13, color: p.t4, lh: 18),
-                const SizedBox(height: 6),
-                Tx(ty('priceSnapshotNote'), size: 13, color: p.t4, lh: 18),
               ],
             ),
           ),
@@ -3796,63 +3803,274 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  /// Katalogdagi stol kartasi: nom, N kishilik, mahsulot soni, stol jami; o'ngda 1 kishiga.
-  Widget _tableCatalogCard(Pal p, Hall h, Menu m) {
-    final products = m.items.length;
-    final tt = m.tableTotal;
+  /// Rasmli stol kartasi (katalog va bron — bitta ko'rinish, h180).
+  /// Rasmlar PageView (chapga surib almashadi), pastdan qora soya, ustida:
+  /// nom · N kishilik · stol jami · o'ngda 1 kishiga. Rasm yo'q — brend gradient.
+  /// onAddPhoto (katalog): yuqori o'ngda "Rasm" chipi. selected (bron): mint chegara + belgi.
+  Widget _tablePhotoCard(
+    Pal p,
+    Menu m, {
+    required VoidCallback onTap,
+    VoidCallback? onAddPhoto,
+    bool selected = false,
+    double h = 180,
+  }) {
+    final imgs = m.images;
+    final busy = _imgBusyMenuId == m.id;
     return Tap(
-      onTap: () => _openEditTier(h, m),
-      child: GlassCard(
-        r: Tb.rRow,
-        pad: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        child: Row(
+      onTap: onTap,
+      child: Container(
+        height: h,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Tb.rCard),
+          border: Border.all(color: selected ? p.mint : p.glassBd, width: selected ? 2 : 1),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: p.glass2,
-                border: Border.all(color: p.glassBd),
-                borderRadius: BorderRadius.circular(Tb.rIcon),
-              ),
-              child: m.seats != null
-                  ? Tx('${m.seats}', size: 16, w: FontWeight.w700, color: p.ink, tab: true)
-                  : Icon(Icons.table_restaurant_outlined, size: 20, color: p.t1),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (imgs.isEmpty)
+              Container(
+                decoration: const BoxDecoration(gradient: Tb.brandDiag),
+                child: Center(child: Icon(Icons.table_restaurant_outlined, size: 44, color: Colors.white.withValues(alpha: .35))),
+              )
+            else
+              PageView(
                 children: [
-                  Tx(m.title, size: 15, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
-                  const SizedBox(height: 3),
-                  Tx(
-                    [
-                      if (m.seats != null) ty('seatsShort', {'n': '${m.seats}'}),
-                      products > 0 ? ty('productsN', {'n': '$products'}) : ty('noProducts'),
-                      if (tt > 0) toyFx(tt),
-                    ].join(' · '),
-                    size: 12, color: p.t4, maxLines: 1, ellipsis: true, tab: true,
+                  for (final u in imgs)
+                    Image.network(
+                      u,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(color: p.glass2),
+                      loadingBuilder: (_, child, prog) => prog == null ? child : Container(color: p.glass2),
+                    ),
+                ],
+              ),
+            // Soya — matn rasm ustida o'qilsin
+            IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.black.withValues(alpha: .05), Colors.black.withValues(alpha: .15), Colors.black.withValues(alpha: .78)],
+                    stops: const [0, .45, 1],
+                  ),
+                ),
+              ),
+            ),
+            // Yuqori: rasm qo'shish / rasm soni / tanlangan belgisi
+            Positioned(
+              top: 10,
+              left: 12,
+              right: 10,
+              child: Row(
+                children: [
+                  if (imgs.length > 1)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: .45), borderRadius: BorderRadius.circular(Tb.rPill)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.photo_library_outlined, size: 12, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Tx('${imgs.length}', size: 11, w: FontWeight.w700, color: Colors.white, tab: true),
+                        ],
+                      ),
+                    ),
+                  const Spacer(),
+                  if (selected)
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(color: p.mint, shape: BoxShape.circle),
+                      child: Icon(Icons.check_rounded, size: 16, color: p.onMint),
+                    )
+                  else if (onAddPhoto != null)
+                    Tap(
+                      onTap: busy ? null : onAddPhoto,
+                      child: Container(
+                        height: 30,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: .5), borderRadius: BorderRadius.circular(Tb.rPill)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (busy)
+                              const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 1.8, color: Colors.white))
+                            else
+                              const Icon(Icons.add_photo_alternate_outlined, size: 15, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Tx(busy ? ty('uploading') : ty('tableAddPhoto'), size: 12, w: FontWeight.w600, color: Colors.white),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Pastki ma'lumot
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 12,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Tx(m.title, size: 17, w: FontWeight.w700, color: Colors.white, maxLines: 1, ellipsis: true, font: TbFont.head),
+                        const SizedBox(height: 3),
+                        Tx(
+                          [
+                            if (m.seats != null) ty('seatsShort', {'n': '${m.seats}'}),
+                            if (m.tableTotal > 0) ty('tableTotalLine', {'sum': toyFx(m.tableTotal)}) else ty('productsN', {'n': '${m.items.length}'}),
+                          ].join(' · '),
+                          size: 12.5, color: Colors.white.withValues(alpha: .85), maxLines: 1, ellipsis: true, tab: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Tx(toyFx(m.pricePerGuest), size: 18, w: FontWeight.w800, color: Colors.white, tab: true, font: TbFont.head),
+                      Tx(ty('perGuestShort'), size: 11, color: Colors.white.withValues(alpha: .75)),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Tx(toyFx(m.pricePerGuest), size: 15, w: FontWeight.w700, color: p.mint, tab: true),
-                Tx(ty('perGuestShort'), size: 11, color: p.t4),
-              ],
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, size: 20, color: p.t4),
           ],
         ),
       ),
     );
   }
+
+  // ---------- Rasmlar (028) ----------
+
+  /// Galereyadan rasm tanlab yuklaydi, URL qaytaradi (xato — null + toast).
+  /// Servis rasmlari bilan bir xil siqish/chegara (1440px, q80, 3 MB).
+  Future<String?> _pickAndUploadPhoto() async {
+    try {
+      final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1440, maxHeight: 1440, imageQuality: 80);
+      if (x == null || !mounted) return null;
+      final bytes = await x.readAsBytes();
+      if (!mounted) return null;
+      if (bytes.lengthInBytes > 3 * 1024 * 1024) {
+        _toastMsg(ty('imgTooBig'));
+        return null;
+      }
+      final lower = x.path.toLowerCase();
+      final mime = lower.endsWith('.png') ? 'image/png' : (lower.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+      final url = await toyRepo.uploadServiceImage(bytes, mime);
+      if (url == null && mounted) _toastMsg(toyRepo.error ?? ty('imgFailed'));
+      return url;
+    } catch (_) {
+      if (mounted) _toastMsg(ty('imgFailed'));
+      return null;
+    }
+  }
+
+  /// Katalog kartasidagi "Rasm" chipi: tanlash → yuklash → darhol saqlash.
+  Future<void> _quickAddTablePhoto(Menu m) async {
+    if (_imgBusyMenuId != null) return;
+    setState(() => _imgBusyMenuId = m.id);
+    final url = await _pickAndUploadPhoto();
+    if (!mounted) return;
+    if (url == null) {
+      setState(() => _imgBusyMenuId = null);
+      return;
+    }
+    final ok = await toyRepo.patchMenu(m.id, {'images': [...m.images, url]});
+    if (!mounted) return;
+    setState(() => _imgBusyMenuId = null);
+    if (!ok) _toastErr();
+  }
+
+  /// Muharrir ichidagi rasm qatori: mavjudlar (o'chirish bilan) + qo'shish.
+  Future<void> _pickTablePhotoInto(List<String> list) async {
+    if (_imgBusy) return;
+    setState(() => _imgBusy = true);
+    final url = await _pickAndUploadPhoto();
+    if (!mounted) return;
+    setState(() {
+      _imgBusy = false;
+      if (url != null && list.length < kToyMaxSvcImages) list.add(url);
+    });
+  }
+
+  Widget _tablePhotoStrip(Pal p, List<String> imgs) => SizedBox(
+        height: 84,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            for (var i = 0; i < imgs.length; i++) ...[
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(Tb.rIcon),
+                    child: Image.network(imgs[i], width: 84, height: 84, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(width: 84, height: 84, color: p.glass2)),
+                  ),
+                  if (i == 0)
+                    Positioned(
+                      left: 4,
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: .55), borderRadius: BorderRadius.circular(6)),
+                        child: Tx(ty('coverBadge'), size: 9.5, w: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Tap(
+                      onTap: () => setState(() => imgs.removeAt(i)),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), shape: BoxShape.circle),
+                        child: const Icon(Icons.close_rounded, size: 15, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (imgs.length < kToyMaxSvcImages)
+              Tap(
+                onTap: _imgBusy ? null : () => _pickTablePhotoInto(imgs),
+                child: Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: p.glass,
+                    border: Border.all(color: p.glassBd),
+                    borderRadius: BorderRadius.circular(Tb.rIcon),
+                  ),
+                  child: _imgBusy
+                      ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, size: 22, color: p.t3),
+                            const SizedBox(height: 4),
+                            Tx(ty('addPhoto'), size: 10.5, color: p.t4, align: TextAlign.center, maxLines: 2),
+                          ],
+                        ),
+                ),
+              ),
+          ],
+        ),
+      );
 
   // ---------- Stol muharriri ----------
 
@@ -3864,6 +4082,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         'price': '',
         'priceManual': false,
         'seats': '12',
+        'images': <String>[],
         'rows': <Map<String, dynamic>>[_emptyRow()],
       });
 
@@ -3876,12 +4095,13 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         // Narx hisobdan farq qilsa — ega qo'lda qo'ygan, ustidan yozmaymiz
         'priceManual': m.perGuestCalc == 0 || m.pricePerGuest != m.perGuestCalc,
         'seats': m.seats == null ? '' : '${m.seats}',
+        'images': <String>[...m.images],
         'rows': <Map<String, dynamic>>[
           for (final it in m.items)
             {
               'title': it.title,
               'amount': it.amount != null ? toyAmountStr(it.amount) : (it.qty.isNotEmpty ? it.qty : ''),
-              'unit': it.unit.isNotEmpty ? it.unit : 'kg',
+              'unit': it.unit.isNotEmpty && kToyUnits.contains(it.unit) ? it.unit : 'kg',
               'price': it.unitPrice > 0 ? toyFx(it.unitPrice) : '',
               'legacy': it.amount == null && it.qty.isNotEmpty, // eski matnli qator
             },
@@ -3909,6 +4129,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     final e = _tierEdit!;
     final isNew = e['id'] == null;
     final rows = e['rows'] as List<Map<String, dynamic>>;
+    final imgs = (e['images'] as List).cast<String>();
     final seats = _digits('${e['seats']}');
     final total = _rowsTotal(rows);
     final calc = toyPerGuest(total, seats > 0 ? seats : null);
@@ -3930,7 +4151,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               Expanded(
                 flex: 3,
                 child: _field(p, ty('tierTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
-                    hint: ty('tierTitlePh'), icon: Icons.table_restaurant_outlined),
+                    icon: Icons.table_restaurant_outlined),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -3940,6 +4161,18 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               ),
             ],
           ),
+          // ---- Rasmlar (faqat saqlangan stolda) ----
+          const SizedBox(height: 20),
+          Cap(ty('tablePhotosCap')),
+          const SizedBox(height: 10),
+          if (isNew)
+            Tx(ty('photosAfterSave'), size: 12, color: p.t4, lh: 16)
+          else ...[
+            _tablePhotoStrip(p, imgs),
+            const SizedBox(height: 6),
+            Tx(ty('photoHint', {'n': '$kToyMaxSvcImages'}), size: 12, color: p.t4, lh: 16),
+          ],
+          // ---- Mahsulotlar ----
           const SizedBox(height: 20),
           Cap(ty('productsCap')),
           const SizedBox(height: 6),
@@ -3999,7 +4232,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveTier(e)),
+          GradientBtn(label: _imgBusy ? ty('uploading') : ty('save'), loading: _busy || _imgBusy, onTap: () => _saveTier(e)),
           if (!isNew) ...[
             const SizedBox(height: 8),
             GlassBtn(
@@ -4021,6 +4254,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   /// Bitta mahsulot qatori: nom · miqdor + birlik · birlik narxi → qator jami.
+  /// Har maydon YORLIQLI (placeholder emas — ega nima kiritishini ko'rib tursin).
   Widget _productRow(Pal p, List<Map<String, dynamic>> rows, int i) {
     final r = rows[i];
     final legacy = r['legacy'] == true;
@@ -4032,27 +4266,32 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: _inputBox(p, ty('productTitlePh'), '${r['title']}', (v) => setState(() => r['title'] = v)),
+                child: _field(p, ty('productTitleLabel'), '${r['title']}', (v) => setState(() => r['title'] = v)),
               ),
               const SizedBox(width: 8),
-              GlassIconBtn(
-                icon: Icons.close_rounded,
-                iconSize: 18,
-                onTap: () => setState(() {
-                  rows.removeAt(i);
-                  if (rows.isEmpty) rows.add(_emptyRow());
-                }),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: GlassIconBtn(
+                  icon: Icons.close_rounded,
+                  iconSize: 18,
+                  onTap: () => setState(() {
+                    rows.removeAt(i);
+                    if (rows.isEmpty) rows.add(_emptyRow());
+                  }),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 flex: 2,
-                child: _inputBox(p, ty('amountPh'), '${r['amount']}', (v) => setState(() {
+                child: _field(p, ty('amountLabel'), '${r['amount']}', (v) => setState(() {
                       r['amount'] = v;
                       r['legacy'] = false; // eski matnli qator qayta terildi — endi hisoblanadi
                     }),
@@ -4061,7 +4300,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               const SizedBox(width: 8),
               Expanded(
                 flex: 3,
-                child: _inputBox(p, ty('unitPricePh'), '${r['price']}', (v) => setState(() {
+                child: _field(p, ty('unitPriceLabel'), '${r['price']}', (v) => setState(() {
                       r['price'] = v;
                       r['legacy'] = false;
                     }),
@@ -4069,29 +4308,38 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Cap(ty('unitLabel')),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 30,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final u in kToyUnits) ...[
-                  PillChip(
-                    label: tyUnit(u),
-                    selected: r['unit'] == u,
-                    h: 30,
-                    onTap: () => setState(() {
-                      r['unit'] = u;
-                      r['legacy'] = false;
-                    }),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 30,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final u in kToyUnits) ...[
+                        PillChip(
+                          label: tyUnit(u),
+                          selected: r['unit'] == u,
+                          h: 30,
+                          onTap: () => setState(() {
+                            r['unit'] = u;
+                            r['legacy'] = false;
+                          }),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                ],
-                const SizedBox(width: 6),
-                if (lt > 0)
-                  Center(child: Tx('= ${toyFx(lt)}', size: 13, w: FontWeight.w700, color: p.mint, tab: true)),
+                ),
+              ),
+              if (lt > 0) ...[
+                const SizedBox(width: 8),
+                Tx('= ${toyFx(lt)}', size: 13, w: FontWeight.w700, color: p.mint, tab: true),
               ],
-            ),
+            ],
           ),
         ],
       ),
@@ -4099,6 +4347,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   Future<void> _saveTier(Map<String, dynamic> e) async {
+    if (_imgBusy) return;
     final title = '${e['title']}'.trim();
     final rows = e['rows'] as List<Map<String, dynamic>>;
     final seats = _digits('${e['seats']}');
@@ -4134,6 +4383,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       'price_per_guest': price,
       'seats': seats > 0 ? seats : null,
       'items': items,
+      if (e['id'] != null) 'images': (e['images'] as List).cast<String>(),
     };
     setState(() => _busy = true);
     final ok = e['id'] == null
@@ -4159,78 +4409,29 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ---------- Bronda stol tanlash ----------
 
-  /// Stol kartalari (2 ustun): nom, N kishilik, stol jami; tanlanganida narx/kishi
-  /// avto to'ladi. "i" — tarkib varag'i.
-  Widget _tableCards(Pal p, _FormData f, List<Menu> tiers) {
-    return LayoutBuilder(
-      builder: (_, c) {
-        const gap = 8.0;
-        final w = (c.maxWidth - gap) / 2;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final m in tiers)
-              SizedBox(width: w, child: _tableCard(p, f, m)),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _tableCard(Pal p, _FormData f, Menu m) {
-    final on = f.menuId == m.id && !f.priceManual;
-    return Tap(
-      onTap: () => setState(() {
-        f.menuId = m.id;
-        f.priceManual = false;
-        f.price = toyFx(m.pricePerGuest);
-      }),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        decoration: BoxDecoration(
-          color: on ? p.ink : p.glass,
-          border: Border.all(color: on ? p.ink : p.glassBd),
-          borderRadius: BorderRadius.circular(Tb.rCard),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Tx(m.title, size: 14, w: FontWeight.w700, color: on ? p.bg : p.ink, maxLines: 1, ellipsis: true),
-                ),
-                Tap(
-                  onTap: () => setState(() => _tableInfo = m),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.info_outline_rounded, size: 18, color: on ? p.bg.withValues(alpha: .8) : p.t3),
-                  ),
-                ),
-              ],
+  /// Bron formasida stol kartalari (rasmli, to'liq kenglik). Bosilsa tarkib
+  /// varag'i ochiladi — tanlash o'sha yerda ("Shu stolni tanlash").
+  Widget _tableCards(Pal p, _FormData f, List<Menu> tiers) => Column(
+        children: [
+          for (var i = 0; i < tiers.length; i++) ...[
+            _tablePhotoCard(
+              p,
+              tiers[i],
+              h: 150,
+              selected: f.menuId == tiers[i].id && !f.priceManual,
+              onTap: () => setState(() => _tableInfo = tiers[i]),
             ),
-            const SizedBox(height: 2),
-            Tx(
-              m.seats != null ? ty('seatsShort', {'n': '${m.seats}'}) : ty('productsN', {'n': '${m.items.length}'}),
-              size: 12, color: on ? p.bg.withValues(alpha: .7) : p.t4,
-            ),
-            const SizedBox(height: 8),
-            if (m.tableTotal > 0)
-              Tx(ty('tableTotalLine', {'sum': toyFx(m.tableTotal)}), size: 12, color: on ? p.bg.withValues(alpha: .75) : p.t3, tab: true),
-            Tx('${toyFx(m.pricePerGuest)} ${ty('perGuestShort')}',
-                size: 14, w: FontWeight.w700, color: on ? p.bg : p.mint, tab: true, maxLines: 1),
+            if (i < tiers.length - 1) const SizedBox(height: 10),
           ],
-        ),
-      ),
-    );
-  }
+        ],
+      );
 
-  /// Stol tarkibi varag'i: mahsulot · miqdor · birlik narxi · qator jami; PDF; tanlash.
+  /// Stol tarkibi varag'i: rasm lentasi, mahsulot · miqdor · birlik narxi · qator jami; PDF; tanlash.
   Widget _tableSheet(Pal p) {
     final m = _tableInfo!;
     final f = _form;
+    final canPick = f != null && f.id == null && f.priceMode != 'total';
+    final picked = f != null && f.menuId == m.id && !f.priceManual;
     void close() => setState(() => _tableInfo = null);
     return _sheet(
       close,
@@ -4247,6 +4448,21 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ].join(' · '),
             size: 13, color: p.t4,
           ),
+          if (m.images.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 150,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(Tb.rCard),
+                child: PageView(
+                  children: [
+                    for (final u in m.images)
+                      Image.network(u, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: p.glass2)),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           GlassCard(
             r: Tb.rCard,
@@ -4299,9 +4515,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (f != null && f.id == null)
+          if (canPick)
             GradientBtn(
-              label: ty('pickTable'),
+              label: picked ? ty('tablePicked') : ty('pickTable'),
               icon: Icons.check_rounded,
               onTap: () => setState(() {
                 f.menuId = m.id;
@@ -5029,6 +5245,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           _field(p, ty('capacityLabel'), '${e['cap']}', (v) => setState(() => e['cap'] = v),
               number: true, group: false, icon: Icons.people_outline_rounded),
           const SizedBox(height: 16),
+          // 028: YANGI to'yxonada faqat nom + sig'im; narx/avans/jarima keyin tahrirda
+          if (!isNew) ...[
           // 024: narx rejimi defaulti
           Cap(ty('priceModeLabel')),
           const SizedBox(height: 10),
@@ -5079,15 +5297,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             const SizedBox(height: 8),
           ],
           const SizedBox(height: 16),
-          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveHall(e)),
-          if (!isNew) ...[
-            const SizedBox(height: 6),
-            TextBtn(
-              label: ty('archiveHall'),
-              color: p.coral,
-              onTap: () => _askArchiveHall('${e['id']}', '${e['name']}'),
-            ),
           ],
+          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveHall(e)),
         ],
       ),
     );
@@ -5154,27 +5365,6 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       if (ok) _hallEdit = null;
     });
     ok ? _toastMsg(ty('hallSaved')) : _toastErr();
-  }
-
-  void _askArchiveHall(String id, String name) {
-    setState(() {
-      _hallEdit = null;
-      _confirm = {
-        'title': ty('archiveHall'),
-        'body': name,
-        'danger': true,
-        'run': () async {
-          final ok = await toyRepo.patchHall(id, {'archived': true});
-          if (!mounted) return;
-          if (ok) {
-            setState(() => _tiersHallId = null);
-            _toastMsg(ty('saved'));
-          } else {
-            _toastErr();
-          }
-        },
-      };
-    });
   }
 
   // ---- Narx toifasi qo'shish / tahrirlash ----

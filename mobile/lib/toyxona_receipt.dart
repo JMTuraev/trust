@@ -226,6 +226,13 @@ Future<Uint8List> buildTableSheet(Menu m, {Hall? hall, String ownerName = ''}) a
   pw.Widget hr() => pw.Container(height: 0.6, color: line, margin: const pw.EdgeInsets.symmetric(vertical: 6));
 
   final total = m.tableTotal;
+  // 028: rasmlar (3 tagacha, yonma-yon) — tarmoq bo'lmasa PDF rasmsiz chiqadi
+  final photos = <pw.ImageProvider>[];
+  for (final u in m.images.take(3)) {
+    try {
+      photos.add(await networkImage(u));
+    } catch (_) {}
+  }
   final doc = pw.Document(theme: theme, title: 'Trustbook — ${m.title}');
   doc.addPage(pw.Page(
     pageFormat: PdfPageFormat.a4,
@@ -255,6 +262,26 @@ Future<Uint8List> buildTableSheet(Menu m, {Hall? hall, String ownerName = ''}) a
         ),
         pw.SizedBox(height: 10),
         pw.Text(m.title, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: ink)),
+        if (photos.isNotEmpty) ...[
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              for (var i = 0; i < photos.length; i++) ...[
+                if (i > 0) pw.SizedBox(width: 8),
+                pw.Expanded(
+                  child: pw.ClipRRect(
+                    horizontalRadius: 8,
+                    verticalRadius: 8,
+                    child: pw.Container(
+                      height: photos.length == 1 ? 220 : 150,
+                      child: pw.Image(photos[i], fit: pw.BoxFit.cover),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
         hr(),
         if (m.items.isEmpty)
           pw.Text(ty('noProducts'), style: pw.TextStyle(fontSize: 10, color: muted))

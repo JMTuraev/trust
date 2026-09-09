@@ -39,7 +39,7 @@ publish_to: "none"
 #          Storyset illyustratsiya, shisha kartalar), item'da rasm (Supabase Storage,
 #          backend orqali yuklash) + tavsif, bron formasida kategoriya bo'yicha rasmli
 #          tanlov, chekda kategoriya guruhlari. Migratsiya 025.
-version: 3.16.0+14
+version: 3.17.0+15
 
 environment:
   sdk: ">=3.2.0 <4.0.0"

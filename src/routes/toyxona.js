@@ -651,6 +651,8 @@ function mapMenu(m, items = []) {
     sort: Number(m.sort) || 0,
     archived: !!m.archived,
     created_at: m.created_at,
+    // 028: stol rasmlari (5 tagacha), birinchisi muqova
+    images: Array.isArray(m.images) ? m.images.filter((u) => typeof u === 'string') : [],
     // 024: stol ustidagi taom/mahsulotlar — HAR DOIM massiv
     // 027: amount × unit_price = line_total; stol jami va 1 kishiga hisob
     items: items.map(mapMenuItem),
@@ -1088,6 +1090,15 @@ router.patch('/menus/:id', async (req, res, next) => {
     if (exErr) return res.status(400).json({ success: false, error: exErr });
     const ri = readMenuItems(req.body?.items);
     if (ri.error) return res.status(400).json({ success: false, error: ri.error });
+    // 028: rasmlar to'liq almashtiriladi; chiqib ketganlari Storage'dan o'chadi
+    let dropped = [];
+    if (req.body?.images !== undefined) {
+      const im = readImages(req.body.images);
+      if (im.error) return res.status(400).json({ success: false, error: im.error });
+      patch.images = im.images;
+      const oldImgs = Array.isArray(menu.images) ? menu.images : [];
+      dropped = oldImgs.filter((u) => typeof u === 'string' && !im.images.includes(u));
+    }
     if (!Object.keys(patch).length && ri.items === undefined) {
       return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     }
@@ -1096,6 +1107,7 @@ router.patch('/menus/:id', async (req, res, next) => {
       if (error) throw new Error(error.message);
     }
     if (ri.items !== undefined) await replaceMenuItems(req.user.id, menu.id, ri.items);
+    await removeImages(dropped);
     res.json({ success: true, data: await loadOneMenu(req.user.id, menu.id) });
   } catch (e) { next(e); }
 });
@@ -1110,6 +1122,7 @@ router.delete('/menus/:id', async (req, res, next) => {
     if (!menu) return res.status(404).json({ success: false, error: 'Topilmadi' });
     const { error } = await supabaseAdmin.from('hall_menus').delete().eq('id', menu.id);
     if (error) throw new Error(error.message);
+    await removeImages(Array.isArray(menu.images) ? menu.images : []);
     res.json({ success: true });
   } catch (e) { next(e); }
 });
