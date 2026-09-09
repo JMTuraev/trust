@@ -348,6 +348,13 @@ const Map<String, String> _tyEn = {
   'coverBadge': 'Cover',
   'bookedDaysCap': 'BOOKED DAYS',
   'tablePicked': 'Selected ✓',
+  // --- 029 ---
+  'bookFab': 'Book',
+  'advanceTakenLabel': 'Advance taken',
+  'addHallSub': 'Name and capacity',
+  'servicesListTitle': 'Services list',
+  'servicesCountSub': '{n} services',
+  'helpTitle': 'How it works',
 };
 
 const Map<String, String> _tyUz = {
@@ -664,6 +671,13 @@ const Map<String, String> _tyUz = {
   'coverBadge': 'Muqova',
   'bookedDaysCap': 'BAND KUNLAR',
   'tablePicked': 'Tanlangan ✓',
+  // --- 029 ---
+  'bookFab': 'Bron',
+  'advanceTakenLabel': 'Avans olingan',
+  'addHallSub': 'Nomi va sig\'imi',
+  'servicesListTitle': 'Xizmatlar ro\'yxati',
+  'servicesCountSub': '{n} ta xizmat',
+  'helpTitle': 'Qanday ishlaydi',
 };
 
 const Map<String, String> _tyRu = {
@@ -980,6 +994,13 @@ const Map<String, String> _tyRu = {
   'coverBadge': 'Обложка',
   'bookedDaysCap': 'ЗАНЯТЫЕ ДНИ',
   'tablePicked': 'Выбран ✓',
+  // --- 029 ---
+  'bookFab': 'Бронь',
+  'advanceTakenLabel': 'Аванс получен',
+  'addHallSub': 'Название и вместимость',
+  'servicesListTitle': 'Список услуг',
+  'servicesCountSub': '{n} услуг',
+  'helpTitle': 'Как это работает',
 };
 
 const Map<String, String> _tyEs = {
@@ -1296,6 +1317,13 @@ const Map<String, String> _tyEs = {
   'coverBadge': 'Portada',
   'bookedDaysCap': 'DÍAS RESERVADOS',
   'tablePicked': 'Elegida ✓',
+  // --- 029 ---
+  'bookFab': 'Reservar',
+  'advanceTakenLabel': 'Anticipo recibido',
+  'addHallSub': 'Nombre y aforo',
+  'servicesListTitle': 'Lista de servicios',
+  'servicesCountSub': '{n} servicios',
+  'helpTitle': 'Cómo funciona',
 };
 
 const Map<String, String> _tyFr = {
@@ -1612,6 +1640,13 @@ const Map<String, String> _tyFr = {
   'coverBadge': 'Couverture',
   'bookedDaysCap': 'JOURS RÉSERVÉS',
   'tablePicked': 'Choisie ✓',
+  // --- 029 ---
+  'bookFab': 'Réserver',
+  'advanceTakenLabel': 'Acompte reçu',
+  'addHallSub': 'Nom et capacité',
+  'servicesListTitle': 'Liste des services',
+  'servicesCountSub': '{n} services',
+  'helpTitle': 'Comment ça marche',
 };
 
 const Map<String, String> _tyZh = {
@@ -1928,6 +1963,13 @@ const Map<String, String> _tyZh = {
   'coverBadge': '封面',
   'bookedDaysCap': '已预订日期',
   'tablePicked': '已选 ✓',
+  // --- 029 ---
+  'bookFab': '预订',
+  'advanceTakenLabel': '已收定金',
+  'addHallSub': '名称与容量',
+  'servicesListTitle': '服务列表',
+  'servicesCountSub': '{n} 项服务',
+  'helpTitle': '使用说明',
 };
 
 const Map<String, Map<String, String>> kToyLangs = {
