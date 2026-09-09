@@ -1452,8 +1452,10 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
     const client_phone = normPhone(b.client_phone);
     if (client_phone === false) return res.status(400).json({ success: false, error: "Telefon raqami noto'g'ri" });
 
-    const guests = Math.round(Number(b.guests));
-    if (!Number.isInteger(guests) || guests <= 0 || guests > MAX_GUESTS) {
+    // 026: 'total' rejimida mehmonlar soni SO'RALMAYDI (0 = ko'rsatilmagan);
+    // 'guest' rejimida avvalgidek 1..MAX. Rejim pastda hisoblanadi — 0 tekshiruvi o'sha yerda.
+    const guests = Math.round(Number(b.guests ?? 0));
+    if (!Number.isInteger(guests) || guests < 0 || guests > MAX_GUESTS) {
       return res.status(400).json({ success: false, error: `Mehmonlar soni 1–${MAX_GUESTS} bo'lsin` });
     }
 
@@ -1497,6 +1499,9 @@ router.post('/bookings', requireBookingQuota, async (req, res, next) => {
       if (!PRICE_MODES.includes(price_mode)) return res.status(400).json({ success: false, error: "Narx rejimi noto'g'ri (guest / total)" });
     } else if (hall && PRICE_MODES.includes(hall.price_mode)) {
       price_mode = hall.price_mode;
+    }
+    if (guests === 0 && price_mode !== 'total') {
+      return res.status(400).json({ success: false, error: `Mehmonlar soni 1–${MAX_GUESTS} bo'lsin` });
     }
     let total_price = 0;
     if (price_mode === 'total') {
@@ -1745,7 +1750,9 @@ router.patch('/bookings/:id', async (req, res, next) => {
     }
     if (b.guests !== undefined) {
       const g = Math.round(Number(b.guests));
-      if (!Number.isInteger(g) || g <= 0 || g > MAX_GUESTS) {
+      // 026: 0 faqat 'total' rejimida (yangi yoki joriy) ruxsat etiladi
+      const mode = patch.price_mode ?? cur.price_mode ?? 'guest';
+      if (!Number.isInteger(g) || g < 0 || g > MAX_GUESTS || (g === 0 && mode !== 'total')) {
         return res.status(400).json({ success: false, error: `Mehmonlar soni 1–${MAX_GUESTS} bo'lsin` });
       }
       patch.guests = g;

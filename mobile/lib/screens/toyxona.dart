@@ -97,6 +97,42 @@ int _digits(String s) {
   return int.tryParse(d.length > 15 ? d.substring(0, 15) : d) ?? 0;
 }
 
+/// O'zbekiston telefon maskasi — ijara.dart (023) bilan bir xil qoida:
+/// milliy 9 raqam, "+998 90 123 45 67". Kursor har doim oxirda (prefiks
+/// ichiga tushmasin). "998" faqat BIR marta kesiladi.
+String _phoneNat(String s) {
+  var d = s.replaceAll(RegExp(r'[^0-9]'), '');
+  if (d.startsWith('998')) d = d.substring(3);
+  return d.length > 9 ? d.substring(0, 9) : d;
+}
+
+String _phoneMask(String s) {
+  final d = _phoneNat(s);
+  if (d.isEmpty) return '';
+  final b = StringBuffer('+998 ');
+  for (var i = 0; i < d.length; i++) {
+    if (i == 2 || i == 5 || i == 7) b.write(' ');
+    b.write(d[i]);
+  }
+  return b.toString();
+}
+
+/// Saqlangan raqamni ko'rsatish: O'zbekiston shaklida bo'lsa maska, aks holda
+/// (chet el / eski yozuv) matn O'ZGARMAYDI.
+String _phoneShow(String s) {
+  final d = s.replaceAll(RegExp(r'[^0-9]'), '');
+  final uz = d.length == 9 || (d.length == 12 && d.startsWith('998'));
+  return uz ? _phoneMask(s) : s.trim();
+}
+
+class _PhoneFmt extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldV, TextEditingValue newV) {
+    final t = _phoneMask(newV.text);
+    return TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+  }
+}
+
 /// Ro'yxatdan id bo'yicha narx toifasi (topilmasa null).
 Menu? _tierById(List<Menu> tiers, String? id) {
   if (id == null) return null;
@@ -175,6 +211,8 @@ class _FormData {
   /// o'zgartirilmagan (keyingi topilma uni almashtirishi mumkin).
   ClientHint? hint;
   bool nameAuto = false;
+  /// Telefon to'liq terilib baza SO'RALDI (natija hint'da; null = yangi mijoz).
+  bool hintChecked = false;
   _FormData({
     this.id,
     required this.date,
@@ -235,6 +273,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   bool _imgBusy = false;      // rasm yuklanmoqda (forma tugmalari bloklanadi)
   Map<String, dynamic>? _svcEdit; // {id?, title, price}
   Map<String, dynamic>? _cancelSheet; // {id, preview?, penalty, reason, refundNow}
+  /// Forma bosqichi: 0 = mijoz·vaqt·summa, 1 = servislar (faqat yangi bron).
+  int _formStep = 0;
+  String? _svcCatFilter; // 2-bosqich: tanlangan kategoriya (null = hammasi)
+  final Set<String> _svcExpanded = {}; // 2-bosqich: "yana N ta" ochilgan guruhlar
   Timer? _phoneT; // telefon → mijoz autofill debounce
   int _phoneSeq = 0;
   bool _svcBonus = false; // tafsilotdagi xizmat formasi: bonus
@@ -988,8 +1030,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                       alignment: Alignment.centerLeft,
                       child: Row(
                         children: [
-                          Tx(ty('guestsN', {'n': '${b.guests}'}), size: 12, color: p.t4),
-                          Tx(' · ', size: 12, color: p.t4),
+                          if (b.guests > 0) ...[
+                            Tx(ty('guestsN', {'n': '${b.guests}'}), size: 12, color: p.t4),
+                            Tx(' · ', size: 12, color: p.t4),
+                          ],
                           Tx(toyMoney(b.left), size: 12, w: FontWeight.w600, color: _leftColor(b.left, p), tab: true),
                         ],
                       ),
@@ -1359,8 +1403,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   /// 13 t2 (+ "Narx kiritilmagan" nishoni) · qoldiq 15/600 num + holat nishoni.
   Widget _slotBookingRow(Pal p, Booking b, {bool showHall = false}) {
     final sub = showHall && b.hallName.isNotEmpty
-        ? '${b.hallName} · ${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}'
-        : '${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}';
+        ? '${b.hallName} · ${tySlot(b.slot)}${_guestsSuffix(b)}'
+        : '${tySlot(b.slot)}${_guestsSuffix(b)}';
     return Tap(
       onTap: () => setState(() => _detailId = b.id),
       child: GlassCard(
@@ -1543,8 +1587,8 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   const SizedBox(height: 2),
                   Tx(
                     showVenue
-                        ? '${b.hallName} · ${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}'
-                        : '${tySlot(b.slot)} · ${ty('guestsN', {'n': '${b.guests}'})}',
+                        ? '${b.hallName} · ${tySlot(b.slot)}${_guestsSuffix(b)}'
+                        : '${tySlot(b.slot)}${_guestsSuffix(b)}',
                     size: 13, color: p.t2, maxLines: 1, ellipsis: true,
                   ),
                   if (!showPaid && b.priceMissing) ...[
@@ -1651,6 +1695,9 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     final tiers = toyRepo.tiersOf(hid);
     final hall = toyRepo.hallById(hid);
     setState(() {
+      _formStep = 0;
+      _svcCatFilter = null;
+      _svcExpanded.clear();
       _form = _FormData(
         date: date,
         slot: slot,
@@ -1672,6 +1719,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   void _openEditBooking(Booking b) {
     setState(() {
+      _formStep = 0;
       _form = _FormData(
         id: b.id,
         date: b.eventDate,
@@ -1681,7 +1729,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         // Tahrirda narx SNAPSHOT'dan keladi — toifa narxi keyin o'zgargan bo'lishi mumkin
         priceManual: true,
         name: b.clientName,
-        phone: b.clientPhone,
+        phone: _phoneShow(b.clientPhone),
         guests: '${b.guests}',
         price: toyFx(b.pricePerGuest),
         note: b.note,
@@ -1868,7 +1916,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   Expanded(
                     child: Tx(
                       b.isTotalMode
-                          ? ty('totalModeLine', {'guests': '${b.guests}'})
+                          ? (b.guests > 0 ? ty('totalModeLine', {'guests': '${b.guests}'}) : ty('priceModeTotal'))
                           : b.menuTitle.isEmpty
                           ? ty('guestsMath', {'guests': '${b.guests}', 'price': toyFx(b.pricePerGuest)})
                           : ty('tierMath', {
@@ -2635,33 +2683,72 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   // ================= YANGI / TAHRIR FORMASI =================
+  //
+  // 2 BOSQICH (2026-09-09): 1) mijoz · vaqt · summa, 2) qo'shimcha servislar.
+  // Bitta uzun forma servislar ko'payganda (20+ item) mijoz ma'lumotlarini
+  // ekrandan surib yuborardi va ega summa kelishmay turib servis tanlardi.
+  // Tahrirda (id != null) katalog yo'q — bitta bosqich, tugma "Saqlash".
 
   Widget _formView(Pal p) {
     final f = _form!;
+    final catalog = f.id == null ? toyRepo.servicesFor(f.hallId) : const <HallService>[];
+    if (_formStep == 1 && catalog.isNotEmpty) return _formServicesStep(p, f, catalog);
+    return _formMainStep(p, f, hasStep2: catalog.isNotEmpty);
+  }
+
+  /// Formaning jonli hisobi (ikkala bosqich bir manbadan o'qiydi).
+  ({int guests, int price, int food, int extras, int total}) _formSums(_FormData f) {
+    final guests = _digits(f.guests);
+    final price = _digits(f.price);
+    final food = f.priceMode == 'total' ? _digits(f.totalPrice) : guests * price;
+    var extras = 0;
+    for (final e in f.services.entries) {
+      if (e.value) continue; // bonus jamiga kirmaydi
+      extras += toyRepo.serviceById(e.key)?.price ?? 0;
+    }
+    return (guests: guests, price: price, food: food, extras: extras, total: food + extras);
+  }
+
+  Widget _stepPill(Pal p, int step) => Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: p.glass,
+          border: Border.all(color: p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rPill),
+        ),
+        child: Tx('$step / 2', size: 12, w: FontWeight.w700, color: p.t2, tab: true, font: TbFont.body),
+      );
+
+  // ---------- 1-bosqich: mijoz · vaqt · summa ----------
+
+  Widget _formMainStep(Pal p, _FormData f, {required bool hasStep2}) {
     final isNew = f.id == null;
     final halls = toyRepo.halls;
     final tiers = toyRepo.tiersOf(f.hallId);
-    final guests = _digits(f.guests);
-    final price = _digits(f.price);
     final totalMode = f.priceMode == 'total';
-    final food = totalMode ? _digits(f.totalPrice) : guests * price;
-    // 024: yangi bronda tanlangan servislar (bonus jamiga kirmaydi)
-    var extras = 0;
-    for (final e in f.services.entries) {
-      if (e.value) continue;
-      extras += toyRepo.serviceById(e.key)?.price ?? 0;
-    }
-    final total = food + extras;
+    final s = _formSums(f);
     final tier = _tierById(tiers, f.menuId);
     final hall = toyRepo.hallById(f.hallId);
-    final depMin = toyDepositMin(total, hall?.depositPct ?? 0);
-    final catalog = toyRepo.servicesFor(f.hallId);
+    final depMin = toyDepositMin(s.total, hall?.depositPct ?? 0);
+    final over = totalMode ? null : _capacityOver(f, s.guests);
+    final phoneFull = _phoneNat(f.phone).length == 9;
 
     return Column(
       children: [
+        // Sarlavha — SANA (bosilsa tanlagich). "Yangi bron" yozuvi pastga,
+        // subtitle'ga tushdi: ega formada birinchi bo'lib QAYSI KUNga bron
+        // qilayotganini ko'radi.
         ScreenHeader(
-          title: isNew ? ty('newTitle') : ty('editTitle'),
+          title: toyDateLong(f.date),
+          subtitle: '${tyWeekday(f.date.weekday)} · ${isNew ? ty('newTitle') : ty('editTitle')}',
           onBack: () => setState(() => _form = null),
+          titleTrailing: Tap(
+            onTap: () => _pickDate(f),
+            child: Icon(Icons.edit_calendar_rounded, size: 20, color: p.amber),
+          ),
+          trailing: [if (hasStep2) _stepPill(p, 1)],
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -2669,22 +2756,43 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ---- Sana ----
-                Cap(ty('dateLabel')),
-                const SizedBox(height: 10),
-                _dateField(p, toyDateLong(f.date), () => _pickDate(f)),
+                // ---- Mijoz: AVVAL telefon (maska) — bazadan ism avto-to'ladi ----
+                _field(p, ty('phoneLabel'), f.phone, (v) => _onPhoneChanged(f, v),
+                    phone: true, hint: '+998 90 123 45 67', icon: Icons.smartphone_rounded),
+                if (f.hint != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.history_rounded, size: 14, color: p.cyan),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Tx(ty('clientKnown', {'name': f.hint!.name, 'n': '${f.hint!.bookings}'}),
+                            size: 12, color: p.cyan, maxLines: 1, ellipsis: true),
+                      ),
+                      if (f.hint!.inTrustbook) PillBadge.mint(ty('inTrustbook'), h: 18),
+                    ],
+                  ),
+                ] else if (phoneFull && f.hintChecked) ...[
+                  const SizedBox(height: 6),
+                  Tx(ty('newClient'), size: 12, color: p.t4),
+                ],
+                const SizedBox(height: 16),
+                // Ism: placeholder YO'Q — bazada bo'lsa to'ladi, bo'lmasa bo'sh.
+                _field(p, ty('nameLabel'), f.name, (v) => setState(() {
+                      f.name = v;
+                      f.nameAuto = false; // qo'lda tahrir — autofill endi ustidan yozmaydi
+                    }),
+                    icon: Icons.person_outline_rounded),
+                // ---- Vaqt: 3 karta yonma-yon (band slot qulf + mijoz nomi) ----
                 const SizedBox(height: 20),
-                // ---- Vaqt (slot) ----
-                // U1: band slot O'CHIQ chip + ostida mijoz nomi — ega telefonda
-                // gaplashib turib "qaysi vaqt bo'sh"ni formadan chiqmay ko'radi.
                 Cap(ty('slotLabel')),
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.start,
+                Row(
                   children: [
-                    for (final s in kToySlots) _slotPick(p, f, s),
+                    for (var i = 0; i < kToySlots.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(child: _slotCard(p, f, kToySlots[i])),
+                    ],
                   ],
                 ),
                 // ---- To'yxona ----
@@ -2701,7 +2809,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     ],
                   ),
                 ],
-                // ---- Narx rejimi (024): kishi boshiga / butun to'yxona ----
+                // ---- Narx rejimi (024) + OSTIDA shu rejimning narxi ----
                 const SizedBox(height: 20),
                 Cap(ty('priceModeLabel')),
                 const SizedBox(height: 10),
@@ -2721,200 +2829,312 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                     ],
                   ],
                 ),
-                // ---- Stol turi (faqat kishi boshiga rejimida) ----
-                if (!totalMode && tiers.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Cap(ty('tierLabel')),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                const SizedBox(height: 10),
+                GlassCard(
+                  r: Tb.rCard,
+                  pad: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final t in tiers)
-                        _chip(
-                          p,
-                          ty('tierChip', {'title': t.title, 'price': toyFx(t.pricePerGuest)}),
-                          f.menuId == t.id && !f.priceManual,
-                          () => setState(() {
-                            f.menuId = t.id;
-                            f.priceManual = false;
-                            f.price = toyFx(t.pricePerGuest);
-                          }),
-                        ),
-                    ],
-                  ),
-                ] else if (!totalMode && f.hallId != null) ...[
-                  const SizedBox(height: 10),
-                  Tx(ty('noTiersHint'), size: 13, color: p.t4),
-                ],
-                // 024: tanlangan stol turining taomlari (eslatma sifatida)
-                if (!totalMode && tier != null && tier.items.isNotEmpty && !f.priceManual) ...[
-                  const SizedBox(height: 8),
-                  Tx(tier.items.map((i) => i.label).join(' · '), size: 12, color: p.t4, lh: 16, maxLines: 3, ellipsis: true),
-                ],
-                const SizedBox(height: 20),
-                // ---- Mijoz (024: AVVAL telefon — bazadan ism avto-to'ladi) ----
-                _field(p, ty('phoneLabel'), f.phone, (v) => _onPhoneChanged(f, v),
-                    phone: true, icon: Icons.smartphone_rounded),
-                if (f.hint != null) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.history_rounded, size: 14, color: p.cyan),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Tx(ty('clientKnown', {'name': f.hint!.name, 'n': '${f.hint!.bookings}'}),
-                            size: 12, color: p.cyan, maxLines: 1, ellipsis: true),
-                      ),
-                      if (f.hint!.inTrustbook) PillBadge.mint(ty('inTrustbook'), h: 18),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _field(p, ty('nameLabel'), f.name, (v) => setState(() {
-                      f.name = v;
-                      f.nameAuto = false; // qo'lda tahrir — autofill endi ustidan yozmaydi
-                    }),
-                    hint: ty('namePh'), icon: Icons.person_outline_rounded),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _field(p, ty('guestsLabel'), f.guests,
-                          (v) => setState(() => f.guests = v), number: true, group: false),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: totalMode
-                          ? _field(p, ty('totalPriceLabel'), f.totalPrice,
-                              (v) => setState(() => f.totalPrice = v), number: true)
-                          : _field(
-                              p,
-                              tiers.isEmpty ? ty('priceLabel') : ty('priceManualLabel'),
-                              f.price,
-                              (v) => setState(() {
-                                f.price = v;
-                                // Qo'lda o'zgartirilgan narx toifa narxidan USTUN turadi
-                                f.priceManual = tier == null || _digits(v) != tier.pricePerGuest;
-                              }),
-                              number: true,
-                            ),
-                    ),
-                  ],
-                ),
-                // ---- Servislar (024): faqat YANGI bronda katalogdan tanlash ----
-                if (isNew && catalog.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Cap(ty('servicesLabel')),
-                  const SizedBox(height: 10),
-                  // 025: KATEGORIYA bo'yicha guruhlangan, rasmli kartalar.
-                  // Tekis chiplar o'rniga: 20+ servisda chiplar devoriga aylanardi
-                  // va mijoz nima tanlayotganini KO'RMASDI. Endi har kategoriya —
-                  // o'z lentasi; bo'sh kategoriyalar umuman chizilmaydi.
-                  for (final cat in kToyServiceCats)
-                    if (catalog.any((sv) => sv.category == cat.slug)) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 8),
-                        child: Row(
-                          children: [
-                            Icon(cat.icon, size: 15, color: cat.c2),
-                            const SizedBox(width: 6),
-                            Tx(tyCat(cat.slug), size: 13, w: FontWeight.w700, color: p.t3),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        // 132 (rasm) + 6 + nom + 2 + narx — Tx matn masshtabini
-                        // o'chirgani uchun balandlik qat'iy hisoblanadi.
-                        height: 176,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            for (final sv in catalog.where((x) => x.category == cat.slug)) ...[
-                              _svcPickCard(p, f, cat, sv),
-                              const SizedBox(width: 10),
+                      if (totalMode)
+                        // Butun to'yxona: bitta summa, mehmonlar soni SO'RALMAYDI
+                        _field(p, ty('totalPriceLabel'), f.totalPrice,
+                            (v) => setState(() => f.totalPrice = v), number: true)
+                      else ...[
+                        if (tiers.isNotEmpty) ...[
+                          Cap(ty('tierLabel')),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final t in tiers)
+                                _chip(
+                                  p,
+                                  ty('tierChip', {'title': t.title, 'price': toyFx(t.pricePerGuest)}),
+                                  f.menuId == t.id && !f.priceManual,
+                                  () => setState(() {
+                                    f.menuId = t.id;
+                                    f.priceManual = false;
+                                    f.price = toyFx(t.pricePerGuest);
+                                  }),
+                                ),
                             ],
+                          ),
+                          if (tier != null && tier.items.isNotEmpty && !f.priceManual) ...[
+                            const SizedBox(height: 8),
+                            Tx(tier.items.map((i) => i.label).join(' · '),
+                                size: 12, color: p.t4, lh: 16, maxLines: 3, ellipsis: true),
+                          ],
+                          const SizedBox(height: 14),
+                        ] else if (f.hallId != null) ...[
+                          Tx(ty('noTiersHint'), size: 13, color: p.t4),
+                          const SizedBox(height: 12),
+                        ],
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _field(p, ty('guestsLabel'), f.guests,
+                                  (v) => setState(() => f.guests = v), number: true, group: false),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: _field(
+                                p,
+                                tiers.isEmpty ? ty('priceLabel') : ty('priceManualLabel'),
+                                f.price,
+                                (v) => setState(() {
+                                  f.price = v;
+                                  // Qo'lda o'zgartirilgan narx toifa narxidan USTUN turadi
+                                  f.priceManual = tier == null || _digits(v) != tier.pricePerGuest;
+                                }),
+                                number: true,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 14),
+                      Container(height: 1, color: p.glassBd),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(child: Cap(ty('agreedSum'))),
+                          const SizedBox(width: 10),
+                          Tx(toyMoney(s.food), size: 20, w: FontWeight.w600, color: p.mint, tab: true),
+                        ],
+                      ),
+                      if (!totalMode && s.guests > 0 && s.price > 0) ...[
+                        const SizedBox(height: 4),
+                        Tx(ty('foodLine', {'guests': '${s.guests}', 'price': toyFx(s.price), 'total': toyFx(s.food)}),
+                            size: 12, color: p.t4, tab: true),
+                      ],
                     ],
-                  if (f.services.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Tx(ty('bonusHint'), size: 12, color: p.t4, lh: 16),
-                  ],
-                ],
-                // U4: sig'imdan oshsa OGOHLANTIRISH — bloklamaydi (qo'shimcha
-                // stol qo'yish egalarning odatiy amaliyoti), faqat eslatadi.
-                if (_capacityOver(f, guests) != null) ...[
+                  ),
+                ),
+                // U4: sig'imdan oshsa OGOHLANTIRISH — bloklamaydi.
+                if (over != null) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Icon(Icons.warning_amber_rounded, size: 16, color: p.amber),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Tx(ty('overCapacity', {'n': '${_capacityOver(f, guests)}'}),
-                            size: 13, w: FontWeight.w600, color: p.amber),
+                        child: Tx(ty('overCapacity', {'n': '$over'}), size: 13, w: FontWeight.w600, color: p.amber),
                       ),
                     ],
                   ),
                 ],
+                // ---- Avans (faqat yangi bronda) ----
                 if (isNew) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _field(p, ty('advanceLabel'), f.advance, (v) => setState(() => f.advance = v),
                       number: true, icon: Icons.payments_outlined),
-                  // 024: minimal avans (to'yxona sozlamasi) va avanssiz hold eslatmasi
                   if (depMin > 0) ...[
                     const SizedBox(height: 6),
                     Tx(
                       ty('depositMinLine', {'sum': toyMoney(depMin), 'pct': '${hall?.depositPct ?? 0}'}),
                       size: 12, color: _digits(f.advance) >= depMin ? p.mint : p.amber, lh: 16,
                     ),
+                  ] else if (_digits(f.advance) > 0 && s.food > _digits(f.advance)) ...[
+                    const SizedBox(height: 6),
+                    Tx(ty('leftAfterAdvance', {'sum': toyMoney(s.food - _digits(f.advance))}),
+                        size: 12, color: p.t4, lh: 16, tab: true),
                   ],
                   if (_digits(f.advance) <= 0) ...[
                     const SizedBox(height: 6),
                     Tx(ty('holdNote', {'h': '48'}), size: 12, color: p.t4, lh: 16),
                   ],
                 ],
-                const SizedBox(height: 16),
-                _field(p, ty('noteLabel'), f.note, (v) => setState(() => f.note = v),
-                    hint: ty('notePh'), lines: 3),
+                // ---- Izoh: ko'p qatorli — pill EMAS, to'g'ri burchakli ----
+                const SizedBox(height: 20),
+                Cap(ty('noteLabel')),
+                const SizedBox(height: 10),
+                _noteBox(p, f),
                 const SizedBox(height: 24),
-                // ---- Jonli hisob ----
+                if (hasStep2)
+                  GradientBtn(
+                    label: ty('nextServices'),
+                    icon: Icons.arrow_forward_rounded,
+                    onTap: () {
+                      if (!_validateMain(f)) return;
+                      setState(() {
+                        _formStep = 1;
+                        _svcCatFilter = null;
+                      });
+                    },
+                  )
+                else
+                  GradientBtn(label: ty('save'), icon: Icons.check_rounded, loading: _busy, onTap: () => _saveBooking(f)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Izoh maydoni: ko'p qatorli matn pill (rPill) ichida qiyshiq ko'rinardi —
+  /// kichik radiusli to'g'ri burchakli quti.
+  Widget _noteBox(Pal p, _FormData f) => AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: p.glass,
+          border: Border.all(color: f.note.isNotEmpty ? p.violet.withValues(alpha: .6) : p.glassBd),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: StoreField(
+          value: f.note,
+          onChanged: (v) => setState(() => f.note = v),
+          hint: ty('notePh'),
+          maxLines: 4,
+          minLines: 3,
+          style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500),
+          hintColor: p.t5,
+        ),
+      );
+
+  /// 1-bosqich tekshiruvi (Davom etish / Saqlash oldidan).
+  bool _validateMain(_FormData f) {
+    if (f.name.trim().isEmpty) {
+      _toastMsg(ty('needName'));
+      return false;
+    }
+    // Butun to'yxona rejimida mehmonlar soni so'ralmaydi (0 bo'lishi mumkin)
+    if (f.priceMode != 'total' && _digits(f.guests) <= 0) {
+      _toastMsg(ty('needGuests'));
+      return false;
+    }
+    if (toyRepo.hasHalls && f.hallId == null) {
+      _toastMsg(ty('needVenue'));
+      return false;
+    }
+    return true;
+  }
+
+  // ---------- 2-bosqich: servislar ----------
+
+  /// Katalogni kategoriya bo'yicha guruhlaydi: ITEMLI kategoriyalar avval
+  /// (kToyServiceCats tartibida), bo'shlari umuman chizilmaydi.
+  List<(ToyServiceCat, List<HallService>)> _svcGroups(List<HallService> catalog) => [
+        for (final cat in kToyServiceCats)
+          if (catalog.any((sv) => sv.category == cat.slug))
+            (cat, catalog.where((sv) => sv.category == cat.slug).toList()),
+      ];
+
+  Widget _formServicesStep(Pal p, _FormData f, List<HallService> catalog) {
+    final s = _formSums(f);
+    final groups = _svcGroups(catalog);
+    final filter = _svcCatFilter;
+    final selected = [
+      for (final sv in catalog)
+        if (f.services.containsKey(sv.id)) sv,
+    ];
+    return Column(
+      children: [
+        ScreenHeader(
+          title: ty('servicesTitle'),
+          subtitle: '${toyDateLong(f.date)} · ${tySlot(f.slot)}',
+          onBack: () => setState(() => _formStep = 0),
+          trailing: [_stepPill(p, 2)],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 14, Tb.padX, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Mijoz xulosasi — kim uchun va qancha kelishilgani ko'z oldida
                 GlassCard(
                   r: Tb.rCard,
-                  pad: const EdgeInsets.all(20),
+                  pad: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: p.violet.withValues(alpha: .15), shape: BoxShape.circle),
+                        child: Tx(_initials(f.name), size: 13, w: FontWeight.w700, color: p.violet),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Tx(f.name.trim(), size: 14, w: FontWeight.w700, color: p.ink, maxLines: 1, ellipsis: true),
+                            if (f.phone.trim().isNotEmpty)
+                              Tx(f.phone.trim(), size: 12, color: p.t4, maxLines: 1, tab: true),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Tx(toyMoney(s.food), size: 14, w: FontWeight.w700, color: p.mint, tab: true),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Kategoriya lentasi — chip bosilsa faqat shu guruh (to'liq) ko'rinadi
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _smallChip(p, ty('allCats'), filter == null, () => setState(() => _svcCatFilter = null)),
+                      for (final g in groups) ...[
+                        const SizedBox(width: 8),
+                        _svcCatChip(p, f, g.$1, g.$2, filter == g.$1.slug),
+                      ],
+                    ],
+                  ),
+                ),
+                for (final g in groups)
+                  if (filter == null || filter == g.$1.slug) _svcGroup(p, f, g.$1, g.$2, full: filter != null),
+                if (f.services.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Tx(ty('bonusHint'), size: 12, color: p.t4, lh: 16),
+                ],
+                // ---- Tanlanganlar + jami ----
+                const SizedBox(height: 22),
+                Cap(ty('selectedCap')),
+                const SizedBox(height: 10),
+                GlassCard(
+                  r: Tb.rCard,
+                  pad: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Cap(ty('previewCap')),
+                      if (selected.isEmpty)
+                        Tx(ty('noneSelected'), size: 13, color: p.t4)
+                      else
+                        for (final sv in selected) ...[
+                          Row(
+                            children: [
+                              Expanded(child: Tx(sv.title, size: 13, color: p.t2, maxLines: 1, ellipsis: true)),
+                              const SizedBox(width: 10),
+                              Tx(
+                                f.services[sv.id] == true ? ty('bonusBadge') : (sv.price > 0 ? toyFx(sv.price) : ty('freePrice')),
+                                size: 13, w: FontWeight.w600,
+                                color: f.services[sv.id] == true ? p.mint : p.ink, tab: true,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                       const SizedBox(height: 8),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Tx(toyMoney(total), size: 32, w: FontWeight.w600, color: p.mint, tab: true),
-                      ),
+                      Container(height: 1, color: p.glassBd),
+                      const SizedBox(height: 10),
+                      _totalRow(p, ty('agreedSum'), toyFx(s.food), p.t2),
+                      if (s.extras > 0) ...[
+                        const SizedBox(height: 4),
+                        _totalRow(p, ty('extrasCap'), toyFx(s.extras), p.t2),
+                      ],
                       const SizedBox(height: 6),
-                      Tx(
-                        totalMode
-                            ? ty('totalModeLine', {'guests': '$guests'})
-                            : ty('foodLine', {
-                                'guests': '$guests',
-                                'price': toyFx(price),
-                                'total': toyFx(food),
-                              }),
-                        size: 13, color: p.t2, lh: 18, tab: true,
-                      ),
-                      if (extras > 0) ...[
-                        const SizedBox(height: 3),
-                        Tx(ty('extrasLine', {'sum': toyFx(extras)}), size: 13, color: p.t2, tab: true),
-                      ],
-                      if (!totalMode && tier != null && !f.priceManual) ...[
-                        const SizedBox(height: 3),
-                        Tx(tier.title, size: 13, color: p.t4),
-                      ],
+                      _totalRow(p, ty('previewCap'), toyMoney(s.total), p.mint, big: true),
                     ],
                   ),
                 ),
@@ -2928,10 +3148,84 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  /// 025: bron formasidagi servis kartasi — muqova rasm, nom, narx.
-  /// Bosish sikli chip bilan BIR XIL: tanlanmagan -> pullik -> bonus -> yechildi.
-  /// (Sikl saqlangan: ega ikki oydan beri shunga o'rgangan.)
-  Widget _svcPickCard(Pal p, _FormData f, ToyServiceCat cat, HallService sv) {
+  Widget _svcCatChip(Pal p, _FormData f, ToyServiceCat cat, List<HallService> items, bool on) {
+    final n = items.where((sv) => f.services.containsKey(sv.id)).length;
+    return Tap(
+      onTap: () => setState(() => _svcCatFilter = on ? null : cat.slug),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: on ? p.ink : p.glass,
+          border: Border.all(color: on ? p.ink : p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rPill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(cat.icon, size: 14, color: on ? p.bg : cat.c2),
+            const SizedBox(width: 6),
+            Tx(tyCat(cat.slug), size: 13, w: FontWeight.w600, color: on ? p.bg : p.t1, maxLines: 1, font: TbFont.body),
+            if (n > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: on ? p.bg : p.mint, shape: BoxShape.circle),
+                child: Tx('$n', size: 10, w: FontWeight.w700, color: on ? p.ink : p.onMint, tab: true),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kategoriya guruhi: sarlavha + ixcham qatorlar. Sukutda 3 ta item,
+  /// qolgani "Yana N ta" bilan ochiladi (filtrda — hammasi). Shunda 30 ta
+  /// servisli katalog ham bir ekranga sig'adi.
+  Widget _svcGroup(Pal p, _FormData f, ToyServiceCat cat, List<HallService> items, {required bool full}) {
+    final open = full || _svcExpanded.contains(cat.slug);
+    final shown = open ? items : items.take(3).toList();
+    final n = items.where((sv) => f.services.containsKey(sv.id)).length;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(width: 10, height: 10, decoration: BoxDecoration(color: cat.c2, shape: BoxShape.circle)),
+              const SizedBox(width: 8),
+              Expanded(child: Tx(tyCat(cat.slug), size: 15, w: FontWeight.w700, color: p.ink, maxLines: 1, ellipsis: true)),
+              Tx(n > 0 ? ty('nSelected', {'n': '$n'}) : ty('nItems', {'n': '${items.length}'}),
+                  size: 12, w: FontWeight.w600, color: n > 0 ? p.mint : p.t4, tab: true),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final sv in shown) ...[
+            _svcRow(p, f, cat, sv),
+            const SizedBox(height: 6),
+          ],
+          if (!full && items.length > 3)
+            Tap(
+              onTap: () => setState(() => open ? _svcExpanded.remove(cat.slug) : _svcExpanded.add(cat.slug)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+                child: Tx(open ? ty('showLess') : ty('showMore', {'n': '${items.length - 3}'}),
+                    size: 13, w: FontWeight.w700, color: p.violet),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 025→026: bron formasidagi servis QATORI — muqova 48px, nom, narx, belgi.
+  /// Bosish sikli eski karta bilan BIR XIL: tanlanmagan -> pullik -> bonus -> yechildi.
+  Widget _svcRow(Pal p, _FormData f, ToyServiceCat cat, HallService sv) {
     final sel = f.services.containsKey(sv.id);
     final bonus = sel && f.services[sv.id] == true;
     final accent = bonus ? p.mint : p.violet;
@@ -2945,49 +3239,43 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           f.services.remove(sv.id);
         }
       }),
-      child: SizedBox(
-        width: 132,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: p.glass,
+          border: Border.all(color: sel ? accent : p.glassBd, width: sel ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(Tb.rIcon + 4),
+        ),
+        child: Row(
           children: [
-            Stack(
-              children: [
-                // Chegara TANLANMAGANDA ham 2px (shaffof): aks holda tanlash
-                // paytida karta 4px kattalashib, butun lenta sakrab ketardi.
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(Tb.rIcon + 2),
-                    border: Border.all(color: sel ? accent : Colors.transparent, width: 2),
+            ClipRRect(borderRadius: BorderRadius.circular(Tb.rIcon), child: _svcThumb(cat, sv.cover, 48)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tx(sv.title, size: 14, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+                  const SizedBox(height: 2),
+                  Tx(
+                    bonus ? ty('bonusBadge') : (sv.price > 0 ? toyFx(sv.price) : ty('freePrice')),
+                    size: 12, w: FontWeight.w600, color: bonus ? p.mint : p.t4, tab: true, strike: bonus,
                   ),
-                  padding: const EdgeInsets.all(2),
-                  child: _svcThumb(cat, sv.cover, 124),
-                ),
-                if (sel)
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-                      child: Icon(bonus ? Icons.card_giftcard_rounded : Icons.check_rounded,
-                          size: 15, color: p.bg),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            Tx(sv.title, size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
-            const SizedBox(height: 2),
-            Tx(
-              bonus
-                  ? ty('bonusBadge')
-                  : (sv.price > 0 ? toyFx(sv.price) : ty('freePrice')),
-              size: 12,
-              w: FontWeight.w600,
-              color: bonus ? p.mint : p.t4,
-              tab: true,
-              strike: bonus,
+            const SizedBox(width: 10),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: sel ? accent : Colors.transparent,
+                border: Border.all(color: sel ? accent : p.glassBd, width: 2),
+                shape: BoxShape.circle,
+              ),
+              child: sel
+                  ? Icon(bonus ? Icons.card_giftcard_rounded : Icons.check_rounded, size: 15, color: p.bg)
+                  : null,
             ),
           ],
         ),
@@ -2996,80 +3284,78 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   /// 024: telefon o'zgardi — 500ms dan keyin bazadan mijoz qidiriladi;
-  /// topilsa ism (agar qo'lda yozilmagan bo'lsa) avto-to'ladi.
+  /// topilsa ism (agar qo'lda yozilmagan bo'lsa) avto-to'ladi, TOPILMASA
+  /// avto-to'lgan ism tozalanadi (boshqa mijozning ismi qolib ketmasin).
   void _onPhoneChanged(_FormData f, String v) {
     setState(() {
       f.phone = v;
       f.hint = null;
+      f.hintChecked = false;
     });
     _phoneT?.cancel();
-    if (toyPhoneDigits(v).length < 9) return;
+    if (_phoneNat(v).length < 9) return;
     final seq = ++_phoneSeq;
     _phoneT = Timer(const Duration(milliseconds: 500), () async {
       final h = await toyRepo.lookupClient(v);
       if (!mounted || seq != _phoneSeq || _form != f) return;
       setState(() {
         f.hint = h;
+        f.hintChecked = true;
         if (h != null && (f.name.trim().isEmpty || f.nameAuto)) {
           f.name = h.name;
           f.nameAuto = true;
+        } else if (h == null && f.nameAuto) {
+          f.name = '';
+          f.nameAuto = false;
         }
       });
     });
   }
 
-  /// Slot chipi (U1): bo'sh slot — odatiy tanlanadigan chip (slot ikonkasi
-  /// bilan); band slot — bosilmaydigan xira chip + ostida band qilgan mijoz
-  /// nomi. Tahrirda bandning O'Z sloti tanlanadigan bo'lib qoladi (exceptId).
-  Widget _slotPick(Pal p, _FormData f, String s) {
+  /// Vaqt kartasi (3 ta yonma-yon): bo'sh — ikonka + "Bo'sh"; tanlangan —
+  /// to'q fon; band — qulf + band qilgan mijoz nomi, bosilmaydi. Tahrirda
+  /// bandning O'Z sloti tanlanadigan bo'lib qoladi (exceptId).
+  Widget _slotCard(Pal p, _FormData f, String s) {
     final taken = toySlotTakenBy(
       _dayRows[toyYmd(f.date)] ?? const [],
       hallId: f.hallId,
       slot: s,
       exceptId: f.id,
     );
-    if (taken == null) {
-      final on = f.slot == s;
-      return PillChip(
-        label: tySlot(s),
-        selected: on,
-        leading: Icon(_slotIcon(s), size: 16, color: on ? p.bg : _slotColor(s, p)),
-        onTap: () => setState(() => f.slot = s),
-      );
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          height: 40,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: p.glass2,
-            border: Border.all(color: p.glassBd),
-            borderRadius: BorderRadius.circular(Tb.rPill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_outline_rounded, size: 14, color: p.t5),
-              const SizedBox(width: 6),
-              Tx(tySlot(s), size: 14, w: FontWeight.w600, color: p.t5, maxLines: 1, font: TbFont.body),
-            ],
-          ),
+    final locked = taken != null;
+    final on = !locked && f.slot == s;
+    final fg = locked ? p.t5 : (on ? p.bg : p.ink);
+    final sub = locked ? p.t4 : (on ? p.bg.withValues(alpha: .7) : p.t4);
+    return Tap(
+      onTap: locked ? null : () => setState(() => f.slot = s),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 88,
+        padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+        decoration: BoxDecoration(
+          color: on ? p.ink : (locked ? p.glass2 : p.glass),
+          border: Border.all(color: on ? p.ink : p.glassBd),
+          borderRadius: BorderRadius.circular(Tb.rCard),
         ),
-        const SizedBox(height: 3),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 140),
-          child: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Tx(taken.clientName, size: 11, color: p.t4, maxLines: 1, ellipsis: true),
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(locked ? Icons.lock_outline_rounded : _slotIcon(s),
+                size: 18, color: locked ? p.t5 : (on ? p.bg : _slotColor(s, p))),
+            const Spacer(),
+            Tx(tySlot(s), size: 13, w: FontWeight.w700, color: fg, maxLines: 1, ellipsis: true, font: TbFont.body),
+            const SizedBox(height: 2),
+            Tx(taken != null ? taken.clientName : (on ? ty('slotPicked') : ty('free')),
+                size: 11, color: sub, maxLines: 1, ellipsis: true),
+          ],
         ),
-      ],
+      ),
     );
   }
+
+  /// Qator dumi " · N mehmon" — butun to'yxona rejimida mehmon so'ralmagan
+  /// (0) bo'lsa hech narsa (026).
+  String _guestsSuffix(Booking b) => b.guests > 0 ? ' · ${ty('guestsN', {'n': '${b.guests}'})}' : '';
 
   /// U4: tanlangan to'yxona sig'imidan oshgan mehmon soni (oshmagan bo'lsa null).
   int? _capacityOver(_FormData f, int guests) {
@@ -3140,20 +3426,10 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   }
 
   Future<void> _saveBooking(_FormData f) async {
+    if (!_validateMain(f)) return;
     final name = f.name.trim();
+    // 026: butun to'yxona rejimida mehmonlar soni ixtiyoriy (0 = so'ralmagan)
     final guests = _digits(f.guests);
-    if (name.isEmpty) {
-      _toastMsg(ty('needName'));
-      return;
-    }
-    if (guests <= 0) {
-      _toastMsg(ty('needGuests'));
-      return;
-    }
-    if (toyRepo.hasHalls && f.hallId == null) {
-      _toastMsg(ty('needVenue'));
-      return;
-    }
     final price = _digits(f.price);
     final advance = _digits(f.advance);
     final totalMode = f.priceMode == 'total';
@@ -3547,7 +3823,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   spacing: gap,
                   runSpacing: gap,
                   children: [
-                    for (final cat in kToyServiceCats)
+                    // Itemli kategoriyalar AVVAL, bo'shlari pastga tushib boradi —
+                    // ega o'z to'ldirgan bo'limlarini birinchi ko'radi (026).
+                    for (final cat in [
+                      ...kToyServiceCats.where((c) => (counts[c.slug] ?? 0) > 0),
+                      ...kToyServiceCats.where((c) => (counts[c.slug] ?? 0) == 0),
+                    ])
                       SizedBox(width: w, child: _catCard(p, cat, counts[cat.slug] ?? 0)),
                   ],
                 );
@@ -4537,7 +4818,7 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         keyboardType: phone
             ? TextInputType.phone
             : (number ? TextInputType.number : TextInputType.text),
-        inputFormatters: number && group ? [_GroupFmt()] : null,
+        inputFormatters: phone ? [_PhoneFmt()] : (number && group ? [_GroupFmt()] : null),
         maxLines: lines,
         minLines: lines > 1 ? lines : 1,
         style: tbStyle(size: 15, color: p.ink, w: FontWeight.w500, tab: number || phone),

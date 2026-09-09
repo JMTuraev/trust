@@ -100,7 +100,7 @@ Future<Uint8List> buildBookingReceipt(Booking b, {Hall? hall, String ownerName =
         hr(),
         cap(ty('receiptEventCap')),
         row(ty('dateLabel'), '${toyDateLong(b.eventDate)} · ${tySlot(b.slot)}'),
-        row(ty('guestsLabel'), '${b.guests}'),
+        if (b.guests > 0) row(ty('guestsLabel'), '${b.guests}'),
         row(ty('priceModeLabel'), tyPriceMode(b.priceMode)),
         cap(ty('clientCap')),
         row(ty('nameLabel'), b.clientName),
@@ -109,7 +109,7 @@ Future<Uint8List> buildBookingReceipt(Booking b, {Hall? hall, String ownerName =
 
         cap(ty('moneyCap')),
         if (b.isTotalMode)
-          row(ty('totalModeLine', {'guests': '${b.guests}'}), toyMoney(b.food))
+          row(b.guests > 0 ? ty('totalModeLine', {'guests': '${b.guests}'}) : ty('priceModeTotal'), toyMoney(b.food))
         else
           row(
             b.menuTitle.isEmpty
