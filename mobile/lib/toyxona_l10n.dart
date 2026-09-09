@@ -355,6 +355,19 @@ const Map<String, String> _tyEn = {
   'servicesListTitle': 'Services list',
   'servicesCountSub': '{n} services',
   'helpTitle': 'How it works',
+  // --- 029b ---
+  'servicesAndTable': 'Services & table',
+  'callBtn': 'CALL',
+  'payBtn': 'Payment',
+  'payAmountPh': 'Amount',
+  'servicesLine': 'Services ({n})',
+  'pickDayFirst': 'Pick a day on the calendar first',
+  'maxTablePrice': 'Cannot exceed the table price',
+  'discountLine': '{pct}% discount · −{sum} per guest',
+  'leftAfterAdvanceCap': 'Left after advance',
+  'needPhone': 'Enter the client phone',
+  'archiveTitle': 'Archive',
+  'archiveSub': 'Cancelled bookings',
 };
 
 const Map<String, String> _tyUz = {
@@ -678,6 +691,19 @@ const Map<String, String> _tyUz = {
   'servicesListTitle': 'Xizmatlar ro\'yxati',
   'servicesCountSub': '{n} ta xizmat',
   'helpTitle': 'Qanday ishlaydi',
+  // --- 029b ---
+  'servicesAndTable': 'Xizmatlar va stol',
+  'callBtn': 'QO\'NG\'IROQ',
+  'payBtn': 'To\'lov',
+  'payAmountPh': 'Summa',
+  'servicesLine': 'Xizmatlar ({n})',
+  'pickDayFirst': 'Avval kalendardan sanani tanlang',
+  'maxTablePrice': 'Stol narxidan oshmasin',
+  'discountLine': '{pct}% chegirma · kishi boshiga −{sum}',
+  'leftAfterAdvanceCap': 'Avansdan keyin qoldiq',
+  'needPhone': 'Mijoz telefonini kiriting',
+  'archiveTitle': 'Arxiv',
+  'archiveSub': 'Bekor qilingan bronlar',
 };
 
 const Map<String, String> _tyRu = {
@@ -1001,6 +1027,19 @@ const Map<String, String> _tyRu = {
   'servicesListTitle': 'Список услуг',
   'servicesCountSub': '{n} услуг',
   'helpTitle': 'Как это работает',
+  // --- 029b ---
+  'servicesAndTable': 'Услуги и стол',
+  'callBtn': 'ПОЗВОНИТЬ',
+  'payBtn': 'Оплата',
+  'payAmountPh': 'Сумма',
+  'servicesLine': 'Услуги ({n})',
+  'pickDayFirst': 'Сначала выберите день в календаре',
+  'maxTablePrice': 'Не больше цены стола',
+  'discountLine': 'Скидка {pct}% · −{sum} с человека',
+  'leftAfterAdvanceCap': 'Остаток после аванса',
+  'needPhone': 'Введите телефон клиента',
+  'archiveTitle': 'Архив',
+  'archiveSub': 'Отменённые брони',
 };
 
 const Map<String, String> _tyEs = {
@@ -1324,6 +1363,19 @@ const Map<String, String> _tyEs = {
   'servicesListTitle': 'Lista de servicios',
   'servicesCountSub': '{n} servicios',
   'helpTitle': 'Cómo funciona',
+  // --- 029b ---
+  'servicesAndTable': 'Servicios y mesa',
+  'callBtn': 'LLAMAR',
+  'payBtn': 'Pago',
+  'payAmountPh': 'Importe',
+  'servicesLine': 'Servicios ({n})',
+  'pickDayFirst': 'Elija primero un día en el calendario',
+  'maxTablePrice': 'No puede superar el precio de la mesa',
+  'discountLine': '{pct}% de descuento · −{sum} por invitado',
+  'leftAfterAdvanceCap': 'Resta tras el anticipo',
+  'needPhone': 'Introduzca el teléfono del cliente',
+  'archiveTitle': 'Archivo',
+  'archiveSub': 'Reservas canceladas',
 };
 
 const Map<String, String> _tyFr = {
@@ -1647,6 +1699,19 @@ const Map<String, String> _tyFr = {
   'servicesListTitle': 'Liste des services',
   'servicesCountSub': '{n} services',
   'helpTitle': 'Comment ça marche',
+  // --- 029b ---
+  'servicesAndTable': 'Services et table',
+  'callBtn': 'APPELER',
+  'payBtn': 'Paiement',
+  'payAmountPh': 'Montant',
+  'servicesLine': 'Services ({n})',
+  'pickDayFirst': 'Choisissez d\'abord un jour dans le calendrier',
+  'maxTablePrice': 'Ne peut pas dépasser le prix de la table',
+  'discountLine': '{pct}% de remise · −{sum} par invité',
+  'leftAfterAdvanceCap': 'Reste après l\'acompte',
+  'needPhone': 'Saisissez le téléphone du client',
+  'archiveTitle': 'Archives',
+  'archiveSub': 'Réservations annulées',
 };
 
 const Map<String, String> _tyZh = {
@@ -1970,6 +2035,19 @@ const Map<String, String> _tyZh = {
   'servicesListTitle': '服务列表',
   'servicesCountSub': '{n} 项服务',
   'helpTitle': '使用说明',
+  // --- 029b ---
+  'servicesAndTable': '服务与餐桌',
+  'callBtn': '拨打',
+  'payBtn': '付款',
+  'payAmountPh': '金额',
+  'servicesLine': '服务（{n}）',
+  'pickDayFirst': '请先在日历中选择日期',
+  'maxTablePrice': '不能高于餐桌价格',
+  'discountLine': '折扣 {pct}% · 每人 −{sum}',
+  'leftAfterAdvanceCap': '付定金后余额',
+  'needPhone': '请输入客户电话',
+  'archiveTitle': '归档',
+  'archiveSub': '已取消的预订',
 };
 
 const Map<String, Map<String, String>> kToyLangs = {
