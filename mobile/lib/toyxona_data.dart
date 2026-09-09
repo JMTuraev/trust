@@ -24,7 +24,9 @@
 // bandga keyin xizmat qo'shilsa left > 0 bo'lishi NORMAL holat.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data' show Uint8List;
 import 'package:flutter/foundation.dart' show ChangeNotifier;
+import 'package:flutter/material.dart' show Color, IconData, Icons;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
@@ -182,6 +184,70 @@ const List<String> kToyQuickServiceKeys = [
   'svcMusic', 'svcPhoto', 'svcVideo', 'svcCake', 'svcDecor', 'svcFire',
 ];
 
+// ==================== SERVIS KATEGORIYALARI (025) ====================
+//
+// PLATFORMA ro'yxati — to'yxonachi kategoriya YARATA OLMAYDI, faqat ichini
+// to'ldiradi ("Musiqa" biznikidir, ichidagi "Ansambl Navro'z" eganiki).
+//
+// Slug'lar backend'dagi `src/lib/toyxonaCategories.js` bilan AYNAN bir xil
+// bo'lishi SHART (server validatsiya qiladi). Nom / rang / ikonka esa FAQAT
+// shu yerda: ular ilova resurslari, DB ularni saqlay olmaydi.
+//
+// TANIMAGAN SLUG: server kelajakda yangi kategoriya qo'shsa, eski ilova uni
+// 'boshqa' sifatida ko'rsatadi — qator hech qachon YO'QOLMAYDI (catOf).
+
+/// Bitta kategoriya: gradient + ikonka + illyustratsiya (Storyset PNG).
+class ToyServiceCat {
+  final String slug;
+  /// l10n kaliti: 'catTaomnoma' ... (toyxona_l10n.dart, 6 til)
+  final String key;
+  /// Karta gradienti (Spotify janr plitkalari uslubi) — [0] to'q, [1] och
+  final Color c1, c2;
+  /// Illyustratsiya kelmaguncha ko'rinadigan zaxira ikonka
+  final IconData icon;
+  const ToyServiceCat(this.slug, this.key, this.c1, this.c2, this.icon);
+
+  /// Storyset PNG yo'li. Fayl BO'LMASA Image.asset errorBuilder ikonkaga
+  /// qaytadi — shuning uchun rasmlar kelmaguncha ham ekran to'liq ishlaydi.
+  String get asset => 'assets/toyxona/cat/$slug.png';
+}
+
+/// 17 ta kategoriya + 'boshqa' (HAR DOIM oxirgi). Tartib = grid tartibi.
+const List<ToyServiceCat> kToyServiceCats = [
+  ToyServiceCat('taomnoma',   'catTaomnoma',   Color(0xFFF97316), Color(0xFFFB923C), Icons.restaurant_rounded),
+  ToyServiceCat('tort',       'catTort',       Color(0xFFEC4899), Color(0xFFF472B6), Icons.cake_rounded),
+  ToyServiceCat('ichimlik',   'catIchimlik',   Color(0xFF06B6D4), Color(0xFF22D3EE), Icons.local_bar_rounded),
+  ToyServiceCat('musiqa',     'catMusiqa',     Color(0xFF8B5CF6), Color(0xFFA78BFA), Icons.music_note_rounded),
+  ToyServiceCat('boshlovchi', 'catBoshlovchi', Color(0xFFF59E0B), Color(0xFFFBBF24), Icons.mic_rounded),
+  ToyServiceCat('shou',       'catShou',       Color(0xFFEF4444), Color(0xFFF87171), Icons.theater_comedy_rounded),
+  ToyServiceCat('foto',       'catFoto',       Color(0xFF3B82F6), Color(0xFF60A5FA), Icons.photo_camera_rounded),
+  ToyServiceCat('bezak',      'catBezak',      Color(0xFF10B981), Color(0xFF34D399), Icons.local_florist_rounded),
+  ToyServiceCat('yoruglik',   'catYoruglik',   Color(0xFF6366F1), Color(0xFF818CF8), Icons.lightbulb_rounded),
+  ToyServiceCat('salyut',     'catSalyut',     Color(0xFFF43F5E), Color(0xFFFB7185), Icons.celebration_rounded),
+  ToyServiceCat('gozallik',   'catGozallik',   Color(0xFFD946EF), Color(0xFFE879F9), Icons.face_retouching_natural_rounded),
+  ToyServiceCat('transport',  'catTransport',  Color(0xFF0EA5E9), Color(0xFF38BDF8), Icons.directions_car_rounded),
+  ToyServiceCat('taklifnoma', 'catTaklifnoma', Color(0xFF14B8A6), Color(0xFF2DD4BF), Icons.mail_rounded),
+  ToyServiceCat('sovga',      'catSovga',      Color(0xFFA855F7), Color(0xFFC084FC), Icons.card_giftcard_rounded),
+  ToyServiceCat('xizmat',     'catXizmat',     Color(0xFF64748B), Color(0xFF94A3B8), Icons.room_service_rounded),
+  ToyServiceCat('bolalar',    'catBolalar',    Color(0xFFEAB308), Color(0xFFFACC15), Icons.toys_rounded),
+  ToyServiceCat('zal',        'catZal',        Color(0xFF78716C), Color(0xFFA8A29E), Icons.table_bar_rounded),
+  ToyServiceCat('boshqa',     'catBoshqa',     Color(0xFF475569), Color(0xFF64748B), Icons.more_horiz_rounded),
+];
+
+/// Zaxira kategoriya (server bilan bir xil).
+const String kToyDefaultCat = 'boshqa';
+
+/// Slug -> kategoriya. Tanimasa 'boshqa' (eski/yangi server bilan moslik).
+ToyServiceCat catOf(String? slug) {
+  for (final c in kToyServiceCats) {
+    if (c.slug == slug) return c;
+  }
+  return kToyServiceCats.last;
+}
+
+/// Bir item'ga ruxsat etilgan rasmlar soni (backend ham 5 tekshiradi).
+const int kToyMaxSvcImages = 5;
+
 /// Stol ustidagi taom/mahsulot qatori (024, hall_menu_items) — pulsiz, faqat matn.
 class MenuItemRow {
   final String id;
@@ -252,27 +318,48 @@ class CancelRule {
 class HallService {
   final String id;
   final String? hallId; // null = barcha to'yxonalar uchun
+  /// 025: PLATFORMA kategoriyasi slug'i (kToyServiceCats). Eski server bermasa 'boshqa'.
+  final String category;
   final String title;
   final int price;
+  /// Ega uchun ichki eslatma (mijozga ko'rsatilmaydi)
   final String note;
+  /// 025: mijoz ko'radigan to'liq tavsif (repertuar, nima kiradi)
+  final String description;
+  /// 025: rasm URL'lari, [0] = muqova. Bo'sh bo'lishi normal.
+  final List<String> images;
   final int sort;
   final bool archived;
   const HallService({
     required this.id,
     required this.title,
     this.hallId,
+    this.category = kToyDefaultCat,
     this.price = 0,
     this.note = '',
+    this.description = '',
+    this.images = const [],
     this.sort = 0,
     this.archived = false,
   });
 
+  /// Muqova rasmi (yo'q bo'lsa null — UI gradient + ikonka chizadi).
+  String? get cover => images.isEmpty ? null : images.first;
+
+  ToyServiceCat get cat => catOf(category);
+
   factory HallService.fromJson(Map<String, dynamic> j) => HallService(
         id: '${j['id']}',
         hallId: j['hall_id'] == null ? null : '${j['hall_id']}',
+        category: '${j['category'] ?? kToyDefaultCat}',
         title: '${j['title'] ?? ''}',
         price: _int(j['price']),
         note: '${j['note'] ?? ''}',
+        description: '${j['description'] ?? ''}',
+        images: [
+          for (final u in (j['images'] is List ? j['images'] as List : const []))
+            if (u is String && u.isNotEmpty) u,
+        ],
         sort: _int(j['sort']),
         archived: j['archived'] == true,
       );
@@ -398,6 +485,11 @@ class BookingItem {
   final int qty;
   final String? serviceId; // 024: katalogdan (snapshot)
   final bool isBonus; // 024: bepul berildi — jamiga KIRMAYDI
+  /// 025 SNAPSHOT: bandga qo'shilgan paytdagi kategoriya va muqova rasmi.
+  /// Katalogdagi item keyin o'chsa yoki rasmi almashsa ham bron varaqasi
+  /// O'ZGARMAYDI — shuning uchun bular serviceId orqali qidirilmaydi.
+  final String category;
+  final String? image;
   const BookingItem({
     required this.id,
     required this.title,
@@ -405,10 +497,13 @@ class BookingItem {
     this.qty = 1,
     this.serviceId,
     this.isBonus = false,
+    this.category = kToyDefaultCat,
+    this.image,
   });
 
   factory BookingItem.fromJson(Map<String, dynamic> j) {
     final q = _int(j['qty'], 1);
+    final img = '${j['image'] ?? ''}';
     return BookingItem(
       id: '${j['id']}',
       title: '${j['title'] ?? ''}',
@@ -416,6 +511,8 @@ class BookingItem {
       qty: q <= 0 ? 1 : q,
       serviceId: j['service_id'] == null ? null : '${j['service_id']}',
       isBonus: j['is_bonus'] == true,
+      category: '${j['category'] ?? kToyDefaultCat}',
+      image: img.isEmpty ? null : img,
     );
   }
 
@@ -841,6 +938,21 @@ class ToyxonaRepo extends ChangeNotifier {
     final list = _services.where((s) => !s.archived).toList()
       ..sort((a, b) => a.sort != b.sort ? a.sort.compareTo(b.sort) : a.title.compareTo(b.title));
     return list;
+  }
+
+  /// 025: kategoriya ichidagi faol servislar (umumiy + shu to'yxonaniki).
+  List<HallService> servicesInCat(String slug, String? hallId) =>
+      servicesFor(hallId).where((s) => s.category == slug).toList();
+
+  /// 025: har kategoriyada nechta item bor (grid kartasidagi hisoblagich).
+  /// Kategoriya BO'SH bo'lsa ham grid'da ko'rinadi — ega "bu yerga qo'shsam
+  /// bo'lar ekan" deb tushunishi uchun (bo'sh ro'yxat hech narsa o'rgatmaydi).
+  Map<String, int> catCounts(String? hallId) {
+    final m = <String, int>{};
+    for (final s in servicesFor(hallId)) {
+      m[s.category] = (m[s.category] ?? 0) + 1;
+    }
+    return m;
   }
 
   HallService? serviceById(String? id) {
@@ -1395,18 +1507,82 @@ class ToyxonaRepo extends ChangeNotifier {
 
   // ---------------- Servislar katalogi (024) ----------------
 
-  Future<bool> createService(String title, int price, {String? hallId, String note = ''}) =>
+  Future<bool> createService(
+    String title,
+    int price, {
+    String? hallId,
+    String note = '',
+    String category = kToyDefaultCat,
+    String description = '',
+    List<String> images = const [],
+  }) =>
       _serviceMutation('POST', '/services', body: {
         'title': title,
         'price': price,
+        'category': category,
         if (hallId != null) 'hall_id': hallId,
         if (note.isNotEmpty) 'note': note,
+        if (description.isNotEmpty) 'description': description,
+        if (images.isNotEmpty) 'images': images,
       });
 
   Future<bool> patchService(String id, Map<String, dynamic> body) =>
       _serviceMutation('PATCH', '/services/$id', body: body);
 
   Future<bool> deleteService(String id) => _serviceMutation('DELETE', '/services/$id');
+
+  /// 025: servis rasmini yuklash. Tana = rasm BAYTLARI (base64 emas — hajm 33%
+  /// oshib, server chegarasidan oshib ketardi). Muvaffaqiyatda ochiq URL,
+  /// xatoda null (sabab `error` da — chaqiruvchi toast qiladi).
+  ///
+  /// Yuklash BACKEND orqali: klient Supabase Storage'ga to'g'ridan-to'g'ri
+  /// chiqmaydi (O'zbekiston tarmoqlari supabase.co ga ba'zan ulanolmaydi —
+  /// api.trustbook.uz / Cloudflare shu sabab qo'yilgan).
+  ///
+  /// Timeout 60s: rasm ~300 KB, sekin mobil internetda 20s yetmasligi mumkin.
+  Future<String?> uploadServiceImage(Uint8List bytes, String mime) async {
+    _clearErr();
+    try {
+      final uri = Uri.parse('$apiUrl$_base/uploads/service-image');
+      final res = await http
+          .post(uri,
+              headers: {
+                'Content-Type': mime,
+                if (Api.token != null) 'Authorization': 'Bearer ${Api.token}',
+              },
+              body: bytes)
+          .timeout(const Duration(seconds: 60));
+      Map<String, dynamic> map;
+      try {
+        final d = jsonDecode(utf8.decode(res.bodyBytes));
+        map = d is Map<String, dynamic> ? d : <String, dynamic>{};
+      } catch (_) {
+        map = <String, dynamic>{};
+      }
+      if (res.statusCode >= 400 || map['success'] == false) {
+        if (res.statusCode == 401 && Api.token != null) Api.onUnauthorized?.call();
+        error = (map['error'] as String?) ?? 'Server xatosi (${res.statusCode})';
+        errorStatus = res.statusCode;
+        notifyListeners();
+        return null;
+      }
+      final url = '${(map['data'] as Map?)?['url'] ?? ''}';
+      if (url.isEmpty) {
+        error = ty('imgFailed');
+        notifyListeners();
+        return null;
+      }
+      return url;
+    } on TimeoutException {
+      error = Api.errWaking ?? "Server uyg'onmoqda — biroz kuting";
+      notifyListeners();
+      return null;
+    } catch (_) {
+      error = Api.errNetwork ?? "Server bilan aloqa yo'q — internetni tekshiring";
+      notifyListeners();
+      return null;
+    }
+  }
 
   Future<bool> _serviceMutation(String method, String path, {Map<String, dynamic>? body}) async {
     _clearErr();

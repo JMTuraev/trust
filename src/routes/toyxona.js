@@ -25,8 +25,14 @@
 // Egalik: har so'rov req.user.id bo'yicha filtrlanadi; bola yozuvlar (items /
 // payments) ota-band EGASI tekshirilgandan keyingina yoziladi/o'chiriladi.
 // Pul: FAQAT UZS, butun son (tiyin yo'q), cheklov 1e13.
-import { Router } from 'express';
+import { Router, raw as rawBody } from 'express';
+import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '../lib/supabase.js';
+import { config } from '../config.js';
+import {
+  TOY_SERVICE_CATEGORIES, TOY_DEFAULT_CATEGORY, TOY_CATEGORY_NAMES,
+  normToyCategory, toyCategoryOrder,
+} from '../lib/toyxonaCategories.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   isModuleActive, MODULES, FREE_TOYXONA_BOOKINGS, isQuotaEnforceable, requireActiveSub,
@@ -50,6 +56,15 @@ export const KINDS = ['avans', 'yakuniy', 'qaytarim'];
 // 024: 'guest' = kishi boshiga (mehmon × narx), 'total' = butun to'yxona "podklyuch"
 export const PRICE_MODES = ['guest', 'total'];
 const MAX_SERVICES = 200;        // egadagi servislar katalogi
+// 025: servis item'i — mijozga ko'rsatiladigan tavsif va rasmlar
+const MAX_SVC_DESC = 600;        // mijoz ko'radigan to'liq matn (note = ega uchun ichki izoh)
+const MAX_SVC_IMAGES = 5;        // [0] = muqova
+const IMG_BUCKET = 'toyxona';
+const IMG_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+// Rasm URL'i FAQAT o'z bucket'imizdan bo'lsin. Aks holda ega (yoki buzilgan klient)
+// ixtiyoriy tashqi manzilni yozib qo'yardi: bron varaqasi begona serverga so'rov
+// yuborib mijozning IP'sini oshkor qilardi va rasm istalgan payt almashib ketardi.
 const MAX_MENU_ITEMS = 60;       // bir stol turidagi taom/mahsulot qatorlari
 const MAX_POLICY_ROWS = 10;      // bekor siyosati pog'onalari
 // Avans kelmasa sana shuncha soat ushlab turiladi (POST /bookings hold_hours override, 1..720)
@@ -600,12 +615,21 @@ function mapHall(h, menus = []) {
 
 /** Mobil KONTRAKTI — servis katalogi qatori (024). */
 function mapService(sv) {
+  // 025: `category` — ro'yxatdan tashqari qiymat DB'da qolishi mumkin (kelajakdagi
+  // kategoriya, keyin olib tashlangan slug). Mobil tanimagan slug'ni ko'rsata
+  // olmagani uchun bu yerda 'boshqa' ga tushiramiz — qator hech qachon YO'QOLMAYDI.
+  const cat = normToyCategory(sv.category) || TOY_DEFAULT_CATEGORY;
+  const images = Array.isArray(sv.images) ? sv.images.filter((u) => typeof u === 'string') : [];
   return {
     id: sv.id,
     hall_id: sv.hall_id || null,
+    category: cat,
     title: sv.title,
     price: Number(sv.price) || 0,
     note: sv.note || null,
+    description: sv.description || null,
+    images,
+    image: images[0] || null,          // muqova — ro'yxat kartochkasi shuni chizadi
     sort: Number(sv.sort) || 0,
     archived: !!sv.archived,
     created_at: sv.created_at,
@@ -680,6 +704,9 @@ function mapBooking(b, hallName, items = [], payments = []) {
     items: items.map((it) => ({
       id: it.id, title: it.title, amount: Number(it.amount) || 0, qty: Number(it.qty) || 0,
       service_id: it.service_id || null, is_bonus: !!it.is_bonus,
+      // 025 SNAPSHOT: katalogdagi item o'chsa ham bandning varaqasi o'zgarmaydi
+      category: normToyCategory(it.category) || TOY_DEFAULT_CATEGORY,
+      image: it.image_url || null,
     })),
     payments: payments.map((p) => ({
       id: p.id, amount: Number(p.amount) || 0, kind: p.kind, paid_at: p.paid_at, note: p.note,
@@ -1028,6 +1055,92 @@ router.delete('/menus/:id', async (req, res, next) => {
 // hall_id NULL = barcha to'yxonalar uchun. Bandga qo'shilganda booking_items ga
 // SNAPSHOT (title/amount) — katalog narxi keyin o'zgarsa eski band o'zgarmaydi.
 
+// Bucket'ning ochiq prefiksi: faqat shu bilan boshlanadigan URL saqlanadi.
+const PUBLIC_PREFIX = `${(config.supabase.url || '').replace(/\/+$/, '')}/storage/v1/object/public/${IMG_BUCKET}/`;
+
+/** Ochiq URL -> bucket ichidagi yo'l (begona URL bo'lsa null). */
+function storagePathOf(url) {
+  if (typeof url !== 'string' || !PUBLIC_PREFIX.startsWith('https://')) return null;
+  if (!url.startsWith(PUBLIC_PREFIX)) return null;
+  const path = url.slice(PUBLIC_PREFIX.length).split('?')[0];
+  return path && !path.includes('..') ? decodeURIComponent(path) : null;
+}
+
+/** Storage'dan fayllarni o'chirish. XATOSI YUTILADI (best-effort): rasm qolib
+ *  ketgani yomon, lekin uning uchun servis o'chirishni to'xtatish BATTAR — ega
+ *  qatorni umuman yo'qota olmay qolardi. Yetim fayllar bucket'da kichik. */
+async function removeImages(urls) {
+  const paths = (urls || []).map(storagePathOf).filter(Boolean);
+  if (!paths.length) return;
+  try { await supabaseAdmin.storage.from(IMG_BUCKET).remove(paths); } catch (_) { /* jim */ }
+}
+
+/** `images` massivini o'qish: faqat O'Z bucket'imizdagi URL'lar, ko'pi bilan 5 ta.
+ *  Qaytadi: { images } yoki { error }. */
+function readImages(raw) {
+  if (raw == null) return { images: [] };
+  if (!Array.isArray(raw)) return { error: "Rasmlar ro'yxat bo'lsin" };
+  if (raw.length > MAX_SVC_IMAGES) return { error: `Ko'pi bilan ${MAX_SVC_IMAGES} ta rasm` };
+  const out = [];
+  for (const u of raw) {
+    if (typeof u !== 'string' || !u) return { error: "Rasm manzili noto'g'ri" };
+    if (!storagePathOf(u)) return { error: "Rasm manzili noto'g'ri" };
+    if (!out.includes(u)) out.push(u);
+  }
+  return { images: out };
+}
+
+// ============================ KATEGORIYALAR (025) ============================
+// GET /api/toyxona/service-categories — PLATFORMA ro'yxati (ega o'zgartira olmaydi).
+// Mobil ilova o'z lug'atidan chizadi va bu endpointga BOG'LIQ EMAS; u kelajakdagi
+// veb bron sahifasi va integratsiyalar uchun (nomlar uz/ru/en).
+router.get('/service-categories', (_req, res) => {
+  res.json({
+    success: true,
+    data: TOY_SERVICE_CATEGORIES.map((c, i) => ({
+      slug: c.slug, unit: c.unit, order: i, names: TOY_CATEGORY_NAMES[c.slug] || null,
+    })),
+  });
+});
+
+// ============================ RASM YUKLASH (025) ============================
+// POST /api/toyxona/uploads/service-image — TANA = rasm BAYTLARI (base64 EMAS),
+// Content-Type: image/jpeg | image/png | image/webp. Javob: { url }.
+//
+// NEGA BACKEND ORQALI: klient Supabase Storage'ga to'g'ridan-to'g'ri chiqmaydi —
+// O'zbekiston tarmoqlari ba'zan supabase.co ga ulanolmaydi (API ham shu sabab
+// api.trustbook.uz / Cloudflare ortida). Bayt sifatida yuboriladi, chunki base64
+// hajmni 33% oshiradi va global express.json chegarasi 256 KB.
+//
+// YETIM FAYL: ega rasm yuklab, formani BEKOR qilsa fayl bucket'da qoladi. Buni
+// ataylab qabul qilamiz — muqobili "avval servisni saqlang, keyin rasm qo'shing"
+// degan bo'g'iq oqim edi. Servis o'chirilganda/rasmi almashtirilganda eski fayllar
+// o'chiriladi (removeImages).
+router.post('/uploads/service-image',
+  rawBody({ type: Object.keys(IMG_MIME), limit: MAX_IMAGE_BYTES }),
+  async (req, res, next) => {
+    try {
+      const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      const ext = IMG_MIME[mime];
+      if (!ext) return res.status(415).json({ success: false, error: 'Faqat JPEG, PNG yoki WEBP rasm' });
+      const buf = req.body;
+      if (!Buffer.isBuffer(buf) || buf.length === 0) {
+        return res.status(400).json({ success: false, error: "Rasm bo'sh" });
+      }
+      if (buf.length > MAX_IMAGE_BYTES) {
+        return res.status(413).json({ success: false, error: 'Rasm 3 MB dan katta' });
+      }
+      // Yo'l: <user_id>/<uuid>.<ext> — user_id prefiksi qo'lda tekshirishni
+      // osonlashtiradi (kim yukladi) va nomlar to'qnashmaydi.
+      const path = `${req.user.id}/${randomUUID()}.${ext}`;
+      const { error } = await supabaseAdmin.storage.from(IMG_BUCKET)
+        .upload(path, buf, { contentType: mime, upsert: false, cacheControl: '31536000' });
+      if (error) throw new Error(error.message);
+      const { data } = supabaseAdmin.storage.from(IMG_BUCKET).getPublicUrl(path);
+      res.status(201).json({ success: true, data: { url: data?.publicUrl || null } });
+    } catch (e) { next(e); }
+  });
+
 /** Servis EGA'nikimi? */
 async function ownedService(userId, id) {
   if (!isUuid(id)) return null;
@@ -1045,9 +1158,19 @@ router.get('/services', async (req, res, next) => {
     if (f.error) return res.status(400).json({ success: false, error: f.error });
     let q = supabaseAdmin.from('hall_services').select('*').eq('user_id', req.user.id);
     if (f.hallId) q = q.or(`hall_id.eq.${f.hallId},hall_id.is.null`);
+    // 025: ?category=musiqa — bitta kategoriya ichi
+    if (req.query.category != null && req.query.category !== '') {
+      const cat = normToyCategory(req.query.category);
+      if (!cat) return res.status(400).json({ success: false, error: "Kategoriya noto'g'ri" });
+      q = q.eq('category', cat);
+    }
     const { data, error } = await q.order('sort').order('created_at').limit(MAX_SERVICES);
     if (error) throw new Error(error.message);
-    res.json({ success: true, data: (data || []).map(mapService) });
+    // Kategoriya tartibi PLATFORMA ro'yxatidan (DB'da tartib raqami yo'q), ichida
+    // esa eganing `sort`i saqlanadi — shuning uchun saralash BARQAROR bo'lishi shart.
+    const rows = (data || []).map(mapService);
+    rows.sort((a, b) => toyCategoryOrder(a.category) - toyCategoryOrder(b.category));
+    res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });
 
@@ -1073,8 +1196,14 @@ router.post('/services', async (req, res, next) => {
     if ((count || 0) >= MAX_SERVICES) {
       return res.status(400).json({ success: false, error: `Servislar ${MAX_SERVICES} tadan oshmasin` });
     }
+    // 025: kategoriya (majburiy emas — berilmasa 'boshqa'), tavsif, rasmlar
+    const category = normToyCategory(req.body?.category);
+    if (!category) return res.status(400).json({ success: false, error: "Kategoriya noto'g'ri" });
+    const im = readImages(req.body?.images);
+    if (im.error) return res.status(400).json({ success: false, error: im.error });
     const { data, error } = await supabaseAdmin.from('hall_services').insert({
       user_id: req.user.id, hall_id, title, price, note: clean(req.body?.note, 200), sort: count || 0,
+      category, description: clean(req.body?.description, MAX_SVC_DESC), images: im.images,
     }).select().single();
     if (error) throw new Error(error.message);
     res.status(201).json({ success: true, data: mapService(data) });
@@ -1098,6 +1227,23 @@ router.patch('/services/:id', async (req, res, next) => {
       patch.price = p;
     }
     if (req.body?.note !== undefined) patch.note = clean(req.body.note, 200);
+    if (req.body?.description !== undefined) patch.description = clean(req.body.description, MAX_SVC_DESC);
+    if (req.body?.category !== undefined) {
+      const c = normToyCategory(req.body.category);
+      if (!c) return res.status(400).json({ success: false, error: "Kategoriya noto'g'ri" });
+      patch.category = c;
+    }
+    // Rasmlar to'liq ALMASHTIRILADI (mobil doim to'liq ro'yxat yuboradi).
+    // Ro'yxatdan chiqib ketgan fayllar Storage'dan ham o'chiriladi — aks holda
+    // bucket ega tashlab yuborgan rasmlar bilan cheksiz to'lib borardi.
+    let dropped = [];
+    if (req.body?.images !== undefined) {
+      const im = readImages(req.body.images);
+      if (im.error) return res.status(400).json({ success: false, error: im.error });
+      patch.images = im.images;
+      const oldImgs = Array.isArray(sv.images) ? sv.images : [];
+      dropped = oldImgs.filter((u) => typeof u === 'string' && !im.images.includes(u));
+    }
     if (req.body?.archived !== undefined) patch.archived = !!req.body.archived;
     if (req.body?.sort !== undefined) {
       const s = Math.round(Number(req.body.sort));
@@ -1107,6 +1253,9 @@ router.patch('/services/:id', async (req, res, next) => {
     if (!Object.keys(patch).length) return res.status(400).json({ success: false, error: "O'zgarish yo'q" });
     const { data, error } = await supabaseAdmin.from('hall_services').update(patch).eq('id', sv.id).select().single();
     if (error) throw new Error(error.message);
+    // Fayllarni FAQAT yozuv muvaffaqiyatli yangilangandan keyin o'chiramiz
+    // (aks holda update yiqilsa rasm yo'q, havola esa qatorda qolib ketardi).
+    await removeImages(dropped);
     res.json({ success: true, data: mapService(data) });
   } catch (e) { next(e); }
 });
@@ -1118,6 +1267,17 @@ router.delete('/services/:id', async (req, res, next) => {
     if (!sv) return res.status(404).json({ success: false, error: 'Topilmadi' });
     const { error } = await supabaseAdmin.from('hall_services').delete().eq('id', sv.id);
     if (error) throw new Error(error.message);
+    // Bandlardagi qatorlar QOLADI (service_id NULL), lekin ularning rasmi
+    // booking_items.image_url da SNAPSHOT bo'lib turadi — shuning uchun katalog
+    // faylini o'chirish o'tgan bron varaqasini BUZADI. Shu sabab faqat HECH BIR
+    // bandda ishlatilmagan rasmlar o'chiriladi.
+    const imgs = (Array.isArray(sv.images) ? sv.images : []).filter((u) => typeof u === 'string');
+    if (imgs.length) {
+      const { data: used } = await supabaseAdmin.from('booking_items')
+        .select('image_url').in('image_url', imgs).limit(imgs.length);
+      const keep = new Set((used || []).map((r) => r.image_url));
+      await removeImages(imgs.filter((u) => !keep.has(u)));
+    }
     res.json({ success: true });
   } catch (e) { next(e); }
 });
@@ -1167,6 +1327,7 @@ async function readBookingItems(userId, raw) {
       if (!Number.isInteger(qty) || qty <= 0 || qty > MAX_QTY) return { error: `Soni 1–${MAX_QTY} bo'lsin` };
     }
     let title; let amount; let service_id = null;
+    let snapCat = TOY_DEFAULT_CATEGORY; let snapImg = null;   // 025 snapshot
     if (r?.service_id) {
       const sv = await ownedService(userId, r.service_id);
       if (!sv) return { error: 'Servis topilmadi' };
@@ -1177,6 +1338,8 @@ async function readBookingItems(userId, raw) {
         amount = money(r.amount, { allowZero: true });
         if (amount == null) return { error: `"${title}" narxi noto'g'ri` };
       } else amount = Number(sv.price) || 0;
+      snapCat = normToyCategory(sv.category) || TOY_DEFAULT_CATEGORY;
+      snapImg = (Array.isArray(sv.images) ? sv.images : []).find((u) => typeof u === 'string') || null;
     } else {
       title = clean(r?.title, 60);
       if (!title) return { error: 'Xizmat nomi kerak' };
@@ -1186,7 +1349,7 @@ async function readBookingItems(userId, raw) {
     // Pullik xizmat 0 so'm bo'lmasin (bonus 0 bo'lishi mumkin)
     if (!is_bonus && amount <= 0) return { error: `"${title}" narxi kerak (yoki bonus deb belgilang)` };
     if (overMax(amount, qty)) return { error: 'Xizmat summasi juda katta' };
-    items.push({ title, amount, qty, service_id, is_bonus });
+    items.push({ title, amount, qty, service_id, is_bonus, category: snapCat, image_url: snapImg });
   }
   return { items };
 }

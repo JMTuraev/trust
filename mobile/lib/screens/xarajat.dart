@@ -3080,7 +3080,9 @@ class _LimitRing extends StatelessWidget {
   final Color track;
   final String label;
   final String sub;
-  final double size;
+  /// Halqa o'lchami — konstruktor parametri EMAS: barcha chaqiruvchilar 110 dan
+  /// foydalanadi (Dart 3.7+ `unused_element_parameter` linti buni topdi).
+  static const double size = 110;
   const _LimitRing({
     super.key,
     required this.pct,
@@ -3088,7 +3090,6 @@ class _LimitRing extends StatelessWidget {
     required this.track,
     required this.label,
     required this.sub,
-    this.size = 110,
   });
 
   @override

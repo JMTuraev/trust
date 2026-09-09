@@ -21,6 +21,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInputFormatter, TextEditingValue, TextSelection;
+import 'package:image_picker/image_picker.dart';   // 025: servis item rasmi
 import '../store.dart';
 import '../theme.dart';
 import '../ui.dart';
@@ -124,10 +125,7 @@ class _MiniBtn extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final String kind;
-  final IconData? icon;
-  final bool loading;
-  final double h;
-  const _MiniBtn(this.label, {required this.onTap, this.kind = 'glass', this.icon, this.loading = false, this.h = 36});
+  const _MiniBtn(this.label, {required this.onTap, this.kind = 'glass'});
 
   @override
   Widget build(BuildContext context) {
@@ -136,9 +134,9 @@ class _MiniBtn extends StatelessWidget {
     final mint = kind == 'mint';
     final fg = gradient ? Colors.white : (mint ? p.onMint : p.ink);
     return Tap(
-      onTap: loading ? null : onTap,
+      onTap: onTap,
       child: Container(
-        height: h,
+        height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         alignment: Alignment.center,
         decoration: BoxDecoration(
@@ -147,19 +145,7 @@ class _MiniBtn extends StatelessWidget {
           border: gradient || mint ? null : Border.all(color: p.glassBd),
           borderRadius: BorderRadius.circular(Tb.rPill),
         ),
-        child: loading
-            ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(fg)),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null) ...[Icon(icon, size: 16, color: fg), const SizedBox(width: 6)],
-                  Tx(label, size: 13, w: FontWeight.w600, color: fg, maxLines: 1, font: TbFont.body),
-                ],
-              ),
+        child: Tx(label, size: 13, w: FontWeight.w600, color: fg, maxLines: 1, font: TbFont.body),
       ),
     );
   }
@@ -242,6 +228,11 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
   Map<String, dynamic>? _tierEdit; // {hallId, id?, title, price, seats, items}
   // ---- 024 ----
   bool _servicesOpen = false; // servislar katalogi qatlami
+  // 025: ochilgan kategoriya slug'i (null = kategoriya grid'i). Servislar
+  // qatlamining IKKINCHI pog'onasi — alohida Positioned emas, chunki u ayni
+  // o'sha qatlam ichida almashadi (orqaga bosilganda grid'ga qaytadi).
+  String? _catOpen;
+  bool _imgBusy = false;      // rasm yuklanmoqda (forma tugmalari bloklanadi)
   Map<String, dynamic>? _svcEdit; // {id?, title, price}
   Map<String, dynamic>? _cancelSheet; // {id, preview?, penalty, reason, refundNow}
   Timer? _phoneT; // telefon → mijoz autofill debounce
@@ -455,7 +446,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
       return true;
     }
     if (_servicesOpen) {
-      setState(() => _servicesOpen = false);
+      // 025: kategoriya ichidan avval grid'ga, keyin qatlamdan chiqish
+      if (_catOpen != null) {
+        setState(() => _catOpen = null);
+      } else {
+        setState(() => _servicesOpen = false);
+      }
       return true;
     }
     if (_venuesOpen) {
@@ -1968,9 +1964,12 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   Widget _itemRow(Pal p, BookingItem it) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
+          // 025: SNAPSHOT muqova — katalogdagi item o'chsa ham qoladi
+          _svcThumb(catOf(it.category), it.image, 34),
+          const SizedBox(width: 10),
           // 'nom × soni' — summa esa amount × qty (U3; BookingItem.total)
           Expanded(
             flex: 3,
@@ -2810,13 +2809,38 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
                   const SizedBox(height: 20),
                   Cap(ty('servicesLabel')),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final sv in catalog) _serviceChip(p, f, sv),
+                  // 025: KATEGORIYA bo'yicha guruhlangan, rasmli kartalar.
+                  // Tekis chiplar o'rniga: 20+ servisda chiplar devoriga aylanardi
+                  // va mijoz nima tanlayotganini KO'RMASDI. Endi har kategoriya —
+                  // o'z lentasi; bo'sh kategoriyalar umuman chizilmaydi.
+                  for (final cat in kToyServiceCats)
+                    if (catalog.any((sv) => sv.category == cat.slug)) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 8),
+                        child: Row(
+                          children: [
+                            Icon(cat.icon, size: 15, color: cat.c2),
+                            const SizedBox(width: 6),
+                            Tx(tyCat(cat.slug), size: 13, w: FontWeight.w700, color: p.t3),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        // 132 (rasm) + 6 + nom + 2 + narx — Tx matn masshtabini
+                        // o'chirgani uchun balandlik qat'iy hisoblanadi.
+                        height: 176,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final sv in catalog.where((x) => x.category == cat.slug)) ...[
+                              _svcPickCard(p, f, cat, sv),
+                              const SizedBox(width: 10),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                     ],
-                  ),
                   if (f.services.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Tx(ty('bonusHint'), size: 12, color: p.t4, lh: 16),
@@ -2904,21 +2928,14 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  /// 024: katalog servisi chipi. Bosish — tanlash/yechish; tanlanganida
-  /// ikkinchi bosish "bonus"ga o'tkazadi (bepul), uchinchisi yechadi.
-  Widget _serviceChip(Pal p, _FormData f, HallService sv) {
+  /// 025: bron formasidagi servis kartasi — muqova rasm, nom, narx.
+  /// Bosish sikli chip bilan BIR XIL: tanlanmagan -> pullik -> bonus -> yechildi.
+  /// (Sikl saqlangan: ega ikki oydan beri shunga o'rgangan.)
+  Widget _svcPickCard(Pal p, _FormData f, ToyServiceCat cat, HallService sv) {
     final sel = f.services.containsKey(sv.id);
     final bonus = sel && f.services[sv.id] == true;
-    final label = bonus
-        ? '${sv.title} · ${ty('bonusBadge')}'
-        : (sv.price > 0 ? '${sv.title} · ${toyFx(sv.price)}' : sv.title);
-    return PillChip(
-      label: label,
-      selected: sel,
-      selectedBg: bonus ? p.mint.withValues(alpha: .18) : null,
-      selectedFg: bonus ? p.mint : null,
-      leading: Icon(bonus ? Icons.card_giftcard_rounded : Icons.add_circle_outline_rounded,
-          size: 16, color: bonus ? p.mint : (sel ? p.bg : p.t2)),
+    final accent = bonus ? p.mint : p.violet;
+    return Tap(
       onTap: () => setState(() {
         if (!sel) {
           f.services[sv.id] = false;
@@ -2928,6 +2945,53 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
           f.services.remove(sv.id);
         }
       }),
+      child: SizedBox(
+        width: 132,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                // Chegara TANLANMAGANDA ham 2px (shaffof): aks holda tanlash
+                // paytida karta 4px kattalashib, butun lenta sakrab ketardi.
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(Tb.rIcon + 2),
+                    border: Border.all(color: sel ? accent : Colors.transparent, width: 2),
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: _svcThumb(cat, sv.cover, 124),
+                ),
+                if (sel)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                      child: Icon(bonus ? Icons.card_giftcard_rounded : Icons.check_rounded,
+                          size: 15, color: p.bg),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Tx(sv.title, size: 13, w: FontWeight.w600, color: p.ink, maxLines: 1, ellipsis: true),
+            const SizedBox(height: 2),
+            Tx(
+              bonus
+                  ? ty('bonusBadge')
+                  : (sv.price > 0 ? toyFx(sv.price) : ty('freePrice')),
+              size: 12,
+              w: FontWeight.w600,
+              color: bonus ? p.mint : p.t4,
+              tab: true,
+              strike: bonus,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -3447,58 +3511,163 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
 
   // ================= SERVISLAR KATALOGI (024) =================
 
-  Widget _servicesView(Pal p) {
-    final list = toyRepo.allServices;
+  // ================= SERVISLAR: KATEGORIYA GRID (025) =================
+  //
+  // Ikki pog'ona, bitta qatlam:
+  //   _catOpen == null -> KATEGORIYA GRID (biz belgilagan 18 ta, shisha kartalar + illyustratsiya)
+  //   _catOpen != null -> o'sha kategoriya ICHI (eganing item'lari, rasm bilan)
+  //
+  // BO'SH kategoriya ham grid'da ko'rinadi (xira, "bo'sh" chipi bilan): ega
+  // "bu yerga ham qo'shsam bo'lar ekan" deb ko'rishi kerak. Faqat to'lganini
+  // ko'rsatish yangi egaga BO'SH ekran berardi va u nima qilishni bilmasdi.
+
+  Widget _servicesView(Pal p) =>
+      _catOpen == null ? _catsGrid(p) : _catItemsView(p, catOf(_catOpen));
+
+  Widget _catsGrid(Pal p) {
+    final counts = toyRepo.catCounts(toyRepo.selectedHallId);
     return Column(
       children: [
         ScreenHeader(
           title: ty('servicesTitle'),
-          subtitle: ty('servicesSub'),
+          subtitle: ty('catsSub'),
           onBack: () => setState(() => _servicesOpen = false),
-          trailing: [GlassIconBtn(icon: Icons.add_rounded, onTap: _openNewService)],
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(Tb.padX, 16, Tb.padX, 40),
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 14, Tb.padX, 40),
+            child: LayoutBuilder(
+              builder: (_, c) {
+                // Ikki ustun. Kenglik 380 dan oshsa (planshet/katta telefon) uch —
+                // aks holda kartalar cho'zilib, rasm juda katta ko'rinardi.
+                final cols = c.maxWidth >= 380 ? 3 : 2;
+                const gap = 10.0;
+                final w = (c.maxWidth - gap * (cols - 1)) / cols;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final cat in kToyServiceCats)
+                      SizedBox(width: w, child: _catCard(p, cat, counts[cat.slug] ?? 0)),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Kategoriya kartasi.
+  ///
+  /// Illyustratsiyalar (Storyset) MONOXROM KO'K (#4F7DF3) — shuning uchun karta
+  /// foni to'q shisha (loyihaning "dark glass" spec'i), kategoriya rangi esa
+  /// faqat YUMSHOQ NUR (yuqori-chap radial glow) + hisoblagich rangida.
+  /// Rangli to'liq gradient fon ko'k rasm bilan urishardi (Spotify plitkalari
+  /// fotosurat bilan ishlaydi, bir rangli illyustratsiya bilan emas).
+  /// Rasm pastki o'ngda, kesilmagan (contain) — sahna butun ko'rinadi.
+  Widget _catCard(Pal p, ToyServiceCat cat, int n) {
+    final empty = n == 0;
+    return Tap(
+      onTap: () => setState(() => _catOpen = cat.slug),
+      child: Container(
+        height: 132,
+        decoration: BoxDecoration(
+          color: p.surface2,
+          borderRadius: BorderRadius.circular(Tb.rRow),
+          border: Border.all(color: p.glassBd),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(Tb.rRow),
+          child: Stack(
+            children: [
+              // Kategoriya rangi — yuqori-chap burchakdan tarqaladigan nur
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-1.0, -1.0),
+                      radius: 1.25,
+                      colors: [
+                        cat.c2.withValues(alpha: p.isDark ? .40 : .30),
+                        cat.c2.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Illyustratsiya — pastki o'ng, sal tashqariga chiqib turadi
+              Positioned(
+                right: -4,
+                bottom: -2,
+                child: Opacity(
+                  opacity: empty ? 0.55 : 1,
+                  child: Illustration(asset: cat.asset, fallback: cat.icon, size: 86),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: empty ? p.glass2 : cat.c2.withValues(alpha: .22),
+                        borderRadius: BorderRadius.circular(Tb.rPill),
+                      ),
+                      child: Tx(empty ? ty('catEmptyChip') : '$n',
+                          size: 11, w: FontWeight.w700, color: empty ? p.t4 : cat.c2),
+                    ),
+                    // Nom — rasm ustiga chiqmasin: o'ngdan 54px joy qoldiriladi
+                    Padding(
+                      padding: const EdgeInsets.only(right: 54),
+                      child: Tx(tyCat(cat.slug),
+                          size: 13.5, w: FontWeight.w700, color: p.ink, lh: 16, maxLines: 2, ellipsis: true),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- Kategoriya ichi: eganing item'lari ----
+
+  Widget _catItemsView(Pal p, ToyServiceCat cat) {
+    final list = toyRepo.servicesInCat(cat.slug, toyRepo.selectedHallId);
+    return Column(
+      children: [
+        ScreenHeader(
+          title: tyCat(cat.slug),
+          subtitle: list.isEmpty ? null : '${list.length}',
+          onBack: () => setState(() => _catOpen = null),
+          trailing: [GlassIconBtn(icon: Icons.add_rounded, onTap: () => _openNewService(cat.slug))],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(Tb.padX, 14, Tb.padX, 40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GlassCard(
-                  r: Tb.rCard,
-                  child: list.isEmpty
-                      ? SizedBox(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-                            child: Tx(ty('noServices'), size: 14, color: p.t4, align: TextAlign.center, lh: 20),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < list.length; i++)
-                              ListRow(
-                                title: list[i].title,
-                                subtitle: list[i].hallId == null
-                                    ? null
-                                    : (toyRepo.hallById(list[i].hallId)?.name),
-                                last: i == list.length - 1,
-                                h: 60,
-                                onTap: () => _openEditService(list[i]),
-                                trailing: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 150),
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerRight,
-                                    child: Tx(list[i].price > 0 ? toyMoney(list[i].price) : ty('freePrice'),
-                                        size: 15, w: FontWeight.w600, color: p.ink, tab: true),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                if (list.isEmpty)
+                  _catEmpty(p, cat)
+                else
+                  for (var i = 0; i < list.length; i++) ...[
+                    _svcCard(p, cat, list[i]),
+                    if (i < list.length - 1) const SizedBox(height: 10),
+                  ],
+                const SizedBox(height: 14),
+                GlassBtn(
+                  label: ty('addToCat', {'cat': tyCat(cat.slug)}),
+                  h: 44,
+                  onTap: () => _openNewService(cat.slug),
                 ),
-                const SizedBox(height: 10),
-                GlassBtn(label: ty('addService'), h: 44, onTap: _openNewService),
                 const SizedBox(height: 16),
                 Tx(ty('servicesNote'), size: 13, color: p.t4, lh: 18),
               ],
@@ -3509,17 +3678,119 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
-  void _openNewService() => setState(() => _svcEdit = {'title': '', 'price': ''});
+  Widget _catEmpty(Pal p, ToyServiceCat cat) => GlassCard(
+        r: Tb.rCard,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 20),
+          child: Column(
+            children: [
+              Illustration(asset: cat.asset, fallback: cat.icon, size: 84),
+              const SizedBox(height: 14),
+              Tx(ty('catEmptyTitle'), size: 16, w: FontWeight.w700, color: p.ink, align: TextAlign.center),
+              const SizedBox(height: 6),
+              Tx(ty('catEmptySub', {'cat': tyCat(cat.slug)}),
+                  size: 13, color: p.t4, align: TextAlign.center, lh: 19),
+            ],
+          ),
+        ),
+      );
+
+  /// Item kartasi: chapda kvadrat rasm (yo'q bo'lsa kategoriya gradienti +
+  /// ikonka), o'ngda nom, tavsif va narx. Bosilsa tahrirlash.
+  Widget _svcCard(Pal p, ToyServiceCat cat, HallService sv) {
+    final hall = sv.hallId == null ? null : toyRepo.hallById(sv.hallId)?.name;
+    return Tap(
+      onTap: () => _openEditService(sv),
+      child: GlassCard(
+        r: Tb.rRow,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _svcThumb(cat, sv.cover, 76),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 2),
+                    Tx(sv.title, size: 15, w: FontWeight.w700, color: p.ink, maxLines: 1, ellipsis: true),
+                    if (sv.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Tx(sv.description, size: 12.5, color: p.t4, lh: 17, maxLines: 2, ellipsis: true),
+                    ] else if (hall != null) ...[
+                      const SizedBox(height: 4),
+                      Tx(hall, size: 12.5, color: p.t4, maxLines: 1, ellipsis: true),
+                    ],
+                    const SizedBox(height: 8),
+                    Tx(sv.price > 0 ? toyMoney(sv.price) : ty('freePrice'),
+                        size: 15, w: FontWeight.w700, color: p.ink, tab: true),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              ChevRight(color: p.t5),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Kvadrat muqova. URL bo'lsa tarmoqdan, bo'lmasa (yoki yuklanmasa)
+  /// kategoriya gradienti + ikonka — bo'sh kulrang quti HECH QACHON ko'rinmaydi.
+  Widget _svcThumb(ToyServiceCat cat, String? url, double size) {
+    final ph = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cat.c1, cat.c2],
+        ),
+        borderRadius: BorderRadius.circular(Tb.rIcon),
+      ),
+      child: Icon(cat.icon, size: size * 0.42, color: Colors.white),
+    );
+    if (url == null || url.isEmpty) return ph;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(Tb.rIcon),
+      child: Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) => ph,
+        loadingBuilder: (_, child, ev) => ev == null ? child : ph,
+      ),
+    );
+  }
+
+  void _openNewService([String? cat]) => setState(() => _svcEdit = {
+        'title': '',
+        'price': '',
+        'category': cat ?? _catOpen ?? kToyDefaultCat,
+        'description': '',
+        'images': <String>[],
+      });
 
   void _openEditService(HallService sv) => setState(() => _svcEdit = {
         'id': sv.id,
         'title': sv.title,
         'price': sv.price > 0 ? toyFx(sv.price) : '',
+        'category': sv.category,
+        'description': sv.description,
+        'images': List<String>.from(sv.images),
       });
 
   Widget _svcEditModal(Pal p) {
     final e = _svcEdit!;
     final isNew = e['id'] == null;
+    final cat = catOf('${e['category']}');
+    final imgs = (e['images'] as List).cast<String>();
     void close() => setState(() => _svcEdit = null);
     return _sheet(
       close,
@@ -3528,23 +3799,45 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _sheetTitle(p, isNew ? ty('newService') : ty('editService'), close),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final k in kToyQuickServiceKeys)
-                _smallChip(p, ty(k), e['title'] == ty(k), () => setState(() => e['title'] = ty(k))),
-            ],
+          const SizedBox(height: 18),
+          // ---- Kategoriya (chip qatori) ----
+          Cap(ty('svcCatLabel')),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: kToyServiceCats.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final c = kToyServiceCats[i];
+                return _smallChip(p, tyCat(c.slug), c.slug == cat.slug,
+                    () => setState(() => e['category'] = c.slug));
+              },
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          // ---- Rasmlar ----
+          Cap(ty('svcPhotosCap')),
+          const SizedBox(height: 8),
+          _photoStrip(p, cat, imgs),
+          const SizedBox(height: 6),
+          Tx(ty('photoHint', {'n': '$kToyMaxSvcImages'}), size: 12, color: p.t4),
+          const SizedBox(height: 16),
           _field(p, ty('svcTitleLabel'), '${e['title']}', (v) => setState(() => e['title'] = v),
               hint: ty('svcTitlePh'), icon: Icons.room_service_outlined),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _field(p, ty('svcAmountLabel'), '${e['price']}', (v) => setState(() => e['price'] = v),
               number: true, icon: Icons.payments_outlined),
-          const SizedBox(height: 24),
-          GradientBtn(label: ty('save'), loading: _busy, onTap: () => _saveService(e)),
+          const SizedBox(height: 14),
+          _field(p, ty('svcDescLabel'), '${e['description']}',
+              (v) => setState(() => e['description'] = v),
+              hint: ty('svcDescPh'), icon: Icons.notes_rounded, lines: 3),
+          const SizedBox(height: 22),
+          GradientBtn(
+              label: _imgBusy ? ty('uploading') : ty('save'),
+              loading: _busy || _imgBusy,
+              onTap: () => _saveService(e)),
           if (!isNew) ...[
             const SizedBox(height: 6),
             TextBtn(
@@ -3558,17 +3851,140 @@ class _ToyxonaScreenState extends State<ToyxonaScreen> {
     );
   }
 
+  /// Rasm lentasi: mavjud rasmlar + oxirida "qo'shish" katagi.
+  /// Birinchi rasm MUQOVA — kartochkada va bron varaqasida ko'rinadigan aynan u.
+  Widget _photoStrip(Pal p, ToyServiceCat cat, List<String> imgs) => SizedBox(
+        height: 84,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            for (var i = 0; i < imgs.length; i++) ...[
+              Stack(
+                children: [
+                  _svcThumb(cat, imgs[i], 84),
+                  // O'chirish tugmasi — rasm ustida, o'ng yuqorida
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Tap(
+                      onTap: () => setState(() => imgs.removeAt(i)),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 15, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (imgs.length < kToyMaxSvcImages)
+              Tap(
+                onTap: _imgBusy ? null : _pickServicePhoto,
+                child: Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: p.glass,
+                    border: Border.all(color: p.glassBd),
+                    borderRadius: BorderRadius.circular(Tb.rIcon),
+                  ),
+                  child: _imgBusy
+                      ? const Center(
+                          child: SizedBox(
+                              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, size: 22, color: p.t3),
+                            const SizedBox(height: 4),
+                            Tx(ty('addPhoto'), size: 10.5, color: p.t4, align: TextAlign.center, maxLines: 2),
+                          ],
+                        ),
+                ),
+              ),
+          ],
+        ),
+      );
+
+  /// Galereyadan rasm tanlab, DARHOL serverga yuklaydi va URL'ni formaga qo'shadi.
+  ///
+  /// NEGA DARHOL: forma saqlanmaguncha kutilsa, saqlash bosilganda 5 ta rasm
+  /// ketma-ket yuklanib, ega 30 soniya "Saqlanmoqda" ni kuzatardi va bittasi
+  /// yiqilsa qaysi biri ekani noma'lum qolardi. Yuklangan rasm formaga
+  /// qo'shilgach, saqlash oddiy JSON so'rovi bo'lib qoladi.
+  ///
+  /// SIQISH: maxWidth 1440 + quality 80 -> ~200-400 KB. Server chegarasi 3 MB;
+  /// undan katta fayl (siqilmaydigan PNG) bo'lsa aniq xabar beramiz.
+  Future<void> _pickServicePhoto() async {
+    if (_imgBusy || _svcEdit == null) return;
+    try {
+      final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1440,
+        maxHeight: 1440,
+        imageQuality: 80,
+      );
+      if (x == null || !mounted) return;
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+      if (bytes.lengthInBytes > 3 * 1024 * 1024) {
+        _toastMsg(ty('imgTooBig'));
+        return;
+      }
+      // Kengaytmadan MIME: picker JPEG qaytaradi, lekin PNG/WEBP ham bo'lishi
+      // mumkin (server faqat shu uchtasini qabul qiladi).
+      final lower = x.path.toLowerCase();
+      final mime = lower.endsWith('.png')
+          ? 'image/png'
+          : (lower.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+      setState(() => _imgBusy = true);
+      final url = await toyRepo.uploadServiceImage(bytes, mime);
+      if (!mounted) return;
+      setState(() {
+        _imgBusy = false;
+        if (url != null && _svcEdit != null) {
+          final list = (_svcEdit!['images'] as List).cast<String>();
+          if (list.length < kToyMaxSvcImages) list.add(url);
+        }
+      });
+      if (url == null) _toastMsg(toyRepo.error ?? ty('imgFailed'));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _imgBusy = false);
+      _toastMsg(ty('imgFailed'));
+    }
+  }
+
   Future<void> _saveService(Map<String, dynamic> e) async {
+    if (_imgBusy) return;   // rasm yuklanayotganda saqlash — URL yo'qolardi
     final title = '${e['title']}'.trim();
     final price = _digits('${e['price']}');
     if (title.isEmpty) {
       _toastMsg(ty('needSvcTitle'));
       return;
     }
+    final cat = catOf('${e['category']}').slug;
+    final desc = '${e['description']}'.trim();
+    final imgs = (e['images'] as List).cast<String>();
     setState(() => _busy = true);
     final ok = e['id'] == null
-        ? await toyRepo.createService(title, price)
-        : await toyRepo.patchService('${e['id']}', {'title': title, 'price': price});
+        ? await toyRepo.createService(title, price,
+            category: cat, description: desc, images: imgs)
+        // PATCH: rasmlar TO'LIQ ro'yxat sifatida ketadi — server ro'yxatdan
+        // chiqqan fayllarni Storage'dan ham o'chiradi.
+        : await toyRepo.patchService('${e['id']}', {
+            'title': title,
+            'price': price,
+            'category': cat,
+            'description': desc,
+            'images': imgs,
+          });
     if (!mounted) return;
     setState(() {
       _busy = false;

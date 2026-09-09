@@ -496,4 +496,79 @@ void main() {
       expect(kToyMaxSvcQty, 20);
     });
   });
+
+  // 025 — SERVIS KATEGORIYALARI. Ro'yxat IKKI joyda yashaydi: shu yerda va
+  // backend'dagi src/lib/toyxonaCategories.js. Slug'lar farq qilsa server
+  // "Kategoriya noto'g'ri" (400) qaytarardi va ega sababini bilmasdi.
+  group('servis kategoriyalari (025)', () {
+    // Backend TOY_SERVICE_CATEGORIES bilan AYNAN bir xil tartib va slug'lar.
+    const backend = [
+      'taomnoma', 'tort', 'ichimlik', 'musiqa', 'boshlovchi', 'shou', 'foto',
+      'bezak', 'yoruglik', 'salyut', 'gozallik', 'transport', 'taklifnoma',
+      'sovga', 'xizmat', 'bolalar', 'zal', 'boshqa',
+    ];
+
+    test('slug va TARTIB backend ro\'yxati bilan bir xil', () {
+      expect(kToyServiceCats.map((c) => c.slug).toList(), backend);
+      expect(kToyDefaultCat, 'boshqa');
+      expect(kToyServiceCats.last.slug, kToyDefaultCat, reason: "'boshqa' oxirgi bo'lishi shart");
+    });
+
+    test('catOf — noma\'lum/bo\'sh slug YIQILMAYDI, "boshqa" qaytadi', () {
+      // Server kelajakda yangi kategoriya qo'shsa, ESKI ilova uni ko'rsata
+      // olmaydi — lekin item ekrandan YO'QOLMASLIGI kerak.
+      expect(catOf('yangi_kategoriya').slug, 'boshqa');
+      expect(catOf('').slug, 'boshqa');
+      expect(catOf(null).slug, 'boshqa');
+      expect(catOf('musiqa').slug, 'musiqa');
+    });
+
+    test('har kategoriyaning nomi 6 TILDA ham bor', () {
+      for (final c in kToyServiceCats) {
+        for (final e in kToyLangs.entries) {
+          expect(e.value[c.key], isNotNull,
+              reason: "${e.key}: '${c.key}' kaliti yo'q (${c.slug})");
+          expect(e.value[c.key]!.trim(), isNotEmpty, reason: '${e.key}: ${c.key} bo\'sh');
+        }
+      }
+    });
+
+    test('HallService.fromJson — kategoriya/rasm/tavsif, eski javob ham ishlaydi', () {
+      final full = HallService.fromJson({
+        'id': 's1',
+        'category': 'musiqa',
+        'title': "Ansambl Navro'z",
+        'price': 4000000,
+        'description': 'Repertuar: milliy va zamonaviy',
+        'images': ['https://x/1.jpg', 'https://x/2.jpg', 42, ''],
+        'sort': 3,
+      });
+      expect(full.category, 'musiqa');
+      expect(full.cat.slug, 'musiqa');
+      expect(full.description, 'Repertuar: milliy va zamonaviy');
+      // Raqam va bo'sh satr TASHLANADI (buzuq javob ekranni yiqitmasin)
+      expect(full.images, ['https://x/1.jpg', 'https://x/2.jpg']);
+      expect(full.cover, 'https://x/1.jpg');
+
+      // 024 davridagi javob (category/images YO'Q) — 'boshqa', rasmsiz
+      final old = HallService.fromJson({'id': 's2', 'title': 'Video', 'price': 0});
+      expect(old.category, 'boshqa');
+      expect(old.images, isEmpty);
+      expect(old.cover, isNull);
+    });
+
+    test('BookingItem — SNAPSHOT kategoriya va rasm', () {
+      final it = BookingItem.fromJson({
+        'id': 'i1', 'title': 'Salyut', 'amount': 500000, 'qty': 2,
+        'category': 'salyut', 'image': 'https://x/s.jpg',
+      });
+      expect(it.category, 'salyut');
+      expect(it.image, 'https://x/s.jpg');
+      // Eski qator: rasm yo'q -> null (bo'sh satr EMAS, aks holda Image.network
+      // bo'sh manzil bilan chaqirilardi)
+      final old = BookingItem.fromJson({'id': 'i2', 'title': 'Tort', 'amount': 300000, 'image': ''});
+      expect(old.image, isNull);
+      expect(old.category, 'boshqa');
+    });
+  });
 }

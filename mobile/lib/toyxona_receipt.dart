@@ -124,14 +124,25 @@ Future<Uint8List> buildBookingReceipt(Booking b, {Hall? hall, String ownerName =
                 style: pw.TextStyle(fontSize: 9, color: muted)),
           ),
         ],
+        // 025: xizmatlar KATEGORIYA bo'yicha guruhlanadi (chekda ham ekrandagi
+        // tartib). Rasm QO'YILMAYDI: PDF ni tarmoqqa bog'lab qo'yardi va chek
+        // oflayn (to'yxonada internet yo'q paytda) chiqmay qolardi.
         if (b.items.isNotEmpty) ...[
           cap(ty('extrasCap')),
-          for (final it in b.items)
-            row(
-              '${it.title}${it.qty > 1 ? ' × ${it.qty}' : ''}${it.isBonus ? ' · ${ty('bonusBadge')}' : ''}',
-              it.isBonus ? '${toyMoney(it.total)} → 0' : toyMoney(it.total),
-              color: it.isBonus ? muted : null,
-            ),
+          for (final c in kToyServiceCats)
+            if (b.items.any((it) => it.category == c.slug)) ...[
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 4, bottom: 2),
+                child: pw.Text(tyCat(c.slug),
+                    style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: muted)),
+              ),
+              for (final it in b.items.where((x) => x.category == c.slug))
+                row(
+                  '${it.title}${it.qty > 1 ? ' × ${it.qty}' : ''}${it.isBonus ? ' · ${ty('bonusBadge')}' : ''}',
+                  it.isBonus ? '${toyMoney(it.total)} → 0' : toyMoney(it.total),
+                  color: it.isBonus ? muted : null,
+                ),
+            ],
         ],
         hr(),
         row(ty('totalLabel'), toyMoney(b.total), big: true),
